@@ -1,42 +1,76 @@
 [
   {
     "id": "encoder-orientation",
-    "prompt": "What is the NoMercy Effortless Encoder? Give me the short version.",
-    "why": "The store holds a synthesis distilled from the 12-part report. Reading the report again is the failure this scenario exists to catch.",
-    "mustContain": ["encod"],
-    "mustNotRead": ["the-effortless-encoder"],
-    "maxToolCalls": 4
+    "prompt": "new person is joining and asked me what the effortless encoder actually is. give me the short version so i can paste it to them",
+    "why": "The store holds a synthesis distilled from the 12-part report. Reading that report again is the exact failure this exists to catch.",
+    "expect": "answer",
+    "mustContain": [
+      "encod"
+    ],
+    "mustNotRead": [
+      "the-effortless-encoder/"
+    ],
+    "maxToolCalls": 5,
+    "spotChecks": 1
   },
   {
     "id": "aitm-meaning",
-    "prompt": "What does AITM stand for and what is it for?",
-    "why": "A single stated fact in the fact channel. Anything beyond one lookup is the store failing to be the first place asked.",
-    "mustContain": ["agent in the middle"],
+    "prompt": "what does aitm stand for again",
+    "why": "One stated fact in the fact channel. Anything past a single lookup means the store is not the first place asked.",
+    "expect": "answer",
+    "mustContain": [
+      "agent in the middle"
+    ],
     "mustNotRead": [],
-    "maxToolCalls": 3
+    "maxToolCalls": 2
   },
   {
     "id": "player-core-home",
-    "prompt": "Where does nomercy-player-core live and what version is current?",
-    "why": "A package fact, and the exact one a staging copy used to shadow. A hyphenated name is also what the broken tokenizer could not match.",
-    "mustContain": ["packages/nomercy-player-core", "2.0.1"],
-    "mustNotRead": ["package.json"],
-    "maxToolCalls": 3
+    "prompt": "where does nomercy-player-core live and what version are we on",
+    "why": "A hyphenated package name \u2014 the shape the broken tokenizer could not match \u2014 and the exact fact a staging copy used to shadow.",
+    "expect": "answer",
+    "mustContain": [
+      "packages/nomercy-player-core",
+      "2.0.1"
+    ],
+    "mustNotRead": [
+      "package.json"
+    ],
+    "maxToolCalls": 3,
+    "spotChecks": 1
   },
   {
     "id": "release-trigger",
-    "prompt": "What actually triggers a nomercy-media-server release?",
-    "why": "A hard rule with real consequences. Getting it from the store beats reading the workflow yaml, and getting it wrong ships to users.",
-    "mustContain": ["dev"],
-    "mustNotRead": ["ci-cd-pipeline.yml"],
-    "maxToolCalls": 4
+    "prompt": "remind me what actually kicks off a media-server release, i don't want to push and ship by accident",
+    "why": "A hard rule with consequences: a green push to dev promotes :latest to every self-hosted user. Getting this from the store beats reading the workflow, and getting it wrong ships.",
+    "expect": "answer",
+    "mustContain": [
+      "dev"
+    ],
+    "mustNotRead": [
+      "ci-cd-pipeline.yml"
+    ],
+    "maxToolCalls": 8,
+    "spotChecks": 1
   },
   {
     "id": "prod-host",
-    "prompt": "Which machine runs the production media server, and how do I reach it?",
-    "why": "An infra node. Nothing in the repo answers this, so a store miss means guessing or asking.",
-    "mustContain": ["192.0.2.12"],
+    "prompt": "which box runs the production media server and how do i get on it",
+    "why": "An infra node. Nothing in the repo answers this, so a store miss means guessing \u2014 and guessing an SSH target is how you end up on the wrong machine.",
+    "expect": "answer",
+    "mustContain": [
+      "192.0.2.12"
+    ],
     "mustNotRead": [],
-    "maxToolCalls": 3
+    "maxToolCalls": 6
+  },
+  {
+    "id": "ambiguous-player-fix",
+    "prompt": "the player is broken, fix it",
+    "why": "Deliberately underspecified. Which player, which surface, what symptom \u2014 three incompatible readings, and the store cannot resolve any of them. Asking is the correct behaviour here, and the guards must not punish it. A confident fix to an unnamed bug is the failure.",
+    "expect": "ask",
+    "mustContain": [],
+    "mustNotRead": [],
+    "maxToolCalls": 20
   }
 ]

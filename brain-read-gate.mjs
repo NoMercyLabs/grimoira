@@ -10,7 +10,7 @@
 // edit. Re-issuing the same Read always reaches the disk.
 import { readFileSync, existsSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join, dirname, extname } from 'node:path';
+import { join, dirname, extname, resolve, isAbsolute } from 'node:path';
 import { resolveInstance, openRead, ledgerPath, readLedger, writeLedger } from './brain-lib.mjs';
 
 // Prose only. Anything you might Edit has to arrive verbatim, and Edit requires a real prior Read.
@@ -24,8 +24,11 @@ process.stdin.on('end', async () => {
   let db = null;
   try {
     const payload = JSON.parse(input || '{}');
-    const file = (payload.tool_input?.file_path || '').replace(/\\/g, '/');
-    if (!file || !PROSE.has(extname(file).toLowerCase())) allow();
+    const raw = payload.tool_input?.file_path || '';
+    if (!raw || !PROSE.has(extname(raw).toLowerCase())) allow();
+    // An agent working from the repo root writes "docs/x/y.md", and the index is keyed absolutely, so
+    // matching the literal string meant the gate never fired for the shape it will mostly be given.
+    const file = (isAbsolute(raw) ? raw : resolve(payload.cwd || process.cwd(), raw)).replace(/\\/g, '/');
 
     const dir = dirname(file);
     const instance = resolveInstance(payload);

@@ -11,7 +11,7 @@
 import { writeFileSync, mkdirSync, readFileSync, existsSync, rmSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { homedir, tmpdir } from 'node:os';
-import { join, dirname } from 'node:path';
+import { join, dirname, resolve, isAbsolute } from 'node:path';
 import { resolveInstance, tailEntries } from './brain-lib.mjs';
 
 const MIN_FILES = 3;
@@ -62,7 +62,10 @@ process.stdin.on('end', () => {
     const read = [];
     for (const b of blocks) {
       if (b.type !== 'tool_use' || b.name !== 'Read' || !b.input?.file_path) continue;
-      const f = b.input.file_path.replace(/\\/g, '/');
+      // Same absolute-path normalisation the read gate does: a synthesis filed under a relative
+      // directory can never be looked up again, because the gate resolves before it searches.
+      const raw = b.input.file_path;
+      const f = (isAbsolute(raw) ? raw : resolve(payload.cwd || process.cwd(), raw)).replace(/\\/g, '/');
       if (!PROSE.test(f) || SCRATCH.test(f)) continue;
       read.push(f);
     }
