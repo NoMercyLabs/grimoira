@@ -9,10 +9,7 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { resolveInstance } from './brain-lib.mjs';
-
-export const briefPath = (instance, session) =>
-  join(homedir(), '.aitm', instance, 'compact', `${String(session || 'x').slice(0, 64)}.md`);
+import { resolveInstance, briefPath } from './brain-lib.mjs';
 
 const readEntries = (tp) => {
   const out = [];
@@ -132,20 +129,15 @@ process.stdin.on('end', () => {
     const out = briefPath(instance, payload.session_id);
     try { mkdirSync(dirname(out), { recursive: true }); writeFileSync(out, brief); } catch { /* best effort */ }
 
-    process.stdout.write(JSON.stringify({
-      systemMessage: `aitm: anchors saved for after the compaction (${files.length} file(s), ${todos.length} open todo(s), ${repos.length} repo(s)).`,
-      hookSpecificOutput: {
-        hookEventName: 'PreCompact',
-        additionalContext:
-          'Before this context is replaced: anything durable you learned this session and have NOT yet ' +
-          'written to the store is about to become unrecoverable. A summary is a retelling; the store is ' +
-          'the record. Write those facts now with `aitm add --term/--value/--provenance`.\n\n' +
-          'The summary itself must carry, verbatim and not paraphrased: the exact wording of any standing ' +
-          'directive, every file path already changed, the branch each repo is on, what has been committed ' +
-          'versus what is still uncommitted, and every item not yet finished. Concrete anchors survive ' +
-          'compaction; impressions do not.\n\n' + brief,
-      },
-    }));
+    // PLAIN TEXT, not a hookSpecificOutput envelope. PreCompact collects each hook's raw stdout; the
+    // envelope every other hook event takes fails schema validation here, which is how this hook spent
+    // its first real compaction printing an error instead of saving anything.
+    process.stdout.write(
+      'The summary must carry these verbatim, not paraphrased: the exact wording of any standing ' +
+      'directive, every file path already changed, the branch each repo is on, what is committed versus ' +
+      'still uncommitted, and every unfinished item. Concrete anchors survive compaction; impressions ' +
+      `do not.\n\n${brief}`
+    );
   } catch {
     // fail open — a compaction must never be blocked by bookkeeping
   }

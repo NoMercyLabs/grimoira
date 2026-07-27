@@ -470,6 +470,13 @@ export function ledgerPath(instance, sessionId) {
   return join(homedir(), '.aitm', instance, 'gate', `${String(sessionId || 'nosession').slice(0, 64)}.json`);
 }
 
+// Shared by the PreCompact writer and the UserPromptSubmit reader. It lives here rather than in either
+// hook because importing a hook module RUNS it: compact-restore imported this one name from
+// compact-brief and thereby fired the whole brief hook on every prompt, printing its output too.
+export function briefPath(instance, sessionId) {
+  return join(homedir(), '.aitm', instance, 'compact', `${String(sessionId || 'x').slice(0, 64)}.md`);
+}
+
 // Read the END of a transcript rather than all of it.
 //
 // Every Stop and UserPromptSubmit hook needs the last turn, and each was reading and JSON-parsing the
