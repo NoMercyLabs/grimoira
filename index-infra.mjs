@@ -35,6 +35,7 @@ const links = [];
 const SECTIONS = [
   ['hosts', 'platform', 'host'],
   ['services', 'seam', 'service'],
+  ['environments', 'contract', 'environment'],
   ['registries', 'reference', 'registry'],
   ['domains', 'reference', 'domain'],
 ];
