@@ -1,0 +1,85 @@
+// UserPromptSubmit hook: say how full the context is, at the one moment where acting on it is free.
+//
+// The product enforces a hard auto-compact ceiling (CLAUDE_AUTOCOMPACT_PCT_OVERRIDE). That ceiling
+// fires wherever it lands, which is usually mid-task, and a compaction mid-task is the expensive kind.
+// This is the earlier, cheaper signal: at the start of a turn nothing is half-finished, so a compaction
+// here costs almost nothing. It nudges once per band crossed, never on every prompt.
+import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join, dirname } from 'node:path';
+import { resolveInstance } from './brain-lib.mjs';
+
+const PREFER = 45;   // guideline: a good moment to compact
+const ENFORCE = 70;  // matches CLAUDE_AUTOCOMPACT_PCT_OVERRIDE, where the product compacts on its own
+
+// The transcript records the model WITHOUT its long-context suffix — a 1M session logs plain
+// "claude-opus-5" — so the id cannot tell the window apart and reading it did report 106% full.
+// The observed peak can: a session that has held more than the small window is on the large one.
+const WINDOWS = [200_000, 1_000_000];
+
+function windowFor(peak) {
+  const env = Number(process.env.CLAUDE_CODE_MAX_CONTEXT_TOKENS);
+  if (env > 0) return env;
+  return WINDOWS.find((w) => peak <= w * 0.98) ?? WINDOWS[WINDOWS.length - 1];
+}
+
+function used(entries) {
+  let latest = 0, peak = 0;
+  for (const e of entries) {
+    const u = e.message?.usage;
+    if (!u) continue;
+    const total = (u.input_tokens || 0) + (u.cache_read_input_tokens || 0) + (u.cache_creation_input_tokens || 0);
+    if (total <= 0) continue;
+    latest = total;
+    if (total > peak) peak = total;
+  }
+  return latest > 0 ? { total: latest, peak } : null;
+}
+
+let input = '';
+process.stdin.on('data', (d) => { input += d; });
+process.stdin.on('end', () => {
+  try {
+    const payload = JSON.parse(input || '{}');
+    const tp = payload.transcript_path;
+    if (!tp || !existsSync(tp)) process.exit(0);
+
+    const entries = [];
+    for (const line of readFileSync(tp, 'utf8').split('\n')) {
+      if (!line.trim()) continue;
+      try { entries.push(JSON.parse(line)); } catch { /* partial write */ }
+    }
+    const u = used(entries);
+    if (!u) process.exit(0);
+
+    const pct = Math.round((u.total / windowFor(u.peak)) * 100);
+    if (pct < PREFER) process.exit(0);
+
+    const instance = resolveInstance(payload);
+    const statePath = join(homedir(), '.aitm', instance, 'context-watch.json');
+    let state = { sid: null, band: 0 };
+    try { state = JSON.parse(readFileSync(statePath, 'utf8')); } catch { /* first run */ }
+    if (state.sid !== payload.session_id) state = { sid: payload.session_id, band: 0 };
+
+    const band = pct >= ENFORCE ? 2 : 1;
+    if (band <= state.band) process.exit(0);
+    state.band = band;
+    try { mkdirSync(dirname(statePath), { recursive: true }); writeFileSync(statePath, JSON.stringify(state)); } catch { /* best effort */ }
+
+    const note = band === 2
+      ? `Context is at ${pct}% and the automatic compaction fires at ${ENFORCE}%, so it will happen ` +
+        'inside whatever you are doing next. Get ahead of it: write anything durable to the store now ' +
+        '(`aitm add`), finish or checkpoint the step you are on, and prefer running /compact at the seam ' +
+        'rather than being interrupted in the middle of one.'
+      : `Context is at ${pct}%. This is the cheap moment to compact — nothing is half-finished at the ` +
+        'start of a turn. Work normally, but keep durable findings going into the store as you learn ' +
+        'them rather than holding them in context, and say so if a compaction now would be sensible.';
+
+    process.stdout.write(JSON.stringify({
+      hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: `aitm context watch: ${note}` },
+    }));
+  } catch {
+    // fail open
+  }
+  process.exit(0);
+});
