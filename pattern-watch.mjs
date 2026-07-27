@@ -29,6 +29,7 @@ const WRAPPERS = new Set([
   'foreach', 'try', 'catch', 'finally', 'begin', 'process', 'end',
 ]);
 const SUBCOMMANDLESS = new Set(['node', 'python', 'python3', 'bash', 'sh', 'pwsh', 'powershell']);
+const RUNNERS = new Set(['npm', 'yarn', 'pnpm', 'bun', 'npx', 'dotnet']);
 // A bare general-purpose utility is not a task. "grep" repeated fifty times says nothing that could
 // be turned into a script; only a named script or subcommand describes work worth codifying.
 const UTILITIES = new Set([
@@ -70,6 +71,13 @@ function signature(raw) {
     if (script) sub = (script.split(/[\\/]/).pop() || '').toLowerCase();
   } else {
     sub = (words.slice(1).find((w) => !w.startsWith('-') && !w.includes('/') && !w.includes('\\') && isWord(w)) || '').toLowerCase();
+  }
+  // "npm run" names no task; the script after it does. Without this every build, test and lint in the
+  // repo collapsed into one signature called "npm run", which can never become anything.
+  if (RUNNERS.has(exe) && (sub === 'run' || sub === 'run-script' || sub === 'exec')) {
+    const after = words.slice(words.findIndex((w) => w.toLowerCase() === sub) + 1)
+      .find((w) => !w.startsWith('-') && isWord(w));
+    sub = after ? `${sub} ${after.toLowerCase()}` : sub;
   }
   if (sub.length > 40) sub = '';
   if (!sub && UTILITIES.has(exe)) return null;
