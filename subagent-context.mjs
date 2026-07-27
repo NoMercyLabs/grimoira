@@ -1,0 +1,43 @@
+// SubagentStart hook: arm every spawned agent with the AITM brain. Subagents never see the
+// UserPromptSubmit recall, so without this each one starts blind to the ground-truth store.
+// Payload carries cwd (instance resolution) but not the agent prompt, so the brief is uniform
+// and deliberately lean — it multiplies across every agent in a fan-out. Always fails open.
+import { existsSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join, basename } from 'node:path';
+
+let input = '';
+process.stdin.on('data', (d) => { input += d; });
+process.stdin.on('end', async () => {
+  try {
+    const payload = JSON.parse(input || '{}');
+    const proj = process.env.CLAUDE_PROJECT_DIR || payload.cwd || process.cwd();
+    const slug = basename(proj.replace(/[\\/]+$/, '')).toLowerCase().replace(/[^a-z0-9_-]/g, '');
+    const dbPath = join(homedir(), '.aitm', slug || 'default', 'aitm.db');
+    if (!existsSync(dbPath)) process.exit(0);
+
+    const { DatabaseSync } = await import('node:sqlite');
+    const db = new DatabaseSync(dbPath, { readOnly: true });
+    db.exec('PRAGMA busy_timeout = 2000');
+    const counts = db.prepare(
+      "SELECT (SELECT count(*) FROM node_now) AS nodes, (SELECT count(*) FROM facts) AS facts, (SELECT count(*) FROM memory) AS rules"
+    ).get();
+    const top = db.prepare(
+      "SELECT n.label FROM usage u JOIN node_now n ON n.k = u.node_k WHERE length(n.label) <= 90 ORDER BY u.hits DESC LIMIT 5"
+    ).all().map((r) => r.label);
+    db.close();
+    if (!counts || counts.nodes === 0) process.exit(0);
+
+    const ctx =
+      `AITM ground-truth store active (${counts.nodes} nodes, ${counts.facts} facts, ${counts.rules} rules). ` +
+      'Before stating any project fact (URL, path, port, field, convention) query the aitm MCP tools — fact(), rule(), brain_recall(), brain_place() — instead of guessing; they refuse rather than hallucinate. ' +
+      'If you learn a durable fact or hit a wrong/empty answer, report it to your caller so it gets staged.' +
+      (top.length > 0 ? ` Hot context: ${top.join('; ')}.` : '');
+    process.stdout.write(JSON.stringify({
+      hookSpecificOutput: { hookEventName: 'SubagentStart', additionalContext: ctx },
+    }));
+  } catch {
+    // fail open — never break agent spawn on a context error
+  }
+  process.exit(0);
+});

@@ -1,0 +1,16 @@
+# Build output. Rebuild with build-cli.ps1 / build-mcp.ps1.
+bin/
+bin-cli/
+obj/
+*.csproj
+*.user
+
+# Per-instance stores live in ~/.aitm, never in the repo.
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.bak-*
+
+# Curated per-ecosystem exports. Project-specific knowledge, not engine code.
+seeds/
