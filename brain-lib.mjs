@@ -265,16 +265,24 @@ export function historyFor(db, filePath, { limit = 4 } = {}) {
   return picks;
 }
 
-export function format(picks) {
+// Rows that are already as good as the file they came from. Re-opening the source to confirm one of
+// these is pure cost: a hard rule and a stated fact are the operator's own words, and an extracted row
+// names the file it was read out of, so the check has already been done and recorded.
+const TRUSTED = new Set(['stated', 'extracted']);
+
+export function format(picks, { caveat = false } = {}) {
   return picks.map((r) => {
     // "stated" carries the operator's authority; "inferred" is the agent's own conclusion and can be
     // overturned by evidence. Collapsing the two is how a guess starts getting cited as ground truth.
     const prov = r.provenance && r.provenance !== 'unverified' ? `/${r.provenance}` : '';
     const tag = `[${r.kindTag}${r.hard ? '/HARD' : ''}${prov}]`;
     const loc = r.loc ? `  (${r.loc})` : '';
+    // Marking only the rows that need it, rather than warning about all of them, is the difference
+    // between a caveat that gets read and one that gets applied to the answer as well as the guess.
+    const doubt = caveat && !r.hard && !TRUSTED.has(r.provenance) ? '  ← unconfirmed, check before acting' : '';
     return r.head.length > 0
-      ? `• ${tag} ${clip(r.head, 90)}${loc}\n    ${clip(r.body, 260)}`
-      : `• ${tag} ${clip(r.body, 220)}${loc}`;
+      ? `• ${tag} ${clip(r.head, 90)}${loc}${doubt}\n    ${clip(r.body, 260)}`
+      : `• ${tag} ${clip(r.body, 220)}${loc}${doubt}`;
   }).join('\n');
 }
 

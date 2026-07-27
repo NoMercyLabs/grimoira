@@ -35,7 +35,11 @@ process.stdin.on('end', async () => {
     process.stdout.write(JSON.stringify({
       hookSpecificOutput: {
         hookEventName: 'UserPromptSubmit',
-        additionalContext: `aitm recall (auto — verify before relying on it):\n${format(picks)}`,
+        // The caveat is per row, not a banner. A blanket "verify before relying on it" told the model to
+        // go and check EVERYTHING, so a probe that was handed the package's home and version at rank 2
+        // opened package.json to confirm it — the store answered and got overruled by its own header.
+        // A hard rule and a stated fact carry authority; only a guess needs checking.
+        additionalContext: `aitm recall (auto):\n${format(picks, { caveat: true })}`,
       },
     }));
   } catch {

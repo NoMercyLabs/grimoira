@@ -95,7 +95,9 @@ function score(scenario, events, ms, stderr) {
   });
   const storeCalls = calls.filter((c) => /aitm|brain|fact|rule|recall|doc/i.test(c.name));
   const reads = calls.filter((c) => c.name === 'Read').map((c) => (c.input?.file_path || '').replace(/\\/g, '/'));
-  const lower = answer.toLowerCase();
+  // Separators are cosmetic. Demanding "packages/nomercy-player-core" failed a run that answered
+  // "C:\Projects\NoMercy\packages\nomercy-player-core\" — correct, and richer than what was asked for.
+  const lower = answer.toLowerCase().replace(/\\/g, '/');
 
   const checks = [];
   const add = (ok, label) => checks.push({ ok, label });
@@ -123,7 +125,10 @@ function score(scenario, events, ms, stderr) {
     // UserPromptSubmit recall often injects the fact before anything can be asked. Requiring a visible
     // call marked the best possible run — right answer, zero tool calls, two output tokens — as a
     // failure. What matters is that the answer did not come from the filesystem.
-    add(storeCalls.length > 0 || gateServed || (correct && reads.length === 0), 'answer came from the store, not the tree');
+    // Same allowance as above: a right answer plus one confirming read is the store doing its job, not
+    // the tree. Only a sweep means the store failed to supply it.
+    add(storeCalls.length > 0 || gateServed || (correct && reads.length <= allowance),
+      'answer came from the store, not the tree');
   }
   add(calls.length <= scenario.maxToolCalls, `<= ${scenario.maxToolCalls} tool calls (used ${calls.length})`);
 
