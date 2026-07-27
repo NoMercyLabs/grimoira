@@ -86,6 +86,13 @@ switch (cmd)
     case "shed-doc":
         ShedDoc(GetFlag("--path") ?? throw new ArgumentException("shed-doc needs --path <substring>"));
         break;
+    case "add-synthesis":
+        AddSynthesis(
+            GetFlag("--path") ?? throw new ArgumentException("add-synthesis needs --path <source dir>"),
+            GetFlag("--from") ?? throw new ArgumentException("add-synthesis needs --from <file>"),
+            GetFlag("--title") ?? "",
+            GetFlag("--sources") ?? "");
+        break;
     case "shed-memory":
         ShedMemory(GetFlag("--key") ?? throw new ArgumentException("shed-memory needs --key <slug>"));
         break;
@@ -217,6 +224,7 @@ switch (cmd)
             "index-docs --from <dir>             absorb AI-meta docs, chunked by section",
             "doc <terms>                         search absorbed docs",
             "shed-doc --path <s>                 drop absorbed doc sections by path",
+            "add-synthesis --path <dir> --from <f>  file an answer distilled from a source set",
             "shed-memory --key <slug>            forget one memory by key",
             "shed-fact --key <term>             forget one fact by key (its term)",
             "index-memory --from <dir>           migrate MEMORY.md files into the memory channel",
@@ -960,21 +968,80 @@ void DocCmd(string terms)
 {
     string match = BuildMatch(terms);
     if (match.Length == 0) { Console.WriteLine("no usable terms."); return; }
+    // A synthesis is an answer; the sections it was distilled from are sources. When both match, the
+    // answer must come first, or the reader is handed the raw material it already replaces.
+    //
+    // It gets its own query rather than a rank bonus, because bm25 scores against document length and a
+    // synthesis is by nature the longest row on its subject — it lost to short sections of its own
+    // source, and widening the candidate pool only moved the point where it fell out.
+    int n = 0;
+    n += PrintDocs("SELECT d.path,d.title,d.category,d.content FROM (SELECT k, bm25(docs_fts) AS score FROM docs_fts WHERE docs_fts MATCH $m) m JOIN docs d ON d.k=m.k WHERE d.category='synthesis' ORDER BY m.score LIMIT 2", match);
+    n += PrintDocs("SELECT d.path,d.title,d.category,d.content FROM (SELECT k, bm25(docs_fts) AS score FROM docs_fts WHERE docs_fts MATCH $m ORDER BY score LIMIT 5) m JOIN docs d ON d.k=m.k WHERE d.category<>'synthesis' ORDER BY m.score", match);
+    if (n == 0) Console.WriteLine($"no docs match \"{terms}\".");
+}
+
+int PrintDocs(string sql, string match)
+{
     using SqliteCommand c = db.CreateCommand();
-    c.CommandText = @"SELECT d.path,d.title,d.category,d.content,m.score
-        FROM (SELECT k, bm25(docs_fts) AS score FROM docs_fts WHERE docs_fts MATCH $m ORDER BY score LIMIT 5) m
-        JOIN docs d ON d.k=m.k ORDER BY m.score";
+    c.CommandText = sql;
     c.Parameters.AddWithValue("$m", match);
     using SqliteDataReader r = c.ExecuteReader();
     int n = 0;
     while (r.Read())
     {
+        string category = r.GetString(2);
         string content = r.GetString(3);
-        string snip = content.Length <= 400 ? content : content[..400] + "…";
-        Console.WriteLine($"• [{r.GetString(2)}] {r.GetString(1)}  ({r.GetString(0)})\n  {snip}\n");
+        // A synthesis IS the answer, so clipping it to a preview defeats the point of having one.
+        int cap = category == "synthesis" ? 20000 : 400;
+        string snip = content.Length <= cap ? content : content[..cap] + "…";
+        Console.WriteLine($"• [{category}] {r.GetString(1)}  ({r.GetString(0)})\n  {snip}\n");
         n++;
     }
-    if (n == 0) Console.WriteLine($"no docs match \"{terms}\".");
+    return n;
+}
+
+// Store an answer that was distilled from a set of source files.
+//
+// The compacted sources are barely smaller than the originals — prose has no markdown chrome to strip —
+// so serving them back saves nothing. What is worth keeping is the ANSWER: a session read twelve files
+// totalling 140 KB to write a 15 KB orientation brief, threw the brief away, and left the next person to
+// read the same 140 KB. A synthesis is that brief, filed against the directory it came from.
+//
+// It is explicitly second-hand: category 'synthesis', sources listed, and stamped with the newest source
+// mtime so a reader can tell when the sources have moved on underneath it.
+void AddSynthesis(string sourceDir, string bodyFile, string title, string sources)
+{
+    string body;
+    try { body = File.ReadAllText(bodyFile); }
+    catch (Exception e) { Console.Error.WriteLine($"add-synthesis: cannot read {bodyFile} ({e.Message})"); return; }
+    if (body.Trim().Length < 400) { Console.WriteLine("add-synthesis: body too short to be worth storing."); return; }
+
+    string dir = Path.GetFullPath(sourceDir).Replace('\\', '/').TrimEnd('/');
+    string key = $"synthesis:{dir.ToLowerInvariant()}";
+    string name = string.IsNullOrWhiteSpace(title) ? dir.Split('/').Last().Replace('-', ' ') : title;
+
+    long newest = 0;
+    foreach (string s in sources.Split(';', StringSplitOptions.RemoveEmptyEntries))
+    {
+        try { newest = Math.Max(newest, new FileInfo(s.Trim()).LastWriteTimeUtc.Ticks); }
+        catch { /* source moved or renamed */ }
+    }
+
+    // The stamp travels in the row so the read gate can refuse a synthesis its sources have outrun.
+    // Sources are named, not pathed: they all live in dir, and twelve repeated absolute paths ahead of
+    // the answer is a kilobyte of provenance nobody reads.
+    string names = string.Join(", ", sources.Split(';', StringSplitOptions.RemoveEmptyEntries).Select(s => Path.GetFileName(s.Trim())));
+    string content = Compact(body);
+    string stamped = $"synthesis of {dir}\nfrom: {names}\nnewest_source_ticks: {newest}\n\n{content}";
+    string terms = $"{PathTerms(dir)} synthesis overview brief";
+
+    Exec("BEGIN");
+    Run("INSERT INTO docs(k,path,title,category,content,terms) VALUES($k,$p,$t,'synthesis',$co,$te) ON CONFLICT(k) DO UPDATE SET title=$t,content=$co,terms=$te",
+        ("$k", key), ("$p", dir), ("$t", name), ("$co", stamped), ("$te", terms));
+    Run("DELETE FROM docs_fts WHERE k=$k", ("$k", key));
+    Run("INSERT INTO docs_fts(k,title,content) VALUES($k,$t,$co)", ("$k", key), ("$t", $"{name} {terms}"), ("$co", stamped));
+    Exec("COMMIT");
+    Console.WriteLine($"synthesis stored for {dir} ({content.Length} chars).");
 }
 
 // Shed outdated absorbed docs by path substring (e.g. a superseded plan or a historical session log).

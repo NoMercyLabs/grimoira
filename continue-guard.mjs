@@ -154,7 +154,11 @@ process.stdin.on('end', () => {
         `capable of fixing and reporting it as an open item is deferral wearing a status update — it forces ` +
         `the owner to type the instruction your own analysis already implied, which is the single thing he has ` +
         `asked most often to stop. Go fix it now. If something genuinely prevents you, name that specific ` +
-        `obstacle instead of listing the symptom.`
+        `obstacle instead of listing the symptom.\n\n` +
+        `Scope is also a valid answer, and it is NOT a question. If the work is plainly outside what was ` +
+        `asked — a refactor surfaced by an orientation question, a rewrite surfaced by a bug report — say ` +
+        `so in one flat line and stop. Do not turn it into a menu of options; offering "shall I do A or B" ` +
+        `is the hedge-ask, and it costs him the same reply that deferral does.`
       );
     }
     if (deferred) {
