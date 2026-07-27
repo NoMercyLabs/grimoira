@@ -24,7 +24,9 @@ function signature(raw) {
     const w = stage.trim().split(/\s+/).filter(Boolean);
     if (w.length === 0) continue;
     if (WRAPPERS.has(w[0]) || w[0].includes('=')) continue;
-    words = w;
+    // Everything from the first redirect on describes where output went, not what was run.
+    const redirect = w.findIndex((t) => /^\d?>>?$|^<$/.test(t) || /^\d?>&\d$/.test(t));
+    words = redirect > 0 ? w.slice(0, redirect) : w;
     break;
   }
   if (words.length === 0) return null;
@@ -32,13 +34,17 @@ function signature(raw) {
   const exe = (words[0].split(/[\\/]/).pop() || words[0]).replace(/\.(exe|cmd|ps1)$/i, '').toLowerCase();
   if (!exe || exe.length > 40) return null;
 
+  // A redirect is not a subcommand. Without this, "./build.ps1 -Quick 2>&1" signed as "build 2>&1"
+  // and the watcher then nagged about a task that is already a script.
+  const isWord = (w) => /^[A-Za-z][\w.-]*$/.test(w);
+
   // For an interpreter the script name IS the subcommand; for a normal CLI it is the next bare word.
   let sub = '';
   if (SUBCOMMANDLESS.has(exe)) {
-    const script = words.slice(1).find((w) => !w.startsWith('-'));
+    const script = words.slice(1).find((w) => !w.startsWith('-') && isWord(w.split(/[\\/]/).pop() || ''));
     if (script) sub = (script.split(/[\\/]/).pop() || '').toLowerCase();
   } else {
-    sub = (words.slice(1).find((w) => !w.startsWith('-') && !w.includes('/') && !w.includes('\\')) || '').toLowerCase();
+    sub = (words.slice(1).find((w) => !w.startsWith('-') && !w.includes('/') && !w.includes('\\') && isWord(w)) || '').toLowerCase();
   }
   if (sub.length > 40) sub = '';
   return sub ? `${exe} ${sub}` : exe;

@@ -256,6 +256,89 @@ export function format(picks) {
   }).join('\n');
 }
 
+// Label-propagation communities over the triple graph. Cheap, deterministic given a fixed iteration
+// order, and needs no tuning — which matters because this runs on demand, not on a schedule.
+//
+// Computed when asked rather than injected every session: a standing summary costs tokens on every
+// turn whether or not the work touches it, and the whole point of the store is to spend context only
+// where a change actually reaches.
+export function communities(db, { rounds = 8 } = {}) {
+  let rows = [];
+  try {
+    rows = db.prepare(
+      `SELECT s, p, o FROM triple WHERE valid_to IS NULL AND o_is_literal = 0`
+    ).all();
+  } catch {
+    return [];
+  }
+  if (rows.length === 0) return [];
+
+  // Edges are weighted by how rare their predicate is, for the same reason text ranking uses IDF: a
+  // predicate carried by most of the graph says nothing about who belongs with whom. Unweighted, the
+  // catch-all "related" (29% of links) welded two thirds of the store into one meaningless cluster.
+  const freq = new Map();
+  for (const r of rows) freq.set(r.p, (freq.get(r.p) || 0) + 1);
+  const weightOf = (p) => 1 / (1 + Math.log(1 + (freq.get(p) || 1)));
+
+  const adj = new Map();
+  const link = (a, b, p) => {
+    if (!adj.has(a)) adj.set(a, []);
+    adj.get(a).push({ other: b, w: weightOf(p) });
+  };
+  for (const r of rows) { link(r.s, r.o, r.p); link(r.o, r.s, r.p); }
+
+  const label = new Map();
+  for (const k of adj.keys()) label.set(k, k);
+  const keys = [...adj.keys()].sort();
+
+  for (let i = 0; i < rounds; i++) {
+    let moved = 0;
+    for (const k of keys) {
+      const tally = new Map();
+      for (const edge of adj.get(k)) {
+        const nl = label.get(edge.other);
+        tally.set(nl, (tally.get(nl) || 0) + edge.w);
+      }
+      if (tally.size === 0) continue;
+      // Ties break on the lexically smaller label so the result is stable across runs.
+      const best = [...tally.entries()].sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1))[0][0];
+      if (best !== label.get(k)) { label.set(k, best); moved++; }
+    }
+    if (moved === 0) break;
+  }
+
+  const groups = new Map();
+  for (const [node, lab] of label) {
+    if (!groups.has(lab)) groups.set(lab, []);
+    groups.get(lab).push(node);
+  }
+
+  const named = new Map();
+  try {
+    for (const r of db.prepare('SELECT k, label, kind FROM node WHERE valid_to IS NULL').all()) named.set(r.k, r);
+  } catch { /* node table absent */ }
+
+  return [...groups.values()]
+    .filter((members) => members.length > 1)
+    .map((members) => {
+      const sorted = members.slice().sort((a, b) => (adj.get(b)?.length || 0) - (adj.get(a)?.length || 0));
+      const hub = sorted[0];
+      return {
+        // The most connected member is the god node: the thing everything else in the cluster hangs off.
+        hub: named.get(hub)?.label || hub,
+        hubKey: hub,
+        size: members.length,
+        members: sorted.map((m) => ({ key: m, label: named.get(m)?.label || m, kind: named.get(m)?.kind || '' })),
+      };
+    })
+    .sort((a, b) => b.size - a.size);
+}
+
+// The cluster a given node belongs to — used to answer "what else is bound up with this decision".
+export function communityOf(db, nodeKey, opts) {
+  return communities(db, opts).find((c) => c.members.some((m) => m.key === nodeKey)) || null;
+}
+
 // Resolve a loose name to a live node key: exact key, then exact label, then a contained label.
 export function resolveNode(db, name) {
   const q = String(name || '').trim();
