@@ -111,6 +111,21 @@ switch (cmd)
     case "spine-export":
         SpineExport(GetFlag("--to") ?? Path.Combine(AppContext.BaseDirectory, "..", "seeds", "spine.json"));
         break;
+    // Same gap forget-project had: the graph could gain a node but never lose one, so anything indexed
+    // by mistake or moved out of scope stayed live forever. Retires on the timeline rather than
+    // deleting, because "indexed once, now out of scope" is a different fact from "never existed".
+    case "shed-node":
+    {
+        string nk = GetFlag("--key") ?? throw new ArgumentException("shed-node needs --key");
+        Exec("BEGIN");
+        Run("UPDATE node SET valid_to = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE k=$k AND valid_to IS NULL", ("$k", nk));
+        Run(@"UPDATE triple SET valid_to = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+              WHERE valid_to IS NULL AND o_is_literal = 0 AND (s=$k OR o=$k)", ("$k", nk));
+        Exec("COMMIT");
+        Exec("INSERT INTO node_fts(node_fts) VALUES('rebuild')");
+        Console.WriteLine($"retired node '{nk}' and its links.");
+        break;
+    }
     case "spine-import":
         SpineImport(GetFlag("--from") ?? throw new ArgumentException("spine-import needs --from <spine.json>"));
         break;
@@ -209,6 +224,7 @@ switch (cmd)
             "seed-edges                          sync the curated cross-project edge seed",
      "spine-export [--to <f>]             dump the curated spine to JSON",
      "spine-import --from <f>             load a curated spine from JSON",
+     "shed-node --key <k>                 retire a node and its links",
             "project --name <n> --root <dir>     register a project root",
             "projects                            list registered projects",
      "forget-project --name <n>           unregister a project and drop its edges",

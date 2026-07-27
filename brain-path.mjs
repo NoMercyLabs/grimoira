@@ -34,6 +34,40 @@ if (args[0] === '--blast') {
   process.exit(0);
 }
 
+// The whole estate, read out of the store. The point is that answering "what does this organisation
+// consist of" should never require a network call or opening a single file.
+if (args[0] === '--org') {
+  const filter = args[1] ? args[1].toLowerCase() : null;
+  const orgs = db.prepare("SELECT k, label, gloss FROM node WHERE valid_to IS NULL AND scheme='org' ORDER BY label").all();
+  if (orgs.length === 0) { console.log('no organisations indexed — run index-org.mjs'); db.close(); process.exit(0); }
+
+  for (const o of orgs) {
+    const repos = db.prepare(
+      "SELECT label, gloss FROM node WHERE valid_to IS NULL AND scheme='repo' AND label LIKE ? ORDER BY label"
+    ).all(`${o.label}/%`);
+    const shown = filter ? repos.filter((r) => `${r.label} ${r.gloss}`.toLowerCase().includes(filter)) : repos;
+    if (shown.length === 0) continue;
+
+    console.log(`\n${o.label}  (${repos.length} repos${filter ? `, ${shown.length} matching` : ''})`);
+    for (const r of shown) {
+      const name = r.label.split('/').pop();
+      const g = r.gloss || '';
+      const lang = (g.match(/language ([A-Za-z+#]+)/) || [])[1] || '-';
+      const vis = /\. private\./.test(g) ? 'private' : 'public';
+      const arch = /ARCHIVED/.test(g) ? '  [ARCHIVED]' : '';
+      const fork = /\. fork\./.test(g) ? '  [fork]' : '';
+      const pkg = (g.match(/publishes npm package (\S+?)\./) || [])[1];
+      const clone = /cloned at/.test(g) ? 'cloned' : '';
+      const desc = g.split('.')[0];
+      console.log(`  ${name.padEnd(34)} ${lang.padEnd(12)} ${vis.padEnd(8)} ${clone.padEnd(7)}${arch}${fork}`);
+      if (desc && desc !== 'no description') console.log(`      ${desc}`);
+      if (pkg) console.log(`      npm: ${pkg}`);
+    }
+  }
+  db.close();
+  process.exit(0);
+}
+
 if (args[0] === '--clusters') {
   const found = communities(db);
   db.close();

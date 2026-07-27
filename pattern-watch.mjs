@@ -21,7 +21,9 @@ function signature(raw) {
   // something. Stripping only the wrapper WORD left the directory standing in as the executable.
   let words = [];
   for (const stage of first.split(/&&|\|\||;|\|/)) {
-    const w = stage.trim().split(/\s+/).filter(Boolean);
+    // Quotes are shell syntax, not part of the path: without stripping them the script name fails the
+    // word test and every quoted invocation collapses to the bare interpreter.
+    const w = stage.trim().split(/\s+/).filter(Boolean).map((t) => t.replace(/^["']+|["']+$/g, ''));
     if (w.length === 0) continue;
     if (WRAPPERS.has(w[0]) || w[0].includes('=')) continue;
     // Everything from the first redirect on describes where output went, not what was run.

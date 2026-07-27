@@ -84,7 +84,7 @@ const CHANNELS = [
   {
     kind: 'node',
     sql: `SELECT substr(n.label,1,300) AS head, substr(n.gloss,1,600) AS body, n.hard AS hard,
-          COALESCE(u.hits,0) AS hits
+          COALESCE(u.hits,0) AS hits, COALESCE(n.scheme,'') AS scheme
           FROM node_now n LEFT JOIN usage u ON u.node_k = n.k WHERE {W}`,
     cols: ['n.label', 'n.gloss', 'n.k'],
     weight: 0.9,
@@ -101,7 +101,7 @@ const CHANNELS = [
   {
     kind: 'code',
     sql: `SELECT symbol AS head, usage AS body, 0 AS hard, 0 AS hits,
-          (file || ':' || COALESCE(line,0)) AS loc FROM edges WHERE {W}`,
+          (file || ':' || COALESCE(line,0)) AS loc, file AS srcfile FROM edges WHERE {W}`,
     cols: ['symbol', 'file', 'usage'],
     weight: 1.8,
   },
@@ -155,7 +155,13 @@ export function search(db, tokens, { limit = 5, exclude = [] } = {}) {
     const headCover = tokens.filter((t) => headHay.includes(t)).length;
     const bodyCover = tokens.filter((t) => !headHay.includes(t) && bodyHay.includes(t)).length;
     const blobPenalty = (body.length > 600 ? 1.5 : 0) + (head.length === 0 && !r.headless ? 2 : 0);
-    const base = headCover * 3 + bodyCover + Math.log2((r.hits || 0) + 1) * 0.5 + (r.hard ? 2 : 0) - blobPenalty;
+    // A repo or org node is a deliberately curated identity: it is what "what is X" is asking for, and
+    // it must outrank a symbol some extractor happened to find in a test file.
+    const identity = r.kindTag === 'node' && (r.scheme === 'repo' || r.scheme === 'org') ? 3 : 0;
+    // A declaration inside a test is evidence the thing exists, not an explanation of what it is.
+    const testPenalty = r.kindTag === 'code' && /(^|[\\/])(tests?|spec|__tests__)[\\/]/i.test(r.srcfile || '') ? 2.5 : 0;
+    const base = headCover * 3 + bodyCover + Math.log2((r.hits || 0) + 1) * 0.5 + (r.hard ? 2 : 0)
+      + identity - blobPenalty - testPenalty;
     return { ...r, head, body, cover: headCover + bodyCover, score: base * r.weight };
   }).filter((r) => r.cover >= minCover && r.score > 0)
     .filter((r) => r.kindTag !== 'code' || symbolMatches(r.head, tokens));
