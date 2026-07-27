@@ -17,6 +17,24 @@ import { join, basename, dirname } from 'node:path';
 
 const MAX_BLOCKS = 3;
 
+// The costliest shape, because it looks like diligence: the turn diagnoses a problem it is capable of
+// fixing, writes it up as an open item, and hands it back. the owner then has to type the instruction
+// that the analysis already implied. Naming a problem you can fix is not reporting, it is deferring.
+const SELF_FLAGGED = new RegExp([
+  "still open\\b", "still outstanding", "remains? open", "left open", "still (broken|missing|wrong)",
+  "not (yet )?(fixed|done|implemented|addressed|wired|handled)", "known (issue|gap|problem|limitation)",
+  "worth a look", "on your side", "you (may|might|could) want to", "someone should",
+  "i flagged", "flagging (this|that|it)", "one thing (is |remains )?outstanding",
+  "needs? (a )?follow[- ]?up", "should (also )?be (fixed|done|changed|updated)",
+].join('|'), 'i');
+
+// A genuine capability limit is not deferral: there is nothing to continue with.
+const REAL_BLOCKER = new RegExp([
+  "no browser tooling", "cannot access", "can'?t access", "no credentials", "not authorised", "not authorized",
+  "requires (your|a) (answer|decision|approval|login)", "only you can", "need(s)? your (call|answer|decision)",
+  "waiting on (ci|the build|a deploy)", "rate limit", "blocked by",
+].join('|'), 'i');
+
 const DEFERRAL = new RegExp([
   "next session", "another session", "future session", "follow[- ]?up session",
   "it'?s (getting )?late", "call it a (day|night)", "enough for (today|now|one day)",
@@ -94,9 +112,21 @@ process.stdin.on('end', () => {
 
     const deferred = DEFERRAL.test(finalText);
     const parked = pending.length > 0 && !askedThisTurn;
-    if (!deferred && !parked) process.exit(0);
+    // A self-flagged item only counts as deferral when nothing actually prevented the fix.
+    const flagged = SELF_FLAGGED.test(finalText) && !REAL_BLOCKER.test(finalText) && !askedThisTurn;
+    if (!deferred && !parked && !flagged) process.exit(0);
 
     const reasons = [];
+    if (flagged) {
+      const hit = (finalText.match(SELF_FLAGGED) || [''])[0];
+      reasons.push(
+        `You wrote up work you can do instead of doing it (matched: "${hit}"). Diagnosing a problem you are ` +
+        `capable of fixing and reporting it as an open item is deferral wearing a status update — it forces ` +
+        `the owner to type the instruction your own analysis already implied, which is the single thing he has ` +
+        `asked most often to stop. Go fix it now. If something genuinely prevents you, name that specific ` +
+        `obstacle instead of listing the symptom.`
+      );
+    }
     if (deferred) {
       reasons.push(
         'You ended on DEFERRAL language ("next session" / "late" / "enough for today" / "pick this up later"). ' +
