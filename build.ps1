@@ -36,6 +36,10 @@ if (-not $Quick) {
     Write-Host 'ranking tests...' -ForegroundColor Cyan
     node "$root/brain-lib.test.mjs"
     if ($LASTEXITCODE -ne 0) { throw 'ranking tests failed' }
+
+    Write-Host 'ranking agreement (CLI vs hooks)...' -ForegroundColor Cyan
+    node "$root/ranking-agreement.test.mjs"
+    if ($LASTEXITCODE -ne 0) { throw 'CLI and hooks disagree on ranking' }
 }
 
 Write-Host 'ready' -ForegroundColor Green
