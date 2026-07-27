@@ -68,6 +68,10 @@ const MARKERS = [
   { file: 'go.mod', lang: 'go', globs: '*.go' },
   { file: 'Cargo.toml', lang: 'rust', globs: '*.rs' },
   { file: 'pyproject.toml', lang: 'python', globs: '*.py' },
+  // Native forks carry real product IP and have no manifest a package manager would recognise.
+  { file: 'CMakeLists.txt', lang: 'c', globs: '*.h' },
+  { file: 'configure', lang: 'c', globs: '*.h' },
+  { file: 'meson.build', lang: 'c', globs: '*.h' },
 ];
 const SKIP_DIR = new Set([
   'node_modules', '.git', 'dist', 'build', 'bin', 'obj', '.next', '.nuxt', '.gradle', '.idea',
