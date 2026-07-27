@@ -24,6 +24,19 @@ A per-project knowledge store that an agent session reads before it guesses and 
 ./build-mcp.ps1   # -> bin/mcp.dll
 ```
 
+## Install as a plugin
+
+The repo is its own marketplace, so it installs directly:
+
+```
+/plugin marketplace add NoMercyLabs/aitm
+/plugin install aitm@nomercylabs
+```
+
+The hooks are plain node and work as soon as the plugin is installed. The CLI and MCP server need `build-cli.ps1` / `build-mcp.ps1` first, since build output is not committed.
+
+If you previously wired these hooks by hand in `settings.json`, remove those entries when you install the plugin. Both sources declare the same hooks, and leaving both in place runs each one twice per tool call.
+
 ## The enforcement loop
 
 The hooks form a closed loop. `brain-gate` refuses a filesystem search the store can already answer and hands back the hits. When the store genuinely misses, the search runs and the miss is recorded as a gap. `brain-harvest` folds whatever that search found back into the code graph and closes the gap. `brain-capture` blocks the end of the turn if gaps were opened and nothing was taught back. Coverage therefore grows from ordinary work rather than from anyone remembering to record things.

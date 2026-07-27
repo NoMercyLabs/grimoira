@@ -1,0 +1,15 @@
+{
+  "name": "nomercylabs",
+  "owner": {
+    "name": "NoMercy Labs",
+    "url": "https://github.com/NoMercyLabs"
+  },
+  "plugins": [
+    {
+      "name": "aitm",
+      "source": "./",
+      "description": "Per-project knowledge store with a hook-enforced read/write loop for agent sessions.",
+      "version": "0.1.0"
+    }
+  ]
+}
