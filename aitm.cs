@@ -118,6 +118,17 @@ switch (cmd)
     case "projects":
         ListProjects();
         break;
+    // Registration without deregistration left roots that no longer exist on disk still answering
+    // questions with paths that are gone, which is worse than not knowing.
+    case "forget-project":
+    {
+        string pn = GetFlag("--name") ?? throw new ArgumentException("forget-project needs --name");
+        long dropped = ScalarLong("SELECT count(*) FROM edges WHERE project=$n", ("$n", pn));
+        Run("DELETE FROM edges WHERE project=$n", ("$n", pn));
+        Run("DELETE FROM projects WHERE name=$n", ("$n", pn));
+        Console.WriteLine($"project '{pn}' forgotten ({dropped} edge(s) dropped).");
+        break;
+    }
     case "extract-edges":
         ExtractEdges(GetFlag("--symbol") ?? throw new ArgumentException("extract-edges needs --symbol"), GetFlag("--contract") ?? "");
         break;
@@ -192,6 +203,7 @@ switch (cmd)
             "seed-edges                          sync the curated cross-project edge seed",
             "project --name <n> --root <dir>     register a project root",
             "projects                            list registered projects",
+     "forget-project --name <n>           unregister a project and drop its edges",
             "extract-edges --symbol <s>          grep edge candidates for a symbol",
             "candidates [--symbol <s>]           list edge candidates",
             "promote <id>                        promote one candidate into the graph",
@@ -740,13 +752,17 @@ void IndexDocs(string fromPath, string category)
         // indexed from the monorepo root, a nested repo, and a worktree produced three different keys,
         // so the ON CONFLICT upsert below never fired and every re-index duplicated the whole tree.
         string rel = Path.GetFullPath(file).Replace('\\', '/');
+        // Windows paths are case-insensitive, so "c:/repo/x.md" and "C:/repo/x.md" are one file. The
+        // key has to agree: keying on the raw casing let a run started from a differently-cased root
+        // duplicate the entire tree again, which is the same defect the absolute path was meant to fix.
+        string key = rel.ToLowerInvariant();
         bool any = false;
         foreach ((string title, string body, int idx) in ChunkMarkdown(text))
         {
             if (IsOutdated(title, body)) { shedCount++; continue; }
             string content = Compact(title + "\n" + body); // store densified, not raw markdown — markdown chrome is token-expensive
             if (content.Length < 24) continue;
-            string k = $"{rel}#{idx}";
+            string k = $"{key}#{idx}";
             Run("INSERT INTO docs(k,path,title,category,content) VALUES($k,$p,$t,$c,$co) ON CONFLICT(k) DO UPDATE SET title=$t,category=$c,content=$co",
                 ("$k", k), ("$p", rel), ("$t", title), ("$c", category), ("$co", content));
             Run("DELETE FROM docs_fts WHERE k=$k", ("$k", k));

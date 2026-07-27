@@ -37,8 +37,7 @@ process.stdin.on('end', async () => {
 
     db = await openRead(instance);
     if (!db) allow();
-    // Transcript text never placed in gate testing and is the most expensive scan in the store.
-    const picks = search(db, tokens, { limit: 5, exclude: ['chat'] });
+    const picks = search(db, tokens, { limit: 5 });
     db.close();
     db = null;
 

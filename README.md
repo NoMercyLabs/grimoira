@@ -1,6 +1,14 @@
 # aitm
 
-A per-project knowledge store that an agent session reads before it guesses and writes to as it learns. One SQLite store per instance under `~/.aitm/<instance>/aitm.db`, with separate channels for verified facts, durable rules, absorbed docs, chat history, and a code graph.
+**Agent In The Middle.**
+
+It sits between the input field and the model, and it keeps both sides on the right path. That direction matters: this is a shared contract, not the agent's private memory.
+
+It holds everything learned about the product being built. Every exchange is context that accumulates into where the product is going, so a decision argued four months ago still applies to a change made today. The job is to stop the same things being explained twice, and to stop the "you just broke this by fixing that" class of regression, because a decision made now still matters two years from now.
+
+One SQLite store per instance under `~/.aitm/<instance>/aitm.db`, with separate channels for verified facts, durable rules, absorbed docs, conversation history, and a code graph.
+
+The conversation channel is a primary asset, not noise around the facts. It carries the reasoning behind decisions, which is the part that prevents regressions; anything that ranks it as low-value defeats the purpose of the store.
 
 ## Layout
 

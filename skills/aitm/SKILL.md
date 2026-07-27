@@ -3,11 +3,15 @@ name: aitm
 description: Use when you need a ground-truth project fact (file path, symbol location, API shape, config key, convention, past decision) or when you have just established one worth keeping. Query the store before asserting any project-specific fact, and write findings back the same turn you learn them.
 ---
 
-# aitm
+# aitm — Agent In The Middle
 
-A queryable store of what is actually true about this project, kept separately from the model's prior. It exists because markdown rule files are advisory text an agent can rationalise past, so project facts get asserted from training data and cross-project contracts break silently.
+A queryable store of what is actually true about this project, kept separately from the model's prior. It sits between the user and the model and keeps both on the right path. It exists because markdown rule files are advisory text an agent can rationalise past, so project facts get asserted from training data and cross-project contracts break silently.
 
 **The store is the authority on project facts. Your prior is not.**
+
+Every exchange accumulates into where the product is going. A decision argued months ago still governs a change made today, which is what stops the same ground being covered twice and stops the "that fix broke this other thing" class of regression. Treat the conversation channel as evidence, not as chatter.
+
+**No single CLI command spans every channel.** `query` reads facts, `mem` reads rules, `recall` reads conversations, `doc` reads docs. A miss on one is not evidence the store lacks the fact — check the others before concluding anything is missing.
 
 ## Read before asserting
 

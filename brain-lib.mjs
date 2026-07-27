@@ -104,12 +104,17 @@ const CHANNELS = [
     cols: ['symbol', 'file', 'usage'],
     weight: 1.8,
   },
-  // Transcript text is the noisiest channel and is only ever a tie-breaker, never a cited answer.
+  // The back-and-forth is the point of the store, not noise around it: a decision argued four months
+  // ago still governs a change made today, and this is the only channel that carries it. It is
+  // structurally headless, so it is exempt from the missing-head penalty rather than buried by it;
+  // maxPerKind keeps it supporting the answer instead of flooding it.
   {
     kind: 'chat',
-    sql: `SELECT '' AS head, substr(text,1,600) AS body, 0 AS hard, 0 AS hits FROM chat WHERE {W}`,
+    sql: `SELECT '' AS head, substr(text,1,600) AS body, 0 AS hard, 0 AS hits, ts AS loc FROM chat WHERE {W}`,
     cols: ['text'],
-    weight: 0.5,
+    weight: 0.8,
+    headless: true,
+    maxPerKind: 2,
   },
 ];
 
@@ -122,7 +127,7 @@ export function search(db, tokens, { limit = 5, exclude = [] } = {}) {
     const params = tokens.flatMap((t) => Array(ch.cols.length).fill(`%${t}%`));
     try {
       for (const r of db.prepare(ch.sql.replace('{W}', where)).all(...params)) {
-        rows.push({ ...r, kindTag: ch.kind, weight: ch.weight, headMax: ch.headMax });
+        rows.push({ ...r, kindTag: ch.kind, weight: ch.weight, headMax: ch.headMax, headless: ch.headless, maxPerKind: ch.maxPerKind });
       }
     } catch { /* channel absent in this store */ }
   }
@@ -138,7 +143,7 @@ export function search(db, tokens, { limit = 5, exclude = [] } = {}) {
     const bodyHay = body.slice(0, 500).toLowerCase();
     const headCover = tokens.filter((t) => headHay.includes(t)).length;
     const bodyCover = tokens.filter((t) => !headHay.includes(t) && bodyHay.includes(t)).length;
-    const blobPenalty = (body.length > 600 ? 1.5 : 0) + (head.length === 0 ? 2 : 0);
+    const blobPenalty = (body.length > 600 ? 1.5 : 0) + (head.length === 0 && !r.headless ? 2 : 0);
     const base = headCover * 3 + bodyCover + Math.log2((r.hits || 0) + 1) * 0.5 + (r.hard ? 2 : 0) - blobPenalty;
     return { ...r, head, body, cover: headCover + bodyCover, score: base * r.weight };
   }).filter((r) => r.cover >= minCover && r.score > 0);
@@ -146,10 +151,79 @@ export function search(db, tokens, { limit = 5, exclude = [] } = {}) {
   scored.sort((x, y) => y.score - x.score);
 
   const seen = new Set();
+  const perKind = new Map();
   const picks = [];
   for (const r of scored) {
     const key = (r.head || r.body).toLowerCase().slice(0, 80);
     if (seen.has(key)) continue;
+    const used = perKind.get(r.kindTag) || 0;
+    if (r.maxPerKind && used >= r.maxPerKind) continue;
+    seen.add(key);
+    perKind.set(r.kindTag, used + 1);
+    picks.push(r);
+    if (picks.length === limit) break;
+  }
+  return picks;
+}
+
+// A transcript row that is just a context-continuation preamble describes the session, not the code.
+const TRANSCRIPT_BOILERPLATE = /^(this session is being continued|<\?xml|summary:|caveat: the messages below)/i;
+
+// The track record for one file: what has been decided about it, not where it lives. Two signals are
+// combined — a literal match on the path tail, which is high precision because rules cite real paths,
+// and the symbols the file declares, which catches decisions that named the symbol but not the file.
+export function historyFor(db, filePath, { limit = 4 } = {}) {
+  const norm = String(filePath).replace(/\\/g, '/');
+  const base = norm.split('/').pop() || '';
+  const tail = norm.split('/').slice(-2).join('/');
+
+  // Decisions cite the class, not the filename: the smart-copy rule names PlanStage.ApplySmartCopy‐
+  // Downgrade and never "PlanStage.cs". So the bare stem is matched too, but only when it is
+  // distinctive — a compound identifier or a long one. "Desktop" as a stem matches every rule that
+  // mentions a desktop; "PlanStage" and "VideoPlaylistItem" pick out the code they belong to.
+  const stem = base.replace(/\.[^.]+$/, '');
+  const humps = (stem.match(/[A-Z]/g) || []).length;
+  const needles = [tail, base];
+  if (stem.length >= 10 || humps >= 2) needles.push(stem);
+
+  const literal = [];
+  for (const ch of [
+    { kind: 'rule', sql: `SELECT hook AS head, substr(body,1,600) AS body, hard FROM memory WHERE body LIKE ? OR hook LIKE ?` },
+    { kind: 'fact', sql: `SELECT term AS head, substr(value,1,600) AS body, 0 AS hard FROM facts WHERE value LIKE ?  OR term LIKE ?` },
+    { kind: 'doc', sql: `SELECT title AS head, substr(content,1,600) AS body, 0 AS hard FROM docs WHERE content LIKE ? OR title LIKE ?` },
+    { kind: 'chat', sql: `SELECT '' AS head, substr(text,1,600) AS body, 0 AS hard FROM chat WHERE text LIKE ?  OR text LIKE ?` },
+  ]) {
+    for (const needle of needles) {
+      try {
+        for (const r of db.prepare(ch.sql).all(`%${needle}%`, `%${needle}%`)) {
+          literal.push({ ...r, kindTag: ch.kind, score: 100, headless: ch.kind === 'chat' });
+        }
+      } catch { /* channel absent */ }
+    }
+  }
+
+  // Only the symbols the file actually declares. Path segments were tried and are far too generic:
+  // "views/Base/Watch/Desktop.vue" pulled in every rule mentioning watch or desktop anywhere.
+  let symbolic = [];
+  try {
+    // Windows hands back whatever casing the caller used, and the index stores whatever the walk saw.
+    // Matching those raw made the track record silently empty for any file whose drive letter differed.
+    const tokens = db.prepare('SELECT DISTINCT symbol FROM edges WHERE LOWER(file) = LOWER(?) LIMIT 12').all(norm)
+      .map((r) => String(r.symbol).toLowerCase())
+      .filter((s) => s.length >= 5)
+      .slice(0, 6);
+    // A single generic symbol ("desktop") matches half the store, and search() drops to minCover 1
+    // for one token. Two or more is the point where the combination actually identifies this file.
+    if (tokens.length >= 2) symbolic = search(db, tokens, { limit: limit * 2, exclude: ['code'] });
+  } catch { /* edges absent */ }
+
+  const seen = new Set();
+  const picks = [];
+  for (const r of [...literal, ...symbolic]) {
+    const body = String(r.body || '').trim();
+    if (TRANSCRIPT_BOILERPLATE.test(body)) continue;
+    const key = (r.head || body).toLowerCase().slice(0, 80);
+    if (!key || seen.has(key)) continue;
     seen.add(key);
     picks.push(r);
     if (picks.length === limit) break;
