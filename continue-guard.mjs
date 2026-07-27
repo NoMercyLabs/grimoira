@@ -43,6 +43,10 @@ const FLAGGED_WEAK = new RegExp([
 // What makes a weak phrase a hand-off: the sentence points at the owner or at the turn's own work.
 const OWNED = /\b(i|i'?ll|i'?ve|i'?m|we|we'?ll|we'?ve|you|you'?ll|your|my|next step|todo)\b/i;
 
+// Narrating something already dealt with is not parking it. "the thing I flagged before I ran it"
+// refers back to analysis in the same reply; it announces no future work and asks for nothing.
+const RETROSPECTIVE = /\b(before|earlier|previously|already|above|last (turn|time|session)|which i (then|just)|and (then )?(fixed|did|built))\b/i;
+
 const sentenceAround = (text, hit) => {
   const at = text.toLowerCase().indexOf(hit.toLowerCase());
   if (at < 0) return text;
@@ -53,9 +57,9 @@ const sentenceAround = (text, hit) => {
 
 function selfFlagged(text) {
   const strong = text.match(FLAGGED_STRONG);
-  if (strong) return strong[0];
+  if (strong && !RETROSPECTIVE.test(sentenceAround(text, strong[0]))) return strong[0];
   const weak = text.match(FLAGGED_WEAK);
-  if (weak && OWNED.test(sentenceAround(text, weak[0]))) return weak[0];
+  if (weak && OWNED.test(sentenceAround(text, weak[0])) && !RETROSPECTIVE.test(sentenceAround(text, weak[0]))) return weak[0];
   return null;
 }
 
