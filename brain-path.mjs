@@ -68,6 +68,30 @@ if (args[0] === '--org') {
   process.exit(0);
 }
 
+// What is being done by hand often enough to deserve being written down once.
+if (args[0] === '--patterns') {
+  let rows = [];
+  try {
+    rows = db.prepare(
+      `SELECT sig, count, promoted, COALESCE(kind,'command') AS kind, sample
+       FROM patterns ORDER BY (kind='sequence') DESC, count DESC LIMIT 30`
+    ).all();
+  } catch { /* nothing recorded yet */ }
+  db.close();
+  if (rows.length === 0) { console.log('nothing recorded yet.'); process.exit(0); }
+
+  for (const group of ['sequence', 'command']) {
+    const of = rows.filter((r) => r.kind === group);
+    if (of.length === 0) continue;
+    console.log(`\n${group === 'sequence' ? 'procedures' : 'single commands'}:`);
+    for (const r of of) {
+      const flag = r.promoted ? ' [settled]' : (r.count >= (group === 'sequence' ? 3 : 5) ? ' <- worth codifying' : '');
+      console.log(`  ${String(r.count).padStart(3)}x  ${r.sig}${flag}`);
+    }
+  }
+  process.exit(0);
+}
+
 if (args[0] === '--clusters') {
   const found = communities(db);
   db.close();
