@@ -14,3 +14,4 @@ obj/
 
 # Curated per-ecosystem exports. Project-specific knowledge, not engine code.
 seeds/
+probe/runs/
