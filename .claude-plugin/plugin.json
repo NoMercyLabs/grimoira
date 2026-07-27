@@ -19,6 +19,17 @@
             "statusMessage": "Asking the store first…"
           }
         ]
+      },
+      {
+        "matcher": "Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/shell-guard.mjs"],
+            "timeout": 10
+          }
+        ]
       }
     ],
     "PostToolUse": [
