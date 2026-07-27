@@ -47,6 +47,11 @@ jobs:
           done
           exit $status
 
+      # Ranking has no loud failure mode: it just answers with worse material, which reads as the
+      # model being dim rather than as a regression. These are the cases that actually shipped broken.
+      - name: Ranking regression tests
+        run: node brain-lib.test.mjs
+
       - name: Store selftest
         run: dotnet bin-cli/aitm.dll selftest --instance ci-selftest
 

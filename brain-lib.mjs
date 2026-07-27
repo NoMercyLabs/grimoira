@@ -320,13 +320,15 @@ export function pathBetween(db, fromName, toName, { maxDepth = 5 } = {}) {
 export function blastRadius(db, filePath, { limit = 5 } = {}) {
   const norm = String(filePath).replace(/\\/g, '/');
   try {
+    // Counted across every row for the symbol, not just the rows in other files. Joining against
+    // "other files only" made a symbol shared with exactly one other project count as one project,
+    // so the two-project case — the commonest contract surface there is — was silently dropped.
     return db.prepare(
       `SELECT e.symbol,
-              COUNT(DISTINCT e2.file) AS files,
-              COUNT(DISTINCT e2.project) AS projects,
-              GROUP_CONCAT(DISTINCT e2.project) AS names
+              (SELECT COUNT(DISTINCT a.file) FROM edges a WHERE a.symbol = e.symbol) AS files,
+              (SELECT COUNT(DISTINCT a.project) FROM edges a WHERE a.symbol = e.symbol AND a.project IS NOT NULL) AS projects,
+              (SELECT GROUP_CONCAT(DISTINCT a.project) FROM edges a WHERE a.symbol = e.symbol AND a.project IS NOT NULL) AS names
        FROM edges e
-       JOIN edges e2 ON e2.symbol = e.symbol AND LOWER(e2.file) <> LOWER(e.file)
        WHERE LOWER(e.file) = LOWER(?)
        GROUP BY e.symbol
        HAVING projects > 1 OR files > 1
