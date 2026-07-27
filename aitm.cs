@@ -186,7 +186,7 @@ switch (cmd)
         {
             "init                                create/open the instance",
             "import --from <db>                  merge another aitm.db into this one",
-            "add                                 add a fact",
+            "add [--provenance stated|inferred]  add a fact (provenance: who established it)",
             "query <terms>                       look up a verified fact",
             "recall <terms>                      search past chat history",
             "index-chat --from <path>            ingest session transcript(s) into chat",
@@ -288,6 +288,10 @@ void Run(string sql, params (string name, object? val)[] ps)
 void Init()
 {
     Exec("CREATE TABLE IF NOT EXISTS facts(k TEXT PRIMARY KEY, term TEXT, aliases TEXT, category TEXT, value TEXT, source TEXT, notes TEXT);");
+    // Whether a stored reason was STATED by the operator or INFERRED by the agent decides how much
+    // weight it carries when the question is "may I change this". A track record that cannot tell its
+    // own conclusions from the operator's is just a confident guess with citations.
+    TryExec("ALTER TABLE facts ADD COLUMN provenance TEXT NOT NULL DEFAULT 'unverified';");
     Exec("CREATE TABLE IF NOT EXISTS mutations(id INTEGER PRIMARY KEY, ts TEXT, op TEXT, kind TEXT, k TEXT, before TEXT, after TEXT, why TEXT);");
     Exec("CREATE VIRTUAL TABLE IF NOT EXISTS facts_fts USING fts5(k UNINDEXED, term, aliases, category, value, notes);");
     Exec("CREATE TABLE IF NOT EXISTS edges(id INTEGER PRIMARY KEY, symbol TEXT, contract TEXT, project TEXT, file TEXT, line INTEGER, usage TEXT, hardcoded INTEGER);");
@@ -2215,11 +2219,18 @@ void Eval()
 void AddCmd()
 {
     string term = GetFlag("--term") ?? throw new ArgumentException("add needs --term");
+    string prov = (GetFlag("--provenance") ?? "unverified").ToLowerInvariant();
+    // stated  = the operator said it, and it outranks everything
+    // extracted = read straight out of source or a manifest, true until the code changes
+    // inferred = the agent's own conclusion, overturnable by evidence
+    if (prov is not ("stated" or "extracted" or "inferred" or "unverified"))
+        throw new ArgumentException("--provenance must be stated, extracted, inferred, or unverified");
     Exec("BEGIN");
     UpsertFact(term, term, GetFlag("--aliases") ?? "[]", GetFlag("--category") ?? "manual",
         GetFlag("--value") ?? "", GetFlag("--source") ?? "", GetFlag("--notes") ?? "", GetFlag("--why") ?? "manual");
+    Run("UPDATE facts SET provenance=$p WHERE k=$k", ("$p", prov), ("$k", term));
     Exec("COMMIT");
-    Console.WriteLine($"added/updated '{term}' (logged to mutations).");
+    Console.WriteLine($"added/updated '{term}' [{prov}] (logged to mutations).");
 }
 
 // Time-travel: the cold append-only log for one entity. Normal reads NEVER touch this.

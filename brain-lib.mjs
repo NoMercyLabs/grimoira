@@ -68,7 +68,8 @@ export const signature = (tokens) => [...tokens].sort().join(' ');
 const CHANNELS = [
   {
     kind: 'fact',
-    sql: `SELECT term AS head, substr(value,1,600) AS body, 0 AS hard, 0 AS hits FROM facts WHERE {W}`,
+    sql: `SELECT term AS head, substr(value,1,600) AS body, 0 AS hard, 0 AS hits,
+          COALESCE(provenance,'unverified') AS provenance FROM facts WHERE {W}`,
     cols: ['term', 'value', 'aliases'],
     weight: 1.6,
     headMax: Infinity,
@@ -118,6 +119,16 @@ const CHANNELS = [
   },
 ];
 
+// SQL LIKE matches anywhere in the string, which is fine for prose and wrong for a 29k-symbol code
+// index: the prompt word "stand" hits TrackerStandsDown and outranks the real answer. A symbol only
+// counts when a token equals the whole name or one of its case/underscore-separated parts.
+function symbolMatches(symbol, tokens) {
+  const name = String(symbol || '').toLowerCase();
+  if (!name) return false;
+  const parts = new Set([name, ...String(symbol).split(/_|(?<=[a-z0-9])(?=[A-Z])/).map((p) => p.toLowerCase())]);
+  return tokens.some((t) => parts.has(t));
+}
+
 export function search(db, tokens, { limit = 5, exclude = [] } = {}) {
   if (tokens.length === 0) return [];
   const rows = [];
@@ -146,7 +157,8 @@ export function search(db, tokens, { limit = 5, exclude = [] } = {}) {
     const blobPenalty = (body.length > 600 ? 1.5 : 0) + (head.length === 0 && !r.headless ? 2 : 0);
     const base = headCover * 3 + bodyCover + Math.log2((r.hits || 0) + 1) * 0.5 + (r.hard ? 2 : 0) - blobPenalty;
     return { ...r, head, body, cover: headCover + bodyCover, score: base * r.weight };
-  }).filter((r) => r.cover >= minCover && r.score > 0);
+  }).filter((r) => r.cover >= minCover && r.score > 0)
+    .filter((r) => r.kindTag !== 'code' || symbolMatches(r.head, tokens));
 
   scored.sort((x, y) => y.score - x.score);
 
@@ -233,7 +245,10 @@ export function historyFor(db, filePath, { limit = 4 } = {}) {
 
 export function format(picks) {
   return picks.map((r) => {
-    const tag = `[${r.kindTag}${r.hard ? '/HARD' : ''}]`;
+    // "stated" carries the operator's authority; "inferred" is the agent's own conclusion and can be
+    // overturned by evidence. Collapsing the two is how a guess starts getting cited as ground truth.
+    const prov = r.provenance && r.provenance !== 'unverified' ? `/${r.provenance}` : '';
+    const tag = `[${r.kindTag}${r.hard ? '/HARD' : ''}${prov}]`;
     const loc = r.loc ? `  (${r.loc})` : '';
     return r.head.length > 0
       ? `• ${tag} ${clip(r.head, 90)}${loc}\n    ${clip(r.body, 260)}`

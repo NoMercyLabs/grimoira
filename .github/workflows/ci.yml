@@ -1,0 +1,63 @@
+name: ci
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          # File-based apps (dotnet build aitm.cs) need the .NET 10 SDK.
+          dotnet-version: '10.0.x'
+
+      - uses: actions/setup-node@v4
+        with:
+          # node:sqlite, which every hook reads the store through, lands in 22.
+          node-version: '22'
+
+      - name: Build CLI
+        run: dotnet build aitm.cs -c Release -o bin-cli
+
+      - name: Build MCP server
+        run: dotnet build mcp.cs -c Release -o bin
+
+      # A hook with a syntax error fails silently at runtime: the harness swallows it and the
+      # enforcement it provides just stops happening. Parse every one on the way in.
+      - name: Parse hooks
+        run: |
+          status=0
+          for f in *.mjs; do
+            if node --check "$f"; then
+              echo "ok   $f"
+            else
+              echo "FAIL $f"
+              status=1
+            fi
+          done
+          exit $status
+
+      - name: Store selftest
+        run: dotnet bin-cli/aitm.dll selftest --instance ci-selftest
+
+      - name: Cold start on a scratch instance
+        run: node init.mjs --root "$GITHUB_WORKSPACE" --instance ci-init --skip-chat --quiet
+
+      - name: Vulnerable dependencies
+        run: |
+          dotnet list aitm.csproj package --vulnerable --include-transitive 2>&1 | tee audit.txt
+          dotnet list mcp.csproj package --vulnerable --include-transitive 2>&1 | tee -a audit.txt
+          if grep -qiE '\bHigh\b|\bCritical\b' audit.txt; then
+            echo "::error::high or critical advisory in the dependency tree"
+            exit 1
+          fi
