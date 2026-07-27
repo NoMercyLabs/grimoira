@@ -31,17 +31,45 @@ public static partial class AitmTools
     [GeneratedRegex("^[a-z0-9_-]{2,30}$")]
     private static partial Regex KindToken();
 
+    private static readonly string[] NodeKinds =
+    {
+        "rule", "fact", "concept", "symbol", "finding", "contract",
+        "seam", "codekind", "project", "reference", "platform", "layer",
+    };
+
+    // A rejection has to be actionable on the FIRST try. Returning only the rule that was broken made
+    // callers guess the positional meaning of key/a/b/c and burn five round trips in a row, and the
+    // knowledge they were trying to record never landed at all.
+    private static string Usage(string offending) =>
+        $"rejected: {offending}\n" +
+        "kind is the ROW TYPE, one of node | triple | slot. It is NOT the node's own kind.\n" +
+        "  node:   kind=\"node\"   key=<stable-id>  a=<node kind>  b=<short label>  c=<full statement>\n" +
+        "  triple: kind=\"triple\" key=<subject>    a=<predicate>  b=<object>      because=<why>\n" +
+        "  slot:   kind=\"slot\"   key=<frame>      a=<name>       b=<value>\n" +
+        $"node kinds: {string.Join(" / ", NodeKinds)}\n" +
+        "example: kind=\"node\" key=\"nvenc-windows-native\" a=\"fact\" " +
+        "b=\"NVENC encodes natively on Windows only\" c=\"Confirmed on real hardware: 3.03x, exit 0, 345 KB output. Never through WSL.\"";
+
     // Write-side shape guard: 85 nodes got written with scrambled positional args (paragraph in
     // label/kind, title in kind). Reject the shape at the door so the caller re-orders instead of
     // poisoning recall ranking.
     private static string NodeGuard(string kind, string label)
     {
         if (!KindToken().IsMatch(kind))
-            return "rejected: node kind must be a short lowercase vocab token (rule/fact/concept/symbol/finding/contract/seam/codekind/project/reference/platform/layer). Yours looks like prose — argument order is a=kind, b=label, c=gloss.";
+            return Usage($"\"{Trim(kind)}\" is not a node kind — it looks like prose, and a=<node kind> is a single short token.");
         if (label.Length > 120)
-            return "rejected: label must be a short noun phrase (max 120 chars) — the full statement belongs in the gloss (c).";
+            return Usage($"label is {label.Length} chars; it must be a short noun phrase (max 120). The full statement goes in c.");
         return "";
     }
+
+    private static string Trim(string s) => s.Length <= 60 ? s : s[..60] + "…";
+
+    // The commonest miss by far: passing the node's own kind ("fact", "rule") as the row type. Naming
+    // that specific mistake fixes the call in one round trip instead of restating the rule that broke.
+    private static string WrongRowKind(string kind) =>
+        NodeKinds.Contains(kind, StringComparer.OrdinalIgnoreCase)
+            ? Usage($"you passed \"{kind}\" as kind, but that is a NODE kind. Use kind=\"node\" and move \"{kind}\" into a.")
+            : Usage($"\"{Trim(kind)}\" is not a row type.");
 
     // bm25 lower = better; matches weaker than this are low-IDF noise, refused once the corpus is large
     // enough for IDF to discriminate. Mirrors the CLI's calibrated floor.
@@ -222,7 +250,7 @@ public static partial class AitmTools
     private static string Match(string terms) => string.Join(" OR ", Tokens(terms).Select(t => $"\"{t}\""));
 
     [McpServerTool]
-    [Description("READ-ONLY look-up of a VERIFIED NoMercy project fact (real base URL, file path, type/field name, config key, API route, port, convention) from the ground-truth store. Returns the top matches with source. Refuses if not in the knowledge base — never guesses; every refusal is auto-logged as a gap (see brain_gaps). Use this before emitting any project-specific fact. To RECORD a new fact, do NOT use this — stage it with brain_stage then commit with brain_flush.")]
+    [Description("READ-ONLY look-up of a VERIFIED project fact (real base URL, file path, type/field name, config key, API route, port, convention) from the ground-truth store. Returns the top matches with source. Refuses if not in the knowledge base — never guesses; every refusal is auto-logged as a gap (see brain_gaps). Use this before emitting any project-specific fact. To RECORD a new fact, do NOT use this — stage it with brain_stage then commit with brain_flush.")]
     public static string fact(string query)
     {
         using SqliteConnection con = Open();
@@ -279,7 +307,7 @@ public static partial class AitmTools
     }
 
     [McpServerTool]
-    [Description("Recall what was said in PAST conversations/sessions (the chat-history channel, kept separate from verified facts). Use when you need something the owner said earlier or many sessions ago, before reminding him or re-asking.")]
+    [Description("Recall what was said in PAST conversations/sessions (the chat-history channel, kept separate from verified facts). Use when you need something the operator said earlier or many sessions ago, before repeating yourself or re-asking.")]
     public static string recall(string query)
     {
         using SqliteConnection con = Open();
@@ -334,7 +362,7 @@ public static partial class AitmTools
     }
 
     [McpServerTool]
-    [Description("READ-ONLY recall of a standing RULE, preference, or past decision about HOW to work on this project — the migrated memory channel (feedback/user/project/reference), relevance-ranked. Use before writing code or making a call where the owner has likely already set a convention, instead of guessing or repeating a past correction. To CREATE or UPDATE a rule, do NOT use this — stage it with brain_stage then commit with brain_flush.")]
+    [Description("READ-ONLY recall of a standing RULE, preference, or past decision about HOW to work on this project — the migrated memory channel (feedback/user/project/reference), relevance-ranked. Use before writing code or making a call where the operator has likely already set a convention, instead of guessing or repeating a past correction. To CREATE or UPDATE a rule, do NOT use this — stage it with brain_stage then commit with brain_flush.")]
     public static string rule(string query)
     {
         using SqliteConnection con = Open();
@@ -388,7 +416,7 @@ public static partial class AitmTools
         return $"shed memory '{key}'.";
     }
 
-    // --- BRAIN graph: the structured copy of the owner's mental model. Each read is one self-contained
+    // --- BRAIN graph: a structured copy of the operator's mental model. Each read is one self-contained
     //     statement; the write-last path supersedes (never deletes) and is trigger-guarded. ---
 
     private static List<string> SplitArgs(string s) =>
@@ -712,7 +740,7 @@ public static partial class AitmTools
     }
 
     [McpServerTool]
-    [Description("Log a FINDING: an unrelated bug or issue spotted during other work, to surface to the owner later (not now).")]
+    [Description("Log a FINDING: an unrelated bug or issue spotted during other work, to surface to the operator later (not now).")]
     public static string log_finding(string title, string detail = "", string source = "")
     {
         using SqliteConnection con = Open();
@@ -727,7 +755,7 @@ public static partial class AitmTools
     }
 
     [McpServerTool]
-    [Description("List open findings (unrelated issues spotted earlier) to surface to the owner.")]
+    [Description("List open findings (unrelated issues spotted earlier) to surface to the operator.")]
     public static string open_findings()
     {
         using SqliteConnection con = Open();
@@ -749,7 +777,7 @@ public static partial class AitmTools
         e.TryGetProperty(name, out JsonElement v) && v.ValueKind == JsonValueKind.True;
 
     [McpServerTool]
-    [Description("BRAIN/write-side brake: STAGE a durable learning the instant you notice it (a cheap append, no DB write) — same args as brain_learn. The Stop hook refuses to end the turn while anything staged is unflushed, so nothing you stage is ever silently dropped (the rot that killed MEMORY.md). Stage AGGRESSIVELY — the MOMENT the owner corrects you, a lookup comes back wrong/empty, or a new ground-truth fact/convention/contract appears; when in doubt, stage it. Don't defer to turn-end and forget. Commit the batch with brain_flush.")]
+    [Description("BRAIN/write-side brake: STAGE a durable learning the instant you notice it (a cheap append, no DB write) — same args as brain_learn. The Stop hook refuses to end the turn while anything staged is unflushed, so nothing you stage is ever silently dropped (the rot that killed MEMORY.md). Stage AGGRESSIVELY — the MOMENT the operator corrects you, a lookup comes back wrong/empty, or a new ground-truth fact/convention/contract appears; when in doubt, stage it. Don't defer to turn-end and forget. Commit the batch with brain_flush.")]
     public static string brain_stage(string kind, string key, string a = "", string b = "", string c = "", string because = "", bool hard = false)
     {
         string Esc(string s) => s.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\n", " ").Replace("\r", " ").Replace("\t", " ");
@@ -766,7 +794,7 @@ public static partial class AitmTools
             "slot" => "{" + $"\"k\":\"slot\",\"frame\":\"{Esc(key)}\",\"name\":\"{Esc(a)}\",\"value\":\"{Esc(b)}\",\"facet\":\"text\",\"multi\":false,\"because\":\"{Esc(because)}\"" + "}",
             _ => "",
         };
-        if (line.Length == 0) return "kind must be node | triple | slot.";
+        if (line.Length == 0) return WrongRowKind(kind);
         File.AppendAllText(LedgerPath(), line + "\n");
         return $"staged {kind} {key} (owe brain_flush).";
     }

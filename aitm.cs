@@ -108,6 +108,12 @@ switch (cmd)
     case "seed-edges":
         SeedEdges();
         break;
+    case "spine-export":
+        SpineExport(GetFlag("--to") ?? Path.Combine(AppContext.BaseDirectory, "..", "seeds", "spine.json"));
+        break;
+    case "spine-import":
+        SpineImport(GetFlag("--from") ?? throw new ArgumentException("spine-import needs --from <spine.json>"));
+        break;
     case "project":
         Run("INSERT INTO projects(name,root,lang,globs) VALUES($n,$r,$l,$g) ON CONFLICT(name) DO UPDATE SET root=$r,lang=$l,globs=$g",
             ("$n", GetFlag("--name") ?? throw new ArgumentException("project needs --name")),
@@ -201,6 +207,8 @@ switch (cmd)
             "eval                                run the retrieval eval set",
             "history <term>                      show the cold mutation log for an entity",
             "seed-edges                          sync the curated cross-project edge seed",
+     "spine-export [--to <f>]             dump the curated spine to JSON",
+     "spine-import --from <f>             load a curated spine from JSON",
             "project --name <n> --root <dir>     register a project root",
             "projects                            list registered projects",
      "forget-project --name <n>           unregister a project and drop its edges",
@@ -308,7 +316,7 @@ void Init()
     // heading so recall returns the relevant section, not a whole-file blob. Its own channel like chat.
     Exec("CREATE TABLE IF NOT EXISTS docs(k TEXT PRIMARY KEY, path TEXT, title TEXT, category TEXT, content TEXT);");
     Exec("CREATE VIRTUAL TABLE IF NOT EXISTS docs_fts USING fts5(k UNINDEXED, title, content);");
-    // Memory channel: the durable rules/preferences/decisions that govern how Arc works (migrated out of the
+    // Memory channel: the durable rules/preferences/decisions that govern how the agent works (migrated out of the
     // always-loaded MEMORY.md index). hook is the high-signal one-liner; hard flags an always-on rule that the
     // thin MEMORY.md core still carries. Retrieval is pull-based so the bulk no longer costs per-session context.
     Exec("CREATE TABLE IF NOT EXISTS memory(k TEXT PRIMARY KEY, type TEXT, title TEXT, hook TEXT, body TEXT, links TEXT, hard INTEGER);");
@@ -355,7 +363,7 @@ void ResolveGaps(string learnedText)
         Run("UPDATE gaps SET status='filled', last_ts=$ts WHERE id=$i", ("$i", id.ToString(CultureInfo.InvariantCulture)), ("$ts", Now()));
 }
 
-// BRAIN v2 — the structured copy of the owner's mental model: a uniform (s,p,o) triple graph over typed
+// BRAIN v2 — a structured copy of the operator's mental model: a uniform (s,p,o) triple graph over typed
 // nodes, with a placement/convention slot overlay and a ref bridge into the existing channels. Bi-temporal
 // (supersede, never delete). Predicate vocabulary + link-object existence are enforced by TRIGGERS (which
 // fire regardless of the per-connection foreign_keys pragma) so a typo'd relation is a write error, not a
@@ -451,15 +459,12 @@ void InitBrain()
     END;
 
     CREATE TABLE IF NOT EXISTS term_alias (term TEXT NOT NULL, canonical TEXT NOT NULL, PRIMARY KEY (term, canonical));
+    -- Only aliases that hold for any codebase ship built in. Everything that names a specific
+    -- technology choice (which identity provider, which realtime transport, which design system) is
+    -- one ecosystem's vocabulary and arrives through spine-import instead.
     INSERT OR IGNORE INTO term_alias(term,canonical) VALUES
-     ('authentication','auth'),('authentication','idp'),('login','idp'),('login','auth'),
-     ('signin','idp'),('oauth','idp'),('oidc','idp'),('token','idp'),
+     ('authentication','auth'),('signin','auth'),('login','auth'),
      ('localization','i18n'),('translation','i18n'),('accessibility','a11y'),
-     ('design','moooom'),('realtime','signalr'),('websocket','signalr'),('sync','signalr'),
-     ('transcode','encoder'),('encoding','encoder'),('subtitle','encoder'),
-     ('database','sqlite'),('migration','sqlite'),('component','vue-component'),('screen','compose-screen'),
-     ('hub','signalr'),('socket','signalr'),('websockets','signalr'),('ffmpeg','encoder'),('transcoding','encoder'),
-     ('streaming','hls'),('chromecast','cast'),('vue','vue-component'),('playback','player'),('ssl','certificate'),
      ('endpoint','api'),('rest','api'),('controller','api'),('dto','contract'),('placement','belongs_in');
 
     CREATE VIRTUAL TABLE IF NOT EXISTS node_fts USING fts5(k UNINDEXED, label, gloss, props, content='node', content_rowid='id', tokenize='porter unicode61');
@@ -482,10 +487,9 @@ void InitBrain()
     CREATE VIEW IF NOT EXISTS triple_now AS SELECT * FROM triple WHERE valid_to IS NULL;
     CREATE VIEW IF NOT EXISTS slot_now AS SELECT * FROM slot WHERE valid_to IS NULL;
 
+    -- Populated from the ecosystem's own spine file (spine-import), never compiled in: which short
+    -- name means which project is the one thing that cannot be true of every repo.
     CREATE TABLE IF NOT EXISTS proj_alias (short TEXT PRIMARY KEY, k TEXT NOT NULL);
-    INSERT OR IGNORE INTO proj_alias(short,k) VALUES
-     ('web','proj:nomercy-app-web'),('android','proj:nomercy-app-android'),
-     ('server','proj:nomercy-media-server'),('ios','proj:nomercy-app-ios');
     CREATE VIEW IF NOT EXISTS legacy_consumes AS
       SELECT COALESCE(a.k,'proj:'||e.project) AS s, 'consumes' AS p,
              'contract:'||e.contract||'.'||e.symbol AS o, e.file, e.line, e.usage, e.hardcoded
@@ -1656,7 +1660,7 @@ void BrainTidy()
     Console.WriteLine($"tidy: backfilled scheme=kind on {n} node(s).");
 }
 
-// Count-directive enforcement state. When the owner gives an explicit count ("do this N times"), `loop start N`
+// Count-directive enforcement state. When the operator gives an explicit count ("do this N times"), `loop start N`
 // records it; each cycle calls `loop tick`; the Stop hook (loop-guard.mjs) refuses to let the turn end while
 // done < total. This is the brake passive memory could never be — I can't rationalize past a blocked stop.
 void LoopCmd(List<string> rest)
@@ -1938,153 +1942,139 @@ void BrainDistill()
     Console.WriteLine($"distilled: {memN} rule nodes, {factN} fact nodes, {symN} symbol nodes, {relN} related links ({unresolved} unresolved -> distill_log). source channels untouched.");
 }
 
-// PHASE B — the curated spine: the ecosystem as the owner holds it in his head (projects, platforms, shared
+// PHASE B — the curated spine: the ecosystem as its operator holds it in their head (projects, platforms, shared
 // seams, contracts, placement frames). This is irreducible curation, not a script — it is the knowledge that
 // makes scope/common/place answer in one shot. Run AFTER `brain distill` so governed_by can target rule nodes.
 void BrainSeed()
 {
-    bool NodeExists(string nk) => ScalarLong("SELECT count(*) FROM node_now WHERE k=$k", ("$k", nk)) > 0;
-    void Link(string s, string p, string o, string because)
+    // The curated spine is one ecosystem's knowledge, not engine behaviour, so it is data rather than
+    // code: 145 lines of one company's projects, seams and contracts used to be compiled into every
+    // copy of this binary. Export it once with spine-export, keep it beside the store, load it here.
+    string seed = GetFlag("--from") ?? Path.Combine(AppContext.BaseDirectory, "..", "seeds", "spine.json");
+    if (!File.Exists(seed))
     {
-        if (!NodeExists(s) || !NodeExists(o)) { Console.Error.WriteLine($"seed: skip {s} {p} {o} (missing node)"); return; }
-        AddTriple(s, p, o, because, "seed", false, "seed");
+        Console.Error.WriteLine($"no spine file at {Path.GetFullPath(seed)} — run `aitm spine-export` on an instance that already has one, or write the file by hand (see README).");
+        return;
+    }
+    SpineImport(seed);
+}
+
+// The curated spine is per-ecosystem knowledge, not engine code, so it lives in a JSON file next to
+// the store rather than compiled into the binary. Export reads whatever is currently seeded; import
+// replays it. Together they let one ecosystem's spine be versioned, shared, or swapped out entirely
+// without touching this program.
+void SpineExport(string toPath)
+{
+    List<Dictionary<string, object?>> Rows(string sql)
+    {
+        List<Dictionary<string, object?>> rows = new();
+        using SqliteCommand c = db.CreateCommand();
+        c.CommandText = sql;
+        using SqliteDataReader r = c.ExecuteReader();
+        while (r.Read())
+        {
+            Dictionary<string, object?> row = new();
+            for (int i = 0; i < r.FieldCount; i++) row[r.GetName(i)] = r.IsDBNull(i) ? null : r.GetValue(i);
+            rows.Add(row);
+        }
+        return rows;
     }
 
-    (string k, string kind, string label, string gloss, string scheme, bool hard)[] nodes =
+    (string name, List<Dictionary<string, object?>> rows)[] sections =
     {
-        ("proj:nomercy-media-server", "project", "nomercy-media-server", ".NET headless media service: scanning, metadata, encoding, streaming", "", false),
-        ("proj:nomercy-app-web", "project", "nomercy-app-web", "Vue 3 browser client (PWA + InfiniFrame desktop)", "", false),
-        ("proj:nomercy-app-android", "project", "nomercy-app-android", "Kotlin/Compose mobile + TV client", "", false),
-        ("proj:nomercy-app-ios", "project", "nomercy-app-ios", "KMP/Swift mobile client", "", false),
-        ("proj:nomercy-tv", "project", "nomercy-tv", "Laravel SaaS command center: accounts, DNS/SSL, IdP, subscriptions", "", false),
-        ("proj:nomercy-cast-player", "project", "nomercy-cast-player", "Vue 3 Chromecast CAF receiver", "", false),
-        ("proj:nomercy-video-player", "project", "nomercy-video-player", "Headless HLS video engine (npm, TypeScript)", "", false),
-        ("proj:nomercy-music-player", "project", "nomercy-music-player", "Headless audio engine with visualization (npm, TypeScript)", "", false),
-        ("proj:player-kit", "project", "player-kit", "Shared v2 player kit substrate (npm, TypeScript)", "", false),
-        ("proj:infiniframe", "project", "infiniframe", "Desktop OS-native WebView wrapper (.NET/NuGet)", "", false),
-        ("platform:mobile", "platform", "mobile", "phones (android + ios)", "platform", false),
-        ("platform:tv", "platform", "tv", "living-room / leanback (android tv + cast)", "platform", false),
-        ("platform:desktop", "platform", "desktop", "desktop app via InfiniFrame", "platform", false),
-        ("platform:browser", "platform", "browser", "web browser (PWA)", "platform", false),
-        ("seam:idp", "seam", "IdP OIDC auth", "Single sign-on; tokens are authz-only, never bypass", "auth", true),
-        ("seam:rest-api", "seam", "media-server REST API", "The self-hosted server's HTTP API all clients call", "api", false),
-        ("seam:signalr", "seam", "SignalR / NoMercy Connect", "Real-time multi-device sync hubs", "signalr", false),
-        ("seam:moooom", "seam", "Moooom design system", "Shared design language; web-designer is the authority", "design", false),
-        ("seam:i18n", "seam", "Localization (i18n)", "Every user-facing string translatable, from day one", "i18n", true),
-        ("seam:a11y", "seam", "Accessibility (a11y)", "WCAG from day one; non-negotiable", "a11y", true),
-        ("seam:sqlite-ef", "seam", "SQLite + EF Core", "Two-database media/queue pattern on the server", "data", false),
-        ("seam:player-event-contract", "seam", "Player event contract", "Shared event map across the v2 player kit", "api", false),
-        ("contract:rest-envelope", "contract", "REST response envelope", "The {data,...} envelope clients must strip", "api", false),
-        ("contract:signalr-nomercy-connect", "contract", "NoMercy Connect hub", "SignalR hub method/event contract", "signalr", false),
-        ("contract:player-event-map", "contract", "Player event map", "Event names + payloads the players emit", "api", false),
-        ("contract:EncodingPreset", "contract", "EncodingPreset", "Encoder profile shape (VideoProfiles/AudioProfiles/SubtitleProfiles)", "encoder", false),
-        ("antipattern:defineAsyncComponent-prefetch", "concept", "defineAsyncComponent dual-prefetch", "Dual prefetcher bug on dashboard pages", "", false),
-        ("antipattern:unstripped-envelope", "concept", "unstripped REST envelope", "Forgetting to strip {data} renders empty", "", false),
-        ("layer:vue-component", "layer", "Vue component layer", "apps/nomercy-app-web/src/components", "", false),
-        ("kind:vue-component", "codekind", "Vue component", "A .vue single-file component in the web app", "", false),
-        ("layer:dotnet-api", "layer", "API slice layer", "media-server vertical slice", "", false),
-        ("kind:dotnet-api-endpoint", "codekind", "API endpoint", "A controller/endpoint in a server slice", "", false),
-        ("kind:kotlin-compose-screen", "codekind", "Compose screen", "A Composable screen in the android app", "", false),
-        ("kind:signalr-dto", "codekind", "SignalR DTO", "A Jackson DTO crossing the SignalR boundary", "", false),
-    };
-    (string frame, string name, string value, string facet, bool multi)[] slots =
-    {
-        ("proj:nomercy-app-web", "i18n", "useI18n composable required on every user-facing string", "text", false),
-        ("proj:nomercy-app-web", "test_runner", "Cypress (E2E)", "text", false),
-        ("kind:vue-component", "location", "apps/nomercy-app-web/src/components/** (feature-grouped)", "glob", false),
-        ("kind:vue-component", "naming", "PascalCase.vue", "text", false),
-        ("kind:vue-component", "must_use", "strip the REST envelope (.data) before render", "text", true),
-        ("kind:vue-component", "must_use", "give every Button an id", "text", true),
-        ("proj:nomercy-media-server", "test_runner", "none — add tests with the feature", "text", false),
-        ("proj:nomercy-media-server", "naming", "CSharpier-formatted", "text", false),
-        ("kind:dotnet-api-endpoint", "location", "server vertical-slice folder (feature subfolder)", "glob", false),
-        ("proj:nomercy-app-android", "i18n", "string resources; no hardcoded UI text", "text", false),
-        ("proj:nomercy-app-android", "must_use", "off the main thread (Dispatchers.Default/IO)", "text", true),
-        ("kind:kotlin-compose-screen", "location", "apps/nomercy-app-android feature ui package", "glob", false),
-        ("kind:kotlin-compose-screen", "naming", "XxxScreen composable", "text", false),
-    };
-    (string s, string p, string o, string because)[] links =
-    {
-        ("proj:nomercy-tv", "exposes", "seam:idp", "command center owns the realm/accounts"),
-        ("proj:nomercy-app-web", "consumes", "seam:idp", ""),
-        ("proj:nomercy-app-android", "consumes", "seam:idp", ""),
-        ("proj:nomercy-app-ios", "consumes", "seam:idp", ""),
-        ("proj:nomercy-media-server", "consumes", "seam:idp", "validates tokens"),
-        ("proj:nomercy-media-server", "exposes", "seam:rest-api", ""),
-        ("proj:nomercy-media-server", "exposes", "contract:rest-envelope", ""),
-        ("proj:nomercy-app-web", "consumes", "seam:rest-api", ""),
-        ("proj:nomercy-app-android", "consumes", "seam:rest-api", ""),
-        ("proj:nomercy-app-ios", "consumes", "seam:rest-api", ""),
-        ("proj:nomercy-cast-player", "consumes", "seam:rest-api", ""),
-        ("proj:nomercy-app-web", "consumes", "contract:rest-envelope", "must strip .data"),
-        ("proj:nomercy-app-android", "consumes", "contract:rest-envelope", "must strip .data"),
-        ("proj:nomercy-media-server", "exposes", "seam:signalr", ""),
-        ("proj:nomercy-media-server", "exposes", "contract:signalr-nomercy-connect", ""),
-        ("proj:nomercy-app-web", "consumes", "seam:signalr", ""),
-        ("proj:nomercy-app-android", "consumes", "seam:signalr", ""),
-        ("proj:nomercy-app-ios", "consumes", "seam:signalr", ""),
-        ("proj:nomercy-app-web", "consumes", "seam:moooom", ""),
-        ("proj:nomercy-app-android", "consumes", "seam:moooom", "adapts the kit"),
-        ("proj:nomercy-app-web", "consumes", "seam:i18n", ""),
-        ("proj:nomercy-app-android", "consumes", "seam:i18n", ""),
-        ("proj:nomercy-app-ios", "consumes", "seam:i18n", ""),
-        ("proj:nomercy-tv", "consumes", "seam:i18n", ""),
-        ("proj:nomercy-cast-player", "consumes", "seam:i18n", ""),
-        ("proj:nomercy-app-web", "consumes", "seam:a11y", ""),
-        ("proj:nomercy-app-android", "consumes", "seam:a11y", ""),
-        ("proj:nomercy-app-ios", "consumes", "seam:a11y", ""),
-        ("proj:nomercy-tv", "consumes", "seam:a11y", ""),
-        ("proj:player-kit", "exposes", "seam:player-event-contract", ""),
-        ("proj:player-kit", "exposes", "contract:player-event-map", ""),
-        ("proj:nomercy-video-player", "part_of", "proj:player-kit", ""),
-        ("proj:nomercy-music-player", "part_of", "proj:player-kit", ""),
-        ("proj:nomercy-app-web", "implements", "contract:player-event-map", ""),
-        ("proj:nomercy-app-android", "implements", "contract:player-event-map", ""),
-        ("proj:nomercy-media-server", "exposes", "contract:EncodingPreset", ""),
-        ("proj:nomercy-app-web", "consumes", "contract:EncodingPreset", "encoder dashboard"),
-        ("proj:nomercy-media-server", "consumes", "seam:sqlite-ef", ""),
-        ("proj:nomercy-app-android", "consumes", "platform:mobile", ""),
-        ("proj:nomercy-app-android", "consumes", "platform:tv", ""),
-        ("proj:nomercy-app-ios", "consumes", "platform:mobile", ""),
-        ("proj:nomercy-app-web", "consumes", "platform:browser", ""),
-        ("proj:nomercy-cast-player", "consumes", "platform:tv", ""),
-        ("proj:infiniframe", "consumes", "platform:desktop", ""),
-        ("kind:vue-component", "broader", "layer:vue-component", ""),
-        ("layer:vue-component", "broader", "proj:nomercy-app-web", ""),
-        ("kind:dotnet-api-endpoint", "broader", "layer:dotnet-api", ""),
-        ("layer:dotnet-api", "broader", "proj:nomercy-media-server", ""),
-        ("kind:kotlin-compose-screen", "broader", "proj:nomercy-app-android", ""),
-        ("kind:signalr-dto", "broader", "proj:nomercy-media-server", ""),
-        ("kind:vue-component", "belongs_in", "proj:nomercy-app-web", ""),
-        ("kind:dotnet-api-endpoint", "belongs_in", "proj:nomercy-media-server", ""),
-        ("kind:kotlin-compose-screen", "belongs_in", "proj:nomercy-app-android", ""),
-        ("kind:vue-component", "forbids", "antipattern:defineAsyncComponent-prefetch", ""),
-        ("kind:vue-component", "forbids", "antipattern:unstripped-envelope", ""),
-    };
-    (string s, string o)[] governed =
-    {
-        ("proj:nomercy-app-web", "rule:feedback_always_i18n_and_a11y"),
-        ("proj:nomercy-app-web", "rule:feedback_web_dashboard_patterns"),
-        ("kind:vue-component", "rule:feedback_web_dashboard_patterns"),
-        ("proj:nomercy-app-android", "rule:feedback_always_i18n_and_a11y"),
-        ("proj:nomercy-app-android", "rule:feedback_never_main_thread"),
-        ("proj:nomercy-app-ios", "rule:feedback_always_i18n_and_a11y"),
-        ("proj:nomercy-media-server", "rule:feedback_storage_facade"),
-        ("proj:nomercy-media-server", "rule:feedback_csharpier"),
-        ("proj:nomercy-media-server", "rule:feedback_contract_based_di"),
-        ("proj:nomercy-app-web", "rule:feedback_contract_based_di"),
-        ("kind:dotnet-api-endpoint", "rule:feedback_storage_facade"),
+        ("nodes", Rows("SELECT k,kind,label,gloss,COALESCE(scheme,'') AS scheme,hard FROM node WHERE valid_to IS NULL ORDER BY k")),
+        ("slots", Rows("SELECT frame_k,name,value,COALESCE(facet,'text') AS facet,multi FROM slot WHERE valid_to IS NULL ORDER BY frame_k,name")),
+        ("links", Rows("SELECT s,p,o,COALESCE(because,'') AS because FROM triple WHERE valid_to IS NULL AND o_is_literal=0 AND src='seed' ORDER BY s,p,o")),
+        ("aliases", Rows("SELECT short,k FROM proj_alias ORDER BY short")),
+        ("terms", Rows("SELECT term,canonical FROM term_alias ORDER BY term,canonical")),
+        ("edges", Rows("SELECT symbol,COALESCE(contract,'') AS contract,COALESCE(project,'') AS project,file,line,COALESCE(usage,'') AS usage,COALESCE(hardcoded,0) AS hardcoded FROM edges WHERE contract <> 'decl' ORDER BY symbol,file")),
     };
 
-    int n = 0, l = 0, s = 0;
+    // Written field by field: this build disables reflection-based serialization, and the shape is
+    // small and fixed anyway.
+    string full = Path.GetFullPath(toPath);
+    Directory.CreateDirectory(Path.GetDirectoryName(full)!);
+    using (FileStream fs = File.Create(full))
+    using (Utf8JsonWriter w = new(fs, new JsonWriterOptions { Indented = true }))
+    {
+        w.WriteStartObject();
+        foreach ((string name, List<Dictionary<string, object?>> rows) in sections)
+        {
+            w.WriteStartArray(name);
+            foreach (Dictionary<string, object?> row in rows)
+            {
+                w.WriteStartObject();
+                foreach (KeyValuePair<string, object?> cell in row)
+                {
+                    if (cell.Value is long l) w.WriteNumber(cell.Key, l);
+                    else if (cell.Value is null) w.WriteNull(cell.Key);
+                    else w.WriteString(cell.Key, Convert.ToString(cell.Value, CultureInfo.InvariantCulture) ?? "");
+                }
+                w.WriteEndObject();
+            }
+            w.WriteEndArray();
+        }
+        w.WriteEndObject();
+    }
+    Console.WriteLine($"exported spine to {full}: " + string.Join(", ", sections.Select(x => $"{x.rows.Count} {x.name}")) + ".");
+}
+
+void SpineImport(string fromPath)
+{
+    if (!File.Exists(fromPath)) { Console.Error.WriteLine($"no spine file at {fromPath}"); return; }
+    using JsonDocument doc = JsonDocument.Parse(File.ReadAllText(fromPath));
+    JsonElement root = doc.RootElement;
+
+    string Str(JsonElement e, string name) =>
+        e.TryGetProperty(name, out JsonElement v) && v.ValueKind != JsonValueKind.Null ? (v.ValueKind == JsonValueKind.String ? v.GetString() ?? "" : v.ToString()) : "";
+    bool Flag(JsonElement e, string name) =>
+        e.TryGetProperty(name, out JsonElement v) && v.ValueKind != JsonValueKind.Null &&
+        (v.ValueKind == JsonValueKind.True || (v.ValueKind == JsonValueKind.Number && v.GetInt32() != 0));
+
+    bool NodeExists(string nk) => ScalarLong("SELECT count(*) FROM node_now WHERE k=$k", ("$k", nk)) > 0;
+
+    int n = 0, s = 0, l = 0, a = 0;
     Exec("BEGIN");
-    foreach ((string k, string kind, string label, string gloss, string scheme, bool hard) in nodes) { AddNode(k, kind, label, gloss, scheme, hard, "seed"); n++; }
-    foreach ((string frame, string name, string value, string facet, bool multi) in slots) { AddSlot(frame, name, value, facet, multi, "", "seed", "seed"); s++; }
-    foreach ((string sj, string p, string o, string because) in links) { Link(sj, p, o, because); l++; }
-    foreach ((string sj, string o) in governed) { Link(sj, "governed_by", o, ""); l++; }
+    if (root.TryGetProperty("nodes", out JsonElement nodes))
+        foreach (JsonElement e in nodes.EnumerateArray())
+        { AddNode(Str(e, "k"), Str(e, "kind"), Str(e, "label"), Str(e, "gloss"), Str(e, "scheme"), Flag(e, "hard"), "seed"); n++; }
+
+    if (root.TryGetProperty("slots", out JsonElement slots))
+        foreach (JsonElement e in slots.EnumerateArray())
+        { AddSlot(Str(e, "frame_k"), Str(e, "name"), Str(e, "value"), Str(e, "facet"), Flag(e, "multi"), "", "seed", "seed"); s++; }
+
+    if (root.TryGetProperty("links", out JsonElement links))
+        foreach (JsonElement e in links.EnumerateArray())
+        {
+            string sj = Str(e, "s"), o = Str(e, "o");
+            if (!NodeExists(sj) || !NodeExists(o)) { Console.Error.WriteLine($"spine: skip {sj} -> {o} (missing node)"); continue; }
+            AddTriple(sj, Str(e, "p"), o, Str(e, "because"), "seed", false, "seed");
+            l++;
+        }
+
+    if (root.TryGetProperty("aliases", out JsonElement aliases))
+        foreach (JsonElement e in aliases.EnumerateArray())
+        { Run("INSERT INTO proj_alias(short,k) VALUES($a,$k) ON CONFLICT(short) DO UPDATE SET k=$k", ("$a", Str(e, "short")), ("$k", Str(e, "k"))); a++; }
+
+    if (root.TryGetProperty("terms", out JsonElement terms))
+        foreach (JsonElement e in terms.EnumerateArray())
+            Run("INSERT OR IGNORE INTO term_alias(term,canonical) VALUES($t,$c)", ("$t", Str(e, "term")), ("$c", Str(e, "canonical")));
+
+    int g = 0;
+    if (root.TryGetProperty("edges", out JsonElement edges))
+        foreach (JsonElement e in edges.EnumerateArray())
+        {
+            int line = e.TryGetProperty("line", out JsonElement lv) && lv.ValueKind == JsonValueKind.Number ? lv.GetInt32() : 0;
+            int hard = e.TryGetProperty("hardcoded", out JsonElement hv) && hv.ValueKind == JsonValueKind.Number ? hv.GetInt32() : 0;
+            Run("INSERT INTO edges(symbol,contract,project,file,line,usage,hardcoded) VALUES($s,$c,$p,$f,$l,$u,$h)",
+                ("$s", Str(e, "symbol")), ("$c", Str(e, "contract")), ("$p", Str(e, "project")),
+                ("$f", Str(e, "file")), ("$l", line), ("$u", Str(e, "usage")), ("$h", hard));
+            g++;
+        }
+
     Exec("COMMIT");
     Exec("INSERT INTO node_fts(node_fts) VALUES('rebuild')");
-    Console.WriteLine($"seeded curated spine: {n} nodes, {s} slots, {l} links.");
+    Console.WriteLine($"imported spine: {n} nodes, {s} slots, {l} links, {a} alias(es), {g} edge(s).");
 }
 
 // Ingest a Claude Code session transcript (one .jsonl file) or a whole transcript dir into the chat channel.
@@ -2133,7 +2123,7 @@ int IndexChatFile(string path)
 }
 
 // User content is a plain string or an array of blocks; only real text blocks are human input
-// (a content array of tool_result blocks is a tool echo, not something the owner said) -> null.
+// (a content array of tool_result blocks is a tool echo, not something the operator said) -> null.
 string? ExtractUserText(JsonElement message)
 {
     if (!message.TryGetProperty("content", out JsonElement content)) return null;
@@ -2185,7 +2175,7 @@ void Eval()
         ("video item watch progress field name", "timestamp", true),
         ("signalr hub routes", "videoHub", true),
         ("encoder preset profile field name", "profile_json", true),
-        ("windows installer release asset name", "NoMercyMediaServer", true),
+        ("windows installer release asset name", "ExampleInstaller", true),
         ("quantumblockchain unicornrecipe zzz", "", false),
         ("weather forecast lovely saturday", "", false),
         ("server", "", false),
@@ -2252,74 +2242,28 @@ void HistoryCmd(string term)
 // Seed the real cross-project consumption edges mapped from the monorepo (the AITM graph).
 void SeedEdges()
 {
-    (string sym, string contract, string proj, string file, int line, string usage, int hard)[] edges =
-    {
-        ("has_more", "PaginatedResponse", "web", "src/lib/clients/useInfiniteServerClient.ts", 97, "pagination cursor (breaks ALL infinite lists)", 1),
-        ("next_page", "PaginatedResponse", "web", "src/lib/clients/useInfiniteServerClient.ts", 98, "pagination cursor", 1),
-        ("data", "envelope", "web", "src/lib/clients/useServerClient.ts", 108, "unwrap {data} on every API call", 1),
-        ("data", "envelope", "web", "src/lib/clients/useApiClient.ts", 112, "unwrap {data}", 1),
-        ("data", "envelope", "android", "app/.../repositories/DashboardRepository.kt", 60, "response.body().data (~18 sites)", 1),
-        ("is_built_in", "EncodingPreset", "web", "src/views/Dashboard/System/EncoderProfiles/Edit.vue", 138, "read field (guard)", 1),
-        ("is_built_in", "EncodingPreset", "web", "src/views/.../components/EncoderProfilesTable.vue", 187, "read field", 1),
-        ("is_built_in", "EncodingPreset", "web", "src/views/.../components/EncoderProfileActionsMenu.vue", 101, "read field", 1),
-        ("profile_json", "EncodingPreset", "web", "src/views/Dashboard/System/EncoderProfiles/Edit.vue", 69, "JSON.parse(profile_json)", 1),
-        ("profile_json", "EncodingPreset", "web", "src/views/.../components/EncoderProfilesTable.vue", 52, "JSON.parse", 1),
-        ("profile_json", "EncodingPreset", "web", "src/composables/useEncoderProfileMutations.ts", 131, "sends profile_json in PUT body", 1),
-        ("tags", "EncodingPreset", "web", "src/views/.../components/EncoderProfilesTable.vue", 180, "tags.split(',')", 1),
-        ("encoder/profiles", "EncodingPreset", "web", "src/composables/useEncodingPresets.ts", 44, "GET endpoint (list presets)", 1),
-        ("progress_ms", "MusicPlayerState", "web", "src/store/musicSocket.ts", 171, "latency-adjusted seek", 1),
-        ("progress_ms", "MusicPlayerState", "android", "app/.../musicPlayer/hub/MusicHubAdapter.kt", 292, "@JsonProperty(progress_ms)", 1),
-        ("progress_ms", "VideoPlayerState", "web", "src/lib/VideoPlayer/plugins/videoNoMercyConnectPlugin.ts", 144, "read field", 1),
-        ("is_playing", "MusicPlayerState", "web", "src/store/musicSocket.ts", 212, "read field", 1),
-        ("is_playing", "MusicPlayerState", "android", "app/.../musicPlayer/hub/MusicHubAdapter.kt", 295, "@JsonProperty(is_playing)", 1),
-        ("device_id", "MusicPlayerState", "web", "src/store/musicSocket.ts", 127, "read field", 1),
-        ("device_id", "MusicPlayerState", "android", "app/.../shared/api/dto/MusicPlayerDtos.kt", 25, "@JsonProperty(device_id)", 1),
-        ("volume_percentage", "MusicPlayerState", "web", "src/store/musicSocket.ts", 190, "read field", 1),
-        ("volume_percentage", "MusicPlayerState", "android", "app/.../musicPlayer/hub/MusicHubAdapter.kt", 335, "@JsonProperty(volume_percentage)", 1),
-        ("MusicPlayerState", "signalr-event", "web", "src/store/musicSocket.ts", 69, "connection.on('MusicPlayerState')", 1),
-        ("MusicPlayerState", "signalr-event", "android", "app/.../musicPlayer/hub/MusicHubAdapter.kt", 158, "musicHub.on('MusicPlayerState')", 1),
-        ("VideoPlayerState", "signalr-event", "web", "src/lib/VideoPlayer/plugins/videoNoMercyConnectPlugin.ts", 41, "socket.on('VideoPlayerState')", 1),
-    };
-    // Snapshot the live graph by natural key, then log only the real diffs (the graph is the AITM core;
-    // a moved consumer or a renamed field must leave a trace), then rebuild the projection.
-    Dictionary<string, (string usage, int hard, string contract)> live = new();
-    using (SqliteCommand q = db.CreateCommand())
-    {
-        q.CommandText = "SELECT symbol,project,file,line,usage,hardcoded,contract FROM edges";
-        using SqliteDataReader r = q.ExecuteReader();
-        while (r.Read())
-            live[$"{r.GetString(0)}|{r.GetString(1)}|{r.GetString(2)}|{r.GetInt32(3)}"] = (r.GetString(4), r.GetInt32(5), r.GetString(6));
-    }
-    int ins = 0, upd = 0, del = 0;
-    HashSet<string> seen = new();
+    // Curated cross-project edges are one ecosystem's contract map, not engine data. They ride in
+    // the same spine file as the nodes so an install brings its own, or brings none.
+    string seed = GetFlag("--from") ?? Path.Combine(AppContext.BaseDirectory, "..", "seeds", "spine.json");
+    if (!File.Exists(seed)) { Console.Error.WriteLine($"no spine file at {Path.GetFullPath(seed)}"); return; }
+
+    using JsonDocument doc = JsonDocument.Parse(File.ReadAllText(seed));
+    if (!doc.RootElement.TryGetProperty("edges", out JsonElement edges)) { Console.WriteLine("spine has no edges section."); return; }
+
+    string S(JsonElement e, string n) => e.TryGetProperty(n, out JsonElement v) && v.ValueKind == JsonValueKind.String ? v.GetString() ?? "" : "";
+    int I(JsonElement e, string n) => e.TryGetProperty(n, out JsonElement v) && v.ValueKind == JsonValueKind.Number ? v.GetInt32() : 0;
+
+    int n = 0;
     Exec("BEGIN");
-    foreach ((string sym, string contract, string proj, string file, int line, string usage, int hard) in edges)
+    foreach (JsonElement e in edges.EnumerateArray())
     {
-        string key = $"{sym}|{proj}|{file}|{line}";
-        seen.Add(key);
-        if (!live.TryGetValue(key, out (string usage, int hard, string contract) cur))
-        {
-            LogMutation("edge", key, "insert", null, $"{contract}:{usage}", "seed-edges");
-            ins++;
-        }
-        else if (cur.usage != usage || cur.hard != hard || cur.contract != contract)
-        {
-            LogMutation("edge", key, "update", $"{cur.contract}:{cur.usage}", $"{contract}:{usage}", "seed-edges");
-            upd++;
-        }
-    }
-    foreach (KeyValuePair<string, (string usage, int hard, string contract)> kv in live)
-        if (!seen.Contains(kv.Key))
-        {
-            LogMutation("edge", kv.Key, "delete", $"{kv.Value.contract}:{kv.Value.usage}", null, "seed-edges");
-            del++;
-        }
-    Run("DELETE FROM edges");
-    foreach ((string sym, string contract, string proj, string file, int line, string usage, int hard) in edges)
         Run("INSERT INTO edges(symbol,contract,project,file,line,usage,hardcoded) VALUES($s,$c,$p,$f,$l,$u,$h)",
-            ("$s", sym), ("$c", contract), ("$p", proj), ("$f", file), ("$l", line), ("$u", usage), ("$h", hard));
+            ("$s", S(e, "symbol")), ("$c", S(e, "contract")), ("$p", S(e, "project")),
+            ("$f", S(e, "file")), ("$l", I(e, "line")), ("$u", S(e, "usage")), ("$h", I(e, "hardcoded")));
+        n++;
+    }
     Exec("COMMIT");
-    Console.WriteLine($"synced {edges.Length} cross-project edges ({ins} new, {upd} changed, {del} removed since last sync).");
+    Console.WriteLine($"seeded {n} curated edge(s) from {Path.GetFullPath(seed)}.");
 }
 
 // The AITM core, signal-first: separate genuine logic CONSUMERS (review each) from the CONTRACT SURFACE
@@ -2646,8 +2590,8 @@ void SelfTest()
     CloseTodo(99999);
     Check("guard: closing a nonexistent todo is a no-op (no phantom mutation)", Count("SELECT count(*) FROM mutations WHERE kind='todo'") == todoMutsBefore);
 
-    Run("INSERT INTO chat(k,session,ts,role,text) VALUES('s:1','s','t','user',$tx)", ("$tx", "the owner said never use optionalDependencies in package json"));
-    Run("INSERT INTO chat_fts(k,text) VALUES('s:1',$tx)", ("$tx", "the owner said never use optionalDependencies in package json"));
+    Run("INSERT INTO chat(k,session,ts,role,text) VALUES('s:1','s','t','user',$tx)", ("$tx", "the operator said never use optionalDependencies in package json"));
+    Run("INSERT INTO chat_fts(k,text) VALUES('s:1',$tx)", ("$tx", "the operator said never use optionalDependencies in package json"));
     Check("recall: indexed chat message is retrievable", Count("SELECT count(*) FROM chat_fts WHERE chat_fts MATCH 'optionaldependencies'") == 1);
     (List<(string term, string category, string value, string source, double score)> factSide, _) = Search("optionaldependencies", 1);
     Check("isolation: chat never leaks into the verified-facts channel", factSide.Count == 0);
