@@ -14,6 +14,7 @@
 import { readFileSync, existsSync, writeFileSync, mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, basename, dirname } from 'node:path';
+import { tailEntries } from './brain-lib.mjs';
 
 const MAX_BLOCKS = 3;
 
@@ -75,9 +76,9 @@ const DEFERRAL = new RegExp([
 ].join('|'), 'i');
 
 function turnSlice(transcriptPath) {
-  const lines = readFileSync(transcriptPath, 'utf8').split('\n').filter((l) => l.trim().length > 0);
-  const entries = [];
-  for (const l of lines) { try { entries.push(JSON.parse(l)); } catch { /* skip */ } }
+  // The tail is enough: this only ever looks at the current turn and the latest todo list, and the full
+  // read cost 735ms on a 49 MB session — paid on every Stop, alongside three other hooks doing the same.
+  const { entries, truncated } = tailEntries(transcriptPath);
   // Everything since the last genuine user prompt is "this turn".
   let start = 0;
   for (let i = entries.length - 1; i >= 0; i--) {
@@ -90,7 +91,7 @@ function turnSlice(transcriptPath) {
     start = i;
     break;
   }
-  return { entries, turn: entries.slice(start) };
+  return { entries, truncated, turn: entries.slice(start) };
 }
 
 const blocksOf = (entries) => {
@@ -118,15 +119,21 @@ process.stdin.on('end', () => {
     if (state.sid !== payload.session_id) state = { sid: payload.session_id, blocks: 0 };
     if (state.blocks >= MAX_BLOCKS) process.exit(0);
 
-    const { entries, turn } = turnSlice(tp);
+    const { entries, truncated, turn } = turnSlice(tp);
 
-    // Latest todo state anywhere in the session; TodoWrite replaces the whole list each call.
-    let pending = [];
-    for (const b of blocksOf(entries)) {
-      if (b.type === 'tool_use' && b.name === 'TodoWrite' && Array.isArray(b.input?.todos)) {
-        pending = b.input.todos.filter((t) => t.status === 'pending' || t.status === 'in_progress');
+    // Latest todo state anywhere in the session; TodoWrite replaces the whole list each call. This is
+    // the one thing here that is not turn-local, so when the tail holds no TodoWrite at all the list
+    // may simply be older than the window — that case, and only that case, pays for the full read.
+    const latestTodos = (from) => {
+      let found = null;
+      for (const b of blocksOf(from)) {
+        if (b.type === 'tool_use' && b.name === 'TodoWrite' && Array.isArray(b.input?.todos)) found = b.input.todos;
       }
-    }
+      return found;
+    };
+    let todos = latestTodos(entries);
+    if (todos === null && truncated) todos = latestTodos(tailEntries(tp, { maxBytes: Infinity }).entries);
+    const pending = (todos || []).filter((t) => t.status === 'pending' || t.status === 'in_progress');
 
     const askedThisTurn = blocksOf(turn).some((b) => b.type === 'tool_use' && b.name === 'AskUserQuestion');
 
@@ -158,7 +165,10 @@ process.stdin.on('end', () => {
         `Scope is also a valid answer, and it is NOT a question. If the work is plainly outside what was ` +
         `asked — a refactor surfaced by an orientation question, a rewrite surfaced by a bug report — say ` +
         `so in one flat line and stop. Do not turn it into a menu of options; offering "shall I do A or B" ` +
-        `is the hedge-ask, and it costs him the same reply that deferral does.`
+        `is the hedge-ask, and it costs him the same reply that deferral does.\n\n` +
+        `Do NOT satisfy this guard by editing the sentence. Rewriting a doc, a comment, or a report so the ` +
+        `phrase stops matching is not a fix, it is a cover-up, and it damages a file nobody asked you to ` +
+        `touch. Either change the thing the sentence describes, or say plainly that it is out of scope.`
       );
     }
     if (deferred) {

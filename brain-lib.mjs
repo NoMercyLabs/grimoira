@@ -1,7 +1,7 @@
 // Shared read/score/write layer for the brain hooks (brain-gate, brain-harvest, brain-capture).
 // node's bundled SQLite has no FTS5, so every lookup here is a LIKE candidate scan scored in JS —
 // the same approach prompt-recall.mjs proved out, generalised over all five channels.
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync, mkdirSync, statSync, openSync, readSync, closeSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, basename, dirname } from 'node:path';
 
@@ -460,6 +460,37 @@ export function logGap(db, tool, query) {
 // is allowed straight through on the next attempt, so a genuine miss always reaches the filesystem.
 export function ledgerPath(instance, sessionId) {
   return join(homedir(), '.aitm', instance, 'gate', `${String(sessionId || 'nosession').slice(0, 64)}.json`);
+}
+
+// Read the END of a transcript rather than all of it.
+//
+// Every Stop and UserPromptSubmit hook needs the last turn, and each was reading and JSON-parsing the
+// whole file to get it: 735ms on a 49 MB session, on every single prompt, times four hooks. A turn is
+// kilobytes. The first line in the window is dropped because a byte offset lands mid-record.
+//
+// wantFull is the escape hatch: if the caller cannot find what it needs in the tail (a turn longer than
+// the window), it says so and gets the whole file, so this is a speed change and never a correctness one.
+export function tailEntries(path, { maxBytes = 4 * 1024 * 1024 } = {}) {
+  let text, truncated = false;
+  const size = statSync(path).size;
+  if (size <= maxBytes) {
+    text = readFileSync(path, 'utf8');
+  } else {
+    const fd = openSync(path, 'r');
+    try {
+      const buf = Buffer.allocUnsafe(maxBytes);
+      readSync(fd, buf, 0, maxBytes, size - maxBytes);
+      text = buf.toString('utf8');
+    } finally { closeSync(fd); }
+    text = text.slice(text.indexOf('\n') + 1);
+    truncated = true;
+  }
+  const entries = [];
+  for (const line of text.split('\n')) {
+    if (!line.trim()) continue;
+    try { entries.push(JSON.parse(line)); } catch { /* partial or split record */ }
+  }
+  return { entries, truncated };
 }
 
 export function readLedger(path) {

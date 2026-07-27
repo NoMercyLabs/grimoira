@@ -12,10 +12,12 @@ import { writeFileSync, mkdirSync, readFileSync, existsSync, rmSync } from 'node
 import { execFileSync } from 'node:child_process';
 import { homedir, tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
-import { resolveInstance } from './brain-lib.mjs';
+import { resolveInstance, tailEntries } from './brain-lib.mjs';
 
 const MIN_FILES = 3;
 const MIN_ANSWER = 1500;
+const PROSE = /\.(md|mdx|txt|rst|adoc)$/i;
+const SCRATCH = /(^|\/)(scratchpad|\.scratch|node_modules|Temp|tmp)(\/|$)/i;
 
 const cliPath = () => {
   const exe = join(dirname(new URL(import.meta.url).pathname.replace(/^\//, '')), 'bin-cli', 'aitm.exe');
@@ -23,11 +25,7 @@ const cliPath = () => {
 };
 
 function turnOf(transcriptPath) {
-  const entries = [];
-  for (const line of readFileSync(transcriptPath, 'utf8').split('\n')) {
-    if (!line.trim()) continue;
-    try { entries.push(JSON.parse(line)); } catch { /* partial write */ }
-  }
+  const { entries } = tailEntries(transcriptPath);
   let start = 0;
   for (let i = entries.length - 1; i >= 0; i--) {
     const e = entries[i];
@@ -57,9 +55,16 @@ process.stdin.on('end', () => {
     const turn = turnOf(tp);
     const blocks = turn.flatMap((e) => (Array.isArray(e.message?.content) ? e.message.content : []));
 
+    // Prose only, and only outside scratch. Reading three source files and writing a long explanation is
+    // ordinary work, not a document set being summarised — filing that as a "synthesis" would put an
+    // answer about code into the docs channel, where the read gate can never serve it and every doc
+    // query has to step over it. Scratch directories are throwaway by definition.
     const read = [];
     for (const b of blocks) {
-      if (b.type === 'tool_use' && b.name === 'Read' && b.input?.file_path) read.push(b.input.file_path.replace(/\\/g, '/'));
+      if (b.type !== 'tool_use' || b.name !== 'Read' || !b.input?.file_path) continue;
+      const f = b.input.file_path.replace(/\\/g, '/');
+      if (!PROSE.test(f) || SCRATCH.test(f)) continue;
+      read.push(f);
     }
     if (read.length < MIN_FILES) process.exit(0);
 

@@ -7,7 +7,7 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, dirname } from 'node:path';
-import { resolveInstance } from './brain-lib.mjs';
+import { resolveInstance, tailEntries } from './brain-lib.mjs';
 
 const PREFER = 45;   // guideline: a good moment to compact
 const ENFORCE = 70;  // matches CLAUDE_AUTOCOMPACT_PCT_OVERRIDE, where the product compacts on its own
@@ -36,6 +36,11 @@ function used(entries) {
   return latest > 0 ? { total: latest, peak } : null;
 }
 
+// The peak is what identifies the window, and it can sit anywhere in the session — but re-reading a
+// 49 MB transcript on every prompt to find it cost 735ms a turn. Carrying it forward in the state file
+// makes the tail sufficient: usage only ever grows within a window, so a running maximum is exact.
+const TAIL = 512 * 1024;
+
 let input = '';
 process.stdin.on('data', (d) => { input += d; });
 process.stdin.on('end', () => {
@@ -44,22 +49,22 @@ process.stdin.on('end', () => {
     const tp = payload.transcript_path;
     if (!tp || !existsSync(tp)) process.exit(0);
 
-    const entries = [];
-    for (const line of readFileSync(tp, 'utf8').split('\n')) {
-      if (!line.trim()) continue;
-      try { entries.push(JSON.parse(line)); } catch { /* partial write */ }
-    }
+    const { entries } = tailEntries(tp, { maxBytes: TAIL });
     const u = used(entries);
     if (!u) process.exit(0);
 
-    const pct = Math.round((u.total / windowFor(u.peak)) * 100);
-    if (pct < PREFER) process.exit(0);
-
     const instance = resolveInstance(payload);
     const statePath = join(homedir(), '.aitm', instance, 'context-watch.json');
-    let state = { sid: null, band: 0 };
+    let state = { sid: null, band: 0, peak: 0 };
     try { state = JSON.parse(readFileSync(statePath, 'utf8')); } catch { /* first run */ }
-    if (state.sid !== payload.session_id) state = { sid: payload.session_id, band: 0 };
+    if (state.sid !== payload.session_id) state = { sid: payload.session_id, band: 0, peak: 0 };
+    state.peak = Math.max(state.peak || 0, u.peak);
+
+    const pct = Math.round((u.total / windowFor(state.peak)) * 100);
+    if (pct < PREFER) {
+      try { mkdirSync(dirname(statePath), { recursive: true }); writeFileSync(statePath, JSON.stringify(state)); } catch { /* best effort */ }
+      process.exit(0);
+    }
 
     const band = pct >= ENFORCE ? 2 : 1;
     if (band <= state.band) process.exit(0);

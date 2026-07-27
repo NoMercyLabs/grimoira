@@ -1031,7 +1031,11 @@ void AddSynthesis(string sourceDir, string bodyFile, string title, string source
     // Sources are named, not pathed: they all live in dir, and twelve repeated absolute paths ahead of
     // the answer is a kilobyte of provenance nobody reads.
     string names = string.Join(", ", sources.Split(';', StringSplitOptions.RemoveEmptyEntries).Select(s => Path.GetFileName(s.Trim())));
-    string content = Compact(body);
+    // Stored VERBATIM, unlike an absorbed source section. Compact() strips table pipes, which is a fair
+    // trade for a doc whose original is still on disk — but a synthesis has no original, and running it
+    // through Compact() collapsed "H.264 | libx264 | h264_nvenc | …" into a row of words with no columns.
+    // The only thing worth normalising is line endings.
+    string content = body.Replace("\r\n", "\n").Trim();
     string stamped = $"synthesis of {dir}\nfrom: {names}\nnewest_source_ticks: {newest}\n\n{content}";
     string terms = $"{PathTerms(dir)} synthesis overview brief";
 
@@ -1044,6 +1048,43 @@ void AddSynthesis(string sourceDir, string bodyFile, string title, string source
     Console.WriteLine($"synthesis stored for {dir} ({content.Length} chars).");
 }
 
+// Drop matching directories from the read gate's synthesis index, which lives beside the store as JSON
+// because the gate runs on every Read and cannot afford to open the database to find out there is nothing.
+void ForgetSynthesisIndex(string pathFragment)
+{
+    string idx = Path.Combine(root, "synthesis.json");
+    if (!File.Exists(idx)) return;
+    try
+    {
+        // JsonDocument, not JsonSerializer: reflection-based serialization is disabled in this build, so
+        // Deserialize<T> compiles with a trim warning and then fails at runtime.
+        string needle = pathFragment.Replace('\\', '/').ToLowerInvariant();
+        List<(string key, string json)> keep = new();
+        bool dropped = false;
+        using (JsonDocument doc = JsonDocument.Parse(File.ReadAllText(idx)))
+        {
+            foreach (JsonProperty p in doc.RootElement.EnumerateObject())
+            {
+                if (p.Name.Contains(needle, StringComparison.OrdinalIgnoreCase)) { dropped = true; continue; }
+                keep.Add((p.Name, p.Value.GetRawText()));
+            }
+        }
+        if (!dropped) return;
+
+        using FileStream fs = File.Create(idx);
+        using Utf8JsonWriter w = new(fs, new JsonWriterOptions { Indented = true });
+        w.WriteStartObject();
+        foreach ((string k, string raw) in keep)
+        {
+            w.WritePropertyName(k);
+            using JsonDocument v = JsonDocument.Parse(raw);
+            v.RootElement.WriteTo(w);
+        }
+        w.WriteEndObject();
+    }
+    catch { /* the index is a cache; a malformed one degrades to "no synthesis known" */ }
+}
+
 // Shed outdated absorbed docs by path substring (e.g. a superseded plan or a historical session log).
 void ShedDoc(string pathFragment)
 {
@@ -1054,6 +1095,9 @@ void ShedDoc(string pathFragment)
     Run("DELETE FROM docs_fts WHERE k IN (SELECT k FROM docs WHERE path LIKE $p)", ("$p", like));
     Run("DELETE FROM docs WHERE path LIKE $p", ("$p", like));
     Exec("COMMIT");
+    // The read gate keeps its own index of which directories have a synthesis. Leaving a shed entry in
+    // it means the gate keeps claiming an answer exists for a row that is gone.
+    ForgetSynthesisIndex(pathFragment);
     Console.WriteLine($"shed {before} section(s) matching '{pathFragment}'.");
 }
 

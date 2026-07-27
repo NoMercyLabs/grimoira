@@ -1,0 +1,42 @@
+[
+  {
+    "id": "encoder-orientation",
+    "prompt": "What is the NoMercy Effortless Encoder? Give me the short version.",
+    "why": "The store holds a synthesis distilled from the 12-part report. Reading the report again is the failure this scenario exists to catch.",
+    "mustContain": ["encod"],
+    "mustNotRead": ["the-effortless-encoder"],
+    "maxToolCalls": 4
+  },
+  {
+    "id": "aitm-meaning",
+    "prompt": "What does AITM stand for and what is it for?",
+    "why": "A single stated fact in the fact channel. Anything beyond one lookup is the store failing to be the first place asked.",
+    "mustContain": ["agent in the middle"],
+    "mustNotRead": [],
+    "maxToolCalls": 3
+  },
+  {
+    "id": "player-core-home",
+    "prompt": "Where does nomercy-player-core live and what version is current?",
+    "why": "A package fact, and the exact one a staging copy used to shadow. A hyphenated name is also what the broken tokenizer could not match.",
+    "mustContain": ["packages/nomercy-player-core", "2.0.1"],
+    "mustNotRead": ["package.json"],
+    "maxToolCalls": 3
+  },
+  {
+    "id": "release-trigger",
+    "prompt": "What actually triggers a nomercy-media-server release?",
+    "why": "A hard rule with real consequences. Getting it from the store beats reading the workflow yaml, and getting it wrong ships to users.",
+    "mustContain": ["dev"],
+    "mustNotRead": ["ci-cd-pipeline.yml"],
+    "maxToolCalls": 4
+  },
+  {
+    "id": "prod-host",
+    "prompt": "Which machine runs the production media server, and how do I reach it?",
+    "why": "An infra node. Nothing in the repo answers this, so a store miss means guessing or asking.",
+    "mustContain": ["192.0.2.12"],
+    "mustNotRead": [],
+    "maxToolCalls": 3
+  }
+]
