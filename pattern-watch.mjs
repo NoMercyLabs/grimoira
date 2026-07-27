@@ -21,6 +21,9 @@ const SEQ_LEN = 3;
 const WRAPPERS = new Set([
   'cd', 'sudo', 'time', 'env', 'nohup', 'exec', 'command', 'call', 'export', 'set', 'source', '.',
   '&&', ';', '|',
+  // PowerShell says "cd" with a different word, and the signature lowercases before this test — without
+  // these, every "Set-Location X; <real work>" signed as the navigation instead of the work.
+  'set-location', 'sl', 'chdir', 'push-location', 'pushd', 'pop-location', 'popd',
 ]);
 const SUBCOMMANDLESS = new Set(['node', 'python', 'python3', 'bash', 'sh', 'pwsh', 'powershell']);
 // A bare general-purpose utility is not a task. "grep" repeated fifty times says nothing that could

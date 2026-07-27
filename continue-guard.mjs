@@ -20,13 +20,43 @@ const MAX_BLOCKS = 3;
 // The costliest shape, because it looks like diligence: the turn diagnoses a problem it is capable of
 // fixing, writes it up as an open item, and hands it back. the owner then has to type the instruction
 // that the analysis already implied. Naming a problem you can fix is not reporting, it is deferring.
-const SELF_FLAGGED = new RegExp([
-  "still open\\b", "still outstanding", "remains? open", "left open", "still (broken|missing|wrong)",
-  "not (yet )?(fixed|done|implemented|addressed|wired|handled)", "known (issue|gap|problem|limitation)",
+//
+// These phrases only mean deferral when the turn is talking about its OWN work, so they are split.
+// Strong ones are already framed as a hand-off and fire alone.
+const FLAGGED_STRONG = new RegExp([
+  "still open\\b", "still outstanding", "remains? open", "left open",
   "worth a look", "on your side", "you (may|might|could) want to", "someone should",
   "i flagged", "flagging (this|that|it)", "one thing (is |remains )?outstanding",
-  "needs? (a )?follow[- ]?up", "should (also )?be (fixed|done|changed|updated)",
+  "needs? (a )?follow[- ]?up",
 ].join('|'), 'i');
+
+// Weak ones describe a state, and a state can belong to anyone. "Chapter thumbnails are scaffolded but
+// not wired to the player" is a documented product limitation being summarised, not work being parked —
+// it blocked a read-only orientation answer that had nothing to continue with.
+const FLAGGED_WEAK = new RegExp([
+  "still (broken|missing|wrong)", "known (issue|gap|problem|limitation)",
+  "not (yet )?(fixed|done|implemented|addressed|wired|handled)",
+  "should (also )?be (fixed|done|changed|updated)",
+].join('|'), 'i');
+
+// What makes a weak phrase a hand-off: the sentence points at the owner or at the turn's own work.
+const OWNED = /\b(i|i'?ll|i'?ve|i'?m|we|we'?ll|we'?ve|you|you'?ll|your|my|next step|todo)\b/i;
+
+const sentenceAround = (text, hit) => {
+  const at = text.toLowerCase().indexOf(hit.toLowerCase());
+  if (at < 0) return text;
+  const from = Math.max(0, text.lastIndexOf('.', at - 1) + 1);
+  const to = text.indexOf('.', at + hit.length);
+  return text.slice(from, to < 0 ? text.length : to);
+};
+
+function selfFlagged(text) {
+  const strong = text.match(FLAGGED_STRONG);
+  if (strong) return strong[0];
+  const weak = text.match(FLAGGED_WEAK);
+  if (weak && OWNED.test(sentenceAround(text, weak[0]))) return weak[0];
+  return null;
+}
 
 // A genuine capability limit is not deferral: there is nothing to continue with.
 const REAL_BLOCKER = new RegExp([
@@ -113,12 +143,12 @@ process.stdin.on('end', () => {
     const deferred = DEFERRAL.test(finalText);
     const parked = pending.length > 0 && !askedThisTurn;
     // A self-flagged item only counts as deferral when nothing actually prevented the fix.
-    const flagged = SELF_FLAGGED.test(finalText) && !REAL_BLOCKER.test(finalText) && !askedThisTurn;
+    const hit = REAL_BLOCKER.test(finalText) || askedThisTurn ? null : selfFlagged(finalText);
+    const flagged = hit !== null;
     if (!deferred && !parked && !flagged) process.exit(0);
 
     const reasons = [];
     if (flagged) {
-      const hit = (finalText.match(SELF_FLAGGED) || [''])[0];
       reasons.push(
         `You wrote up work you can do instead of doing it (matched: "${hit}"). Diagnosing a problem you are ` +
         `capable of fixing and reporting it as an open item is deferral wearing a status update — it forces ` +

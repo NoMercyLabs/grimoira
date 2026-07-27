@@ -10,8 +10,13 @@ import {
   ledgerPath, readLedger, writeLedger,
 } from './brain-lib.mjs';
 
-// Meta/scratch trees are workspace plumbing, not project knowledge worth gating.
-const EXEMPT = /(^|[\\/])(\.claude[\\/]worktrees|scratchpad|node_modules|\.git|dist|build|bin|obj)([\\/]|$)/i;
+// Meta/scratch trees are workspace plumbing, not project knowledge worth gating. Session transcripts
+// are already in the chat channel, so grepping the raw jsonl is a filesystem question, not a recall one.
+const EXEMPT = /(^|[\\/])(\.claude[\\/](worktrees|projects|plugins)|scratchpad|node_modules|\.git|dist|build|bin|obj)([\\/]|$)/i;
+
+// Searching one named file is not a blind search — the file is already identified, and the store has
+// nothing to add about where to look. Only a scope that is a directory tree is worth gating.
+const NAMED_FILE = /\.[A-Za-z0-9]{1,6}$/;
 
 const allow = () => process.exit(0);
 
@@ -21,10 +26,16 @@ process.stdin.on('end', async () => {
   let db = null;
   try {
     const payload = JSON.parse(input || '{}');
+    // Glob asks which files exist, which is a question about the filesystem and not one any store can
+    // answer. Gating it returned topically-adjacent prose in place of a directory listing, cost a
+    // re-issue, and on this monorepo the re-issued glob then hit ripgrep's timeout. Harvest still runs
+    // on Glob results — learning the paths is useful; refusing the listing never was.
+    if (payload.tool_name === 'Glob') allow();
     const ti = payload.tool_input || {};
     const pattern = ti.pattern || '';
     const scope = ti.path || ti.glob || '';
     if (!pattern || EXEMPT.test(String(scope))) allow();
+    if (ti.path && NAMED_FILE.test(String(ti.path))) allow();
 
     const tokens = tokenize(pattern);
     if (tokens.length === 0) allow();
