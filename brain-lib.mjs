@@ -256,6 +256,88 @@ export function format(picks) {
   }).join('\n');
 }
 
+// Resolve a loose name to a live node key: exact key, then exact label, then a contained label.
+export function resolveNode(db, name) {
+  const q = String(name || '').trim();
+  if (!q) return null;
+  for (const [sql, param] of [
+    ['SELECT k, label FROM node WHERE valid_to IS NULL AND k = ? LIMIT 1', q],
+    ['SELECT k, label FROM node WHERE valid_to IS NULL AND LOWER(label) = LOWER(?) LIMIT 1', q],
+    ['SELECT k, label FROM node WHERE valid_to IS NULL AND label LIKE ? ORDER BY length(label) LIMIT 1', `%${q}%`],
+  ]) {
+    try {
+      const r = db.prepare(sql).get(param);
+      if (r) return r;
+    } catch { /* node table absent */ }
+  }
+  return null;
+}
+
+// Shortest connection between two nodes, walked in both directions because "what does A have to do
+// with B" does not care which way the relationship was authored. This is the query behind "what
+// breaks if I change this": the chain, with the reason each link was recorded.
+export function pathBetween(db, fromName, toName, { maxDepth = 5 } = {}) {
+  const a = resolveNode(db, fromName);
+  const b = resolveNode(db, toName);
+  if (!a || !b) return { from: a, to: b, hops: null };
+  if (a.k === b.k) return { from: a, to: b, hops: [] };
+
+  let neighbours;
+  try {
+    neighbours = db.prepare(
+      `SELECT p, o AS other, because, 'out' AS dir FROM triple WHERE valid_to IS NULL AND o_is_literal = 0 AND s = ?
+       UNION ALL
+       SELECT p, s AS other, because, 'in'  AS dir FROM triple WHERE valid_to IS NULL AND o_is_literal = 0 AND o = ?`
+    );
+  } catch {
+    return { from: a, to: b, hops: null };
+  }
+
+  const seen = new Set([a.k]);
+  let frontier = [{ k: a.k, hops: [] }];
+  for (let depth = 0; depth < maxDepth; depth++) {
+    const next = [];
+    for (const cur of frontier) {
+      let rows = [];
+      try { rows = neighbours.all(cur.k, cur.k); } catch { /* skip */ }
+      for (const r of rows) {
+        if (seen.has(r.other)) continue;
+        seen.add(r.other);
+        const hops = [...cur.hops, { from: cur.k, pred: r.p, to: r.other, dir: r.dir, because: r.because || '' }];
+        if (r.other === b.k) return { from: a, to: b, hops };
+        next.push({ k: r.other, hops });
+      }
+    }
+    if (next.length === 0) break;
+    frontier = next;
+  }
+  return { from: a, to: b, hops: null };
+}
+
+// Blast radius for a file: the symbols it declares that also appear elsewhere. A symbol carried by
+// more than one project is a contract surface, and changing it is how one fix silently breaks
+// something else — the exact failure this store exists to prevent.
+export function blastRadius(db, filePath, { limit = 5 } = {}) {
+  const norm = String(filePath).replace(/\\/g, '/');
+  try {
+    return db.prepare(
+      `SELECT e.symbol,
+              COUNT(DISTINCT e2.file) AS files,
+              COUNT(DISTINCT e2.project) AS projects,
+              GROUP_CONCAT(DISTINCT e2.project) AS names
+       FROM edges e
+       JOIN edges e2 ON e2.symbol = e.symbol AND LOWER(e2.file) <> LOWER(e.file)
+       WHERE LOWER(e.file) = LOWER(?)
+       GROUP BY e.symbol
+       HAVING projects > 1 OR files > 1
+       ORDER BY projects DESC, files DESC
+       LIMIT ?`
+    ).all(norm, limit);
+  } catch {
+    return [];
+  }
+}
+
 const nowIso = () => new Date().toISOString();
 
 export function logGap(db, tool, query) {

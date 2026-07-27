@@ -6,7 +6,7 @@
 // This is the write-side counterpart to brain-gate: the gate stops a blind search, this stops a blind
 // edit. Injected as context, never a block, and fired once per file per session so a file read
 // repeatedly in one turn does not repeat itself. Fails open.
-import { resolveInstance, openRead, historyFor, format, ledgerPath, readLedger, writeLedger } from './brain-lib.mjs';
+import { resolveInstance, openRead, historyFor, blastRadius, format, ledgerPath, readLedger, writeLedger } from './brain-lib.mjs';
 
 // Meta, build, and lockfile noise has no decision history worth surfacing.
 const EXEMPT = /(node_modules|[\\/]dist[\\/]|[\\/]build[\\/]|[\\/]bin[\\/]|[\\/]obj[\\/]|\.lock$|\.min\.|\.map$|\.svg$|\.png$|\.jpg$|\.ico$|package-lock|yarn\.lock)/i;
@@ -29,12 +29,15 @@ process.stdin.on('end', async () => {
     db = await openRead(instance);
     if (!db) process.exit(0);
     const picks = historyFor(db, file, { limit: 4 });
+    // A symbol this file declares that other projects also carry is a contract surface, and editing
+    // one side of it is precisely how a fix here breaks something over there.
+    const shared = blastRadius(db, file, { limit: 4 }).filter((r) => r.projects > 1);
     db.close();
     db = null;
 
     ledger.files[file] = true;
     writeLedger(lp, ledger);
-    if (picks.length === 0) process.exit(0);
+    if (picks.length === 0 && shared.length === 0) process.exit(0);
 
     process.stdout.write(JSON.stringify({
       suppressOutput: true,
@@ -43,7 +46,11 @@ process.stdin.on('end', async () => {
         additionalContext:
           `aitm track record for ${file.replace(/\\/g, '/').split('/').slice(-2).join('/')} — why this code is the ` +
           `way it is. Weigh this before changing it; if a decision here still holds, work with it rather than ` +
-          `over it, and if you deliberately overturn one, say so and record the new decision.\n\n${format(picks)}`,
+          `over it, and if you deliberately overturn one, say so and record the new decision.\n\n` +
+          `${format(picks)}` +
+          (shared.length === 0 ? '' :
+            `\n\nBLAST RADIUS — symbols here that other projects also carry, so a change is a contract change:\n` +
+            shared.map((r) => `• ${r.symbol} — ${r.files} file(s) across ${r.projects} project(s): ${r.names}`).join('\n')),
       },
     }));
   } catch {
