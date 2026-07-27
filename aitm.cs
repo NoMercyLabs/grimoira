@@ -64,7 +64,9 @@ switch (cmd)
         IndexChat(GetFlag("--from") ?? throw new ArgumentException("index-chat needs --from <session.jsonl | transcript dir>"));
         break;
     case "index-packages":
-        IndexPackages(GetFlag("--root") ?? Directory.GetCurrentDirectory());
+        // --from is what every other index-* command takes; accepting only --root here silently
+        // indexed the current directory instead of the one that was asked for.
+        IndexPackages(GetFlag("--root") ?? GetFlag("--from") ?? Directory.GetCurrentDirectory());
         break;
     case "index-docs":
         IndexDocs(GetFlag("--from") ?? throw new ArgumentException("index-docs needs --from <dir|file.md>"), GetFlag("--category") ?? "doc");
@@ -330,7 +332,8 @@ void Init()
     Exec("CREATE TABLE IF NOT EXISTS edge_candidates(id INTEGER PRIMARY KEY, symbol TEXT, contract TEXT, project TEXT, file TEXT, line INTEGER, usage TEXT, hardcoded INTEGER, status TEXT);");
     // Docs channel: AI-meta docs (plans/specs/prd/audits) absorbed out of the repo, chunked by markdown
     // heading so recall returns the relevant section, not a whole-file blob. Its own channel like chat.
-    Exec("CREATE TABLE IF NOT EXISTS docs(k TEXT PRIMARY KEY, path TEXT, title TEXT, category TEXT, content TEXT);");
+    Exec("CREATE TABLE IF NOT EXISTS docs(k TEXT PRIMARY KEY, path TEXT, title TEXT, category TEXT, content TEXT, terms TEXT);");
+    TryExec("ALTER TABLE docs ADD COLUMN terms TEXT"); // migrate stores created before path terms were searchable
     Exec("CREATE VIRTUAL TABLE IF NOT EXISTS docs_fts USING fts5(k UNINDEXED, title, content);");
     // Memory channel: the durable rules/preferences/decisions that govern how the agent works (migrated out of the
     // always-loaded MEMORY.md index). hook is the high-signal one-liner; hard flags an always-on rule that the
@@ -674,11 +677,15 @@ void Import(string fromDb)
     Console.WriteLine($"imported {n} rows -> {facts} current facts, {muts} mutations logged. ({dbPath})");
 }
 
+// Split on every non-alphanumeric, not just space. Stripping the punctuation out of a whole word glued
+// "nomercy-app-kmp" into "nomercyappkmp" and "the-effortless-encoder" into one nonsense token, neither
+// of which exists in the index — FTS5's own tokenizer breaks on those same characters, so any query
+// written the way a repo, package, or folder is actually named matched nothing at all.
 List<string> Tokens(string terms) =>
     terms.ToLowerInvariant()
-        .Split(' ', StringSplitOptions.RemoveEmptyEntries)
-        .Select(t => new string(t.Where(char.IsLetterOrDigit).ToArray()))
-        .Where(t => t.Length > 1 && !stop.Contains(t))
+        .Split(" \t\r\n-_./\\,;:()[]{}<>\"'`|!?*+=&#@~%$^".ToCharArray(), StringSplitOptions.RemoveEmptyEntries)
+        .Where(t => t.All(char.IsLetterOrDigit) && t.Length > 1 && !stop.Contains(t))
+        .Distinct()
         .ToList();
 
 string BuildMatch(string terms) => string.Join(" OR ", Tokens(terms).Select(t => $"\"{t}\""));
@@ -764,7 +771,8 @@ void IndexPackages(string root)
 // section. Sheds outdated text: completed-checklist tracking, changelogs, and done/superseded sections.
 void IndexDocs(string fromPath, string category)
 {
-    IEnumerable<string> files = Directory.Exists(fromPath) ? EnumerateSource(fromPath, new[] { "*.md" }) : new[] { fromPath };
+    IEnumerable<string> found = Directory.Exists(fromPath) ? EnumerateSource(fromPath, new[] { "*.md" }) : new[] { fromPath };
+    List<string> files = CanonicalCopies(found);
     int docCount = 0, chunkCount = 0, shedCount = 0;
     Exec("BEGIN");
     foreach (string file in files)
@@ -780,6 +788,7 @@ void IndexDocs(string fromPath, string category)
         // key has to agree: keying on the raw casing let a run started from a differently-cased root
         // duplicate the entire tree again, which is the same defect the absolute path was meant to fix.
         string key = rel.ToLowerInvariant();
+        string terms = PathTerms(rel);
         bool any = false;
         foreach ((string title, string body, int idx) in ChunkMarkdown(text))
         {
@@ -787,10 +796,12 @@ void IndexDocs(string fromPath, string category)
             string content = Compact(title + "\n" + body); // store densified, not raw markdown — markdown chrome is token-expensive
             if (content.Length < 24) continue;
             string k = $"{key}#{idx}";
-            Run("INSERT INTO docs(k,path,title,category,content) VALUES($k,$p,$t,$c,$co) ON CONFLICT(k) DO UPDATE SET title=$t,category=$c,content=$co",
-                ("$k", k), ("$p", rel), ("$t", title), ("$c", category), ("$co", content));
+            Run("INSERT INTO docs(k,path,title,category,content,terms) VALUES($k,$p,$t,$c,$co,$te) ON CONFLICT(k) DO UPDATE SET title=$t,category=$c,content=$co,terms=$te",
+                ("$k", k), ("$p", rel), ("$t", title), ("$c", category), ("$co", content), ("$te", terms));
             Run("DELETE FROM docs_fts WHERE k=$k", ("$k", k));
-            Run("INSERT INTO docs_fts(k,title,content) VALUES($k,$t,$co)", ("$k", k), ("$t", title), ("$co", content));
+            // The FTS title column carries the path words too. It is never displayed — DocCmd reads the
+            // title back from docs — so this buys retrieval without polluting what the reader sees.
+            Run("INSERT INTO docs_fts(k,title,content) VALUES($k,$t,$co)", ("$k", k), ("$t", $"{title} {terms}"), ("$co", content));
             chunkCount++;
             any = true;
         }
@@ -798,6 +809,43 @@ void IndexDocs(string fromPath, string category)
     }
     Exec("COMMIT");
     Console.WriteLine($"indexed {docCount} doc(s) -> {chunkCount} section(s) [{category}]; shed {shedCount} outdated section(s).");
+}
+
+// A document's own name usually lives in its path, not its prose. The 12-part encoder report never
+// writes the words "effortless encoder" in its body — the name is the folder — so a search for the
+// thing by name returned a one-line stub instead of the 157 sections that answer the question.
+// Folder and file names therefore become searchable text.
+string PathTerms(string fullPath)
+{
+    string[] generic =
+    {
+        "src", "content", "site", "docs", "doc", "md", "readme", "index", "app", "apps", "packages",
+        "projects", "c", "entries", "reports", "claude", "work", "public", "assets", "pages",
+    };
+    IEnumerable<string> words = Regex.Split(fullPath, @"[\\/\-_. ]+")
+        .Select(w => w.Trim().ToLowerInvariant())
+        .Where(w => w.Length > 1 && !w.All(char.IsDigit) && !generic.Contains(w));
+    return string.Join(' ', words.Distinct());
+}
+
+// One document reachable by two paths is one document. Astro and similar site generators copy their
+// source markdown into a content collection, which is a byte-identical mirror the path-based key can
+// never collapse — so every hit in the docs channel came back twice and each duplicate cost a result
+// slot. The shortest path wins, because the copy always lives deeper than the source.
+List<string> CanonicalCopies(IEnumerable<string> files)
+{
+    Dictionary<string, string> byHash = new();
+    List<string> ordered = new();
+    foreach (string file in files)
+    {
+        string hash;
+        try { hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(file))); }
+        catch { continue; }
+        string norm = Path.GetFullPath(file).Replace('\\', '/');
+        if (!byHash.TryGetValue(hash, out string? held)) { byHash[hash] = norm; ordered.Add(hash); continue; }
+        if (norm.Length < held.Length) byHash[hash] = norm;
+    }
+    return ordered.Select(h => byHash[h]).ToList();
 }
 
 // Densify text for cheap re-injection: strip markdown chrome (headings, emphasis, list/quote markers,
@@ -2381,7 +2429,13 @@ void ExtractEdges(string symbol, string contract)
 // Prune heavy dirs DURING the walk (never descend into node_modules); tolerate unreadable dirs.
 IEnumerable<string> EnumerateSource(string root, string[] patterns)
 {
-    string[] skip = { "node_modules", "dist", "build", "bin", "obj", ".git", ".nuxt", ".gradle", "vendor", ".idea", ".vs" };
+    // .scratch and friends hold staged COPIES of real packages. Indexed, a staging copy wins the upsert
+    // and the store then reports a package's home as the scratch directory it was last built into.
+    string[] skip =
+    {
+        "node_modules", "dist", "build", "bin", "obj", ".git", ".nuxt", ".gradle", "vendor", ".idea", ".vs",
+        ".scratch", ".turbo", ".next", ".output", ".svelte-kit", "coverage", "out", "target", "__pycache__",
+    };
     Stack<string> stack = new();
     stack.Push(root);
     while (stack.Count > 0)
@@ -2640,6 +2694,17 @@ void SelfTest()
     Check("docs: absorbed section is retrievable", Count("SELECT count(*) FROM docs_fts WHERE docs_fts MATCH 'pkce'") == 1);
     ShedDoc("p/x.md");
     Check("shed-doc: removes the section from the docs channel", Count("SELECT count(*) FROM docs WHERE k='d:1'") == 0);
+
+    // Every repo, package and folder in this project is named in kebab-case. Gluing those into one word
+    // meant the store could not be asked about anything by the name it actually goes by.
+    Check("tokens: a kebab-case name splits into its words", Tokens("the-effortless-encoder").SequenceEqual(new[] { "effortless", "encoder" }));
+    Check("tokens: a path splits on separators", Tokens("apps/nomercy-app-web/src").Contains("nomercy") && Tokens("apps/nomercy-app-web/src").Contains("web"));
+
+    // The name of a thing usually lives in its folder rather than its prose, so the path has to be
+    // searchable text — a report that never writes its own title was otherwise unreachable by title.
+    string pterms = PathTerms("c:/repo/docs/reports/the-effortless-encoder/04-safety-net.md");
+    Check("path terms: folder words become searchable", pterms.Contains("effortless") && pterms.Contains("encoder") && pterms.Contains("safety"));
+    Check("path terms: generic and numeric segments are dropped", !pterms.Contains("docs") && !pterms.Contains("04"));
 
     UpsertFact("junk:shed-me", "junk shed me", "[]", "misc", "temporary fact for the shed-fact test", "seed", "", "selftest");
     Check("shed-fact: fact is retrievable before shedding", Count("SELECT count(*) FROM facts WHERE k='junk:shed-me'") == 1);

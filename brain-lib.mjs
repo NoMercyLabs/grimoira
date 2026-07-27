@@ -94,7 +94,10 @@ const CHANNELS = [
     kind: 'doc',
     sql: `SELECT title AS head, substr(content,1,600) AS body, 0 AS hard, 0 AS hits, path AS loc
           FROM docs WHERE {W}`,
-    cols: ['title', 'content'],
+    // terms holds the folder and file names. A document's own name is usually in its path rather than
+    // its prose, so without this a search for the thing by name misses the sections that describe it.
+    cols: ['title', 'content', 'terms'],
+    table: 'docs',
     weight: 1.0,
     headMax: Infinity,
   },
@@ -129,13 +132,25 @@ function symbolMatches(symbol, tokens) {
   return tokens.some((t) => parts.has(t));
 }
 
+// A store written by an older CLI is missing columns a newer one queries. Naming a column that does
+// not exist throws, and the per-channel catch below would then drop that whole channel in silence —
+// a worse failure than the missing column, because the store looks empty rather than out of date.
+export function columnsPresent(db, table, wanted) {
+  try {
+    const have = new Set(db.prepare(`SELECT name FROM pragma_table_info('${table}')`).all().map((r) => r.name));
+    const kept = wanted.filter((c) => have.has(c.split('.').pop()));
+    return kept.length > 0 ? kept : wanted;
+  } catch { return wanted; }
+}
+
 export function search(db, tokens, { limit = 5, exclude = [] } = {}) {
   if (tokens.length === 0) return [];
   const rows = [];
   for (const ch of CHANNELS) {
     if (exclude.includes(ch.kind)) continue;
-    const where = tokens.map(() => '(' + ch.cols.map((c) => `${c} LIKE ?`).join(' OR ') + ')').join(' OR ');
-    const params = tokens.flatMap((t) => Array(ch.cols.length).fill(`%${t}%`));
+    const cols = ch.table ? columnsPresent(db, ch.table, ch.cols) : ch.cols;
+    const where = tokens.map(() => '(' + cols.map((c) => `${c} LIKE ?`).join(' OR ') + ')').join(' OR ');
+    const params = tokens.flatMap((t) => Array(cols.length).fill(`%${t}%`));
     try {
       for (const r of db.prepare(ch.sql.replace('{W}', where)).all(...params)) {
         rows.push({ ...r, kindTag: ch.kind, weight: ch.weight, headMax: ch.headMax, headless: ch.headless, maxPerKind: ch.maxPerKind });
@@ -209,7 +224,7 @@ export function historyFor(db, filePath, { limit = 4 } = {}) {
   for (const ch of [
     { kind: 'rule', sql: `SELECT hook AS head, substr(body,1,600) AS body, hard FROM memory WHERE body LIKE ? OR hook LIKE ?` },
     { kind: 'fact', sql: `SELECT term AS head, substr(value,1,600) AS body, 0 AS hard FROM facts WHERE value LIKE ?  OR term LIKE ?` },
-    { kind: 'doc', sql: `SELECT title AS head, substr(content,1,600) AS body, 0 AS hard FROM docs WHERE content LIKE ? OR title LIKE ?` },
+    { kind: 'doc', sql: `SELECT title AS head, substr(content,1,600) AS body, 0 AS hard FROM docs WHERE content LIKE ? OR (title || ' ' || COALESCE(terms,'')) LIKE ?` },
     { kind: 'chat', sql: `SELECT '' AS head, substr(text,1,600) AS body, 0 AS hard FROM chat WHERE text LIKE ?  OR text LIKE ?` },
   ]) {
     for (const needle of needles) {
