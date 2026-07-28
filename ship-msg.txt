@@ -1,0 +1,14 @@
+feat(ship): make the commit-record-watch loop one command
+
+pattern-watch flagged "git add -> aitm add -> gh run" at three repetitions
+and it was right — that is the sequence this whole session has been typing
+out by hand.
+
+Run by hand it drifts, and the step that goes missing is never the commit. It
+is the CI watch or the store write: the two that only pay off later, which is
+exactly what makes them the ones worth making non-optional.
+
+ship.ps1 runs verify first and refuses to commit on red, reports the branch
+rather than assuming it, writes the fact BEFORE waiting on the push so a
+dropped connection cannot lose it, and prints the failing log when CI is red
+instead of reporting a sha and stopping.
