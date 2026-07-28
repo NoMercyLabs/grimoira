@@ -30,6 +30,11 @@ const WRAPPERS = new Set([
 ]);
 const SUBCOMMANDLESS = new Set(['node', 'python', 'python3', 'bash', 'sh', 'pwsh', 'powershell']);
 const RUNNERS = new Set(['npm', 'yarn', 'pnpm', 'bun', 'npx', 'dotnet']);
+const PRIMITIVES = new Set([
+  'git add', 'git rm', 'git mv', 'git status', 'git log', 'git diff', 'git show', 'git branch',
+  'git checkout', 'git switch', 'git stash', 'git fetch', 'git rev-parse', 'git ls-files',
+  'gh api', 'gh auth',
+]);
 // A bare general-purpose utility is not a task. "grep" repeated fifty times says nothing that could
 // be turned into a script; only a named script or subcommand describes work worth codifying.
 const UTILITIES = new Set([
@@ -81,7 +86,11 @@ function signature(raw) {
   }
   if (sub.length > 40) sub = '';
   if (!sub && UTILITIES.has(exe)) return null;
-  return sub ? `${exe} ${sub}` : exe;
+  const sig = sub ? `${exe} ${sub}` : exe;
+  // A version-control primitive is not a task. "git rm run 5 times" describes nothing that could become
+  // a script — these only carry meaning as steps INSIDE a procedure, and the sequence detector already
+  // sees them there. It is how "git add -> aitm add -> gh run" was correctly flagged.
+  return PRIMITIVES.has(sig) ? null : sig;
 }
 
 let input = '';
