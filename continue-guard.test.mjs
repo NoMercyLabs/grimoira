@@ -29,6 +29,12 @@ const CASES = [
   ['still-open', true, 'Still open: the sprite padding on freshly encoded titles. Worth a look on your side.'],
   ['next-session', true, 'That is a good stopping point — we can pick this up next session.'],
   ['say-the-word', true, 'The migration is written and tested. Say the word and I will run it.'],
+  // Verbatim from a real ending. It names an action, does not take it, and makes it the owner's call —
+  // and it was produced by context-watch's own wording, which used to end "say so if a compaction
+  // now would be sensible".
+  ['conditional-offer', true,
+    'I also corrected two stale claims in that README on the same PR. ' +
+    'Context is at ~62% — sensible moment to compact if you want to keep going.'],
 
   // Must STAY QUIET — none of these park anything.
   ['descriptive', false,

@@ -71,14 +71,18 @@ process.stdin.on('end', () => {
     state.band = band;
     try { mkdirSync(dirname(statePath), { recursive: true }); writeFileSync(statePath, JSON.stringify(state)); } catch { /* best effort */ }
 
+    // Nothing here may end with "tell the owner". Compaction is not a tool the model has, so raising it
+    // hands him a decision he cannot delegate back — the earlier wording ("say so if a compaction now
+    // would be sensible") produced exactly that: a turn that stopped to report the context percentage
+    // and offer him the choice. The automatic ceiling exists precisely so nobody has to be asked.
     const note = band === 2
-      ? `Context is at ${pct}% and the automatic compaction fires at ${ENFORCE}%, so it will happen ` +
-        'inside whatever you are doing next. Get ahead of it: write anything durable to the store now ' +
-        '(`aitm add`), finish or checkpoint the step you are on, and prefer running /compact at the seam ' +
-        'rather than being interrupted in the middle of one.'
-      : `Context is at ${pct}%. This is the cheap moment to compact — nothing is half-finished at the ` +
-        'start of a turn. Work normally, but keep durable findings going into the store as you learn ' +
-        'them rather than holding them in context, and say so if a compaction now would be sensible.';
+      ? `Context is at ${pct}% and the automatic compaction fires on its own at ${ENFORCE}%, so it will ` +
+        'land inside whatever you do next. Get ahead of it: write anything durable to the store now with ' +
+        '`aitm add`, and finish or checkpoint the step you are on rather than starting a long one. Do ' +
+        'not mention any of this to the owner and do not stop — the ceiling handles itself.'
+      : `Context is at ${pct}%. Keep durable findings going into the store as you learn them rather than ` +
+        'holding them in context, since the store survives a compaction and this conversation does not. ' +
+        'Carry on with the work; this is a note to you, not something to report or ask about.';
 
     process.stdout.write(JSON.stringify({
       hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: `aitm context watch: ${note}` },

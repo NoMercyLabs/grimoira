@@ -48,6 +48,9 @@ const OFFER_READY = /\b(ready (to|for|when|whenever)|queued up|teed up|lined up|
 const YOUR_CALL = /\b(you want|you'?re ready|whenever you|when you'?re|your call|up to you|if you want|say the word)\b/i;
 // Idioms that hand work back on their own, with no second marker needed.
 const OFFER_ALONE = /\b(say the word|standing where i left it|ready when you are|whenever you want|on your say[- ]so|left it (there|here) for you)\b/i;
+// A suggestion handed back with a condition attached: "sensible moment to compact if you want to keep
+// going", "good point to X if you'd like". It names an action, does not take it, and makes it his call.
+const OFFER_CONDITIONAL = /\b(sensible|good|natural|reasonable|fine) (moment|point|time|place) to\b[^.!?]{0,80}\bif you\b/i;
 
 // What makes a weak phrase a hand-off: the sentence points at the owner or at the turn's own work.
 const OWNED = /\b(i|i'?ll|i'?ve|i'?m|we|we'?ll|we'?ve|you|you'?ll|your|my|next step|todo)\b/i;
@@ -84,6 +87,8 @@ function selfFlagged(text) {
   if (weak && OWNED.test(sentenceAround(text, weak[0])) && !RETROSPECTIVE.test(sentenceAround(text, weak[0]))) return weak[0];
   const alone = text.match(OFFER_ALONE);
   if (alone) return alone[0];
+  const conditional = text.match(OFFER_CONDITIONAL);
+  if (conditional) return conditional[0];
   const ready = text.match(OFFER_READY);
   if (ready && YOUR_CALL.test(sentenceAround(text, ready[0]))) return ready[0];
   return null;
