@@ -40,6 +40,15 @@ const FLAGGED_WEAK = new RegExp([
   "should (also )?be (fixed|done|changed|updated)",
 ].join('|'), 'i');
 
+// Work described as AVAILABLE rather than done — "the two fixes are ready to start whenever you want
+// them". It is a STATEMENT, so hedge-guard never sees it (that one only catches question shapes), and
+// it names no problem, so the flagged-item sets never saw it either. It is still parking: specific work
+// identified, not started, handed back for the owner to authorise.
+const OFFER_READY = /\b(ready (to|for|when|whenever)|queued up|teed up|lined up|on deck|standing by|good to go|waiting (on|for) you|can start|could start|happy to)\b/i;
+const YOUR_CALL = /\b(you want|you'?re ready|whenever you|when you'?re|your call|up to you|if you want|say the word)\b/i;
+// Idioms that hand work back on their own, with no second marker needed.
+const OFFER_ALONE = /\b(say the word|standing where i left it|ready when you are|whenever you want|on your say[- ]so|left it (there|here) for you)\b/i;
+
 // What makes a weak phrase a hand-off: the sentence points at the owner or at the turn's own work.
 const OWNED = /\b(i|i'?ll|i'?ve|i'?m|we|we'?ll|we'?ve|you|you'?ll|your|my|next step|todo)\b/i;
 
@@ -60,6 +69,10 @@ function selfFlagged(text) {
   if (strong && !RETROSPECTIVE.test(sentenceAround(text, strong[0]))) return strong[0];
   const weak = text.match(FLAGGED_WEAK);
   if (weak && OWNED.test(sentenceAround(text, weak[0])) && !RETROSPECTIVE.test(sentenceAround(text, weak[0]))) return weak[0];
+  const alone = text.match(OFFER_ALONE);
+  if (alone) return alone[0];
+  const ready = text.match(OFFER_READY);
+  if (ready && YOUR_CALL.test(sentenceAround(text, ready[0]))) return ready[0];
   return null;
 }
 
