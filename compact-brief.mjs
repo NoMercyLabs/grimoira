@@ -114,9 +114,20 @@ process.stdin.on('end', () => {
       lines.push('');
     }
     if (files.length) {
-      lines.push('## Files this session changed', '');
-      for (const f of files.slice(0, 40)) lines.push(`- ${f}`);
-      if (files.length > 40) lines.push(`- … ${files.length - 40} more`);
+      // Grouped, not enumerated. A long campaign touches hundreds of files, and 40 paths followed by
+      // "587 more" is the worst of both: too long to read, and it hides which areas were worked in.
+      // Counts per directory answer "where was I", which is the question a resumed turn actually has.
+      const byDir = new Map();
+      for (const f of files) {
+        const d = dirname(f.replace(/\\/g, '/'));
+        byDir.set(d, (byDir.get(d) || 0) + 1);
+      }
+      const dirs = [...byDir.entries()].sort((a, b) => b[1] - a[1]);
+      lines.push(`## Where the ${files.length} changed file(s) are`, '');
+      for (const [dir, n] of dirs.slice(0, 12)) lines.push(`- ${dir}  (${n})`);
+      if (dirs.length > 12) lines.push(`- … ${dirs.length - 12} more director(ies)`);
+      lines.push('', 'Most recent:', '');
+      for (const f of files.slice(-8)) lines.push(`- ${f}`);
       lines.push('');
     }
     if (todos.length) {
@@ -136,7 +147,10 @@ process.stdin.on('end', () => {
       'The summary must carry these verbatim, not paraphrased: the exact wording of any standing ' +
       'directive, every file path already changed, the branch each repo is on, what is committed versus ' +
       'still uncommitted, and every unfinished item. Concrete anchors survive compaction; impressions ' +
-      `do not.\n\n${brief}`
+      // Trailing newline: PreCompact concatenates every hook's stdout, and without it the NEXT hook's
+      // status line ran onto the end of the last todo — "P32 app adoption (37 boxes) PreCompact [...]
+      // completed successfully: {}" read as one item.
+      `do not.\n\n${brief}\n`
     );
   } catch {
     // fail open — a compaction must never be blocked by bookkeeping
