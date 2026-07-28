@@ -24,13 +24,26 @@ db.Open();
 // Without a busy timeout a momentary writer (session indexer, MCP server, a second CLI) makes the
 // command throw SQLITE_BUSY and the process hard-crash, so callers read the store as broken and fall
 // back to grepping the tree. Wait for the writer instead of dying.
-Exec("PRAGMA busy_timeout=5000");
+// The indexer can hold the write lock for minutes, and 5 seconds was not enough: `aitm add` died with
+// "database is locked" mid-sentence while the SessionEnd doc indexer ran.
+Exec("PRAGMA busy_timeout=30000");
 // WAL is the actual cure: under the default rollback journal a single writer (the async SessionEnd
 // doc indexer runs for minutes) blocks every reader outright, so concurrent CLI/MCP/hook reads died.
-// No-op once the store is already WAL, so this costs nothing per invocation.
-Exec("PRAGMA journal_mode=WAL");
-Init();
-InitBrain();
+// No-op once the store is already WAL, and switching journal mode itself needs a lock — so a failure
+// here means someone else is mid-write, which is not a reason to kill the command.
+TryExec("PRAGMA journal_mode=WAL");
+
+// Init and InitBrain are CREATE TABLE IF NOT EXISTS, which is DDL, which takes the WRITE lock — so
+// every `query` and every hook lookup was contending with the indexer just to confirm a schema that
+// had not changed. user_version is a header read with no lock, so the common case now touches nothing.
+// BUMP THIS whenever the schema changes; otherwise an existing store never learns about the new table.
+const int SchemaVersion = 3;
+if (ScalarLong("PRAGMA user_version") != SchemaVersion)
+{
+    Init();
+    InitBrain();
+    Exec($"PRAGMA user_version={SchemaVersion}");
+}
 
 HashSet<string> stop = new(StringComparer.OrdinalIgnoreCase)
 {
