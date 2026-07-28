@@ -36,6 +36,13 @@ const CASES = [
     'I also corrected two stale claims in that README on the same PR. ' +
     'Context is at ~62% — sensible moment to compact if you want to keep going.'],
 
+  // Verbatim from a real ending: the fix is identified, argued for, and left unbuilt. Naming the thing
+  // that would have caught all four bugs and then not building it is the costliest shape of all.
+  ['proposal', true,
+    "I can't split those two categories by query alone. Next thing I'd do, and it's the one that would " +
+    'have caught all four of tonight\'s bugs without knowing any naming convention: refuse to start an ' +
+    'encode into a slot another file already occupies, and surface it as a conflict.'],
+
   // Must STAY QUIET — none of these park anything.
   ['descriptive', false,
     'Chapter thumbnails are scaffolded but not wired to the player. No 3D stereoscopic. ' +
@@ -43,6 +50,10 @@ const CASES = [
   ['retrospective', false,
     'Fixed. That is the thing I flagged before I ran it, and the gate is green now.'],
   ['plain-done', false, 'Shipped. CI green on 1e6ddc8, 380 pages built, both alerts closed.'],
+  // A stated constraint is not a proposal. "I'd have to" explains why something did not happen.
+  ['constraint', false,
+    'I would have to close your Chrome to read that cookie store, and I am not doing that. ' +
+    'The agent browser is running instead and it holds its own profile.'],
   // Reporting on this guard means quoting the phrases it catches. Without the use/mention split the
   // guard could not be described to the owner without blocking the description.
   ['documenting-the-guard', false,

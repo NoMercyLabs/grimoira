@@ -19,7 +19,7 @@ $line = ($out | Select-String 'selftest:').ToString()
 Write-Host "   $line"
 if ($line -notmatch 'GREEN') { $failed += 'selftest' }
 
-foreach ($suite in @('brain-lib.test.mjs', 'ranking-agreement.test.mjs', 'continue-guard.test.mjs')) {
+foreach ($suite in @('brain-lib.test.mjs', 'ranking-agreement.test.mjs', 'continue-guard.test.mjs', 'pattern-watch.test.mjs')) {
     Write-Host "-- $suite" -ForegroundColor Cyan
     $out = & node "$PSScriptRoot/$suite" 2>&1
     $line = ($out | Select-String 'passed|agreed' | Select-Object -Last 1)

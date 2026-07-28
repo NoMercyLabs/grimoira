@@ -52,12 +52,33 @@ const OFFER_ALONE = /\b(say the word|standing where i left it|ready when you are
 // going", "good point to X if you'd like". It names an action, does not take it, and makes it his call.
 const OFFER_CONDITIONAL = /\b(sensible|good|natural|reasonable|fine) (moment|point|time|place) to\b[^.!?]{0,80}\bif you\b/i;
 
+// The proposal: work described in conditional or future tense instead of performed. "Next thing I'd do
+// is refuse to start an encode into an occupied slot" identifies the fix, argues for it, and leaves it
+// unbuilt — the strongest possible evidence the turn knew exactly what to do and stopped anyway.
+// The verb list is deliberate: "I'd have to" and "I'd need" state a constraint and must stay quiet.
+const PROPOSAL = new RegExp([
+  "next (thing|step|move|one) i'?d",
+  "what i'?d do (next|here|first)",
+  "the next (step|thing|move|fix) (would be|is to)",
+  "i'?d (start|begin|do|add|build|fix|change|wire|write|make|refactor|implement|extend|split|move|delete)\\b",
+  "we'?d want to",
+].join('|'), 'i');
+
 // What makes a weak phrase a hand-off: the sentence points at the owner or at the turn's own work.
 const OWNED = /\b(i|i'?ll|i'?ve|i'?m|we|we'?ll|we'?ve|you|you'?ll|your|my|next step|todo)\b/i;
 
 // Narrating something already dealt with is not parking it. "the thing I flagged before I ran it"
 // refers back to analysis in the same reply; it announces no future work and asks for nothing.
-const RETROSPECTIVE = /\b(before|earlier|previously|already|above|last (turn|time|session)|which i (then|just)|and (then )?(fixed|did|built))\b/i;
+// Bare time words are far too loose. "already" matched "a slot another file ALREADY occupies" — present
+// tense, about a third party — and excused a proposal that should have blocked. Retrospection is a
+// first-person past action, so that is what this requires.
+const RETROSPECTIVE = new RegExp([
+  "i (have |already |just |then )*(fixed|did|built|shipped|handled|committed|landed|corrected|covered|ran|wrote|removed)",
+  "already (fixed|done|built|shipped|handled|committed|landed|corrected|covered|removed|gone)",
+  "(mentioned|noted|said|flagged|called out|reported) (above|earlier|before|previously)",
+  "last (turn|time|session)",
+  "which i (then|just)",
+].join('|'), 'i');
 
 // A phrase MENTIONED is not a phrase USED. Reporting on this guard means quoting the phrases it
 // catches — "still open" inside a table cell documenting the patterns fired it, which makes the guard
@@ -89,6 +110,8 @@ function selfFlagged(text) {
   if (alone) return alone[0];
   const conditional = text.match(OFFER_CONDITIONAL);
   if (conditional) return conditional[0];
+  const proposal = text.match(PROPOSAL);
+  if (proposal && !RETROSPECTIVE.test(sentenceAround(text, proposal[0]))) return proposal[0];
   const ready = text.match(OFFER_READY);
   if (ready && YOUR_CALL.test(sentenceAround(text, ready[0]))) return ready[0];
   return null;

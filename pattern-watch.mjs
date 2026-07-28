@@ -18,6 +18,16 @@ const SEQ_THRESHOLD = 3;
 const SEQ_LEN = 3;
 
 // Shell noise that says nothing about what work is being done.
+// Stages that contain no command: the navigation itself, and the header of a loop or conditional.
+const NAVIGATION = new Set(['cd', 'chdir', 'set-location', 'sl', 'pushd', 'popd', 'push-location', 'pop-location']);
+const HEADERS = new Set(['for', 'foreach', 'while', 'until', 'if', 'elif', 'case', 'switch', 'select']);
+// Keywords that sit in FRONT of a real command in the same stage.
+const BODY_KEYWORDS = new Set([
+  'do', 'then', 'else', 'done', 'fi', 'esac', 'end', 'try', 'catch', 'finally', 'begin', 'process',
+  'sudo', 'time', 'env', 'nohup', 'exec', 'command', 'call', 'export', 'set', 'source', '.', 'function',
+  '&&', ';', '|',
+]);
+
 const WRAPPERS = new Set([
   'cd', 'sudo', 'time', 'env', 'nohup', 'exec', 'command', 'call', 'export', 'set', 'source', '.',
   '&&', ';', '|',
@@ -30,6 +40,7 @@ const WRAPPERS = new Set([
 ]);
 const SUBCOMMANDLESS = new Set(['node', 'python', 'python3', 'bash', 'sh', 'pwsh', 'powershell']);
 const RUNNERS = new Set(['npm', 'yarn', 'pnpm', 'bun', 'npx', 'dotnet']);
+const SCRIPT_FILE = /\.(mjs|cjs|js|ts|py|ps1|sh|bat|cmd|rb|pl)$/i;
 const PRIMITIVES = new Set([
   'git add', 'git rm', 'git mv', 'git status', 'git log', 'git diff', 'git show', 'git branch',
   'git checkout', 'git switch', 'git stash', 'git fetch', 'git rev-parse', 'git ls-files',
@@ -43,7 +54,11 @@ const UTILITIES = new Set([
   'python', 'python3', 'node', 'bash', 'sh', 'pwsh', 'powershell', 'which', 'test', 'true', 'printf',
 ]);
 
-function signature(raw) {
+// Exported for pattern-watch.test.mjs. Seven bugs have lived in here — cd swallowing the real command,
+// a redirect read as a subcommand, quotes collapsing a script to its interpreter, the PowerShell
+// spelling of cd, shell keywords, "npm run" naming no task, and codifying things already codified —
+// and every one reached the owner as a bogus nudge before it was found.
+export function signature(raw) {
   const first = String(raw).split(/\r?\n/).find((l) => l.trim() && !l.trim().startsWith('#'));
   if (!first) return null;
   // The first stage is usually "cd somewhere"; the intent is in the first stage that actually does
@@ -52,9 +67,17 @@ function signature(raw) {
   for (const stage of first.split(/&&|\|\||;|\|/)) {
     // Quotes are shell syntax, not part of the path: without stripping them the script name fails the
     // word test and every quoted invocation collapses to the bare interpreter.
-    const w = stage.trim().split(/\s+/).filter(Boolean).map((t) => t.replace(/^["']+|["']+$/g, ''));
+    let w = stage.trim().split(/\s+/).filter(Boolean).map((t) => t.replace(/^["']+|["']+$/g, ''));
     if (w.length === 0) continue;
-    if (WRAPPERS.has(w[0]) || w[0].includes('=')) continue;
+    // Two kinds of wrapper, and treating them alike broke both ways. A NAVIGATION or LOOP-HEADER stage
+    // has no command in it at all — stripping just the keyword left "cd C:/Projects/aitm" signing as
+    // "aitm", the directory standing in for the executable, and "for q in a b" signing as "q in".
+    // A BODY keyword shares its stage with the real command ("do ./aitm.exe doc"), so skipping that
+    // stage threw the command away and a whole loop signed as nothing.
+    const head = w[0].toLowerCase();
+    if (NAVIGATION.has(head) || HEADERS.has(head)) continue;
+    while (w.length > 0 && (BODY_KEYWORDS.has(w[0].toLowerCase()) || w[0].includes('='))) w = w.slice(1);
+    if (w.length === 0) continue;
     // Everything from the first redirect on describes where output went, not what was run.
     const redirect = w.findIndex((t) => /^\d?>>?$|^<$/.test(t) || /^\d?>&\d$/.test(t));
     words = redirect > 0 ? w.slice(0, redirect) : w;
@@ -62,12 +85,21 @@ function signature(raw) {
   }
   if (words.length === 0) return null;
 
-  const exe = (words[0].split(/[\\/]/).pop() || words[0]).replace(/\.(exe|cmd|ps1)$/i, '').toLowerCase();
+  const exeToken = words[0].split(/[\\/]/).pop() || words[0];
+  // Script-ness is decided on the ORIGINAL token, before the extension is stripped: "./build.ps1"
+  // becomes "build", and by then nothing distinguishes it from a bare command. Invoking a checked-in
+  // script is already the deterministic form, so proposing to codify it is circular.
+  if (SCRIPT_FILE.test(exeToken)) return null;
+  const exe = exeToken.replace(/\.(exe|cmd)$/i, '').toLowerCase();
   if (!exe || exe.length > 40) return null;
+  // A bare general-purpose utility is not a task whatever follows it — "grep foo" is a search for foo,
+  // not a procedure. Checking this only when there was no subcommand let every one of them through.
+  if (UTILITIES.has(exe) && !RUNNERS.has(exe) && !SUBCOMMANDLESS.has(exe)) return null;
 
   // A redirect is not a subcommand. Without this, "./build.ps1 -Quick 2>&1" signed as "build 2>&1"
-  // and the watcher then nagged about a task that is already a script.
-  const isWord = (w) => /^[A-Za-z][\w.-]*$/.test(w);
+  // and the watcher then nagged about a task that is already a script. The colon is allowed because
+  // npm script names use it — "test:unit" failed the word test and collapsed back to "yarn run".
+  const isWord = (w) => /^[A-Za-z][\w.:-]*$/.test(w);
 
   // For an interpreter the script name IS the subcommand; for a normal CLI it is the next bare word.
   let sub = '';
@@ -90,7 +122,13 @@ function signature(raw) {
   // A version-control primitive is not a task. "git rm run 5 times" describes nothing that could become
   // a script — these only carry meaning as steps INSIDE a procedure, and the sequence detector already
   // sees them there. It is how "git add -> aitm add -> gh run" was correctly flagged.
-  return PRIMITIVES.has(sig) ? null : sig;
+  if (PRIMITIVES.has(sig)) return null;
+  // Running a checked-in script is the codified form already. Asking to codify continue-guard.test.mjs,
+  // which is a test file wired into verify.ps1, is circular — the answer to "make this deterministic"
+  // is the very file being run. Sequences containing scripts still count: that is where ship.ps1 came
+  // from, a procedure built out of steps that were each already scripts.
+  if (SCRIPT_FILE.test(sub)) return null;
+  return sig;
 }
 
 let input = '';
