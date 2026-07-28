@@ -56,6 +56,19 @@ const OWNED = /\b(i|i'?ll|i'?ve|i'?m|we|we'?ll|we'?ve|you|you'?ll|your|my|next s
 // refers back to analysis in the same reply; it announces no future work and asks for nothing.
 const RETROSPECTIVE = /\b(before|earlier|previously|already|above|last (turn|time|session)|which i (then|just)|and (then )?(fixed|did|built))\b/i;
 
+// A phrase MENTIONED is not a phrase USED. Reporting on this guard means quoting the phrases it
+// catches — "still open" inside a table cell documenting the patterns fired it, which makes the guard
+// unable to be described without tripping. Quoted spans, code spans and table rows carry examples and
+// data, never the closing statement that parks work, so they are removed before anything is matched.
+function stripMentions(text) {
+  return text
+    .replace(/```[\s\S]*?```/g, ' ')
+    .replace(/`[^`\n]*`/g, ' ')
+    .replace(/"[^"\n]{0,120}"/g, ' ')
+    .replace(/[“][^”\n]{0,120}[”]/g, ' ')
+    .replace(/^\s*\|.*$/gm, ' ');
+}
+
 const sentenceAround = (text, hit) => {
   const at = text.toLowerCase().indexOf(hit.toLowerCase());
   if (at < 0) return text;
@@ -164,10 +177,11 @@ process.stdin.on('end', () => {
       if (t.length > 0) { finalText = t; break; }
     }
 
-    const deferred = DEFERRAL.test(finalText);
+    const said = stripMentions(finalText);
+    const deferred = DEFERRAL.test(said);
     const parked = pending.length > 0 && !askedThisTurn;
     // A self-flagged item only counts as deferral when nothing actually prevented the fix.
-    const hit = REAL_BLOCKER.test(finalText) || askedThisTurn ? null : selfFlagged(finalText);
+    const hit = REAL_BLOCKER.test(finalText) || askedThisTurn ? null : selfFlagged(said);
     const flagged = hit !== null;
     if (!deferred && !parked && !flagged) process.exit(0);
 

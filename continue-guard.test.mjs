@@ -37,6 +37,14 @@ const CASES = [
   ['retrospective', false,
     'Fixed. That is the thing I flagged before I ran it, and the gate is green now.'],
   ['plain-done', false, 'Shipped. CI green on 1e6ddc8, 380 pages built, both alerts closed.'],
+  // Reporting on this guard means quoting the phrases it catches. Without the use/mention split the
+  // guard could not be described to the owner without blocking the description.
+  ['documenting-the-guard', false,
+    'Three shapes, and I had only covered two:\n\n' +
+    '| shape | example | caught by |\n|---|---|---|\n' +
+    '| problem named | "still open / worth a look on your side" | continue-guard |\n' +
+    '| offered ready | "ready to start whenever you want them" | nothing, until now |\n\n' +
+    'The `next session` phrasing is in the DEFERRAL set. All four runs green.'],
 ];
 
 let pass = 0, fail = 0;
