@@ -1,49 +1,91 @@
-// Stop hook: a claim about what the USER gets needs evidence from where the user enters.
+// Stop hook: a claim may not sit higher than the evidence under it.
 //
-// The failure this exists to prevent, in full: push notifications were reported as "delivered" for
-// weeks. Every proof called FcmTransport directly. PushGate sits UPSTREAM of that transport and was
-// denying every push for every user, so the proof was structurally incapable of observing the defect —
-// its blind spot was exactly the shape of the bug, and green was guaranteed before it ran.
+// THE CLASS, stated without reference to any subsystem: a check entered below the layer that is broken
+// cannot fail. Whenever the route used to verify something is not a route its user can take, the
+// verification and the usage are of two different systems, and only the user's is real. Green was
+// guaranteed before the check ran.
 //
-// The rule that generalises: a test entered BELOW the layer that is broken cannot fail. So the question
-// is never "did it pass", it is "where did this proof enter, and what could it therefore never see".
+// This project has been bitten by that class at least six times, in six unrelated stacks, and each time
+// it was recorded as its own separate lesson — proxy-instead-of-substance, mock-instead-of-collaborator,
+// testbed-copy-instead-of-published-package, compiles-instead-of-runs, hand-built-record-instead-of-real
+// -payload. Six instances, no rule. A per-instance memory only fires when the next situation resembles
+// that instance, so a new surface walks straight past all of them. Hence one guard, at the class level,
+// with nothing subsystem-specific in it.
 //
-// A memory already said "test the real path, not a mock of it" and it was violated anyway, because the
-// cheap instrument is always the one that produces a green signal fastest. Hence a hook.
-import { readFileSync, existsSync } from 'node:fs';
+// The shape is always: CLAIM ALTITUDE > EVIDENCE ALTITUDE. It compiles is not it runs. The unit passes
+// is not the feature works. It works locally is not CI is green. It works in the workspace copy is not
+// it works for a consumer of the published artifact. The transport sent is not the user received.
+import { readFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, basename, dirname } from 'node:path';
-import { mkdirSync, writeFileSync } from 'node:fs';
 import { tailEntries } from './brain-lib.mjs';
 
 const MAX_BLOCKS = 2;
 
-// Words that assert a USER-FACING outcome. These are the claims that need end-to-end evidence.
-const OUTCOME_CLAIM = new RegExp([
-  "\\b(deliver(s|ed|ing)?|arriv(e|es|ed|ing))\\b",
-  "\\b(users?|clients?|devices?|the (app|phone|tv|browser)) (now )?(get|gets|receive|receives|see|sees|can)\\b",
-  "\\bworks? (now|end[- ]to[- ]end|in production|for (users|everyone))\\b",
-  "\\b(it|this|the feature|the flow) (is|are) (live|working|functional)\\b",
-  "\\bverified working\\b",
-  "\\bconfirmed (delivery|receipt)\\b",
+// An assertion that something WORKS — any layer, any stack. This is the altitude being claimed.
+// Matched on the PREDICATE, never on a list of subjects. The first version enumerated the nouns that
+// could be working — and then missed "the seek regression is fixed" because "regression" was not
+// preceded by the exact article it expected, and missed "the docs site is functional" because "site"
+// was not in the list. Enumerating instances is the very mistake this guard exists to catch, and it
+// had been committed inside the guard itself. Anything at all can be the thing that works.
+const WORKS_CLAIM = new RegExp([
+  "\\b(is|are|'s|'re) (now |already )?(working|live|fixed|functional|resolved|operational|correct|in place|sorted)\\b",
+  "\\b(works?|working) (now|again|end[- ]to[- ]end|in production|for (users|consumers|everyone|clients))\\b",
+  "\\b(verified|confirmed|proven) (working|fixed|correct|end[- ]to[- ]end)\\b",
+  "\\b(users?|clients?|consumers?|devices?|callers?) (now )?(get|gets|receive|receives|see|sees|can)\\b",
+  "\\b(deliver(s|ed)|arriv(es|ed)|render(s|ed) correctly|plays? correctly)\\b",
+  "\\b(bug|issue|regression|problem|crash|leak|failure) is (fixed|gone|resolved)\\b",
+  "\\bshipped and working\\b",
 ].join('|'), 'i');
 
-// Evidence that the proof entered where a user enters, or observed where a user observes.
-const ENTRY_EVIDENCE = new RegExp([
-  "\\bend[- ]to[- ]end\\b", "\\bthrough the (real|full|whole) (path|flow|stack)\\b",
-  "\\b(POST|GET|PUT|PATCH|DELETE) /", "\\bcurl\\b", "\\bvia the (api|endpoint|ui|dashboard|app)\\b",
-  "\\bon (the )?(device|phone|tv|emulator|handset)\\b", "\\bscreenshot\\b", "\\blogcat\\b",
-  "\\breal (user|account|token|session)\\b", "\\bfrom the (browser|app|client)\\b",
-  "\\bnotification (tray|shade|centre|center)\\b", "\\bobserved (on|in)\\b",
+// Evidence one or more layers BELOW the claim. Each of these is a real proxy this project has already
+// mistaken for the real thing, generalised away from the subsystem it happened in.
+const PROXY_EVIDENCE = new RegExp([
+  // build-time standing in for run-time
+  "\\b(compiles?|compiled|builds?|built|type[- ]?checks?|type[- ]?checked|lint(s|ed)?|formats?) (clean|green|fine|ok|successfully|without error)\\b",
+  "\\bno (compile|build|type|lint) errors?\\b",
+  // a unit standing in for the assembled system
+  "\\b(unit )?tests? (pass|passed|are green)\\b", "\\bsuite is green\\b", "\\ball tests green\\b",
+  // a stand-in standing in for the collaborator
+  "\\b(mock(ed|s)?|stub(bed|s)?|fake(d|s)?|in[- ]memory|synthetic|hand[- ](built|written|rolled))\\b",
+  // a local or workspace copy standing in for the shipped artifact
+  "\\b(locally|on my machine|in the (testbed|workspace|sandbox|dev copy)|against the (local|copied) (dist|build))\\b",
+  // an internal seam standing in for the entry point
+  "\\b(called|invoked|ran) (it |the )?(service|transport|handler|function|method|class|helper|repository) directly\\b",
+  "\\bbypass(ing|ed)? the\\b",
+  // counting standing in for checking
+  "\\b(file|row|line|page) count\\b", "\\bno (errors?|warnings?) in the (log|output)\\b",
 ].join('|'), 'i');
 
-// Saying the proof was partial is not the failure — that is the honest report this guard wants.
+// Evidence AT the claim's altitude. Deliberately spans every surface this project ships, because a
+// guard that only understands HTTP would wave through every device, package and pipeline claim.
+const REACH_EVIDENCE = new RegExp([
+  "\\bend[- ]to[- ]end\\b", "\\bthrough the (real|full|whole) (path|flow|stack|pipeline)\\b",
+  // network surfaces
+  "\\b(POST|GET|PUT|PATCH|DELETE) /", "\\bcurl\\b", "\\bvia the (api|endpoint|ui|dashboard|app|hub)\\b",
+  "\\breal (user|account|token|session|request)\\b",
+  // client surfaces
+  "\\bon (the |a )?(device|phone|tv|emulator|handset|browser|desktop app)\\b", "\\bscreenshot\\b",
+  "\\blogcat\\b", "\\bin the (browser|app|player|tray|shade)\\b", "\\bclicked\\b", "\\bnavigated to\\b",
+  // artifact surfaces
+  "\\b(installed|consumed|imported) (the )?published\\b", "\\bfrom (npm|nuget|the registry|the package)\\b",
+  "\\bfresh (install|clone|container)\\b",
+  // data and job surfaces
+  "\\breal (file|media|payload|json|input|database|db)\\b", "\\bagainst (production|the real)\\b",
+  "\\bre-?ran the (job|migration|encode|scan)\\b",
+  // pipeline surfaces
+  "\\bCI (is )?green\\b", "\\bthe run (passed|succeeded)\\b", "\\bwatched the run\\b",
+].join('|'), 'i');
+
+// Naming the gap IS the honest report this guard wants. Never punish it.
 const SELF_LIMITED = new RegExp([
-  "\\bnot (yet )?(verified|tested|proven) end[- ]to[- ]end\\b",
-  "\\bproves? the (component|transport|unit|function), not\\b",
-  "\\bhave not (driven|exercised|run) the real (path|flow)\\b",
-  "\\bbypass(es|ed|ing) the\\b", "\\bskipp(ed|ing) the (gate|middleware|auth)\\b",
-  "\\bstill needs? a (device|real) (pass|run|check)\\b",
+  "\\bnot (yet )?(verified|tested|proven|exercised) (end[- ]to[- ]end|on|against|through)\\b",
+  "\\bproves? the (component|unit|transport|function|layer|part), not\\b",
+  "\\bhave not (driven|exercised|run|tried) the real\\b",
+  "\\bstill needs? a (device|real|manual|production) (pass|run|check|test)\\b",
+  "\\bthis is (a )?(proxy|partial|indirect)\\b",
+  "\\bcannot (verify|confirm) (that|this) (from|without) here\\b",
+  "\\bwould not (catch|see|detect)\\b",
 ].join('|'), 'i');
 
 const stripCode = (t) => t.replace(/```[\s\S]*?```/g, ' ').replace(/`[^`\n]*`/g, ' ');
@@ -77,9 +119,11 @@ process.stdin.on('end', () => {
     if (!finalText) process.exit(0);
 
     const said = stripCode(finalText);
-    const claim = said.match(OUTCOME_CLAIM);
+    const claim = said.match(WORKS_CLAIM);
     if (!claim) process.exit(0);
-    if (ENTRY_EVIDENCE.test(said) || SELF_LIMITED.test(said)) process.exit(0);
+    if (SELF_LIMITED.test(said)) process.exit(0);
+    if (REACH_EVIDENCE.test(said)) process.exit(0);
+    const proxy = said.match(PROXY_EVIDENCE);
 
     state.blocks += 1;
     try { mkdirSync(dirname(statePath), { recursive: true }); writeFileSync(statePath, JSON.stringify(state)); } catch { /* best effort */ }
@@ -87,28 +131,30 @@ process.stdin.on('end', () => {
     process.stdout.write(JSON.stringify({
       decision: 'block',
       reason:
-        `You claimed a user-facing outcome (matched: "${claim[0]}") without naming where the proof ` +
-        `entered the system.\n\n` +
-        `A test entered BELOW the broken layer cannot fail. Push notifications were reported delivered ` +
-        `for weeks because every proof called the transport directly while the gate above it denied ` +
-        `every push — the check was structurally incapable of seeing the defect, and green was ` +
-        `guaranteed before it ran.\n\n` +
-        `The test is: COULD OWNER RUN YOUR VERIFICATION WITH WHAT YOU GAVE HIM? He has an app, an ` +
-        `account, a device, a URL. He cannot call FcmTransport. If your proof used a route he has no ` +
-        `way to reach, your testing and his use of your work are of two different systems, and only ` +
-        `his is real.\n\n` +
-        `Answer these three before you end the turn:\n` +
-        `  1. WHERE DID THE PROOF ENTER? Name the actual entry point — the HTTP request, the UI action, ` +
-        `the device. If you invoked an internal component directly, you proved the COMPONENT, not the ` +
-        `feature.\n` +
-        `  2. WHAT COULD THIS CHECK NEVER SEE? List the failure modes it is blind to. If the bug class ` +
-        `you are investigating is on that list, the check is invalid — no matter what it returned.\n` +
-        `  3. IS THE ENABLING STATE THERE? Gated features need rows, flags, registrations, permissions. ` +
-        `Count them. An empty table is the highest-signal check there is and it is the one that gets ` +
-        `skipped.\n\n` +
-        `Then either drive the real path and report that, or downgrade the claim to exactly what you ` +
-        `proved and say plainly which layer is still unverified. An honest partial result is fine here; ` +
-        `a green light that could not have gone red is not.`,
+        `You claimed something WORKS (matched: "${claim[0]}")` +
+        (proxy ? `, and the evidence you named is a layer below that claim (matched: "${proxy[0]}")` : ' without naming evidence at that altitude') +
+        `.\n\n` +
+        `THE TEST: could the owner reproduce your verification using only what you handed him? He has the ` +
+        `app, the endpoint, the device, the installed package, the running pipeline. If your check used ` +
+        `a route he cannot take, your verification and his use of the thing are of two different ` +
+        `systems, and only his is real.\n\n` +
+        `A check entered BELOW the broken layer cannot fail. These are all the same mistake:\n` +
+        `  it compiles          is not   it runs\n` +
+        `  the unit passes      is not   the assembled system works\n` +
+        `  the mock returned    is not   the real collaborator agrees\n` +
+        `  green locally        is not   green in CI\n` +
+        `  the workspace copy   is not   the published artifact a consumer installs\n` +
+        `  the internal call    is not   the entry point, with everything above it in the way\n` +
+        `  the count went up    is not   the content is correct\n\n` +
+        `Answer three things before ending the turn:\n` +
+        `  1. WHERE DID THE PROOF ENTER, and is that reachable by the person who will use this?\n` +
+        `  2. WHAT COULD THIS CHECK NEVER SEE? If the failure you are investigating is on that list, ` +
+        `the check is invalid whatever it returned.\n` +
+        `  3. IS THE ENABLING STATE THERE? Rows, flags, registrations, permissions, published versions. ` +
+        `Count them — an empty one is the highest-signal check and the one that gets skipped.\n\n` +
+        `Then re-verify at the right altitude, or downgrade the claim to exactly what you proved and say ` +
+        `which layer is still unverified. An honest partial result is always fine. A green light that ` +
+        `could not have gone red is not.`,
     }));
   } catch {
     // fail open — never trap a session on a guard error
