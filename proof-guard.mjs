@@ -93,6 +93,10 @@ process.stdin.on('end', () => {
         `for weeks because every proof called the transport directly while the gate above it denied ` +
         `every push — the check was structurally incapable of seeing the defect, and green was ` +
         `guaranteed before it ran.\n\n` +
+        `The test is: COULD OWNER RUN YOUR VERIFICATION WITH WHAT YOU GAVE HIM? He has an app, an ` +
+        `account, a device, a URL. He cannot call FcmTransport. If your proof used a route he has no ` +
+        `way to reach, your testing and his use of your work are of two different systems, and only ` +
+        `his is real.\n\n` +
         `Answer these three before you end the turn:\n` +
         `  1. WHERE DID THE PROOF ENTER? Name the actual entry point — the HTTP request, the UI action, ` +
         `the device. If you invoked an internal component directly, you proved the COMPONENT, not the ` +

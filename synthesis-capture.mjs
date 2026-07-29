@@ -8,7 +8,7 @@
 //
 // Deliberately narrow: several files from ONE directory, and a substantial prose answer. A turn that
 // read scattered files was not summarising a set, and a short reply was not a distillation.
-import { writeFileSync, mkdirSync, readFileSync, existsSync, rmSync } from 'node:fs';
+import { writeFileSync, mkdirSync, readFileSync, existsSync, rmSync, readdirSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { homedir, tmpdir } from 'node:os';
 import { join, dirname, resolve, isAbsolute } from 'node:path';
@@ -16,6 +16,8 @@ import { resolveInstance, tailEntries } from './brain-lib.mjs';
 
 const MIN_FILES = 3;
 const MIN_ANSWER = 1500;
+// Share of the directory's prose files the turn must have read for it to count as a set.
+const MIN_COVERAGE = 0.5;
 const PROSE = /\.(md|mdx|txt|rst|adoc)$/i;
 const SCRATCH = /(^|\/)(scratchpad|\.scratch|node_modules|Temp|tmp)(\/|$)/i;
 
@@ -79,6 +81,16 @@ process.stdin.on('end', () => {
     }
     const [dir, count] = [...byDir.entries()].sort((a, b) => b[1] - a[1])[0];
     if (count < MIN_FILES) process.exit(0);
+
+    // The directory has to be a SET, not a shelf. Three files out of twelve report parts is a sweep of
+    // one document; three files out of 412 independent memory notes is a sample of unrelated things,
+    // and summarising it produced an answer about encoder dashboard cards that then intercepted every
+    // read of every memory file. Coverage is what separates the two, and nothing else does.
+    let siblings = 0;
+    try {
+      siblings = readdirSync(dir).filter((f) => PROSE.test(f)).length;
+    } catch { process.exit(0); }
+    if (siblings === 0 || count / siblings < MIN_COVERAGE) process.exit(0);
 
     // The longest reply, not the last. A turn often ends with a short exchange about a guard or a
     // follow-up question, and taking the final text stored that instead of the work.

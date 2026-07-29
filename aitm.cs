@@ -99,6 +99,9 @@ switch (cmd)
     case "shed-doc":
         ShedDoc(GetFlag("--path") ?? throw new ArgumentException("shed-doc needs --path <substring>"));
         break;
+    case "shed-synthesis":
+        ShedSynthesis(GetFlag("--path") ?? throw new ArgumentException("shed-synthesis needs --path <source dir>"));
+        break;
     case "add-synthesis":
         AddSynthesis(
             GetFlag("--path") ?? throw new ArgumentException("add-synthesis needs --path <source dir>"),
@@ -1096,6 +1099,25 @@ void ForgetSynthesisIndex(string pathFragment)
         w.WriteEndObject();
     }
     catch { /* the index is a cache; a malformed one degrades to "no synthesis known" */ }
+}
+
+// Drop ONLY the synthesis for a directory, leaving the absorbed sources alone.
+//
+// shed-doc matches every row under a path, so using it to remove one bad synthesis took 1352 indexed
+// sections of the player campaign with it. A synthesis is a single row with a known key; removing it
+// never needs a path sweep.
+void ShedSynthesis(string sourceDir)
+{
+    string dir = Path.GetFullPath(sourceDir).Replace('\\', '/').TrimEnd('/');
+    string key = $"synthesis:{dir.ToLowerInvariant()}";
+    long before = ScalarLong("SELECT count(*) FROM docs WHERE k=$k", ("$k", key));
+    if (before == 0) { Console.WriteLine($"no synthesis stored for {dir}."); return; }
+    Exec("BEGIN");
+    Run("DELETE FROM docs_fts WHERE k=$k", ("$k", key));
+    Run("DELETE FROM docs WHERE k=$k", ("$k", key));
+    Exec("COMMIT");
+    ForgetSynthesisIndex(dir);
+    Console.WriteLine($"shed the synthesis for {dir}.");
 }
 
 // Shed outdated absorbed docs by path substring (e.g. a superseded plan or a historical session log).
