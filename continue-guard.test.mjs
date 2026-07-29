@@ -50,6 +50,14 @@ const CASES = [
   ['retrospective', false,
     'Fixed. That is the thing I flagged before I ran it, and the gate is green now.'],
   ['plain-done', false, 'Shipped. CI green on 1e6ddc8, 380 pages built, both alerts closed.'],
+  // Verbatim from a turn this guard wrongly blocked. The work was DONE — the fact was written to the
+  // store before the sentence was typed — but the report used the terse subject-dropped past tense
+  // the owner asks for, so nothing marked it as retrospective and "flagging that" tripped the hand-back
+  // matcher. Finished work reported tersely must never read as parked work.
+  ['terse-past-tense', false,
+    'Worth flagging that the KMP session independently hit the exact class we just named. ' +
+    'Recorded it as an instance of that rule rather than as its own standalone lesson.'],
+
   // A stated constraint is not a proposal. "I'd have to" explains why something did not happen.
   ['constraint', false,
     'I would have to close your Chrome to read that cookie store, and I am not doing that. ' +

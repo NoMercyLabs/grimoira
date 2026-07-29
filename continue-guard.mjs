@@ -72,12 +72,20 @@ const OWNED = /\b(i|i'?ll|i'?ve|i'?m|we|we'?ll|we'?ve|you|you'?ll|your|my|next s
 // Bare time words are far too loose. "already" matched "a slot another file ALREADY occupies" — present
 // tense, about a third party — and excused a proposal that should have blocked. Retrospection is a
 // first-person past action, so that is what this requires.
+// Past-tense action verbs, used by every form below.
+const DONE_VERB = "fixed|did|built|shipped|handled|committed|landed|corrected|covered|ran|wrote|removed" +
+  "|recorded|added|stored|captured|logged|pushed|deleted|updated|renamed|moved|verified|checked";
+
 const RETROSPECTIVE = new RegExp([
-  "i (have |already |just |then )*(fixed|did|built|shipped|handled|committed|landed|corrected|covered|ran|wrote|removed)",
-  "already (fixed|done|built|shipped|handled|committed|landed|corrected|covered|removed|gone)",
+  `i (have |already |just |then )*(${DONE_VERB})`,
+  `already (${DONE_VERB}|done|gone)`,
   "(mentioned|noted|said|flagged|called out|reported) (above|earlier|before|previously)",
   "last (turn|time|session)",
   "which i (then|just)",
+  // Subject-elided past tense: "Recorded it as an instance", "Shipped.", "Fixed and pushed." That is
+  // the terse register the owner asks for, and without it the guard read finished work as parked work —
+  // it blocked a turn whose action was already complete because the sentence omitted the word "I".
+  `(^|[.!?]\\s+|\\n)\\s*(${DONE_VERB})\\b`,
 ].join('|'), 'i');
 
 // A phrase MENTIONED is not a phrase USED. Reporting on this guard means quoting the phrases it
@@ -101,9 +109,16 @@ const sentenceAround = (text, hit) => {
   return text.slice(from, to < 0 ? text.length : to);
 };
 
+// "Worth flagging that X" and "worth noting that X" INTRODUCE information; they assign no work. That
+// is a different act from "worth a look on your side", which hands the doing back — and that one is
+// matched on its own wording, so excluding this frame costs no coverage. The guard blocked a turn
+// whose work was already finished for saying "worth flagging that".
+const REPORTING_FRAME = /\bworth (flagging|noting|mentioning|calling out|saying|recording)\b/i;
+
 function selfFlagged(text) {
   const strong = text.match(FLAGGED_STRONG);
-  if (strong && !RETROSPECTIVE.test(sentenceAround(text, strong[0]))) return strong[0];
+  if (strong && !RETROSPECTIVE.test(sentenceAround(text, strong[0]))
+      && !REPORTING_FRAME.test(sentenceAround(text, strong[0]))) return strong[0];
   const weak = text.match(FLAGGED_WEAK);
   if (weak && OWNED.test(sentenceAround(text, weak[0])) && !RETROSPECTIVE.test(sentenceAround(text, weak[0]))) return weak[0];
   const alone = text.match(OFFER_ALONE);
