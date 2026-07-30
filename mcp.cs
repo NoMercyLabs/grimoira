@@ -37,6 +37,10 @@ public static partial class AitmTools
         "seam", "codekind", "project", "reference", "platform", "layer",
     };
 
+    // The ROW types, which is what brain_stage's first argument actually selects. Disjoint from
+    // NodeKinds by construction, which is what makes it safe to accept a node kind there and coerce.
+    private static readonly string[] RowKinds = { "node", "triple", "slot" };
+
     // A rejection has to be actionable on the FIRST try. Returning only the rule that was broken made
     // callers guess the positional meaning of key/a/b/c and burn five round trips in a row, and the
     // knowledge they were trying to record never landed at all.
@@ -781,6 +785,19 @@ public static partial class AitmTools
     public static string brain_stage(string kind, string key, string a = "", string b = "", string c = "", string because = "", bool hard = false)
     {
         string Esc(string s) => s.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\n", " ").Replace("\r", " ").Replace("\t", " ");
+
+        // "kind" names the ROW TYPE, and for a node row the node's OWN kind goes in "a" — two things
+        // called kind, one parameter named for both. Every caller reads it the obvious way and passes
+        // "rule", and the tool rejected it every single time. A perfect error message that fires on
+        // every call is an API defect, not a user defect.
+        //
+        // The intent was never ambiguous: row types and node kinds are disjoint sets, so "rule" can
+        // only ever have meant a node of kind rule. Accept it. The remaining arguments simply shift
+        // left by the slot the caller did not know to leave empty: a is the label, b the statement.
+        bool coerced = !RowKinds.Contains(kind, StringComparer.OrdinalIgnoreCase)
+            && NodeKinds.Contains(kind, StringComparer.OrdinalIgnoreCase);
+        if (coerced) (kind, a, b, c) = ("node", kind, a, b.Length > 0 ? b : c);
+
         if (kind == "node")
         {
             string guardErr = NodeGuard(a, b.Length > 0 ? b : key);
@@ -795,8 +812,15 @@ public static partial class AitmTools
             _ => "",
         };
         if (line.Length == 0) return WrongRowKind(kind);
-        File.AppendAllText(LedgerPath(), line + "\n");
-        return $"staged {kind} {key} (owe brain_flush).";
+        // A brand-new instance has no directory yet, and AppendAllText does not make one — staging into
+        // a fresh instance threw, and the MCP layer reported only "An error occurred invoking
+        // brain_stage", so the learning was lost with no way to see why.
+        string ledger = LedgerPath();
+        Directory.CreateDirectory(Path.GetDirectoryName(ledger)!);
+        File.AppendAllText(ledger, line + "\n");
+        return coerced
+            ? $"staged node {key} as kind \"{a}\" (owe brain_flush). Note: the first argument is the ROW type — node / triple / slot — and \"{a}\" is the node's own kind, so it was moved for you."
+            : $"staged {kind} {key} (owe brain_flush).";
     }
 
     [McpServerTool]
