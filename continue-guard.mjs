@@ -64,6 +64,22 @@ const PROPOSAL = new RegExp([
   "we'?d want to",
 ].join('|'), 'i');
 
+// Announced intent: the turn names what it is about to do and then ends. This is the worst shape of
+// all because it READS LIKE PROGRESS — "Shipped three fixes. Next I'm on the music fetch" sounds like
+// work in flight, and the owner had to ask "so did you fix it or left it?" to find out the answer was
+// "left it". Shipping something does not license parking the next thing.
+// There is no case where announcing your next action and then stopping is correct: either do it, or
+// do not mention it. Naming it and halting is the round trip this whole guard exists to delete.
+const INTENT_ANNOUNCED = new RegExp([
+  "next,? i'?m (on|onto|doing|going to|taking|looking at|starting)",
+  "i'?m (on|onto) \\w[\\w{}/.-]* next",
+  "next up[:,]", "first up[:,]", "up next[:,]",
+  "then i'?ll\\b", "after (this|that),? i'?ll\\b",
+  "i'?ll (start|begin|do|tackle|pick up|move on to|move to|look at|fix|build|write|wire|add) \\w",
+  "moving on to\\b", "on to the\\b",
+  "next is\\b", "next: ",
+].join('|'), 'i');
+
 // What makes a weak phrase a hand-off: the sentence points at the owner or at the turn's own work.
 const OWNED = /\b(i|i'?ll|i'?ve|i'?m|we|we'?ll|we'?ve|you|you'?ll|your|my|next step|todo)\b/i;
 
@@ -129,6 +145,8 @@ function selfFlagged(text) {
   if (proposal && !RETROSPECTIVE.test(sentenceAround(text, proposal[0]))) return proposal[0];
   const ready = text.match(OFFER_READY);
   if (ready && YOUR_CALL.test(sentenceAround(text, ready[0]))) return ready[0];
+  const intent = text.match(INTENT_ANNOUNCED);
+  if (intent && !RETROSPECTIVE.test(sentenceAround(text, intent[0]))) return intent[0];
   return null;
 }
 

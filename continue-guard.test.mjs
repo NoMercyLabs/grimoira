@@ -43,6 +43,16 @@ const CASES = [
     'have caught all four of tonight\'s bugs without knowing any naming convention: refuse to start an ' +
     'encode into a slot another file already occupies, and surface it as a conflict.'],
 
+  // Verbatim from a real ending. Three fixes genuinely shipped, and then the next item was announced
+  // rather than done — which reads like work in flight. the owner had to ask "so did you fix it or left
+  // it?" and the answer was "Left it." Shipping something does not license parking the next thing.
+  ['intent-announced', true,
+    'Shipped: a8c32a3 splash fix, 2317275 R8 changes, aeb0582 sweep script. CI green. ' +
+    "Next I'm on the music {type} fetch — it's the one user-visible failure standing between this " +
+    'and a release worth publishing.'],
+  ['then-ill', true,
+    'Committed the parser fix and pushed it. Then I\'ll wire the dispatcher up to it.'],
+
   // Must STAY QUIET — none of these park anything.
   ['descriptive', false,
     'Chapter thumbnails are scaffolded but not wired to the player. No 3D stereoscopic. ' +
