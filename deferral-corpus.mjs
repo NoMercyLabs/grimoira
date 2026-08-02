@@ -68,6 +68,13 @@ export const CASES = [
     'The rule you asked for already existed four times over, so the finding was that prose is the '
     + 'wrong instrument for it. Four memories, one principle, and the enforcement is what changed.'],
 
+  // Verbatim from the next turn it wrongly blocked. A hyphen glues a verb into a compound noun, and
+  // it also hid the determiner from the lookback: the nearest word before "patch" was "symptom-",
+  // not "the".
+  ['hyphenated-compound-is-a-name', false,
+    'Writing a fifth would have been the symptom-patch of the symptom-patch rule, so the effort '
+    + 'went into the mechanism instead. Four memories already said it in prose.'],
+
   // The same two constructions in their genuine deferring senses must still fire.
   ['determiner-does-not-excuse-a-real-proposal', true,
     'The wrong instrument is only half of it. I would rewrite the whole detector to match mood '

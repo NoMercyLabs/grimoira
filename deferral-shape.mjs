@@ -44,7 +44,7 @@ const IRREGULAR = {
 };
 
 // Nouns that ARE the unit of work, for sentences with no verb at all ("worth a look on your side").
-const WORK_NOUN = /\b(look|pass|fix|test|check|change|patch|sweep|refactor|migration|cleanup|rewrite|follow[- ]?up|device pass)\b/i;
+const WORK_NOUN = /\b(look|pass|fix|test|check|change|patch|sweep|refactor|migration|cleanup|rewrite|follow[- ]?up|device pass)\b/gi;
 
 // ---------------------------------------------------------------- mood (the closed part)
 const MODAL = /\b(would|will|'ll|'d|could|might|may|shall|should)\b/i;
@@ -82,19 +82,36 @@ const IRREGULAR_RE = new RegExp(`\\b(${Object.keys(IRREGULAR).join('|')})\\b`, '
 // reading it as a verb blocked the sentence "prose is the wrong instrument for it". The auxiliary
 // lookahead keeps "that would have caught" out of it: "that" is a determiner, but what follows is a
 // verb phrase, not a noun phrase.
-const DETERMINER_BEFORE = /\b(the|a|an|this|that|these|those|my|our|your|its|their|his|her|no|any|some|each|every|another)\s+(?!(?:would|will|have|had|has|be|been|is|are|was|were|do|does|did|can|could|should|might|may|must|to)\b)(\w+\s+)?$/i;
+const DETERMINER_BEFORE = /\b(the|a|an|this|that|these|those|my|our|your|its|their|his|her|no|any|some|each|every|another)\s+(?!(?:would|will|have|had|has|be|been|is|are|was|were|do|does|did|can|could|should|might|may|must|to)\b)([\w-]+\s+)?$/i;
+
+// A hyphen glues a word into a compound, and a compound is a name. "the symptom-patch rule" contains
+// no proposal to patch anything — but the hyphen also broke the determiner lookback, because the
+// nearest whitespace-delimited word before "patch" was "symptom-" rather than "the". A verb welded
+// into a compound is never the sentence's action, whichever side the hyphen falls on.
+const compound = (sentence, at, len) => sentence[at - 1] === '-' || sentence[at + len] === '-';
+
+// A work noun glued into a compound names a concept, not a job. "the symptom-patch rule" is a term of
+// art; "worth a look on your side" is an assignment. The verb tagger already made this distinction and
+// the noun gate did not, which let a hyphenated term walk in as the sentence's unit of work.
+function hasWorkNoun(sentence) {
+  for (const m of sentence.matchAll(WORK_NOUN)) {
+    if (!compound(sentence, m.index, m[0].length)) return true;
+  }
+  return false;
+}
 
 // Every work action in a sentence, tagged with whether it is completed or not.
 export function actions(sentence) {
   const found = [];
-  const inNounPosition = (at) => DETERMINER_BEFORE.test(sentence.slice(Math.max(0, at - 40), at));
+  const nounish = (m) => compound(sentence, m.index, m[0].length)
+    || DETERMINER_BEFORE.test(sentence.slice(Math.max(0, m.index - 40), m.index));
   for (const m of sentence.matchAll(BASE_RE)) {
-    if (inNounPosition(m.index)) continue;
+    if (nounish(m)) continue;
     const suffix = (m[2] || '').toLowerCase();
     found.push({ token: m[0], base: m[1].toLowerCase(), past: suffix === 'ed' || suffix === 'd' });
   }
   for (const m of sentence.matchAll(IRREGULAR_RE)) {
-    if (inNounPosition(m.index)) continue;
+    if (nounish(m)) continue;
     found.push({ token: m[0], base: IRREGULAR[m[0].toLowerCase()], past: true });
   }
   return found;
@@ -135,7 +152,7 @@ function judge(sentence, next) {
     return { defer: true, why: 'an unresolved item handed to someone', hit: sentence.slice(0, 90) };
   }
 
-  if (!acts.length && !WORK_NOUN.test(sentence)) return { defer: false };
+  if (!acts.length && !hasWorkNoun(sentence)) return { defer: false };
   if (completed(sentence, acts)) return { defer: false };
 
   // A constraint states why something cannot be done. It is the one modal construction that is not a
