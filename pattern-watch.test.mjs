@@ -23,6 +23,14 @@ const CASES = [
   ['git status --short', null, 'same'],
   ['grep -rn foo src', null, 'a bare utility can never become a script'],
 
+  // An assignment is not a command, in either shell's spelling.
+  ['r=$(curl -s -m 2 http://127.0.0.1:9222/json/version)', null, 'a captured substitution left "-s" as the exe'],
+  // The assignment goes and the real command stays. This one is genuinely worth codifying once it
+  // recurs, which is the point — the old signature named the VARIABLE and could never be acted on.
+  ['$p = Get-CimInstance Win32_Process -Filter "x"', 'get-ciminstance win32_process', 'assignment stripped, command kept'],
+  ['adb -s emulator-5560 shell input keyevent 4', 'adb shell', 'a flag VALUE is not the subcommand'],
+  ['sleep 5', null, 'waiting is not work'],
+
   // Real tasks still register.
   ['gh run watch 123 --exit-status', 'gh run', 'a CLI subcommand is a task'],
   ['dotnet build aitm.cs -c Release', 'dotnet build', 'so is a build'],

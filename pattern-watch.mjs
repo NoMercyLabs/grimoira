@@ -52,6 +52,8 @@ const UTILITIES = new Set([
   'grep', 'cat', 'sed', 'awk', 'ls', 'cd', 'echo', 'head', 'tail', 'find', 'cut', 'sort', 'uniq',
   'wc', 'tr', 'xargs', 'cp', 'mv', 'rm', 'mkdir', 'touch', 'chmod', 'curl', 'wget', 'jq', 'tee',
   'python', 'python3', 'node', 'bash', 'sh', 'pwsh', 'powershell', 'which', 'test', 'true', 'printf',
+  // Waiting is not work. "sleep" had accumulated 269 hits and could never become anything.
+  'sleep', 'start-sleep', 'timeout', 'wait', 'date', 'pwd', 'basename', 'dirname', 'seq', 'read',
 ]);
 
 // Exported for pattern-watch.test.mjs. Seven bugs have lived in here — cd swallowing the real command,
@@ -76,8 +78,18 @@ export function signature(raw) {
     // stage threw the command away and a whole loop signed as nothing.
     const head = w[0].toLowerCase();
     if (NAVIGATION.has(head) || HEADERS.has(head)) continue;
-    while (w.length > 0 && (BODY_KEYWORDS.has(w[0].toLowerCase()) || w[0].includes('='))) w = w.slice(1);
-    if (w.length === 0) continue;
+    // An assignment is not a command, in either shell spelling. `r=$(curl …)` left "-s" standing as the
+    // executable, and PowerShell's spaced form `$p = Get-CimInstance …` signed as "$p get-ciminstance",
+    // because only the glued form contained an "=" to notice.
+    while (w.length > 0 && (
+      BODY_KEYWORDS.has(w[0].toLowerCase())
+      || w[0].includes('=')
+      || w[0] === '='
+      || (w.length > 1 && w[1] === '=' && /^\$?[\w.]+$/.test(w[0]))
+    )) w = w.slice(1);
+    // What survives has to look like a command. After an assignment is stripped the remainder often
+    // starts with a flag or a substitution, and neither names any task worth codifying.
+    if (w.length === 0 || w[0].startsWith('-') || w[0].startsWith('$')) continue;
     // Everything from the first redirect on describes where output went, not what was run.
     const redirect = w.findIndex((t) => /^\d?>>?$|^<$/.test(t) || /^\d?>&\d$/.test(t));
     words = redirect > 0 ? w.slice(0, redirect) : w;
@@ -107,7 +119,12 @@ export function signature(raw) {
     const script = words.slice(1).find((w) => !w.startsWith('-') && isWord(w.split(/[\\/]/).pop() || ''));
     if (script) sub = (script.split(/[\\/]/).pop() || '').toLowerCase();
   } else {
-    sub = (words.slice(1).find((w) => !w.startsWith('-') && !w.includes('/') && !w.includes('\\') && isWord(w)) || '').toLowerCase();
+    // A token straight after a flag is that flag's VALUE, not the subcommand. "adb -s emulator-5560
+    // shell input" signed as "adb emulator-5560" — the device serial — so every device and every
+    // session produced its own signature and none of them named the work.
+    const rest = words.slice(1);
+    sub = (rest.find((w, i) => !w.startsWith('-') && !(i > 0 && rest[i - 1].startsWith('-'))
+      && !w.includes('/') && !w.includes('\\') && isWord(w)) || '').toLowerCase();
   }
   // "npm run" names no task; the script after it does. Without this every build, test and lint in the
   // repo collapsed into one signature called "npm run", which can never become anything.
