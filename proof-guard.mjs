@@ -33,7 +33,11 @@ const WORKS_CLAIM = new RegExp([
   "\\b(works?|working) (now|again|end[- ]to[- ]end|in production|for (users|consumers|everyone|clients))\\b",
   "\\b(verified|confirmed|proven) (working|fixed|correct|end[- ]to[- ]end)\\b",
   "\\b(users?|clients?|consumers?|devices?|callers?) (now )?(get|gets|receive|receives|see|sees|can)\\b",
-  "\\b(deliver(s|ed)|arriv(es|ed)|render(s|ed) correctly|plays? correctly)\\b",
+  // "delivered" needs a RECIPIENT to carry the sense this guard is about. Bare "delivered" is the
+  // ordinary sense of handing over finished work, and matching it turned an honest status report
+  // — one that named its own unverified layer in the next sentence — into a blocked overclaim.
+  "\\b(deliver(s|ed)|arriv(es|ed)) (to|on|at|for) \\b",
+  "\\b(render(s|ed)|plays?|displays?) correctly\\b",
   "\\b(bug|issue|regression|problem|crash|leak|failure) is (fixed|gone|resolved)\\b",
   "\\bshipped and working\\b",
 ].join('|'), 'i');
@@ -78,14 +82,21 @@ const REACH_EVIDENCE = new RegExp([
 ].join('|'), 'i');
 
 // Naming the gap IS the honest report this guard wants. Never punish it.
+//
+// This began as a list of ways to say "I have not proven this", and a list of phrasings can only
+// recognise the ones already seen — it blocked a report that said, in plain words, "what I can't yet
+// assert is its conclusion". The general form is grammatical: a NEGATED EPISTEMIC, first person,
+// over a verb of proving. Negators and epistemic verbs are both closed classes, so this covers
+// phrasings nobody has written yet, which a list by construction cannot.
+const EPISTEMIC = 'assert|verify|verified|confirm|confirmed|prove|proven|claim|say|know|observe|test|tested|exercise|exercised|reproduce|check|checked';
 const SELF_LIMITED = new RegExp([
-  "\\bnot (yet )?(verified|tested|proven|exercised) (end[- ]to[- ]end|on|against|through)\\b",
+  `\\b(can ?not|can'?t|could ?n'?t|will not|won'?t|do not|don'?t|did not|didn'?t|have not|haven'?t|has not|hasn'?t|not yet|yet to)\\b(?:\\W+\\w+){0,3}\\W+(${EPISTEMIC})\\b`,
+  `\\b(un(verified|proven|confirmed|tested|checked|exercised))\\b`,
   "\\bproves? the (component|unit|transport|function|layer|part), not\\b",
-  "\\bhave not (driven|exercised|run|tried) the real\\b",
   "\\bstill needs? a (device|real|manual|production) (pass|run|check|test)\\b",
   "\\bthis is (a )?(proxy|partial|indirect)\\b",
-  "\\bcannot (verify|confirm) (that|this) (from|without) here\\b",
   "\\bwould not (catch|see|detect)\\b",
+  "\\bstill (unverified|open|outstanding|to (confirm|verify))\\b",
 ].join('|'), 'i');
 
 const stripCode = (t) => t.replace(/```[\s\S]*?```/g, ' ').replace(/`[^`\n]*`/g, ' ');

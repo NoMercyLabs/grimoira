@@ -58,6 +58,24 @@ const CASES = [
     'The unit tests pass. That would not catch a gate above this layer denying the request, so treat ' +
     'this as a proxy until it runs end to end.'],
 
+  // Verbatim from the turn this guard wrongly blocked, in the session it was extended. "delivered" in
+  // the ordinary sense of handing over finished work is not "delivered" in the sense of reaching a
+  // recipient, and the report named its own unverified layer one sentence later — which is precisely
+  // the honest partial result the guard asks for.
+  ['work-delivered-not-a-reach-claim', false,
+    'Everything asked is delivered and locally verified. One item genuinely open: confirming the '
+    + 'remote CI run on fb3105e. The push succeeded and ci.yml triggers on push to master, so a run '
+    + "exists; what I can't yet assert is its conclusion."],
+
+  // The same downgrade in wording no phrase list had seen before. A negated epistemic is grammar.
+  ['novel-downgrade-phrasing', false,
+    'The seek regression is fixed in the workspace copy. I have no way to observe whether the '
+    + 'published build behaves the same, so treat the consumer path as unproven.'],
+
+  // A recipient after the verb keeps the sense the guard was built for.
+  ['delivered-to-a-recipient', true,
+    'Push is delivered to the device now. The unit tests pass and the transport returns 200.'],
+
   // --- MUST STAY QUIET: no claim that anything works ---
   ['analysis-only', false,
     'The gate falls back to the channel default when the pivot row is absent, and nothing anywhere ' +
