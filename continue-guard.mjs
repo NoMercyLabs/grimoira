@@ -80,6 +80,32 @@ const INTENT_ANNOUNCED = new RegExp([
   "next is\\b", "next: ",
 ].join('|'), 'i');
 
+// The named-but-unrun experiment. "I narrowed it to two candidates. The distinguishing test is cheap:
+// log the resolved URL — non-null means one, null means the other." Then it stopped.
+//
+// This is the hardest shape to see because the REASON given is correct: "I'd be guessing between those
+// two, and I've already shipped one guess today that broke your login." Refusing to guess is right.
+// Refusing to run the test that ends the guessing is not — and the caution makes the deferral read as
+// discipline. Uncertainty is a reason to TEST, never a reason to stop; if you can describe the
+// experiment precisely enough to hand over, you can run it.
+const TEST_NAMED = new RegExp([
+  "(the|a|one) (distinguishing|quickest|cheapest|cheap|simple|simplest|easy|easiest|obvious|fastest) (test|check|way|experiment|probe)",
+  "the (test|check|way) to (tell|distinguish|find out|know|confirm)",
+  "one way to (tell|find out|check|know|confirm)",
+  "that would (tell|show|confirm|distinguish|settle) (us|you|which|whether)",
+  "to find out[,:]",
+  "i'?m stopping short of",
+  "(rather than|instead of) guess(ing)?",
+  "would (tell|show) (us|you) which",
+].join('|'), 'i');
+
+// Evidence the experiment was actually performed, rather than merely described.
+const TEST_RUN = new RegExp([
+  "\\b(ran|running|ran it|i ran)\\b", "\\bthe (log|output|result|return value) (said|says|showed|shows|was)\\b",
+  "\\bit (returned|printed|logged|resolved to)\\b", "\\bresult[:s]\\b", "\\bcame back\\b",
+  "\\bturned out\\b", "\\bconfirmed (it|that|by)\\b", "\\bso it is\\b", "\\bwhich means it\\b",
+].join('|'), 'i');
+
 // What makes a weak phrase a hand-off: the sentence points at the owner or at the turn's own work.
 const OWNED = /\b(i|i'?ll|i'?ve|i'?m|we|we'?ll|we'?ve|you|you'?ll|your|my|next step|todo)\b/i;
 
@@ -147,6 +173,15 @@ function selfFlagged(text) {
   if (ready && YOUR_CALL.test(sentenceAround(text, ready[0]))) return ready[0];
   const intent = text.match(INTENT_ANNOUNCED);
   if (intent && !RETROSPECTIVE.test(sentenceAround(text, intent[0]))) return intent[0];
+  // Checked against the WHOLE text, not one sentence: the experiment is named in one place and its
+  // result, if there is one, is reported in another.
+  // Only TEST_RUN excuses this one. The retrospective check does not apply and actively broke it:
+  // "I've already shipped one guess today that broke your login" mentions past work, so a general
+  // past-tense test waved the whole thing through — and that sentence is part of the DEFERRAL, the
+  // justification for not running the experiment. The single question here is whether the experiment
+  // itself was performed; what else happened earlier is irrelevant to that.
+  const named = text.match(TEST_NAMED);
+  if (named && !TEST_RUN.test(text)) return named[0];
   return null;
 }
 
@@ -260,7 +295,11 @@ process.stdin.on('end', () => {
         `is the hedge-ask, and it costs him the same reply that deferral does.\n\n` +
         `Do NOT satisfy this guard by editing the sentence. Rewriting a doc, a comment, or a report so the ` +
         `phrase stops matching is not a fix, it is a cover-up, and it damages a file nobody asked you to ` +
-        `touch. Either change the thing the sentence describes, or say plainly that it is out of scope.`
+        `touch. Either change the thing the sentence describes, or say plainly that it is out of scope.\n\n` +
+        `If you narrowed a problem to two candidates and named the test that separates them: RUN IT. ` +
+        `Uncertainty is a reason to test, never a reason to stop. "I would be guessing" is correct about ` +
+        `guessing and wrong about stopping — if you can describe the experiment precisely enough to hand ` +
+        `over, you can perform it, and refusing to guess earns nothing if the disambiguation is left undone.`
       );
     }
     if (deferred) {

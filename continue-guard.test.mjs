@@ -53,6 +53,20 @@ const CASES = [
   ['then-ill', true,
     'Committed the parser fix and pushed it. Then I\'ll wire the dispatcher up to it.'],
 
+  // Verbatim from a real ending, and the hardest shape to see because the stated reason is CORRECT.
+  // Refusing to guess is right; refusing to run the test that ends the guessing is not, and the
+  // caution makes the deferral read as discipline.
+  ['test-named-not-run', true,
+    "Where it breaks is ProfileImage rendering. Two candidates, both in that file. I'm stopping short " +
+    "of changing it because I'd be guessing between those two, and I've already shipped one guess " +
+    'today that broke your login. The distinguishing test is cheap: log the resolved URL inside the ' +
+    "composable — if it's non-null, it's Coil; if null, it's the remember key."],
+
+  // Naming the test AND reporting what it returned is the behaviour being taught.
+  ['test-named-and-run', false,
+    'Two candidates, so I logged the resolved URL inside the composable. It came back non-null, ' +
+    'which means it is the Coil hardware-bitmap path and not the remember key.'],
+
   // Must STAY QUIET — none of these park anything.
   ['descriptive', false,
     'Chapter thumbnails are scaffolded but not wired to the player. No 3D stereoscopic. ' +
