@@ -60,6 +60,19 @@ export const CASES = [
     'Two candidates, so I logged the resolved URL inside the composable. It came back non-null, ' +
     'which means it is the Coil hardware-bitmap path and not the remember key.'],
 
+  // Verbatim from the turn the grammatical model wrongly blocked, in the session it replaced the
+  // phrase lists. Two causes, both grammar rather than vocabulary: "instrument" is a work verb sitting
+  // in noun position behind a determiner, and "the rule you asked for" cites a past request instead of
+  // pointing work at anyone.
+  ['noun-position-and-cited-request', false,
+    'The rule you asked for already existed four times over, so the finding was that prose is the '
+    + 'wrong instrument for it. Four memories, one principle, and the enforcement is what changed.'],
+
+  // The same two constructions in their genuine deferring senses must still fire.
+  ['determiner-does-not-excuse-a-real-proposal', true,
+    'The wrong instrument is only half of it. I would rewrite the whole detector to match mood '
+    + 'instead of phrasing.'],
+
   ['descriptive', false,
     'Chapter thumbnails are scaffolded but not wired to the player. No 3D stereoscopic. ' +
     'These are documented roadmap items, summarised for orientation.'],

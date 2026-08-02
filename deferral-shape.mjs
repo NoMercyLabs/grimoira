@@ -52,6 +52,13 @@ const PERIPHRASTIC = /\b(going to|gonna|about to|plan to|planning to|intend to|w
 const READINESS = /\b(ready (to|for|when|whenever)|queued|teed up|lined up|on deck|standing by|good to go|happy to|able to|waiting (on|for) you)\b/i;
 const FUTURE_ADVERB = /\b(next|then|afterwards?|later|subsequently|soon|tomorrow|after (this|that)|up next|first up)\b/i;
 const SECOND_PERSON = /\b(you|you'?re|you'?ll|you'?d|your|yours|yourself)\b/i;
+// the owner in the past tense is a citation, not an assignment: "the rule you asked for", "the bug you
+// reported". Built from the same irregular table the action tagger uses, so the two agree on what
+// counts as past.
+const YOU_PAST = new RegExp(
+  `\\b(you|you'?ve|you'?d)\\s+(?:(?:just|already|then|also|earlier)\\s+)?(\\w+ed|${Object.keys(IRREGULAR).join('|')})\\b`,
+  'gi',
+);
 const FIRST_PERSON = /\b(i|i'?m|i'?ll|i'?d|i'?ve|we|we'?re|we'?ll|we'?ve|my|our)\b/i;
 // A state asserted as not-yet-resolved. Distinct from a plain negation: "not the remember key" is a
 // finding, "not yet wired" is an open item.
@@ -70,14 +77,24 @@ const escape = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const BASE_RE = new RegExp(`\\b(${BASE.map(escape).join('|')})(s|es|ed|ing|d)?\\b`, 'gi');
 const IRREGULAR_RE = new RegExp(`\\b(${Object.keys(IRREGULAR).join('|')})\\b`, 'gi');
 
+// Most work verbs are also nouns — a patch, a log, a record, the wrong instrument. A determiner in
+// front of one puts it in noun position, where it names a thing rather than proposing an action, and
+// reading it as a verb blocked the sentence "prose is the wrong instrument for it". The auxiliary
+// lookahead keeps "that would have caught" out of it: "that" is a determiner, but what follows is a
+// verb phrase, not a noun phrase.
+const DETERMINER_BEFORE = /\b(the|a|an|this|that|these|those|my|our|your|its|their|his|her|no|any|some|each|every|another)\s+(?!(?:would|will|have|had|has|be|been|is|are|was|were|do|does|did|can|could|should|might|may|must|to)\b)(\w+\s+)?$/i;
+
 // Every work action in a sentence, tagged with whether it is completed or not.
 export function actions(sentence) {
   const found = [];
+  const inNounPosition = (at) => DETERMINER_BEFORE.test(sentence.slice(Math.max(0, at - 40), at));
   for (const m of sentence.matchAll(BASE_RE)) {
+    if (inNounPosition(m.index)) continue;
     const suffix = (m[2] || '').toLowerCase();
     found.push({ token: m[0], base: m[1].toLowerCase(), past: suffix === 'ed' || suffix === 'd' });
   }
   for (const m of sentence.matchAll(IRREGULAR_RE)) {
+    if (inNounPosition(m.index)) continue;
     found.push({ token: m[0], base: IRREGULAR[m[0].toLowerCase()], past: true });
   }
   return found;
@@ -126,12 +143,17 @@ function judge(sentence, next) {
   // proposal wearing a constraint's clothes.
   if (MODAL.test(sentence) && DEONTIC.test(sentence) && REFUSAL.test(sentence)) return { defer: false };
 
+  // "the rule you asked for" refers back to a past request; it does not point work at anyone. Second
+  // person only means hand-off when the owner is the agent of something still pending, so retrospective
+  // references to what he already said are removed before the pronoun is allowed to accuse anything.
+  const pending = sentence.replace(YOU_PAST, ' ');
+
   const mood =
     (MODAL.test(sentence) && 'a modal') ||
     (PERIPHRASTIC.test(sentence) && 'an announced intention') ||
     (READINESS.test(sentence) && 'work offered as ready') ||
     (FUTURE_ADVERB.test(sentence) && 'a future adverbial') ||
-    (SECOND_PERSON.test(sentence) && 'work pointed at the owner') ||
+    (SECOND_PERSON.test(pending) && 'work pointed at the owner') ||
     null;
   if (!mood) return { defer: false };
   return { defer: true, why: `${mood} over unfinished work`, hit: sentence.slice(0, 90) };
