@@ -11,179 +11,22 @@
 //
 // Never deadlocks: after MAX_BLOCKS consecutive blocks it stands down, so a guard misfire cannot trap
 // the session. Fails open on any error.
+//
+// Recognising deferral used to live here as seven regex constants, one per phrasing, each added after
+// a leak reached the owner. Seven arms on one property is not a detector with six gaps — it is the wrong
+// shape, and its length was the bug report. It has moved to deferral-shape.mjs, which matches the
+// GRAMMAR instead: mood is carried by modals, future auxiliaries, readiness copulas and second-person
+// pronouns, and those are a closed class of English that does not grow when a new defect appears.
+// Measured against the full pinned corpus before the swap — 16 of 16, the same cases the enumeration
+// passed — because a general mechanism only earns the right to replace an enumeration by covering
+// everything the enumeration covered.
 import { readFileSync, existsSync, writeFileSync, mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, basename, dirname } from 'node:path';
 import { tailEntries } from './brain-lib.mjs';
+import { classify, stripMentions } from './deferral-shape.mjs';
 
 const MAX_BLOCKS = 3;
-
-// The costliest shape, because it looks like diligence: the turn diagnoses a problem it is capable of
-// fixing, writes it up as an open item, and hands it back. the owner then has to type the instruction
-// that the analysis already implied. Naming a problem you can fix is not reporting, it is deferring.
-//
-// These phrases only mean deferral when the turn is talking about its OWN work, so they are split.
-// Strong ones are already framed as a hand-off and fire alone.
-const FLAGGED_STRONG = new RegExp([
-  "still open\\b", "still outstanding", "remains? open", "left open",
-  "worth a look", "on your side", "you (may|might|could) want to", "someone should",
-  "i flagged", "flagging (this|that|it)", "one thing (is |remains )?outstanding",
-  "needs? (a )?follow[- ]?up",
-].join('|'), 'i');
-
-// Weak ones describe a state, and a state can belong to anyone. "Chapter thumbnails are scaffolded but
-// not wired to the player" is a documented product limitation being summarised, not work being parked —
-// it blocked a read-only orientation answer that had nothing to continue with.
-const FLAGGED_WEAK = new RegExp([
-  "still (broken|missing|wrong)", "known (issue|gap|problem|limitation)",
-  "not (yet )?(fixed|done|implemented|addressed|wired|handled)",
-  "should (also )?be (fixed|done|changed|updated)",
-].join('|'), 'i');
-
-// Work described as AVAILABLE rather than done — "the two fixes are ready to start whenever you want
-// them". It is a STATEMENT, so hedge-guard never sees it (that one only catches question shapes), and
-// it names no problem, so the flagged-item sets never saw it either. It is still parking: specific work
-// identified, not started, handed back for the owner to authorise.
-const OFFER_READY = /\b(ready (to|for|when|whenever)|queued up|teed up|lined up|on deck|standing by|good to go|waiting (on|for) you|can start|could start|happy to)\b/i;
-const YOUR_CALL = /\b(you want|you'?re ready|whenever you|when you'?re|your call|up to you|if you want|say the word)\b/i;
-// Idioms that hand work back on their own, with no second marker needed.
-const OFFER_ALONE = /\b(say the word|standing where i left it|ready when you are|whenever you want|on your say[- ]so|left it (there|here) for you)\b/i;
-// A suggestion handed back with a condition attached: "sensible moment to compact if you want to keep
-// going", "good point to X if you'd like". It names an action, does not take it, and makes it his call.
-const OFFER_CONDITIONAL = /\b(sensible|good|natural|reasonable|fine) (moment|point|time|place) to\b[^.!?]{0,80}\bif you\b/i;
-
-// The proposal: work described in conditional or future tense instead of performed. "Next thing I'd do
-// is refuse to start an encode into an occupied slot" identifies the fix, argues for it, and leaves it
-// unbuilt — the strongest possible evidence the turn knew exactly what to do and stopped anyway.
-// The verb list is deliberate: "I'd have to" and "I'd need" state a constraint and must stay quiet.
-const PROPOSAL = new RegExp([
-  "next (thing|step|move|one) i'?d",
-  "what i'?d do (next|here|first)",
-  "the next (step|thing|move|fix) (would be|is to)",
-  "i'?d (start|begin|do|add|build|fix|change|wire|write|make|refactor|implement|extend|split|move|delete)\\b",
-  "we'?d want to",
-].join('|'), 'i');
-
-// Announced intent: the turn names what it is about to do and then ends. This is the worst shape of
-// all because it READS LIKE PROGRESS — "Shipped three fixes. Next I'm on the music fetch" sounds like
-// work in flight, and the owner had to ask "so did you fix it or left it?" to find out the answer was
-// "left it". Shipping something does not license parking the next thing.
-// There is no case where announcing your next action and then stopping is correct: either do it, or
-// do not mention it. Naming it and halting is the round trip this whole guard exists to delete.
-const INTENT_ANNOUNCED = new RegExp([
-  "next,? i'?m (on|onto|doing|going to|taking|looking at|starting)",
-  "i'?m (on|onto) \\w[\\w{}/.-]* next",
-  "next up[:,]", "first up[:,]", "up next[:,]",
-  "then i'?ll\\b", "after (this|that),? i'?ll\\b",
-  "i'?ll (start|begin|do|tackle|pick up|move on to|move to|look at|fix|build|write|wire|add) \\w",
-  "moving on to\\b", "on to the\\b",
-  "next is\\b", "next: ",
-].join('|'), 'i');
-
-// The named-but-unrun experiment. "I narrowed it to two candidates. The distinguishing test is cheap:
-// log the resolved URL — non-null means one, null means the other." Then it stopped.
-//
-// This is the hardest shape to see because the REASON given is correct: "I'd be guessing between those
-// two, and I've already shipped one guess today that broke your login." Refusing to guess is right.
-// Refusing to run the test that ends the guessing is not — and the caution makes the deferral read as
-// discipline. Uncertainty is a reason to TEST, never a reason to stop; if you can describe the
-// experiment precisely enough to hand over, you can run it.
-const TEST_NAMED = new RegExp([
-  "(the|a|one) (distinguishing|quickest|cheapest|cheap|simple|simplest|easy|easiest|obvious|fastest) (test|check|way|experiment|probe)",
-  "the (test|check|way) to (tell|distinguish|find out|know|confirm)",
-  "one way to (tell|find out|check|know|confirm)",
-  "that would (tell|show|confirm|distinguish|settle) (us|you|which|whether)",
-  "to find out[,:]",
-  "i'?m stopping short of",
-  "(rather than|instead of) guess(ing)?",
-  "would (tell|show) (us|you) which",
-].join('|'), 'i');
-
-// Evidence the experiment was actually performed, rather than merely described.
-const TEST_RUN = new RegExp([
-  "\\b(ran|running|ran it|i ran)\\b", "\\bthe (log|output|result|return value) (said|says|showed|shows|was)\\b",
-  "\\bit (returned|printed|logged|resolved to)\\b", "\\bresult[:s]\\b", "\\bcame back\\b",
-  "\\bturned out\\b", "\\bconfirmed (it|that|by)\\b", "\\bso it is\\b", "\\bwhich means it\\b",
-].join('|'), 'i');
-
-// What makes a weak phrase a hand-off: the sentence points at the owner or at the turn's own work.
-const OWNED = /\b(i|i'?ll|i'?ve|i'?m|we|we'?ll|we'?ve|you|you'?ll|your|my|next step|todo)\b/i;
-
-// Narrating something already dealt with is not parking it. "the thing I flagged before I ran it"
-// refers back to analysis in the same reply; it announces no future work and asks for nothing.
-// Bare time words are far too loose. "already" matched "a slot another file ALREADY occupies" — present
-// tense, about a third party — and excused a proposal that should have blocked. Retrospection is a
-// first-person past action, so that is what this requires.
-// Past-tense action verbs, used by every form below.
-const DONE_VERB = "fixed|did|built|shipped|handled|committed|landed|corrected|covered|ran|wrote|removed" +
-  "|recorded|added|stored|captured|logged|pushed|deleted|updated|renamed|moved|verified|checked";
-
-const RETROSPECTIVE = new RegExp([
-  `i (have |already |just |then )*(${DONE_VERB})`,
-  `already (${DONE_VERB}|done|gone)`,
-  "(mentioned|noted|said|flagged|called out|reported) (above|earlier|before|previously)",
-  "last (turn|time|session)",
-  "which i (then|just)",
-  // Subject-elided past tense: "Recorded it as an instance", "Shipped.", "Fixed and pushed." That is
-  // the terse register the owner asks for, and without it the guard read finished work as parked work —
-  // it blocked a turn whose action was already complete because the sentence omitted the word "I".
-  `(^|[.!?]\\s+|\\n)\\s*(${DONE_VERB})\\b`,
-].join('|'), 'i');
-
-// A phrase MENTIONED is not a phrase USED. Reporting on this guard means quoting the phrases it
-// catches — "still open" inside a table cell documenting the patterns fired it, which makes the guard
-// unable to be described without tripping. Quoted spans, code spans and table rows carry examples and
-// data, never the closing statement that parks work, so they are removed before anything is matched.
-function stripMentions(text) {
-  return text
-    .replace(/```[\s\S]*?```/g, ' ')
-    .replace(/`[^`\n]*`/g, ' ')
-    .replace(/"[^"\n]{0,120}"/g, ' ')
-    .replace(/[“][^”\n]{0,120}[”]/g, ' ')
-    .replace(/^\s*\|.*$/gm, ' ');
-}
-
-const sentenceAround = (text, hit) => {
-  const at = text.toLowerCase().indexOf(hit.toLowerCase());
-  if (at < 0) return text;
-  const from = Math.max(0, text.lastIndexOf('.', at - 1) + 1);
-  const to = text.indexOf('.', at + hit.length);
-  return text.slice(from, to < 0 ? text.length : to);
-};
-
-// "Worth flagging that X" and "worth noting that X" INTRODUCE information; they assign no work. That
-// is a different act from "worth a look on your side", which hands the doing back — and that one is
-// matched on its own wording, so excluding this frame costs no coverage. The guard blocked a turn
-// whose work was already finished for saying "worth flagging that".
-const REPORTING_FRAME = /\bworth (flagging|noting|mentioning|calling out|saying|recording)\b/i;
-
-function selfFlagged(text) {
-  const strong = text.match(FLAGGED_STRONG);
-  if (strong && !RETROSPECTIVE.test(sentenceAround(text, strong[0]))
-      && !REPORTING_FRAME.test(sentenceAround(text, strong[0]))) return strong[0];
-  const weak = text.match(FLAGGED_WEAK);
-  if (weak && OWNED.test(sentenceAround(text, weak[0])) && !RETROSPECTIVE.test(sentenceAround(text, weak[0]))) return weak[0];
-  const alone = text.match(OFFER_ALONE);
-  if (alone) return alone[0];
-  const conditional = text.match(OFFER_CONDITIONAL);
-  if (conditional) return conditional[0];
-  const proposal = text.match(PROPOSAL);
-  if (proposal && !RETROSPECTIVE.test(sentenceAround(text, proposal[0]))) return proposal[0];
-  const ready = text.match(OFFER_READY);
-  if (ready && YOUR_CALL.test(sentenceAround(text, ready[0]))) return ready[0];
-  const intent = text.match(INTENT_ANNOUNCED);
-  if (intent && !RETROSPECTIVE.test(sentenceAround(text, intent[0]))) return intent[0];
-  // Checked against the WHOLE text, not one sentence: the experiment is named in one place and its
-  // result, if there is one, is reported in another.
-  // Only TEST_RUN excuses this one. The retrospective check does not apply and actively broke it:
-  // "I've already shipped one guess today that broke your login" mentions past work, so a general
-  // past-tense test waved the whole thing through — and that sentence is part of the DEFERRAL, the
-  // justification for not running the experiment. The single question here is whether the experiment
-  // itself was performed; what else happened earlier is irrelevant to that.
-  const named = text.match(TEST_NAMED);
-  if (named && !TEST_RUN.test(text)) return named[0];
-  return null;
-}
 
 // A genuine capability limit is not deferral: there is nothing to continue with.
 const REAL_BLOCKER = new RegExp([
@@ -273,18 +116,18 @@ process.stdin.on('end', () => {
       if (t.length > 0) { finalText = t; break; }
     }
 
-    const said = stripMentions(finalText);
-    const deferred = DEFERRAL.test(said);
+    const deferred = DEFERRAL.test(stripMentions(finalText));
     const parked = pending.length > 0 && !askedThisTurn;
     // A self-flagged item only counts as deferral when nothing actually prevented the fix.
-    const hit = REAL_BLOCKER.test(finalText) || askedThisTurn ? null : selfFlagged(said);
+    const hit = REAL_BLOCKER.test(finalText) || askedThisTurn ? null : classify(finalText);
     const flagged = hit !== null;
     if (!deferred && !parked && !flagged) process.exit(0);
 
     const reasons = [];
     if (flagged) {
       reasons.push(
-        `You wrote up work you can do instead of doing it (matched: "${hit}"). Diagnosing a problem you are ` +
+        `You wrote up work you can do instead of doing it — ${hit.why}:\n    "${hit.hit}"\n` +
+        `Diagnosing a problem you are ` +
         `capable of fixing and reporting it as an open item is deferral wearing a status update — it forces ` +
         `the owner to type the instruction your own analysis already implied, which is the single thing he has ` +
         `asked most often to stop. Go fix it now. If something genuinely prevents you, name that specific ` +
