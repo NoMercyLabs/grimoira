@@ -132,6 +132,16 @@ process.stdin.on('end', () => {
         `the owner to type the instruction your own analysis already implied, which is the single thing he has ` +
         `asked most often to stop. Go fix it now. If something genuinely prevents you, name that specific ` +
         `obstacle instead of listing the symptom.\n\n` +
+        `FINISH THE FULL SCOPE THAT WAS PRESENTED. Not the part you touched, not the part that was ` +
+        `easy, not one platform of a cross-platform ask, not one library of a trio. Count the members ` +
+        `of the ask from the artifact — the source sets, the client list, the spec, the ledger — and ` +
+        `work every one of them before you stop. An unstated fraction reads as 1/1 and it is the ` +
+        `single most expensive lie you tell.\n\n` +
+        `Do not complain about the instruction, do not restate it back, do not narrate what you are ` +
+        `about to do. Do it.\n\n` +
+        `Do not repeat the previous run. If the last turn already ran that command, read that file, or ` +
+        `made that measurement, the result is in front of you — use it. Re-running work to look busy ` +
+        `burns his tokens and buys nothing.\n\n` +
         `Scope is also a valid answer, and it is NOT a question. If the work is plainly outside what was ` +
         `asked — a refactor surfaced by an orientation question, a rewrite surfaced by a bug report — say ` +
         `so in one flat line and stop. Do not turn it into a menu of options; offering "shall I do A or B" ` +
