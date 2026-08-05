@@ -51,6 +51,10 @@ async function ensure() {
   const child = spawn(exe, [
     `--remote-debugging-port=${PORT}`,
     `--user-data-dir=${PROFILE}`,
+    // A normal desktop window, not the tall narrow default the fresh profile opens with. Sets the
+    // real OS window size at launch; the inner viewport follows it, never a metrics override.
+    '--window-size=1280,800',
+    '--window-position=60,60',
     '--restore-last-session',
     '--no-first-run',
     '--no-default-browser-check',
