@@ -10,7 +10,9 @@
 // Instance resolves from AITM_INSTANCE, else the project dir (CLAUDE_PROJECT_DIR or cwd) basename,
 // so the one user-scope server serves whatever repo the session runs in; store at ~/.aitm/<instance>/aitm.db.
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Globalization;
+using System.IO;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -308,6 +310,76 @@ public static partial class AitmTools
         }
         if (sb.Length == 0) return $"'{symbol}' has no recorded consumers (safe to change, or not yet indexed).";
         return $"Changing '{symbol}' ({contract}) impacts these consumers ({hard} hardcoded — break on rename; surface for lockstep, never break existing users):\n{sb}";
+    }
+
+    // Locate the token-exchange engine (idp-impersonate.mjs) that ships alongside this source. The
+    // compiled dll runs from bin/, so walk up from the assembly directory until the file appears; an
+    // explicit AITM_HOME overrides. One origin for the exchange — the tool never reimplements it.
+    private static string? EnginePath()
+    {
+        string? home = Environment.GetEnvironmentVariable("AITM_HOME");
+        if (!string.IsNullOrEmpty(home))
+        {
+            string p = Path.Combine(home, "idp-impersonate.mjs");
+            return File.Exists(p) ? p : null;
+        }
+        string? dir = AppContext.BaseDirectory;
+        for (int i = 0; i < 6 && dir != null; i++)
+        {
+            string p = Path.Combine(dir, "idp-impersonate.mjs");
+            if (File.Exists(p)) return p;
+            dir = Path.GetDirectoryName(dir.TrimEnd(Path.DirectorySeparatorChar));
+        }
+        return null;
+    }
+
+    [McpServerTool]
+    [Description("INTERNAL TESTING ONLY. Mint a real IdP user access token for a subject (user GUID, email, or username) via the supported token-exchange grant, with audience=nomercy-server so the media-server accepts it. Defaults to the dev realm; pass realm=\"prod\" for auth.nomercy.tv. GATED: does nothing unless AITM_ALLOW_TOKEN_MINT=1 is set in the environment, because an always-on impersonation primitive is a large blast radius. Never fabricates a user — a subject with no matching account is refused. Requires IDP_ADMIN_CLIENT_SECRET (the nomercy-api service account).")]
+    public static string idp_token(string subject, string realm = "dev")
+    {
+        if (Environment.GetEnvironmentVariable("AITM_ALLOW_TOKEN_MINT") != "1")
+        {
+            return "refused: token minting is gated. This tool impersonates a real user, so it is off by "
+                + "default. Set AITM_ALLOW_TOKEN_MINT=1 in the environment to enable it for this session, "
+                + "or run the script directly: node idp-impersonate.mjs <subject> [--prod].";
+        }
+        if (string.IsNullOrWhiteSpace(subject)) return "subject is required (a user GUID, email, or username).";
+        realm = realm?.Trim().ToLowerInvariant() switch { "prod" => "prod", "" or null => "dev", "dev" => "dev", var r => r! };
+        if (realm != "dev" && realm != "prod") return $"unknown realm \"{realm}\" — use \"dev\" or \"prod\".";
+
+        string? engine = EnginePath();
+        if (engine == null) return "cannot locate idp-impersonate.mjs — set AITM_HOME to the aitm checkout directory.";
+
+        try
+        {
+            ProcessStartInfo psi = new()
+            {
+                FileName = "node",
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+            };
+            psi.ArgumentList.Add(engine);
+            psi.ArgumentList.Add(subject);
+            if (realm == "prod") psi.ArgumentList.Add("--prod");
+
+            using Process proc = Process.Start(psi)!;
+            string stdout = proc.StandardOutput.ReadToEnd();
+            string stderr = proc.StandardError.ReadToEnd();
+            proc.WaitForExit(30000);
+            if (proc.ExitCode != 0)
+            {
+                return $"token-exchange failed:\n{(stderr.Length > 0 ? stderr : stdout)}".Trim();
+            }
+            // The engine already decodes the token and reports whether the audience matches; pass its
+            // JSON straight through so the caller sees sub / preferred_username / aud / expiry, not just
+            // a raw token they would have to trust blind.
+            return (stderr.Length > 0 ? stderr + "\n" : "") + stdout.Trim();
+        }
+        catch (Exception ex)
+        {
+            return $"could not run the token-exchange engine: {ex.Message}";
+        }
     }
 
     [McpServerTool]
