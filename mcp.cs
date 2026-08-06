@@ -334,14 +334,17 @@ public static partial class AitmTools
     }
 
     [McpServerTool]
-    [Description("INTERNAL TESTING ONLY. Mint a real IdP user access token for a subject (user GUID, email, or username) via the supported token-exchange grant, with audience=nomercy-server so the media-server accepts it. Defaults to the dev realm; pass realm=\"prod\" for auth.nomercy.tv. GATED: does nothing unless AITM_ALLOW_TOKEN_MINT=1 is set in the environment, because an always-on impersonation primitive is a large blast radius. Never fabricates a user — a subject with no matching account is refused. Requires IDP_ADMIN_CLIENT_SECRET (the nomercy-api service account).")]
+    [Description("INTERNAL TESTING. Get a test user token — use this whenever automated work needs a real user token (for an API/SignalR/test call) or you are blocked by a login screen. Mints a real IdP access token for a subject (user GUID, email, or username) via the supported token-exchange grant, with audience=nomercy-server so the media-server accepts it. Defaults to dev; pass realm=\"prod\". This is the ONLY sanctioned way to authenticate for automated work — never weaken/bypass auth or scrape a live session. To LOG A CLIENT IN (not just get a raw token) there are sibling scripts in the same aitm folder: idp-login-web.mjs (browser), idp-login-kmp.mjs (phone), idp-approve-device.mjs (TV); full guide in docs/test-login-and-token-exchange.md. GATED: this tool no-ops unless AITM_ALLOW_TOKEN_MINT=1 (an always-on impersonation primitive is a large blast radius) — when gated, run the script directly instead. Never fabricates a user. Reads the nomercy-api secret from env or nomercy-tv/.env.")]
     public static string idp_token(string subject, string realm = "dev")
     {
         if (Environment.GetEnvironmentVariable("AITM_ALLOW_TOKEN_MINT") != "1")
         {
             return "refused: token minting is gated. This tool impersonates a real user, so it is off by "
-                + "default. Set AITM_ALLOW_TOKEN_MINT=1 in the environment to enable it for this session, "
-                + "or run the script directly: node idp-impersonate.mjs <subject> [--prod].";
+                + "default. Set AITM_ALLOW_TOKEN_MINT=1 to enable it here, or run the script directly: "
+                + "node idp-impersonate.mjs <subject> [--prod]. To LOG A CLIENT IN instead of getting a "
+                + "raw token, use the sibling drivers in the aitm folder — idp-login-web.mjs (browser), "
+                + "idp-login-kmp.mjs (phone), idp-approve-device.mjs (TV); see "
+                + "docs/test-login-and-token-exchange.md.";
         }
         if (string.IsNullOrWhiteSpace(subject)) return "subject is required (a user GUID, email, or username).";
         realm = realm?.Trim().ToLowerInvariant() switch { "prod" => "prod", "" or null => "dev", "dev" => "dev", var r => r! };
