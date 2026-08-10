@@ -38,7 +38,8 @@ process.stdin.on('end', async () => {
       'Verify by RUNNING it and reading real output, not by reading the source. ' +
       'Report terse: lead with the result, no hedge/offer tails, never defer work you can do. ' +
       'Only lint/format the files YOU changed — never a whole-project lint:fix/format when the tree has unrelated dirty WIP. ' +
-      'Never reset/commit/checkout git state unless the task explicitly says to. Never write AI/meta files outside .claude/.';
+      'Never reset/commit/checkout git state unless the task explicitly says to. Never write AI/meta files outside .claude/. ' +
+      'If the change touches client UI or behavior, it is a CROSS-CLIENT job: web (nomercy-app-web) and mobile+TV (nomercy-app-kmp) are first-party siblings that must match — find the same component/behavior in the OTHER clients before changing, fix at the shared level (player trio / NM component contract / design token) not one copy, mirror or justify per client, and verify no sibling regressed (state N of M clients checked). A one-client fix that diverges the others is the whack-a-mole the owner is tired of.';
     const ctx =
       `AITM ground-truth store active (${counts.nodes} nodes, ${counts.facts} facts, ${counts.rules} rules). ` +
       'Before stating any project fact (URL, path, port, field, convention) query the aitm MCP tools — fact(), rule(), brain_recall(), brain_place() — instead of guessing; they refuse rather than hallucinate. ' +
