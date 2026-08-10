@@ -106,6 +106,16 @@ process.stdin.on('end', () => {
 
     const askedThisTurn = blocksOf(turn).some((b) => b.type === 'tool_use' && b.name === 'AskUserQuestion');
 
+    // The reliability hole in the parked check: it can only enforce a ledger that EXISTS. A turn that did
+    // substantive work (multiple edits) with NO todo list anywhere in the session has nothing holding it
+    // to full scope — a silent premature stop, no deferral phrasing to catch. So when real work happened
+    // and no ledger was ever written, require one: enumerating the scope as todos is what makes the
+    // parked check able to hold every item after. Gated tight (>=3 edits, no ledger at all, no question)
+    // so genuine one-shot edits and Q&A turns never trip it.
+    const EDIT_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit']);
+    const editsThisTurn = blocksOf(turn).filter((b) => b.type === 'tool_use' && EDIT_TOOLS.has(b.name)).length;
+    const noLedger = todos === null && editsThisTurn >= 3 && !askedThisTurn;
+
     let finalText = '';
     for (let i = entries.length - 1; i >= 0; i--) {
       const e = entries[i];
@@ -121,7 +131,7 @@ process.stdin.on('end', () => {
     // A self-flagged item only counts as deferral when nothing actually prevented the fix.
     const hit = REAL_BLOCKER.test(finalText) || askedThisTurn ? null : classify(finalText);
     const flagged = hit !== null;
-    if (!deferred && !parked && !flagged) process.exit(0);
+    if (!deferred && !parked && !flagged && !noLedger) process.exit(0);
 
     const reasons = [];
     if (flagged) {
@@ -167,6 +177,15 @@ process.stdin.on('end', () => {
       reasons.push(
         `${pending.length} todo(s) are still open and you did not ask a blocking question:\n${list}\n` +
         'A todo list is authorization to finish every item, not a status board. Continue with the next one.'
+      );
+    }
+    if (noLedger && !parked) {
+      reasons.push(
+        `This turn made ${editsThisTurn} edits but no todo list exists anywhere in the session. A ` +
+        `substantive task with no ledger cannot be verified complete — "done" is then a claim, not a ` +
+        `checked list. Write the FULL scope as todos now: count the members (files, platforms, ` +
+        `call-sites, variants) and put every one on the list, then finish and check off each before you ` +
+        `stop. If the remaining work is genuinely nothing, the list is all-completed and this passes.`
       );
     }
     reasons.push(

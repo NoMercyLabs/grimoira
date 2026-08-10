@@ -44,6 +44,36 @@ const blocked = fires(
 console.log(`  ${!blocked ? 'ok  ' : 'FAIL'} ${'real-blocker'.padEnd(22)} expected quiet, got ${blocked ? 'block' : 'quiet'}`);
 !blocked ? pass++ : fail++;
 
+// The no-ledger branch: substantive work (>=3 edits) with no todo list anywhere must block, so a
+// silent premature stop can't slip past a guard that only knows deferral phrasing.
+function firesWith(assistantBlocks, id, extraUser) {
+  const tp = join(dir, `${id}.jsonl`);
+  const rows = [JSON.stringify({ type: 'user', message: { role: 'user', content: 'do the thing' } })];
+  if (extraUser) rows.push(JSON.stringify(extraUser));
+  rows.push(JSON.stringify({ type: 'assistant', message: { role: 'assistant', content: assistantBlocks } }));
+  writeFileSync(tp, rows.join('\n') + '\n');
+  const out = execFileSync('node', [join(import.meta.dirname, 'continue-guard.mjs')], {
+    input: JSON.stringify({ session_id: `cg-${id}`, transcript_path: tp, cwd: process.cwd() }),
+    encoding: 'utf8',
+  });
+  return out.trim().length > 0 && JSON.parse(out).decision === 'block';
+}
+const edit = (f) => ({ type: 'tool_use', name: 'Edit', input: { file_path: f } });
+const doneText = { type: 'text', text: 'Done, shipped.' };
+const todoWrite = (todos) => ({ type: 'tool_use', name: 'TodoWrite', input: { todos } });
+
+const ledgerCases = [
+  ['no-ledger-3-edits', true, [edit('a.ts'), edit('b.ts'), edit('c.ts'), doneText], null],
+  ['no-ledger-2-edits', false, [edit('a.ts'), edit('b.ts'), doneText], null],
+  ['ledger-all-done', false, [todoWrite([{ content: 'x', status: 'completed', activeForm: 'x' }]), edit('a.ts'), edit('b.ts'), edit('c.ts'), doneText], null],
+];
+for (const [id, want, blocks, extraUser] of ledgerCases) {
+  const got = firesWith(blocks, id, extraUser);
+  const ok = got === want;
+  console.log(`  ${ok ? 'ok  ' : 'FAIL'} ${id.padEnd(22)} expected ${want ? 'block' : 'quiet'}, got ${got ? 'block' : 'quiet'}`);
+  ok ? pass++ : fail++;
+}
+
 try { rmSync(dir, { recursive: true, force: true }); } catch { /* best effort */ }
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);
