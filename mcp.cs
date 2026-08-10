@@ -106,7 +106,7 @@ public static partial class AitmTools
         {
             // Matches aitm.cs: a momentary writer must block this connection, not kill it, and WAL
             // keeps readers running while the long doc/chat indexers hold the write lock.
-            busy.CommandText = "PRAGMA busy_timeout=5000; PRAGMA journal_mode=WAL;";
+            busy.CommandText = "PRAGMA busy_timeout=30000; PRAGMA journal_mode=WAL;";
             busy.ExecuteNonQuery();
         }
         using SqliteCommand init = con.CreateCommand();
@@ -908,6 +908,12 @@ public static partial class AitmTools
         if (lines.Length == 0) { File.Delete(ledger); return "nothing staged."; }
         int n = 0;
         StringBuilder rejects = new();
+        // Lines that failed on a TRANSIENT lock are kept in the ledger so the next flush retries them —
+        // a locked DB under concurrent MCP writers must never silently drop a staged learning (it did,
+        // once: two learnings lost when the whole ledger was deleted on a "database is locked" reject).
+        // Permanent rejects (supersession no-op, unknown kind, dangling ref) are reported and dropped;
+        // retrying them would loop forever.
+        List<string> keepForRetry = new();
         foreach (string line in lines)
         {
             using JsonDocument d = JsonDocument.Parse(line);
@@ -919,12 +925,19 @@ public static partial class AitmTools
                 "slot" => brain_learn("slot", JStr(e, "frame"), JStr(e, "name"), JStr(e, "value"), "", JStr(e, "because"), false),
                 _ => "skip (unknown kind).",
             };
-            if (res.StartsWith("rejected", StringComparison.Ordinal) || res.StartsWith("unknown", StringComparison.Ordinal) || res.StartsWith("skip", StringComparison.Ordinal))
+            bool rejected = res.StartsWith("rejected", StringComparison.Ordinal) || res.StartsWith("unknown", StringComparison.Ordinal) || res.StartsWith("skip", StringComparison.Ordinal);
+            if (rejected)
+            {
                 rejects.AppendLine($"  ! {line} -> {res}");
+                if (res.Contains("locked", StringComparison.OrdinalIgnoreCase) || res.Contains("busy", StringComparison.OrdinalIgnoreCase))
+                    keepForRetry.Add(line);
+            }
             else
                 n++;
         }
-        File.Delete(ledger);
-        return $"flushed {n} learning(s) into the brain." + (rejects.Length > 0 ? "\n" + rejects : "");
+        if (keepForRetry.Count > 0) File.WriteAllLines(ledger, keepForRetry);
+        else File.Delete(ledger);
+        string retryNote = keepForRetry.Count > 0 ? $" {keepForRetry.Count} kept for retry (DB was locked — flush again)." : "";
+        return $"flushed {n} learning(s) into the brain.{retryNote}" + (rejects.Length > 0 ? "\n" + rejects : "");
     }
 }
