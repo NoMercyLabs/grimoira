@@ -28,10 +28,22 @@ process.stdin.on('end', async () => {
     db.close();
     if (!counts || counts.nodes === 0) process.exit(0);
 
+    // How the owner wants work done — the operating standard he made after tiring of repeating the same
+    // corrections. Injected here so EVERY agent inherits it from one place (most agent .md files don't
+    // encode it). Each clause maps to a real, repeated failure; kept terse because it multiplies across
+    // a fan-out.
+    const standard =
+      'How the owner wants the work done: finish the FULL scope — count the members (files, platforms, variants, call-sites) and do every one, state N of M; an unstated fraction reads as done and is the costliest lie. ' +
+      'Fix the root cause and its siblings, never only the one example given. ' +
+      'Verify by RUNNING it and reading real output, not by reading the source. ' +
+      'Report terse: lead with the result, no hedge/offer tails, never defer work you can do. ' +
+      'Only lint/format the files YOU changed — never a whole-project lint:fix/format when the tree has unrelated dirty WIP. ' +
+      'Never reset/commit/checkout git state unless the task explicitly says to. Never write AI/meta files outside .claude/.';
     const ctx =
       `AITM ground-truth store active (${counts.nodes} nodes, ${counts.facts} facts, ${counts.rules} rules). ` +
       'Before stating any project fact (URL, path, port, field, convention) query the aitm MCP tools — fact(), rule(), brain_recall(), brain_place() — instead of guessing; they refuse rather than hallucinate. ' +
-      'If you learn a durable fact or hit a wrong/empty answer, report it to your caller so it gets staged.' +
+      'If you learn a durable fact or hit a wrong/empty answer, report it to your caller so it gets staged. ' +
+      standard +
       (top.length > 0 ? ` Hot context: ${top.join('; ')}.` : '');
     process.stdout.write(JSON.stringify({
       hookSpecificOutput: { hookEventName: 'SubagentStart', additionalContext: ctx },
