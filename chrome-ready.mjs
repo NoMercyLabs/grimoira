@@ -23,7 +23,17 @@ import { join } from 'node:path';
 // is not always available: OBS's embedded browser claims it too, and on this
 // machine it is running whenever the owner is streaming. The override is how the
 // agent browser gets somewhere else to live without editing every driver.
-const PORT = Number(process.env.NOMERCY_CDP_PORT || 9222);
+// A hook process does NOT inherit the shell env, so reading NOMERCY_CDP_PORT and stopping there made
+// every hook invocation look at 9222, find nothing, and try to LAUNCH a browser — while the agent
+// browser it was supposed to tidy sat on 9333 collecting 21 copies of the same page. The port is
+// discovered across the candidates instead of assumed, and only a port with no agent browser anywhere
+// is launched on.
+const CANDIDATE_PORTS = [
+  ...(process.env.NOMERCY_CDP_PORT ? [Number(process.env.NOMERCY_CDP_PORT)] : []),
+  9333,
+  9222,
+].filter((p, i, all) => Number.isFinite(p) && all.indexOf(p) === i);
+const PORT = CANDIDATE_PORTS[0];
 const PROFILE = join(homedir(), '.claude', 'chrome-agent-profile');
 
 const CHROME = [
@@ -44,24 +54,40 @@ const CHROME = [
 // The User-Agent carries `OBS/<version>`, and the listening process is the
 // ground truth behind it. Both are checked, because a future embedder will not
 // say OBS.
-async function occupant() {
+async function occupant(port = PORT) {
   try {
     const c = new AbortController();
     const t = setTimeout(() => c.abort(), 1500);
-    const r = await fetch(`http://127.0.0.1:${PORT}/json/version`, { signal: c.signal });
+    const r = await fetch(`http://127.0.0.1:${port}/json/version`, { signal: c.signal });
     clearTimeout(t);
     if (!r.ok) return null;
     const info = await r.json();
-    return { agent: String(info['User-Agent'] ?? ''), process: owningProcess() };
+    return { port, agent: String(info['User-Agent'] ?? ''), process: owningProcess(port) };
   } catch { return null; }
+}
+
+// True when the thing answering on this port is our own Chrome and not somebody else's embedded CEF.
+function isAgentBrowser(held) {
+  if (!held) return false;
+  if (/OBS\//i.test(held.agent)) return false;
+  return !held.process || held.process === 'chrome' || held.process === 'chrome_proxy';
+}
+
+// The first candidate port answering as a real agent browser, or null when none is up.
+async function findAgentBrowser() {
+  for (const port of CANDIDATE_PORTS) {
+    const held = await occupant(port);
+    if (isAgentBrowser(held)) return held;
+  }
+  return null;
 }
 
 // The process listening on PORT, by name. Empty when it cannot be determined,
 // which is treated as "not proven foreign" rather than as a failure.
-function owningProcess() {
+function owningProcess(port = PORT) {
   try {
     const lines = execFileSync('netstat', ['-ano'], { encoding: 'utf8' }).split('\n');
-    const row = lines.find((line) => /LISTENING/.test(line) && new RegExp(`[:.]${PORT}\\b`).test(line));
+    const row = lines.find((line) => /LISTENING/.test(line) && new RegExp(`[:.]${port}\\b`).test(line));
     const pid = row?.trim().split(/\s+/).pop();
     if (!pid) return '';
     const tasks = execFileSync('tasklist', ['/FI', `PID eq ${pid}`, '/FO', 'CSV', '/NH'], { encoding: 'utf8' });
@@ -70,22 +96,20 @@ function owningProcess() {
 }
 
 async function ensure() {
-  const held = await occupant();
-  if (held) {
-    const foreign = /OBS\//i.test(held.agent)
-      || (held.process && held.process !== 'chrome' && held.process !== 'chrome_proxy');
-    if (foreign) {
-      // Fails CLOSED, alone among the paths here. Every other failure lets the
-      // tool run and report its own error; this one hands the caller a live
-      // application belonging to somebody else, and "the driver did nothing" is
-      // strictly better than "the driver drove OBS".
-      return `port ${PORT} is held by ${held.process || 'another application'}, not the agent browser`;
-    }
-    return 'already up';
+  const live = await findAgentBrowser();
+  if (live) return { state: 'already up', port: live.port };
+
+  // Nothing answered as ours. If the preferred port is nonetheless occupied, that is somebody else's
+  // application and we fail CLOSED — alone among the paths here. Every other failure lets the tool run
+  // and report its own error; this one would hand the caller a live application belonging to somebody
+  // else, and "the driver did nothing" is strictly better than "the driver drove OBS".
+  const squatter = await occupant(PORT);
+  if (squatter) {
+    return { state: `port ${PORT} is held by ${squatter.process || 'another application'}, not the agent browser`, port: PORT };
   }
 
   const exe = CHROME.find((p) => p && existsSync(p));
-  if (!exe) return 'chrome not found';
+  if (!exe) return { state: 'chrome not found', port: PORT };
 
   try { mkdirSync(PROFILE, { recursive: true }); } catch { /* exists */ }
 
@@ -93,6 +117,11 @@ async function ensure() {
   // would sit waiting on a browser that stays open for the rest of the day.
   const child = spawn(exe, [
     `--remote-debugging-port=${PORT}`,
+    // Explicit, because on this machine Chrome's own default binds the
+    // devtools port to ::1 only — every caller here (and every driver in
+    // this directory) dials 127.0.0.1, so an IPv6-only bind reads as the
+    // port never opening even though Chrome is listening fine on ::1.
+    '--remote-debugging-address=127.0.0.1',
     `--user-data-dir=${PROFILE}`,
     // A normal desktop window, not the tall narrow default the fresh profile opens with. Sets the
     // real OS window size at launch; the inner viewport follows it, never a metrics override.
@@ -107,9 +136,9 @@ async function ensure() {
   // Chrome writes the endpoint before it finishes painting, so this normally settles in about a second.
   for (let i = 0; i < 25; i++) {
     await new Promise((r) => setTimeout(r, 400));
-    if (await occupant()) return 'started';
+    if (await occupant(PORT)) return { state: 'started', port: PORT };
   }
-  return 'started but the port never opened';
+  return { state: 'started but the port never opened', port: PORT };
 }
 
 // Collapse DUPLICATE tabs in the agent browser. Every tool that "opens" a page (new_page, or a driver
@@ -123,9 +152,9 @@ async function ensure() {
 // browser turned into a bare newtab. There is always at least one tab left.
 //
 // Best-effort: a prune failure must never block the browser call behind it.
-async function pruneDuplicateTabs() {
+async function pruneDuplicateTabs(port = PORT) {
   try {
-    const res = await fetch(`http://127.0.0.1:${PORT}/json`);
+    const res = await fetch(`http://127.0.0.1:${port}/json`);
     if (!res.ok) return 0;
     const pages = (await res.json()).filter((t) => t.type === 'page' && t.id);
     if (pages.length < 2) return 0;
@@ -143,16 +172,16 @@ async function pruneDuplicateTabs() {
     let closed = 0;
     for (const p of doomed) {
       if (pages.length - closed <= 1) break;         // never take the last tab; Chrome would exit
-      try { await fetch(`http://127.0.0.1:${PORT}/json/close/${p.id}`); closed++; } catch { /* gone already */ }
+      try { await fetch(`http://127.0.0.1:${port}/json/close/${p.id}`); closed++; } catch { /* gone already */ }
     }
     return closed;
   } catch { return 0; }
 }
 
 if (process.argv.includes('--ensure')) {
-  const state = await ensure();
-  console.log(`agent chrome: ${state} (port ${PORT}, profile ${PROFILE})`);
-  if (process.argv.includes('--prune')) console.log(`pruned ${await pruneDuplicateTabs()} duplicate tab(s)`);
+  const { state, port } = await ensure();
+  console.log(`agent chrome: ${state} (port ${port}, profile ${PROFILE})`);
+  if (process.argv.includes('--prune')) console.log(`pruned ${await pruneDuplicateTabs(port)} duplicate tab(s)`);
   process.exit(state === 'chrome not found' ? 1 : 0);
 }
 
@@ -160,11 +189,11 @@ let input = '';
 process.stdin.on('data', (d) => { input += d; });
 process.stdin.on('end', async () => {
   try {
-    const state = await ensure();
+    const { state, port } = await ensure();
     // Collapse any tab pile-up BEFORE the call runs, so the tool acts on the one surviving tab.
-    const pruned = state === 'started' ? 0 : await pruneDuplicateTabs();
+    const pruned = state === 'started' ? 0 : await pruneDuplicateTabs(port);
     const notes = [];
-    if (state === 'started') notes.push(`agent chrome was not running, started it on ${PORT}`);
+    if (state === 'started') notes.push(`agent chrome was not running, started it on ${port}`);
     if (pruned > 0) notes.push(`closed ${pruned} duplicate tab(s)`);
     if (notes.length) {
       // Worth one line, because a browser appearing unbidden (or tabs vanishing) should be explicable.
