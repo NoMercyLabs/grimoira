@@ -189,6 +189,17 @@ let input = '';
 process.stdin.on('data', (d) => { input += d; });
 process.stdin.on('end', async () => {
   try {
+    // A CDP script run through Bash never passes a browser tool, so nothing collapsed the tabs it
+// opened — that is how the window reached 23. Those calls arrive here with --prune-only: tidy the
+// browser if one is up, but never LAUNCH one, because an arbitrary shell command is no reason to
+// put a Chrome window on the owner's screen.
+    if (process.argv.includes('--prune-only')) {
+      const live = await findAgentBrowser();
+      const closed = live ? await pruneDuplicateTabs(live.port) : 0;
+      if (closed > 0) process.stdout.write(JSON.stringify({ systemMessage: `aitm: closed ${closed} duplicate tab(s).` }));
+      process.exit(0);
+    }
+
     const { state, port } = await ensure();
     // Collapse any tab pile-up BEFORE the call runs, so the tool acts on the one surviving tab.
     const pruned = state === 'started' ? 0 : await pruneDuplicateTabs(port);
