@@ -10,7 +10,7 @@
 // edit. Re-issuing the same Read always reaches the disk.
 import { readFileSync, existsSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join, dirname, extname, resolve, isAbsolute } from 'node:path';
+import { join, dirname, extname, resolve, isAbsolute, basename } from 'node:path';
 import { resolveInstance, openRead, ledgerPath, readLedger, writeLedger } from './brain-lib.mjs';
 
 // Prose only. Anything you might Edit has to arrive verbatim, and Edit requires a real prior Read.
@@ -54,8 +54,13 @@ process.stdin.on('end', async () => {
 
     // A synthesis its sources have outrun is worse than no synthesis, because it reads as current.
     const stamp = Number((row.content.match(/newest_source_ticks: (\d+)/) || [])[1] || 0);
+    const names = ((row.content.match(/^from: (.*)$/m) || [])[1] || '').split(',').filter(Boolean);
+
+    // A file added after the synthesis was written is in no source list, so no freshness check covers
+    // it — and the synthesis would answer for a file it never read. Only serve it for its own sources.
+    if (!names.some((n) => n.trim().toLowerCase() === basename(file).toLowerCase())) allow();
+
     if (stamp > 0) {
-      const names = ((row.content.match(/^from: (.*)$/m) || [])[1] || '').split(',').filter(Boolean);
       for (const n of names) {
         // .NET ticks: 100ns units since year 1, which is the Unix epoch offset below.
         try { if (statSync(join(dir, n.trim())).mtimeMs * 10000 + 621355968000000000 > stamp) allow(); } catch { /* source gone */ }

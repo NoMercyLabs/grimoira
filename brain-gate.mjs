@@ -1,10 +1,8 @@
-// PreToolUse hook on Grep|Glob: no blind searches of a million-line monorepo while the store already
-// holds the answer. The search pattern is put to the brain first; if the brain answers, the tool call
-// is denied and the hits are handed back in its place. If the brain misses, the search runs and the
-// miss is recorded as a gap so the store learns what it does not know.
+// PreToolUse hook on Grep|Glob: put the search pattern to the brain and attach what it knows, once per
+// signature per session, so a search of a million-line monorepo arrives with the context an earlier
+// session already paid for. A miss is recorded as a gap so the store learns what it does not know.
 //
-// It never deadlocks: a signature is gated at most once per session, so re-issuing the same search
-// always reaches the filesystem. Fails open on any error.
+// The search itself is never blocked. Recall is background; the tree is ground truth. Fails open.
 import {
   resolveInstance, openRead, openWrite, tokenize, signature, search, format, logGap,
   ledgerPath, readLedger, writeLedger,
@@ -65,17 +63,23 @@ process.stdin.on('end', async () => {
     }
 
     writeLedger(lp, ledger);
+    // The search RUNS. It used to be denied with these hits offered in its place, and that cost real
+    // work: FTS matches tokens, not meaning, so a search for one symbol came back with five unrelated
+    // rows, and "act on it and skip the search" invited the agent to treat them as the result. One
+    // session edited tests on the strength of an intercepted search and had to undo it.
+    //
+    // A Grep asks what the tree contains RIGHT NOW. Recall cannot answer that at any confidence: its
+    // absence proves nothing and its presence may describe code that has since changed. So the hits
+    // ride ALONGSIDE the real results as background, never instead of them.
     process.stdout.write(JSON.stringify({
       hookSpecificOutput: {
         hookEventName: 'PreToolUse',
-        permissionDecision: 'deny',
-        permissionDecisionReason:
-          `The aitm brain already holds knowledge matching this search — read it before scanning the tree.\n\n` +
-          `${format(picks)}\n\n` +
-          `If that answers the question, act on it and skip the search. If it genuinely does not, re-issue ` +
-          `the identical ${payload.tool_name || 'search'} call and it will run — this gate fires once per ` +
-          `search per session. When the search then finds something the brain lacked, record it ` +
-          `(aitm add / index-memory) so the next session does not pay for it again.`,
+        additionalContext:
+          `aitm recall — BACKGROUND ONLY, not the result of this search. It may be stale, and FTS ` +
+          `matches tokens rather than meaning, so some of it is probably unrelated. The ` +
+          `${payload.tool_name || 'search'} below is the ground truth; never act on these rows in ` +
+          `place of it, and never conclude from them that something is absent.\n\n${format(picks)}\n\n` +
+          `If the search finds something the brain lacked, record it (aitm add / index-memory).`,
       },
     }));
   } catch {
