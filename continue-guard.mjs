@@ -44,6 +44,22 @@ const DEFERRAL = new RegExp([
   "tomorrow(\\.|,| we| i'?ll)", "in a later (turn|session|pass)",
 ].join('|'), 'i');
 
+// What a finished test claim has to carry. Taken from the report the owner kept: three tests against a
+// generated fixture, "each proven red by its own mutation", the fixture committed beside them, and the
+// surface still unpinned named with line counts. Those four are the difference between a suite and a
+// number, and none of them survives being left to intention.
+const TEST_FILE = /\.(test|spec)\.[cm]?[jt]sx?$|(^|[\\/])[^\\/]*Tests?\.(cs|kt|java)$|[\\/]__tests__[\\/]|_test\.(py|go)$/i;
+
+// A suite is only pinned if the tests were seen to FAIL. Any of these says a red was actually observed.
+const RED_PROOF = new RegExp([
+  "proven red", "went red", "goes red", "red on", "fails? on (the )?(pre-?fix|old)", "pre-?fix",
+  "mutation", "mutated", "broke it", "reverted the fix", "without the fix", "before the fix",
+  "\\bFAIL\\b", "\\d+ failed", "could have gone red",
+].join('|'), 'i');
+
+// And the fraction has to be stated, or the reader takes the covered part for the whole.
+const FRACTION = /\b\d+\s*(of|\/)\s*\d+\b|\bremaining\b|\bunpinned\b|\buncovered\b|\bnot covered\b|\bstill untested\b/i;
+
 function turnSlice(transcriptPath) {
   // The tail is enough: this only ever looks at the current turn and the latest todo list, and the full
   // read cost 735ms on a 49 MB session — paid on every Stop, alongside three other hooks doing the same.
@@ -126,12 +142,19 @@ process.stdin.on('end', () => {
       if (t.length > 0) { finalText = t; break; }
     }
 
+    const testFilesTouched = [...new Set(blocksOf(turn)
+      .filter((b) => b.type === 'tool_use' && EDIT_TOOLS.has(b.name) && TEST_FILE.test(b.input?.file_path || ''))
+      .map((b) => basename(b.input.file_path)))];
+    const clean = stripMentions(finalText);
+    const untestedTests = testFilesTouched.length > 0 && !askedThisTurn
+      && (!RED_PROOF.test(clean) || !FRACTION.test(clean));
+
     const deferred = DEFERRAL.test(stripMentions(finalText));
     const parked = pending.length > 0 && !askedThisTurn;
     // A self-flagged item only counts as deferral when nothing actually prevented the fix.
     const hit = REAL_BLOCKER.test(finalText) || askedThisTurn ? null : classify(finalText);
     const flagged = hit !== null;
-    if (!deferred && !parked && !flagged && !noLedger) process.exit(0);
+    if (!deferred && !parked && !flagged && !noLedger && !untestedTests) process.exit(0);
 
     const reasons = [];
     if (flagged) {
@@ -186,6 +209,25 @@ process.stdin.on('end', () => {
         `checked list. Write the FULL scope as todos now: count the members (files, platforms, ` +
         `call-sites, variants) and put every one on the list, then finish and check off each before you ` +
         `stop. If the remaining work is genuinely nothing, the list is all-completed and this passes.`
+      );
+    }
+    if (untestedTests) {
+      const missing = [];
+      if (!RED_PROOF.test(clean)) missing.push('no red was named');
+      if (!FRACTION.test(clean)) missing.push('the remaining surface was not counted');
+      reasons.push(
+        `You wrote tests this turn (${testFilesTouched.join(', ')}) and ${missing.join(', and ')}.\n\n` +
+        `A green test proves nothing on its own — a test that could not fail is a decoration that reads ` +
+        `as coverage. Break the thing each test guards, ONE test at a time and each by its own mutation, ` +
+        `and show it going red. "The suite passes" is not that; a blanket run cannot tell you which ` +
+        `assertion was load-bearing and which never had teeth.\n\n` +
+        `Then state the fraction. Which members of this surface are pinned and which are not, by name and ` +
+        `size — "28 green" reads as all of it, and the files you did not reach are exactly what the owner ` +
+        `needs to see. An unstated remainder is the most expensive lie you tell.\n\n` +
+        `Two more things a finished suite carries: assert the DISTINCTIONS that can silently collapse ` +
+        `(ids, ordering, which item was selected), not just the count — a duplicate id ticks every row at ` +
+        `once and a count check sails past it. And commit the fixture beside the test, so it does not ` +
+        `depend on a server, a device or a library being up when it runs.`
       );
     }
     reasons.push(

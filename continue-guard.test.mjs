@@ -74,6 +74,27 @@ for (const [id, want, blocks, extraUser] of ledgerCases) {
   ok ? pass++ : fail++;
 }
 
+// Writing tests and reporting them green is the shape this catches: a green test proves nothing until
+// something was seen to fail, and "28 green" reads as the whole surface unless the remainder is counted.
+const testCases = [
+  ['tests-no-red-no-fraction', true,
+    [edit('quality.test.ts'), { type: 'text', text: 'Added three tests. Suite is 28 green.' }]],
+  ['tests-red-no-fraction', true,
+    [edit('quality.test.ts'), { type: 'text', text: 'Each proven red by its own mutation. 28 green.' }]],
+  ['tests-fraction-no-red', true,
+    [edit('quality.test.ts'), { type: 'text', text: 'Added tests. LiveSourcePlugin (131 lines) remains unpinned.' }]],
+  ['tests-red-and-fraction', false,
+    [edit('quality.test.ts'), { type: 'text', text: 'Each proven red by its own mutation: ids collapsed to zero. Remaining unpinned: LiveSourcePlugin (131 lines), SyncPlugin (161).' }]],
+  ['non-test-edit-untouched', false,
+    [edit('player.ts'), { type: 'text', text: 'Done, shipped.' }]],
+];
+for (const [id, want, blocks] of testCases) {
+  const got = firesWith(blocks, id, null);
+  const ok = got === want;
+  console.log(`  ${ok ? 'ok  ' : 'FAIL'} ${id.padEnd(26)} expected ${want ? 'block' : 'quiet'}, got ${got ? 'block' : 'quiet'}`);
+  ok ? pass++ : fail++;
+}
+
 try { rmSync(dir, { recursive: true, force: true }); } catch { /* best effort */ }
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);
