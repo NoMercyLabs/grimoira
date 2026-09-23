@@ -312,6 +312,54 @@ public static partial class AitmTools
         return $"Changing '{symbol}' ({contract}) impacts these consumers ({hard} hardcoded — break on rename; surface for lockstep, never break existing users):\n{sb}";
     }
 
+    [McpServerTool]
+    [Description("Find existing NoMercy tools by purpose, such as browser login, native code search, CI watching, or process ownership. Returns a few source paths with reviewed prerequisites and limitations when available. Read-only discovery: does not execute the found tools or access credentials. Coverage is explicit; a missing result is not proof that no tool exists.")]
+    public static async Task<string> workspace_capabilities(string query)
+    {
+        if (string.IsNullOrWhiteSpace(query) || query.Length > 1000)
+            return "Provide a task description between 1 and 1000 characters.";
+        string root = Environment.GetEnvironmentVariable("CLAUDE_PROJECT_DIR") ?? Directory.GetCurrentDirectory();
+        string script = Path.Combine(root, "scripts", "workspace-capabilities.py");
+        if (!File.Exists(script)) return "Workspace lookup unavailable: set CLAUDE_PROJECT_DIR to the NoMercy workspace root.";
+        ProcessStartInfo start = new()
+        {
+            FileName = Environment.GetEnvironmentVariable("AITM_PYTHON") ?? (OperatingSystem.IsWindows() ? "python" : "python3"),
+            WorkingDirectory = root,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            RedirectStandardInput = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+        start.ArgumentList.Add(script);
+        start.ArgumentList.Add("--limit");
+        start.ArgumentList.Add("3");
+        start.ArgumentList.Add("--");
+        start.ArgumentList.Add(query);
+        try
+        {
+            using Process process = Process.Start(start)!;
+            process.StandardInput.Close();
+            Task<string> stdout = process.StandardOutput.ReadToEndAsync();
+            Task<string> stderr = process.StandardError.ReadToEndAsync();
+            using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(25));
+            try { await process.WaitForExitAsync(timeout.Token); }
+            catch (OperationCanceledException)
+            {
+                try { process.Kill(entireProcessTree: true); } catch (InvalidOperationException) { }
+                return "Workspace lookup timed out; coverage is incomplete. Narrow the task and retry.";
+            }
+            string output = await stdout;
+            await stderr; // Drain both pipes; do not return raw subprocess diagnostics.
+            if (output.Length > 12000) output = output[..12000] + "\nOutput truncated; coverage incomplete.";
+            return process.ExitCode == 0 ? output : $"Workspace lookup incomplete (exit {process.ExitCode}).\n{output}";
+        }
+        catch (Exception)
+        {
+            return "Could not start workspace lookup. Check Python availability or configure AITM_PYTHON.";
+        }
+    }
+
     // Locate the token-exchange engine (idp-impersonate.mjs) that ships alongside this source. The
     // compiled dll runs from bin/, so walk up from the assembly directory until the file appears; an
     // explicit AITM_HOME overrides. One origin for the exchange — the tool never reimplements it.

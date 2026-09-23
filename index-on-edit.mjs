@@ -85,12 +85,18 @@ process.stdin.on('end', () => {
 // the reverse makes the CLI treat --instance as the command and dump help). Best-effort, never throws.
 function reindex(command, fromDir, instance) {
   try {
-    spawnSync(AITM_EXE, [command, '--from', fromDir, '--instance', instance], {
+    const result = spawnSync(AITM_EXE, [command, '--from', fromDir, '--instance', instance], {
       timeout: 60000,
       stdio: 'ignore',
     });
+    if (result.error || result.signal || result.status !== 0) {
+      // Do not echo child output: indexed sources can contain private material.
+      const reason = result.error?.code || result.signal || `exit ${result.status}`;
+      process.stderr.write(`aitm ${command}: indexing failed (${reason}); index may be stale\n`);
+      return;
+    }
     process.stdout.write(`aitm ${command}: reindexed ${fromDir} -> ${instance}\n`);
   } catch {
-    // swallow — best-effort reindex
+    process.stderr.write(`aitm ${command}: indexing failed; index may be stale\n`);
   }
 }

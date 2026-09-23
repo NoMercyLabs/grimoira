@@ -15,15 +15,30 @@ import { cpSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawn } from 'node:child_process';
+import { pilotRoot, launchOwned } from './process-owner.mjs';
 
 const binDir = join(import.meta.dirname, 'bin');
 const shadow = mkdtempSync(join(tmpdir(), 'aitm-mcp-'));
-cpSync(binDir, shadow, { recursive: true });
-
-const child = spawn('dotnet', [join(shadow, 'mcp.dll'), ...process.argv.slice(2)], { stdio: 'inherit' });
-
 const clean = () => { try { rmSync(shadow, { recursive: true, force: true }); } catch { /* best effort */ } };
-child.on('exit', (code) => { clean(); process.exit(code ?? 0); });
+try {
+  cpSync(binDir, shadow, { recursive: true });
+} catch {
+  clean();
+  process.stderr.write('launch-mcp: could not prepare server files; build AITM before launching\n');
+  process.exit(1);
+}
+
+const project = process.env.CLAUDE_PROJECT_DIR || process.cwd();
+const workspace = join(import.meta.dirname, '..', 'NoMercy');
+const root = pilotRoot(project, workspace);
+const args = [join(shadow, 'mcp.dll'), ...process.argv.slice(2)];
+const owned = root ? launchOwned('dotnet', args, {
+  root, cwd: process.cwd(),
+  onWarning: message => process.stderr.write(`launch-mcp: ${message}\n`),
+}) : null;
+const child = owned?.child || spawn('dotnet', args, { stdio: 'inherit' });
+
+child.on('exit', (code, signal) => { clean(); process.exit(code ?? (signal ? 1 : 0)); });
 child.on('error', (err) => { clean(); process.stderr.write(`launch-mcp: ${err.message}\n`); process.exit(1); });
-process.on('SIGTERM', () => child.kill('SIGTERM'));
-process.on('SIGINT', () => child.kill('SIGINT'));
+process.on('SIGTERM', () => owned ? owned.cancel('SIGTERM') : child.kill('SIGTERM'));
+process.on('SIGINT', () => owned ? owned.cancel('SIGINT') : child.kill('SIGINT'));

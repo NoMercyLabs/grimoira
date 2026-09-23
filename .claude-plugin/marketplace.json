@@ -1,5 +1,6 @@
 {
   "name": "nomercylabs",
+  "description": "NoMercy agent tools and knowledge services",
   "owner": {
     "name": "NoMercy Labs",
     "url": "https://github.com/NoMercyLabs"

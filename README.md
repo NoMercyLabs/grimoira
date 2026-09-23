@@ -27,6 +27,31 @@ The conversation channel is a primary asset, not noise around the facts. It carr
 
 ## Build
 
+### NoMercy process ownership pilot
+
+New launches through `launch-mcp.mjs` record ownership when their project directory
+is inside the sibling `NoMercy` checkout. Other workspaces retain their existing
+startup behavior. Existing sessions are not adopted or restarted.
+
+Inspect records with `node process-owner.mjs status`. Records live in the workspace's
+ignored `.scratch/process-owners/` directory. They contain launcher and child IDs,
+timestamps, and lifecycle state; no command arguments or environment values.
+
+Only the live launcher can cancel its original child. The status command never kills
+processes. A record left as running after a crash has unverified liveness and must not
+be used to kill a PID. Forced-crash cleanup, application session identity, descendant
+ownership are not implemented by this initial pilot. The latest 50 completed records
+are retained during ordinary operation. Housekeeping examines at most 1,000 entries;
+unresolved records are preserved for inspection rather than automatically deleted.
+
+Validate with `node --test process-owner.test.mjs`. No global hook changes are needed.
+
+In NoMercy, Claude and Codex project registrations launch this server. Its
+`workspace_capabilities` tool calls the workspace's bounded capability lookup and
+returns reviewed prerequisites and limitations when available. It only discovers
+tools; it does not run them. The lookup requires Python and has a 25-second timeout.
+Restart an existing agent session to load a new tool registration.
+
 ```powershell
 ./build-cli.ps1   # -> bin-cli/aitm.exe
 ./build-mcp.ps1   # -> bin/mcp.dll
@@ -43,7 +68,9 @@ The repo is its own marketplace, so it installs directly:
 
 The hooks are plain node and work as soon as the plugin is installed. The CLI and MCP server need `build-cli.ps1` / `build-mcp.ps1` first, since build output is not committed.
 
-If you previously wired these hooks by hand in `settings.json`, remove those entries when you install the plugin. Both sources declare the same hooks, and leaving both in place runs each one twice per tool call.
+If you previously wired these hooks by hand in `settings.json`, migrate those entries before enabling the plugin. On the current NoMercy machine, all 14 plugin hooks also appear as direct global hooks. Another 14 direct AITM hooks are absent from this plugin. Enabling it now duplicates work; removing all direct hooks loses behavior. The NoMercy MCP registration works independently while this migration remains open.
+
+Run `node hook-doctor.mjs --project C:/Projects/NoMercy` to check hook overlap without running hooks or showing command arguments. It fails when settings enable overlapping plugin hooks or repeat a direct AITM hook. `verify.ps1 -Project C:/Projects/NoMercy` includes this check.
 
 ## The enforcement loop
 
