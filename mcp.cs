@@ -318,9 +318,28 @@ public static partial class AitmTools
     {
         if (string.IsNullOrWhiteSpace(query) || query.Length > 1000)
             return "Provide a task description between 1 and 1000 characters.";
+        return await RunWorkspacePython("workspace-capabilities.py", "Workspace lookup", 25,
+            "--limit", "3", "--", query);
+    }
+
+    [McpServerTool]
+    [Description("Search fixed text or filenames in one registered NoMercy repository. Requires an explicit repository path from the registry; '.' means the root. Returns file and line locations only, excludes common credential paths, and reports limits as incomplete coverage. Set names to true for filenames and path to narrow within the repository.")]
+    public static async Task<string> workspace_search(string repository, string pattern, string path = "", bool names = false)
+    {
+        if (string.IsNullOrWhiteSpace(repository) || repository.Length > 200 ||
+            string.IsNullOrWhiteSpace(pattern) || pattern.Length > 200 || path.Length > 500)
+            return "Provide a registered repository and fixed text pattern of at most 200 characters.";
+        List<string> args = ["--repo", repository, "--pattern", pattern, "--max-results", "15", "--timeout", "10"];
+        if (names) args.Add("--names");
+        if (!string.IsNullOrWhiteSpace(path)) { args.Add("--path"); args.Add(path); }
+        return await RunWorkspacePython("workspace-search.py", "Workspace search", 20, args.ToArray());
+    }
+
+    private static async Task<string> RunWorkspacePython(string fileName, string operation, int seconds, params string[] arguments)
+    {
         string root = Environment.GetEnvironmentVariable("CLAUDE_PROJECT_DIR") ?? Directory.GetCurrentDirectory();
-        string script = Path.Combine(root, "scripts", "workspace-capabilities.py");
-        if (!File.Exists(script)) return "Workspace lookup unavailable: set CLAUDE_PROJECT_DIR to the NoMercy workspace root.";
+        string script = Path.Combine(root, "scripts", fileName);
+        if (!File.Exists(script)) return $"{operation} unavailable: set CLAUDE_PROJECT_DIR to the NoMercy workspace root.";
         ProcessStartInfo start = new()
         {
             FileName = Environment.GetEnvironmentVariable("AITM_PYTHON") ?? (OperatingSystem.IsWindows() ? "python" : "python3"),
@@ -332,31 +351,28 @@ public static partial class AitmTools
             CreateNoWindow = true
         };
         start.ArgumentList.Add(script);
-        start.ArgumentList.Add("--limit");
-        start.ArgumentList.Add("3");
-        start.ArgumentList.Add("--");
-        start.ArgumentList.Add(query);
+        foreach (string argument in arguments) start.ArgumentList.Add(argument);
         try
         {
             using Process process = Process.Start(start)!;
             process.StandardInput.Close();
             Task<string> stdout = process.StandardOutput.ReadToEndAsync();
             Task<string> stderr = process.StandardError.ReadToEndAsync();
-            using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(25));
+            using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(seconds));
             try { await process.WaitForExitAsync(timeout.Token); }
             catch (OperationCanceledException)
             {
-                try { process.Kill(entireProcessTree: true); } catch (InvalidOperationException) { }
-                return "Workspace lookup timed out; coverage is incomplete. Narrow the task and retry.";
+                try { process.Kill(entireProcessTree: true); } catch (Exception) { return $"{operation} timed out; child cleanup is unverified."; }
+                return $"{operation} timed out; coverage is incomplete. Narrow the task and retry.";
             }
             string output = await stdout;
             await stderr; // Drain both pipes; do not return raw subprocess diagnostics.
             if (output.Length > 12000) output = output[..12000] + "\nOutput truncated; coverage incomplete.";
-            return process.ExitCode == 0 ? output : $"Workspace lookup incomplete (exit {process.ExitCode}).\n{output}";
+            return process.ExitCode == 0 ? output : $"{operation} incomplete (exit {process.ExitCode}). Narrow the task or inspect the named repository.\n{output}";
         }
         catch (Exception)
         {
-            return "Could not start workspace lookup. Check Python availability or configure AITM_PYTHON.";
+            return $"Could not start {operation.ToLowerInvariant()}. Check Python availability or configure AITM_PYTHON.";
         }
     }
 

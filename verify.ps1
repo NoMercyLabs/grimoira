@@ -47,12 +47,12 @@ foreach ($suite in @('brain-lib.test.mjs', 'ranking-agreement.test.mjs', 'deferr
     if ($testExit -ne 0 -or -not $line -or "$line" -match '[1-9]\d* (failed|diverged)') { $failed += $suite }
 }
 
-Write-Host '-- ownership, edit-hook, and registration tests' -ForegroundColor Cyan
-$out = & node --test "$PSScriptRoot/process-owner.test.mjs" "$PSScriptRoot/index-on-edit.test.mjs" "$PSScriptRoot/hook-doctor.test.mjs" 2>&1
+Write-Host '-- ownership, edit-hook, registration, and workspace tool tests' -ForegroundColor Cyan
+$out = & node --test --test-concurrency=1 "$PSScriptRoot/process-owner.test.mjs" "$PSScriptRoot/index-on-edit.test.mjs" "$PSScriptRoot/hook-doctor.test.mjs" "$PSScriptRoot/workspace-tools.test.mjs" 2>&1
 $testExit = $LASTEXITCODE
 $line = $out | Select-String '^# pass ' | Select-Object -Last 1
 Write-Host "   $line"
-if ($testExit -ne 0 -or -not $line) { $failed += 'ownership, edit-hook, and registration tests' }
+if ($testExit -ne 0 -or -not $line) { $failed += 'ownership, edit-hook, registration, and workspace tool tests' }
 
 if ($failed.Count -gt 0) {
     Write-Host "`nRED: $($failed -join ', ')" -ForegroundColor Red

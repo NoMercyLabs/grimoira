@@ -50,6 +50,9 @@ In NoMercy, Claude and Codex project registrations launch this server. Its
 `workspace_capabilities` tool calls the workspace's bounded capability lookup and
 returns reviewed prerequisites and limitations when available. It only discovers
 tools; it does not run them. The lookup requires Python and has a 25-second timeout.
+`workspace_search` searches one registered repository and returns file and line
+locations without source values. It excludes the secrets repository and common
+credential paths, and reports partial coverage when a limit is reached.
 Restart an existing agent session to load a new tool registration.
 
 ```powershell
