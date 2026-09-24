@@ -99,7 +99,7 @@ test('launcher never leaks a temporary copy when mcp.cs is not there to build', 
     const app = join(root, 'aitm');
     const temp = join(root, 'temp');
     mkdirSync(app); mkdirSync(temp);
-    for (const file of ['launch-mcp.mjs', 'process-owner.mjs']) {
+    for (const file of ['launch-mcp.mjs', 'process-owner.mjs', 'build-stamp.mjs']) {
       copyFileSync(join(import.meta.dirname, file), join(app, file));
     }
     // No mcp.cs beside launch-mcp.mjs and no prebuilt bin/, so the missing-DLL build attempt

@@ -9,7 +9,8 @@
 // binary stays free to rebuild at any time; each session runs its own copy and cleans it up on exit.
 //
 // As a plugin, bin/ is gitignored and never shipped, so a fresh install has no prebuilt DLL. If the
-// output directory has no mcp.dll yet, build it once before the first launch. CLAUDE_PLUGIN_DATA (a
+// output directory has no mcp.dll, or it was built from a different mcp.cs (build-stamp.mjs), build it
+// before launch. CLAUDE_PLUGIN_DATA (a
 // per-plugin, update-safe directory Claude Code provides) holds that first build when set, so a plugin
 // update never clobbers it and the checkout itself stays clean; otherwise it falls back to the existing
 // bin/ next to this script, same as build-mcp.ps1 already writes.
@@ -22,19 +23,22 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { pilotRoot, launchOwned } from './process-owner.mjs';
+import { needsBuild, writeStamp } from './build-stamp.mjs';
 
 const dataDir = process.env.CLAUDE_PLUGIN_DATA;
 const binDir = dataDir ? join(dataDir, 'bin') : join(import.meta.dirname, 'bin');
 
-if (!existsSync(join(binDir, 'mcp.dll'))) {
+const source = join(import.meta.dirname, 'mcp.cs');
+if (needsBuild(binDir, source)) {
   mkdirSync(binDir, { recursive: true });
   const build = spawnSync('dotnet',
-    ['build', join(import.meta.dirname, 'mcp.cs'), '-c', 'Release', '-o', binDir],
+    ['build', source, '-c', 'Release', '-o', binDir],
     { stdio: 'inherit' });
   if (build.error || build.status !== 0) {
     process.stderr.write('launch-mcp: build failed; run build-mcp.ps1 and check the .NET SDK is installed\n');
     process.exit(build.status ?? 1);
   }
+  writeStamp(binDir, source);
 }
 
 const shadow = mkdtempSync(join(tmpdir(), 'aitm-mcp-'));
