@@ -190,6 +190,19 @@ switch (cmd)
     case "impact":
         ImpactCmd(string.Join(' ', Positionals().Skip(1)));
         break;
+    case "graph-query":
+        GraphQueryCmd(string.Join(' ', Positionals().Skip(1)));
+        break;
+    case "graph-path":
+    {
+        List<string> gp = Positionals().Skip(1).ToList();
+        if (gp.Count < 2) { Console.WriteLine("usage: aitm graph-path <A> <B>"); break; }
+        GraphPathCmd(gp[0], gp[1]);
+        break;
+    }
+    case "graph-explain":
+        GraphExplainCmd(Pos1());
+        break;
     case "todo":
         AddTodo();
         break;
@@ -259,6 +272,9 @@ switch (cmd)
             "promote <id>                        promote one candidate into the graph",
             "promote-all --symbol <s>            authoritative replace of a symbol's edges",
             "impact <symbol>                     show consumers + contract sites of a symbol",
+            "graph-query <question>              relevant symbols/files/docs for a question, 1-hop neighbors",
+            "graph-path <A> <B>                  shortest code-graph path between two symbols/files (depth <=6)",
+            "graph-explain <symbol>              what a symbol is, who uses it, docs/rules that mention it",
             "todo | todos | done <id>            manage todos",
             "finding | findings | resolve <id>   manage findings",
             "stats                               channel counts for the instance",
@@ -2510,6 +2526,310 @@ void ImpactCmd(string symbol)
     Console.WriteLine("  => reconcile in lockstep; never break existing users.");
 }
 
+// --- Code graph: graph-query / graph-path / graph-explain --------------------------------------
+// All three walk the SAME graph the `impact` command reads: `edges` rows, each one a (symbol, file,
+// line, project) fact — either a declaration (contract='decl') or a curated usage site. There is no
+// separate call-graph table, so "defined-in" and "uses" are both read off this one table.
+
+const int GraphLineCap = 40;
+
+// A LIKE match on the raw symbol column hits substrings anywhere ("stand" inside "TrackerStandsDown").
+// Requiring a token to equal the whole symbol or one of its case/underscore-separated parts is what
+// keeps a natural-language question from pulling in unrelated symbols that merely contain a query word.
+bool SymbolMatchesTokens(string symbol, List<string> toks)
+{
+    string name = symbol.ToLowerInvariant();
+    HashSet<string> parts = new(StringComparer.OrdinalIgnoreCase) { name };
+    foreach (string part in Regex.Split(symbol, "_|(?<=[a-z0-9])(?=[A-Z])"))
+        if (part.Length > 0) parts.Add(part.ToLowerInvariant());
+    return toks.Any(t => parts.Contains(t));
+}
+
+string ClipCell(string s, int max) => s.Length <= max ? s : s[..max].TrimEnd() + "…";
+
+// Hard ceiling on total output lines — an agent calling this pays context for every line back.
+string CapLines(List<string> lines, int max = GraphLineCap)
+{
+    if (lines.Count <= max) return string.Join("\n", lines);
+    return string.Join("\n", lines.Take(max)) + $"\n(+{lines.Count - max} more line(s) truncated — narrow the query)";
+}
+
+// Resolve a loose name to a live graph node: an exact symbol (any case) first, then a file whose path
+// ends with the given text. Symbols and files share no namespace, so the first hit wins unambiguously.
+(string kind, string value)? ResolveGraphNode(string input)
+{
+    string norm = input.Trim();
+    if (norm.Length == 0) return null;
+    string? sym = ScalarText("SELECT symbol FROM edges WHERE symbol=$s COLLATE NOCASE LIMIT 1", ("$s", norm));
+    if (sym != null) return ("symbol", sym);
+    string tail = norm.Replace('\\', '/');
+    string? file = ScalarText("SELECT file FROM edges WHERE file LIKE $f LIMIT 1", ("$f", "%" + tail));
+    return file != null ? ("file", file) : null;
+}
+
+// Breadth-first search over the symbol<->file bipartite graph edges gives us for free: a symbol's hop
+// is its declaration/usage files, a file's hop is the symbols it carries. Depth is capped at 6 hops —
+// past that a "connection" is coincidence, not a fact worth reporting — and each node's fan-out is
+// capped too, so one generic symbol used everywhere cannot blow up the search.
+List<(string toKind, string toVal, string file, int line, string rel)>? GraphBfs((string kind, string value) from, (string kind, string value) to, int maxDepth = 6)
+{
+    // (symbol,file,line) already exists as edges_ident_idx; the file-first composite is the missing
+    // half — without it, "what symbols does this file carry" needs a full scan+sort per file, which is
+    // where the whole search was actually spending its time (verified: dropping to COLLATE NOCASE below
+    // was the other half of the same mistake — it silently defeated edges_ident_idx on every hop).
+    Exec("CREATE INDEX IF NOT EXISTS edges_file_idx ON edges(file, symbol, line)");
+    if (from.kind == to.kind && string.Equals(from.value, to.value, StringComparison.OrdinalIgnoreCase)) return new();
+
+    HashSet<string> seen = new(StringComparer.OrdinalIgnoreCase) { $"{from.kind}:{from.value}" };
+    List<(string kind, string value, List<(string toKind, string toVal, string file, int line, string rel)> hops)> frontier = new()
+    {
+        (from.kind, from.value, new List<(string, string, string, int, string)>())
+    };
+
+    // A generic symbol (or a file with hundreds of declarations) can fan out into thousands of
+    // neighbors; without a hard expansion budget one bad endpoint turns a 2s lookup into a table
+    // scan. 2000 node expansions cover any real chain within depth 6 and keeps the worst case fast.
+    int expansions = 2000;
+    for (int depth = 0; depth < maxDepth; depth++)
+    {
+        List<(string kind, string value, List<(string toKind, string toVal, string file, int line, string rel)> hops)> next = new();
+        foreach ((string kind, string value, List<(string toKind, string toVal, string file, int line, string rel)> hops) cur in frontier)
+        {
+            if (expansions-- <= 0) return null;
+            using SqliteCommand c = db.CreateCommand();
+            string rel = cur.kind == "symbol" ? "defined-in" : "uses";
+            // No COLLATE NOCASE here: cur.value is always the exact stored casing (it came out of this
+            // same table, either from ResolveGraphNode's one-off lookup or a previous hop's own row), so
+            // a plain binary equality can use edges_ident_idx / edges_file_idx. Adding NOCASE back here
+            // silently forces a full-table scan on every single hop — that was the real cost, not the
+            // graph itself: 2000 expansions at a full 127k-row scan each is the 9s regression this fixes.
+            c.CommandText = cur.kind == "symbol"
+                ? "SELECT DISTINCT file, line FROM edges WHERE symbol=$k LIMIT 60"
+                : "SELECT DISTINCT symbol, line FROM edges WHERE file=$k LIMIT 60";
+            c.Parameters.AddWithValue("$k", cur.value);
+            using SqliteDataReader r = c.ExecuteReader();
+            while (r.Read())
+            {
+                string neighborVal = r.GetString(0);
+                int line = r.IsDBNull(1) ? 0 : r.GetInt32(1);
+                string neighborKind = cur.kind == "symbol" ? "file" : "symbol";
+                string key = $"{neighborKind}:{neighborVal}";
+                if (!seen.Add(key)) continue;
+                string hopFile = cur.kind == "symbol" ? neighborVal : cur.value;
+                List<(string toKind, string toVal, string file, int line, string rel)> hops = new(cur.hops)
+                {
+                    (neighborKind, neighborVal, hopFile, line, rel)
+                };
+                if (neighborKind == to.kind && string.Equals(neighborVal, to.value, StringComparison.OrdinalIgnoreCase)) return hops;
+                next.Add((neighborKind, neighborVal, hops));
+            }
+        }
+        if (next.Count == 0) break;
+        frontier = next;
+    }
+    return null;
+}
+
+// "Find the most relevant symbols, files and docs for a question" — the code channel's own scoring
+// (word-boundary symbol match, grouped by project) plus the same docs_fts lookup `doc` already uses.
+void GraphQueryCmd(string question)
+{
+    List<string> toks = Tokens(question);
+    if (toks.Count == 0) { Console.WriteLine("usage: aitm graph-query <question>"); return; }
+
+    HashSet<string> candidates = new(StringComparer.OrdinalIgnoreCase);
+    foreach (string t in toks)
+    {
+        using SqliteCommand c = db.CreateCommand();
+        c.CommandText = "SELECT DISTINCT symbol FROM edges WHERE symbol LIKE $p LIMIT 400";
+        c.Parameters.AddWithValue("$p", "%" + t + "%");
+        using SqliteDataReader r = c.ExecuteReader();
+        while (r.Read()) candidates.Add(r.GetString(0));
+    }
+    List<string> matched = candidates.Where(s => SymbolMatchesTokens(s, toks)).OrderBy(s => s, StringComparer.OrdinalIgnoreCase).Take(20).ToList();
+
+    List<string> lines = new();
+    if (matched.Count == 0)
+    {
+        lines.Add($"no symbol matches \"{question}\".");
+    }
+    else
+    {
+        // One hop of neighbors per symbol: its declaration file, and who else touches it, by project.
+        List<(string symbol, string project, string defLoc, List<(string project, int files)> byProject)> rows = new();
+        foreach (string sym in matched)
+        {
+            string? defLoc = null;
+            string homeProject = "";
+            using (SqliteCommand c = db.CreateCommand())
+            {
+                c.CommandText = "SELECT project, file, line FROM edges WHERE symbol=$s AND contract='decl' LIMIT 1";
+                c.Parameters.AddWithValue("$s", sym);
+                using SqliteDataReader r = c.ExecuteReader();
+                if (r.Read()) { homeProject = r.GetString(0); defLoc = $"{r.GetString(1)}:{r.GetInt32(2)}"; }
+            }
+            List<(string project, int files)> byProject = new();
+            using (SqliteCommand c = db.CreateCommand())
+            {
+                c.CommandText = @"SELECT project, COUNT(DISTINCT file) FROM edges
+                    WHERE symbol=$s AND project IS NOT NULL AND project != ''
+                    GROUP BY project ORDER BY 2 DESC LIMIT 5";
+                c.Parameters.AddWithValue("$s", sym);
+                using SqliteDataReader r = c.ExecuteReader();
+                while (r.Read()) byProject.Add((r.GetString(0), r.GetInt32(1)));
+            }
+            if (homeProject.Length == 0) homeProject = byProject.FirstOrDefault().project ?? "(unknown)";
+            rows.Add((sym, homeProject, defLoc ?? "(no indexed declaration)", byProject));
+        }
+
+        lines.Add($"{matched.Count} symbol(s) matched across {rows.Select(r => r.project).Distinct().Count()} project(s):");
+        foreach (IGrouping<string, (string symbol, string project, string defLoc, List<(string project, int files)> byProject)> g in rows.GroupBy(r => r.project).OrderByDescending(g => g.Count()))
+        {
+            lines.Add($"[{g.Key}]");
+            foreach ((string symbol, string project, string defLoc, List<(string project, int files)> byProject) row in g)
+            {
+                lines.Add($"  {row.symbol}  defined: {row.defLoc}");
+                if (row.byProject.Count > 0)
+                    lines.Add("    used by: " + string.Join(", ", row.byProject.Select(p => $"{p.project} ({p.files} file(s))")));
+            }
+        }
+    }
+
+    string match = BuildMatch(question);
+    if (match.Length > 0)
+    {
+        try
+        {
+            using SqliteCommand c = db.CreateCommand();
+            c.CommandText = @"SELECT d.title, d.path FROM (SELECT k, bm25(docs_fts) AS s FROM docs_fts WHERE docs_fts MATCH $m ORDER BY s LIMIT 3) x
+                JOIN docs d ON d.k=x.k ORDER BY x.s";
+            c.Parameters.AddWithValue("$m", match);
+            using SqliteDataReader r = c.ExecuteReader();
+            bool any = false;
+            while (r.Read())
+            {
+                if (!any) { lines.Add("docs:"); any = true; }
+                lines.Add($"  • {ClipCell(r.GetString(0), 70)} ({ClipCell(r.GetString(1), 60)})");
+            }
+        }
+        catch (SqliteException) { /* docs not indexed for this instance */ }
+    }
+    Console.WriteLine(CapLines(lines));
+}
+
+// Shortest path between two symbols/files over the code graph — "what connects A to B" without a
+// human tracing declaration-then-usage chains by hand.
+void GraphPathCmd(string fromInput, string toInput)
+{
+    (string kind, string value)? from = ResolveGraphNode(fromInput);
+    (string kind, string value)? to = ResolveGraphNode(toInput);
+    if (from == null) { Console.WriteLine($"no symbol or file matches \"{fromInput}\"."); return; }
+    if (to == null) { Console.WriteLine($"no symbol or file matches \"{toInput}\"."); return; }
+
+    List<(string toKind, string toVal, string file, int line, string rel)>? hops = GraphBfs(from.Value, to.Value);
+    if (hops == null) { Console.WriteLine($"no path found between \"{fromInput}\" and \"{toInput}\" within depth 6."); return; }
+    if (hops.Count == 0) { Console.WriteLine("same node."); return; }
+
+    List<string> lines = new()
+    {
+        $"[{from.Value.kind}] {from.Value.value}  ->  [{to.Value.kind}] {to.Value.value}   ({hops.Count} hop(s))"
+    };
+    foreach ((string toKind, string toVal, string file, int line, string rel) h in hops)
+    {
+        // For a "defined-in"/"uses" hop landing ON a file node, toVal already IS the file — repeating
+        // it as "file:line" said the same path twice. Only the line number is new information there.
+        string loc = h.toKind == "file" ? $"line {h.line}" : $"{h.file}:{h.line}";
+        lines.Add($"  {h.rel}  [{h.toKind}] {h.toVal}   {loc}");
+    }
+    Console.WriteLine(CapLines(lines));
+}
+
+// What a symbol IS (kind + where it's declared), who uses it (grouped by project, top sites), and any
+// docs/rules that mention it — the "explain this to me" answer graphify's `explain` gave.
+void GraphExplainCmd(string symbol)
+{
+    if (symbol.Trim().Length == 0) { Console.WriteLine("usage: aitm graph-explain <symbol>"); return; }
+    string? resolved = ScalarText("SELECT symbol FROM edges WHERE symbol=$s COLLATE NOCASE LIMIT 1", ("$s", symbol))
+        ?? ScalarText("SELECT symbol FROM edges WHERE symbol LIKE $s ORDER BY length(symbol) LIMIT 1", ("$s", "%" + symbol + "%"));
+    if (resolved == null) { Console.WriteLine($"no symbol matches \"{symbol}\"."); return; }
+
+    List<string> lines = new();
+    List<(string project, string file, int line, string usage)> declRows = new();
+    using (SqliteCommand c = db.CreateCommand())
+    {
+        c.CommandText = "SELECT project, file, line, usage FROM edges WHERE symbol=$s AND contract='decl' ORDER BY project, file LIMIT 5";
+        c.Parameters.AddWithValue("$s", resolved);
+        using SqliteDataReader r = c.ExecuteReader();
+        while (r.Read()) declRows.Add((r.GetString(0), r.GetString(1), r.GetInt32(2), r.GetString(3)));
+    }
+    string kind = declRows.Count > 0 ? declRows[0].usage : (ScalarText("SELECT contract FROM edges WHERE symbol=$s AND contract != '' LIMIT 1", ("$s", resolved)) ?? "unknown");
+    lines.Add($"{resolved}  [{kind}]");
+    if (declRows.Count == 0) lines.Add("  defined: (no indexed declaration — curated usage edge only, or not yet indexed)");
+    foreach ((string project, string file, int line, string usage) d in declRows)
+        lines.Add($"  defined: {d.project}  {d.file}:{d.line}");
+
+    List<(string project, int sites, int files)> byProject = new();
+    using (SqliteCommand c = db.CreateCommand())
+    {
+        c.CommandText = @"SELECT project, COUNT(*), COUNT(DISTINCT file) FROM edges
+            WHERE symbol=$s AND project IS NOT NULL AND project != ''
+            GROUP BY project ORDER BY 2 DESC";
+        c.Parameters.AddWithValue("$s", resolved);
+        using SqliteDataReader r = c.ExecuteReader();
+        while (r.Read()) byProject.Add((r.GetString(0), r.GetInt32(1), r.GetInt32(2)));
+    }
+    lines.Add($"used by ({byProject.Sum(p => p.sites)} site(s) across {byProject.Count} project(s)):");
+    foreach ((string project, int sites, int files) p in byProject)
+        lines.Add($"  {p.project,-14} {p.sites} site(s), {p.files} file(s)");
+
+    lines.Add("top sites:");
+    using (SqliteCommand c = db.CreateCommand())
+    {
+        c.CommandText = @"SELECT project, file, line, usage, hardcoded FROM edges WHERE symbol=$s
+            ORDER BY hardcoded DESC, project, file LIMIT 10";
+        c.Parameters.AddWithValue("$s", resolved);
+        using SqliteDataReader r = c.ExecuteReader();
+        int n = 0;
+        while (r.Read())
+        {
+            n++;
+            bool hard = r.GetInt32(4) == 1;
+            lines.Add($"  {r.GetString(0),-10} {r.GetString(1)}:{r.GetInt32(2)}{(hard ? " [HARDCODED]" : "")}  {ClipCell(r.GetString(3), 60)}");
+        }
+        if (n == 0) lines.Add("  (none recorded)");
+    }
+
+    // AITM's edges table records where a symbol is DECLARED and USED, not what it itself calls — there
+    // is no call-graph edge to read, so this is honest about the gap rather than guessing from co-location.
+    lines.Add("uses: not tracked — the edges table records declaration/usage sites, not call relationships.");
+
+    string match = BuildMatch(resolved);
+    if (match.Length > 0)
+    {
+        try
+        {
+            using SqliteCommand c = db.CreateCommand();
+            c.CommandText = @"SELECT title, path FROM (SELECT k, bm25(docs_fts) AS s FROM docs_fts WHERE docs_fts MATCH $m ORDER BY s LIMIT 2) x
+                JOIN docs d ON d.k=x.k ORDER BY x.s";
+            c.Parameters.AddWithValue("$m", match);
+            using SqliteDataReader r = c.ExecuteReader();
+            while (r.Read()) lines.Add($"  doc: {ClipCell(r.GetString(0), 60)} ({ClipCell(r.GetString(1), 50)})");
+        }
+        catch (SqliteException) { /* docs not indexed */ }
+        try
+        {
+            using SqliteCommand c = db.CreateCommand();
+            c.CommandText = @"SELECT hook FROM (SELECT k, bm25(memory_fts) AS s FROM memory_fts WHERE memory_fts MATCH $m ORDER BY s LIMIT 2) x
+                JOIN memory mem ON mem.k=x.k ORDER BY x.s";
+            c.Parameters.AddWithValue("$m", match);
+            using SqliteDataReader r = c.ExecuteReader();
+            while (r.Read()) lines.Add($"  rule: {ClipCell(r.GetString(0), 70)}");
+        }
+        catch (SqliteException) { /* memory not indexed */ }
+    }
+    Console.WriteLine(CapLines(lines));
+}
+
 void ListProjects()
 {
     using SqliteCommand c = db.CreateCommand();
@@ -2958,6 +3278,57 @@ void SelfTest()
 
     BrainVerify("c:s");
     Check("verify: confirmation timestamp recorded", Count("SELECT count(*) FROM usage WHERE node_k='c:s' AND verified_at IS NOT NULL") == 1);
+
+    // Code graph: graph-query / graph-path / graph-explain, against a tiny fixture, not the real repo tree.
+    string Capture(Action act)
+    {
+        StringWriter sw = new();
+        TextWriter prev = Console.Out;
+        Console.SetOut(sw);
+        try { act(); } finally { Console.SetOut(prev); }
+        return sw.ToString();
+    }
+    void InsertEdge(string symbol, string contract, string project, string file, int line, string usage) =>
+        Run("INSERT INTO edges(symbol,contract,project,file,line,usage,hardcoded) VALUES($s,$c,$p,$f,$l,$u,0)",
+            ("$s", symbol), ("$c", contract), ("$p", project), ("$f", file), ("$l", line), ("$u", usage));
+
+    Exec("BEGIN");
+    // A symbol declared once and used from two other projects — the case graph-explain's "grouped by
+    // project" answer exists to summarise.
+    InsertEdge("GraphFixtureWidget", "decl", "alpha", "alpha/widget.ts", 10, "ts declaration");
+    InsertEdge("GraphFixtureWidget", "", "beta", "beta/x.ts", 5, "uses widget");
+    InsertEdge("GraphFixtureWidget", "", "beta", "beta/z.ts", 1, "uses widget again");
+    InsertEdge("GraphFixtureWidget", "", "gamma", "gamma/y.ts", 9, "uses widget too");
+    // Two symbols that share one file — exactly a 2-hop path (symbol -> file -> symbol).
+    InsertEdge("GraphPathFixtureA", "decl", "alpha", "pathfixture/shared.ts", 1, "ts declaration");
+    InsertEdge("GraphPathFixtureB", "decl", "alpha", "pathfixture/shared.ts", 2, "ts declaration");
+    // A chain 8 hops long (sym0-f0-sym1-f1-sym2-f2-sym3-f3-sym4): past the depth-6 cutoff on purpose.
+    InsertEdge("ChainSym0", "decl", "chain", "chain/f0.ts", 1, "ts declaration");
+    InsertEdge("ChainSym1", "decl", "chain", "chain/f0.ts", 2, "ts declaration");
+    InsertEdge("ChainSym1", "", "chain", "chain/f1.ts", 1, "uses");
+    InsertEdge("ChainSym2", "decl", "chain", "chain/f1.ts", 2, "ts declaration");
+    InsertEdge("ChainSym2", "", "chain", "chain/f2.ts", 1, "uses");
+    InsertEdge("ChainSym3", "decl", "chain", "chain/f2.ts", 2, "ts declaration");
+    InsertEdge("ChainSym3", "", "chain", "chain/f3.ts", 1, "uses");
+    InsertEdge("ChainSym4", "decl", "chain", "chain/f3.ts", 2, "ts declaration");
+    Exec("COMMIT");
+
+    string gq = Capture(() => GraphQueryCmd("GraphFixtureWidget"));
+    Check("graph-query: finds the fixture symbol", gq.Contains("GraphFixtureWidget"));
+    Check("graph-query: shows its declaration site", gq.Contains("alpha/widget.ts:10"));
+    Check("graph-query: groups the match under its home project", gq.Contains("[alpha]"));
+
+    string gpShort = Capture(() => GraphPathCmd("GraphPathFixtureA", "GraphPathFixtureB"));
+    Check("graph-path: finds the 2-hop path", gpShort.Contains("(2 hop(s))"));
+    string gpNone = Capture(() => GraphPathCmd("ChainSym0", "ChainSym4"));
+    Check("graph-path: reports no path past depth 6", gpNone.Contains("no path found") && gpNone.Contains("depth 6"));
+    string gpSame = Capture(() => GraphPathCmd("GraphFixtureWidget", "GraphFixtureWidget"));
+    Check("graph-path: same node short-circuits", gpSame.Contains("same node"));
+    Check("graph-path: unresolvable name refuses cleanly", Capture(() => GraphPathCmd("NoSuchSymbolAtAll", "GraphFixtureWidget")).Contains("no symbol or file matches"));
+
+    string ge = Capture(() => GraphExplainCmd("GraphFixtureWidget"));
+    Check("graph-explain: reports the declaration kind and site", ge.Contains("ts declaration") && ge.Contains("alpha/widget.ts:10"));
+    Check("graph-explain: lists users grouped by project", ge.Contains("beta") && ge.Contains("2 site(s)") && ge.Contains("gamma") && ge.Contains("1 site(s)"));
 
     Console.WriteLine($"\nselftest: {pass} passed, {fail} failed ({(fail == 0 ? "GREEN" : "RED")}).");
 }

@@ -35,6 +35,33 @@ Call these before you state a project fact, write new code, or repeat a question
 
 Call one of these before renaming or reshaping anything another project depends on.
 
+## Code graph (no external tool needed)
+
+AITM's own `edges` table IS the code graph — every declaration and curated usage site across every
+registered project, one row per (symbol, file, line, project). These three tools read it directly, no
+LLM, no separate index to keep in sync:
+
+- `graph_query` — the most relevant symbols/files/docs for a natural-language question, one hop of
+  neighbors (declaration file, top consuming projects), grouped by project. CLI: `aitm graph-query <question>`.
+- `graph_path` — shortest path between two symbols/files over the code graph (declaration + usage
+  edges), max depth 6, each hop printed with file:line. CLI: `aitm graph-path <A> <B>`.
+- `graph_explain` — what a symbol is (kind, definition file:line), who uses it (grouped by project, top
+  10 sites), and docs/rules that mention it. "What it uses" is reported as not tracked rather than
+  guessed — there is no call-graph edge, only declaration/usage. CLI: `aitm graph-explain <symbol>`.
+
+These replace the external `graphify` tool for this workspace: graphify's graph here only ever covered
+the root repo's docs and scripts (nested repos — the actual product code — were never in it), so any
+question about a real class, controller, or hub returned "no node matching" or a doc-only answer. AITM's
+edges table already spans every registered project because `index-code.mjs` walks them all.
+
+Refresh the index after code changes: `node index-code.mjs [--instance <name>] [--project <name>]`
+(idempotent — safe to run every session end; declarations only, so it stays cheap even on a big repo).
+
+For a broad conceptual question (not a specific symbol), `doc` and `rule` still answer better than
+`graph_query` — the code graph only knows declaration/usage sites, not narrative. Try the code graph
+first for anything naming a class, controller, hub, or file; fall back to `doc`/`rule`/`brain_recall`
+for "how does X work end to end" questions.
+
 ## Record (write)
 
 Recording is a two-step commit, not a single call:

@@ -1004,4 +1004,329 @@ public static partial class AitmTools
         string retryNote = keepForRetry.Count > 0 ? $" {keepForRetry.Count} kept for retry (DB was locked — flush again)." : "";
         return $"flushed {n} learning(s) into the brain.{retryNote}" + (rejects.Length > 0 ? "\n" + rejects : "");
     }
+
+    // --- Code graph: graph_query / graph_path / graph_explain -------------------------------------
+    // All three read the SAME `edges` table `impact` reads: each row is a (symbol, file, line, project)
+    // fact, either a declaration (contract='decl') or a curated usage site. There is no separate
+    // call-graph table, so "defined-in" and "uses" are both read off this one table.
+
+    private const int GraphLineCap = 40;
+
+    // A LIKE match on the raw symbol column hits substrings anywhere ("stand" inside "TrackerStands
+    // Down"). Requiring a token to equal the whole symbol or one of its case/underscore-separated parts
+    // is what keeps a natural-language question from pulling in unrelated symbols sharing a query word.
+    private static bool SymbolMatchesTokens(string symbol, List<string> toks)
+    {
+        string name = symbol.ToLowerInvariant();
+        HashSet<string> parts = new(StringComparer.OrdinalIgnoreCase) { name };
+        foreach (string part in Regex.Split(symbol, "_|(?<=[a-z0-9])(?=[A-Z])"))
+            if (part.Length > 0) parts.Add(part.ToLowerInvariant());
+        return toks.Any(t => parts.Contains(t));
+    }
+
+    // Hard ceiling on total output lines — an agent calling this pays context for every line back.
+    private static string CapLines(List<string> lines, int max = GraphLineCap)
+    {
+        if (lines.Count <= max) return string.Join("\n", lines);
+        return string.Join("\n", lines.Take(max)) + $"\n(+{lines.Count - max} more line(s) truncated — narrow the query)";
+    }
+
+    // Resolve a loose name to a live graph node: an exact symbol (any case) first, then a file whose
+    // path ends with the given text. Symbols and files share no namespace, so the first hit is unambiguous.
+    private static (string kind, string value)? ResolveGraphNode(SqliteConnection con, string input)
+    {
+        string norm = input.Trim();
+        if (norm.Length == 0) return null;
+        using (SqliteCommand c = con.CreateCommand())
+        {
+            c.CommandText = "SELECT symbol FROM edges WHERE symbol=$s COLLATE NOCASE LIMIT 1";
+            c.Parameters.AddWithValue("$s", norm);
+            if (c.ExecuteScalar() is string sym) return ("symbol", sym);
+        }
+        using (SqliteCommand c = con.CreateCommand())
+        {
+            c.CommandText = "SELECT file FROM edges WHERE file LIKE $f LIMIT 1";
+            c.Parameters.AddWithValue("$f", "%" + norm.Replace('\\', '/'));
+            if (c.ExecuteScalar() is string file) return ("file", file);
+        }
+        return null;
+    }
+
+    // Breadth-first search over the symbol<->file bipartite graph: a symbol's hop is its declaration/
+    // usage files, a file's hop is the symbols it carries. Depth caps at 6 (past that a "connection" is
+    // coincidence, not a fact worth reporting) and a hard expansion budget stops one generic symbol
+    // (or hub file) with thousands of neighbors from turning a sub-second lookup into a table scan.
+    // IMPORTANT: no COLLATE NOCASE on the hot per-hop queries below — every kind/value here came out of
+    // this same table already in its exact stored casing, and NOCASE would silently defeat
+    // edges_ident_idx / edges_file_idx on every single hop (measured: ~9s instead of ~0.3s on the real store).
+    private static List<(string toKind, string toVal, string file, int line, string rel)>? GraphBfs(
+        SqliteConnection con, (string kind, string value) from, (string kind, string value) to, int maxDepth = 6)
+    {
+        using (SqliteCommand idx = con.CreateCommand())
+        {
+            idx.CommandText = "CREATE INDEX IF NOT EXISTS edges_file_idx ON edges(file, symbol, line)";
+            idx.ExecuteNonQuery();
+        }
+        if (from.kind == to.kind && string.Equals(from.value, to.value, StringComparison.OrdinalIgnoreCase)) return new();
+
+        HashSet<string> seen = new(StringComparer.OrdinalIgnoreCase) { $"{from.kind}:{from.value}" };
+        List<(string kind, string value, List<(string toKind, string toVal, string file, int line, string rel)> hops)> frontier = new()
+        {
+            (from.kind, from.value, new List<(string, string, string, int, string)>())
+        };
+
+        int expansions = 2000;
+        for (int depth = 0; depth < maxDepth; depth++)
+        {
+            List<(string kind, string value, List<(string toKind, string toVal, string file, int line, string rel)> hops)> next = new();
+            foreach ((string kind, string value, List<(string toKind, string toVal, string file, int line, string rel)> hops) cur in frontier)
+            {
+                if (expansions-- <= 0) return null;
+                using SqliteCommand c = con.CreateCommand();
+                string rel = cur.kind == "symbol" ? "defined-in" : "uses";
+                c.CommandText = cur.kind == "symbol"
+                    ? "SELECT DISTINCT file, line FROM edges WHERE symbol=$k LIMIT 60"
+                    : "SELECT DISTINCT symbol, line FROM edges WHERE file=$k LIMIT 60";
+                c.Parameters.AddWithValue("$k", cur.value);
+                using SqliteDataReader r = c.ExecuteReader();
+                while (r.Read())
+                {
+                    string neighborVal = r.GetString(0);
+                    int line = r.IsDBNull(1) ? 0 : r.GetInt32(1);
+                    string neighborKind = cur.kind == "symbol" ? "file" : "symbol";
+                    string key = $"{neighborKind}:{neighborVal}";
+                    if (!seen.Add(key)) continue;
+                    string hopFile = cur.kind == "symbol" ? neighborVal : cur.value;
+                    List<(string toKind, string toVal, string file, int line, string rel)> hops = new(cur.hops)
+                    {
+                        (neighborKind, neighborVal, hopFile, line, rel)
+                    };
+                    if (neighborKind == to.kind && string.Equals(neighborVal, to.value, StringComparison.OrdinalIgnoreCase)) return hops;
+                    next.Add((neighborKind, neighborVal, hops));
+                }
+            }
+            if (next.Count == 0) break;
+            frontier = next;
+        }
+        return null;
+    }
+
+    [McpServerTool]
+    [Description("Find the most relevant symbols, files and docs for a natural-language question, grouped by project, with one hop of neighbors (declaration file, top consuming projects). No LLM — word-boundary symbol matching plus the existing docs_fts lookup. Use to orient in an unfamiliar area of the codebase before making a change.")]
+    public static string graph_query(string question)
+    {
+        using SqliteConnection con = Open();
+        List<string> toks = Tokens(question);
+        if (toks.Count == 0) return "no usable query terms.";
+
+        HashSet<string> candidates = new(StringComparer.OrdinalIgnoreCase);
+        foreach (string t in toks)
+        {
+            using SqliteCommand c = con.CreateCommand();
+            c.CommandText = "SELECT DISTINCT symbol FROM edges WHERE symbol LIKE $p LIMIT 400";
+            c.Parameters.AddWithValue("$p", "%" + t + "%");
+            using SqliteDataReader r = c.ExecuteReader();
+            while (r.Read()) candidates.Add(r.GetString(0));
+        }
+        List<string> matched = candidates.Where(s => SymbolMatchesTokens(s, toks)).OrderBy(s => s, StringComparer.OrdinalIgnoreCase).Take(20).ToList();
+
+        List<string> lines = new();
+        if (matched.Count == 0)
+        {
+            lines.Add($"no symbol matches \"{question}\".{LogGap(con, "graph_query", question)}");
+        }
+        else
+        {
+            List<(string symbol, string project, string defLoc, List<(string project, int files)> byProject)> rows = new();
+            foreach (string sym in matched)
+            {
+                string? defLoc = null;
+                string homeProject = "";
+                using (SqliteCommand c = con.CreateCommand())
+                {
+                    c.CommandText = "SELECT project, file, line FROM edges WHERE symbol=$s AND contract='decl' LIMIT 1";
+                    c.Parameters.AddWithValue("$s", sym);
+                    using SqliteDataReader r = c.ExecuteReader();
+                    if (r.Read()) { homeProject = r.GetString(0); defLoc = $"{r.GetString(1)}:{r.GetInt32(2)}"; }
+                }
+                List<(string project, int files)> byProject = new();
+                using (SqliteCommand c = con.CreateCommand())
+                {
+                    c.CommandText = @"SELECT project, COUNT(DISTINCT file) FROM edges
+                        WHERE symbol=$s AND project IS NOT NULL AND project != ''
+                        GROUP BY project ORDER BY 2 DESC LIMIT 5";
+                    c.Parameters.AddWithValue("$s", sym);
+                    using SqliteDataReader r = c.ExecuteReader();
+                    while (r.Read()) byProject.Add((r.GetString(0), r.GetInt32(1)));
+                }
+                if (homeProject.Length == 0) homeProject = byProject.FirstOrDefault().project ?? "(unknown)";
+                rows.Add((sym, homeProject, defLoc ?? "(no indexed declaration)", byProject));
+            }
+
+            lines.Add($"{matched.Count} symbol(s) matched across {rows.Select(r => r.project).Distinct().Count()} project(s):");
+            foreach (IGrouping<string, (string symbol, string project, string defLoc, List<(string project, int files)> byProject)> g in rows.GroupBy(r => r.project).OrderByDescending(g => g.Count()))
+            {
+                lines.Add($"[{g.Key}]");
+                foreach ((string symbol, string project, string defLoc, List<(string project, int files)> byProject) row in g)
+                {
+                    lines.Add($"  {row.symbol}  defined: {row.defLoc}");
+                    if (row.byProject.Count > 0)
+                        lines.Add("    used by: " + string.Join(", ", row.byProject.Select(p => $"{p.project} ({p.files} file(s))")));
+                }
+            }
+        }
+
+        string match = Match(question);
+        if (match.Length > 0)
+        {
+            try
+            {
+                using SqliteCommand c = con.CreateCommand();
+                c.CommandText = @"SELECT d.title, d.path FROM (SELECT k, bm25(docs_fts) AS s FROM docs_fts WHERE docs_fts MATCH $m ORDER BY s LIMIT 3) x
+                    JOIN docs d ON d.k=x.k ORDER BY x.s";
+                c.Parameters.AddWithValue("$m", match);
+                using SqliteDataReader r = c.ExecuteReader();
+                bool any = false;
+                while (r.Read())
+                {
+                    if (!any) { lines.Add("docs:"); any = true; }
+                    lines.Add($"  • {Clip(r.GetString(0), 70)} ({Clip(r.GetString(1), 60)})");
+                }
+            }
+            catch (SqliteException) { /* docs not indexed for this instance */ }
+        }
+        return CapLines(lines);
+    }
+
+    [McpServerTool]
+    [Description("Shortest path between two symbols or files over the code graph (declaration + usage edges), max depth 6, each hop printed with file:line. Use to answer \"how does A connect to B\" without tracing declaration-then-usage chains by hand.")]
+    public static string graph_path(string a, string b)
+    {
+        using SqliteConnection con = Open();
+        (string kind, string value)? from = ResolveGraphNode(con, a);
+        (string kind, string value)? to = ResolveGraphNode(con, b);
+        if (from == null) return $"no symbol or file matches \"{a}\".";
+        if (to == null) return $"no symbol or file matches \"{b}\".";
+
+        List<(string toKind, string toVal, string file, int line, string rel)>? hops = GraphBfs(con, from.Value, to.Value);
+        if (hops == null) return $"no path found between \"{a}\" and \"{b}\" within depth 6.";
+        if (hops.Count == 0) return "same node.";
+
+        List<string> lines = new()
+        {
+            $"[{from.Value.kind}] {from.Value.value}  ->  [{to.Value.kind}] {to.Value.value}   ({hops.Count} hop(s))"
+        };
+        foreach ((string toKind, string toVal, string file, int line, string rel) h in hops)
+        {
+            string loc = h.toKind == "file" ? $"line {h.line}" : $"{h.file}:{h.line}";
+            lines.Add($"  {h.rel}  [{h.toKind}] {h.toVal}   {loc}");
+        }
+        return CapLines(lines);
+    }
+
+    [McpServerTool]
+    [Description("What a symbol IS (kind, definition file:line), who uses it (grouped by project, top 10 sites), and docs/rules that mention it. No call-graph data exists yet, so \"what it uses\" is reported as not tracked rather than guessed. Use before renaming or reasoning about a symbol you did not just write.")]
+    public static string graph_explain(string symbol)
+    {
+        using SqliteConnection con = Open();
+        if (symbol.Trim().Length == 0) return "provide a symbol name.";
+        string? resolved;
+        using (SqliteCommand c = con.CreateCommand())
+        {
+            c.CommandText = "SELECT symbol FROM edges WHERE symbol=$s COLLATE NOCASE LIMIT 1";
+            c.Parameters.AddWithValue("$s", symbol);
+            resolved = c.ExecuteScalar() as string;
+        }
+        if (resolved == null)
+        {
+            using SqliteCommand c = con.CreateCommand();
+            c.CommandText = "SELECT symbol FROM edges WHERE symbol LIKE $s ORDER BY length(symbol) LIMIT 1";
+            c.Parameters.AddWithValue("$s", "%" + symbol + "%");
+            resolved = c.ExecuteScalar() as string;
+        }
+        if (resolved == null) return $"no symbol matches \"{symbol}\".{LogGap(con, "graph_explain", symbol)}";
+
+        List<string> lines = new();
+        List<(string project, string file, int line, string usage)> declRows = new();
+        using (SqliteCommand c = con.CreateCommand())
+        {
+            c.CommandText = "SELECT project, file, line, usage FROM edges WHERE symbol=$s AND contract='decl' ORDER BY project, file LIMIT 5";
+            c.Parameters.AddWithValue("$s", resolved);
+            using SqliteDataReader r = c.ExecuteReader();
+            while (r.Read()) declRows.Add((r.GetString(0), r.GetString(1), r.GetInt32(2), r.GetString(3)));
+        }
+        string kind = declRows.Count > 0 ? declRows[0].usage : "unknown";
+        if (declRows.Count == 0)
+        {
+            using SqliteCommand c = con.CreateCommand();
+            c.CommandText = "SELECT contract FROM edges WHERE symbol=$s AND contract != '' LIMIT 1";
+            c.Parameters.AddWithValue("$s", resolved);
+            if (c.ExecuteScalar() is string contractKind) kind = contractKind;
+        }
+        lines.Add($"{resolved}  [{kind}]");
+        if (declRows.Count == 0) lines.Add("  defined: (no indexed declaration — curated usage edge only, or not yet indexed)");
+        foreach ((string project, string file, int line, string usage) d in declRows)
+            lines.Add($"  defined: {d.project}  {d.file}:{d.line}");
+
+        List<(string project, int sites, int files)> byProject = new();
+        using (SqliteCommand c = con.CreateCommand())
+        {
+            c.CommandText = @"SELECT project, COUNT(*), COUNT(DISTINCT file) FROM edges
+                WHERE symbol=$s AND project IS NOT NULL AND project != ''
+                GROUP BY project ORDER BY 2 DESC";
+            c.Parameters.AddWithValue("$s", resolved);
+            using SqliteDataReader r = c.ExecuteReader();
+            while (r.Read()) byProject.Add((r.GetString(0), r.GetInt32(1), r.GetInt32(2)));
+        }
+        lines.Add($"used by ({byProject.Sum(p => p.sites)} site(s) across {byProject.Count} project(s)):");
+        foreach ((string project, int sites, int files) p in byProject)
+            lines.Add($"  {p.project,-14} {p.sites} site(s), {p.files} file(s)");
+
+        lines.Add("top sites:");
+        using (SqliteCommand c = con.CreateCommand())
+        {
+            c.CommandText = @"SELECT project, file, line, usage, hardcoded FROM edges WHERE symbol=$s
+                ORDER BY hardcoded DESC, project, file LIMIT 10";
+            c.Parameters.AddWithValue("$s", resolved);
+            using SqliteDataReader r = c.ExecuteReader();
+            int n = 0;
+            while (r.Read())
+            {
+                n++;
+                bool hard = r.GetInt32(4) == 1;
+                lines.Add($"  {r.GetString(0),-10} {r.GetString(1)}:{r.GetInt32(2)}{(hard ? " [HARDCODED]" : "")}  {Clip(r.GetString(3), 60)}");
+            }
+            if (n == 0) lines.Add("  (none recorded)");
+        }
+
+        // The edges table records where a symbol is DECLARED and USED, not what it itself calls — there
+        // is no call-graph edge to read, so this is honest about the gap instead of guessing from co-location.
+        lines.Add("uses: not tracked — the edges table records declaration/usage sites, not call relationships.");
+
+        string match = Match(resolved);
+        if (match.Length > 0)
+        {
+            try
+            {
+                using SqliteCommand c = con.CreateCommand();
+                c.CommandText = @"SELECT title, path FROM (SELECT k, bm25(docs_fts) AS s FROM docs_fts WHERE docs_fts MATCH $m ORDER BY s LIMIT 2) x
+                    JOIN docs d ON d.k=x.k ORDER BY x.s";
+                c.Parameters.AddWithValue("$m", match);
+                using SqliteDataReader r = c.ExecuteReader();
+                while (r.Read()) lines.Add($"  doc: {Clip(r.GetString(0), 60)} ({Clip(r.GetString(1), 50)})");
+            }
+            catch (SqliteException) { /* docs not indexed */ }
+            try
+            {
+                using SqliteCommand c = con.CreateCommand();
+                c.CommandText = @"SELECT hook FROM (SELECT k, bm25(memory_fts) AS s FROM memory_fts WHERE memory_fts MATCH $m ORDER BY s LIMIT 2) x
+                    JOIN memory mem ON mem.k=x.k ORDER BY x.s";
+                c.Parameters.AddWithValue("$m", match);
+                using SqliteDataReader r = c.ExecuteReader();
+                while (r.Read()) lines.Add($"  rule: {Clip(r.GetString(0), 70)}");
+            }
+            catch (SqliteException) { /* memory not indexed */ }
+        }
+        return CapLines(lines);
+    }
 }
