@@ -4,7 +4,6 @@
       "command": "node",
       "args": ["${CLAUDE_PLUGIN_ROOT}/launch-mcp.mjs"],
       "env": {
-        "AITM_INSTANCE": "nomercy",
         "AITM_HOME": "${CLAUDE_PLUGIN_ROOT}"
       }
     }

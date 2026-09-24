@@ -97,6 +97,10 @@ answers:
   the memory/docs channel when a `.md` memory or spec file is edited.
 - `compact-brief.mjs` (PreCompact) — writes anything durable to the store before
   compaction throws it away.
+- `compact-restore.mjs` (UserPromptSubmit) — restores the anchors `compact-brief.mjs`
+  saved, once a compaction has paraphrased them away. Pairs with `compact-brief.mjs`
+  and is as much a hard gate: without it the PreCompact save has nothing that reads
+  it back.
 - `session-index.mjs`, `session-index-docs.mjs`, `index-code.mjs --quiet` (SessionEnd,
   all async) — fold the finished session, its absorbed docs, and its code symbols back
   into the store.
