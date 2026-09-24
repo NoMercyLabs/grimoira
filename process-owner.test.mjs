@@ -78,7 +78,7 @@ test('failed spawn is recorded', async () => {
 test('retention removes old terminal records but preserves unresolved ownership', () => {
   const root = mkdtempSync(join(tmpdir(), 'aitm-owner-'));
   try {
-    const directory = join(root, '.scratch', 'process-owners');
+    const directory = join(root, '.claude', 'scratch', 'process-owners');
     mkdirSync(directory, { recursive: true });
     const paths = [1, 2, 3].map(i => join(directory, `${String(i).padStart(36, '0')}.json`));
     writeFileSync(paths[0], JSON.stringify({ version: 1, state: 'exited', ended_at: '2026-01-01' }));

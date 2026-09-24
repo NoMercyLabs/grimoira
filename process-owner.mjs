@@ -15,7 +15,7 @@ export function pilotRoot(project, workspace) {
 }
 
 export function trimCompleted(root, keep = 50) {
-  const directory = join(root, '.scratch', 'process-owners');
+  const directory = join(root, '.claude', 'scratch', 'process-owners');
   const completed = [];
   try {
     const containment = relative(realpathSync(root), realpathSync(directory));
@@ -39,7 +39,7 @@ export function trimCompleted(root, keep = 50) {
 
 export function launchOwned(command, args, { root, cwd, stdio = 'inherit', onWarning = () => {} }) {
   const id = randomUUID();
-  const directory = join(root, '.scratch', 'process-owners');
+  const directory = join(root, '.claude', 'scratch', 'process-owners');
   const filename = join(directory, `${id}.json`);
   const record = {
     version: 1, id, workspace: root, cwd: resolve(cwd),
@@ -90,7 +90,7 @@ export function launchOwned(command, args, { root, cwd, stdio = 'inherit', onWar
 
 // Inspection only. A running record after a crash is not proof of a live owner.
 export function inspectOwners(root, limit = 100) {
-  const directory = join(root, '.scratch', 'process-owners');
+  const directory = join(root, '.claude', 'scratch', 'process-owners');
   let files;
   try { files = readdirSync(directory).filter(name => /^[a-f0-9-]{36}\.json$/.test(name)); }
   catch (error) { if (error.code === 'ENOENT') return { records: [], limited: false }; throw error; }

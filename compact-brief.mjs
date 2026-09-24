@@ -42,7 +42,7 @@ function directives(entries) {
 
 // Scratch files are deliberately throwaway; carrying them across a compaction makes the real edits
 // harder to see and invites the next turn to treat a temp script as project work.
-const SCRATCH = /(^|[\\/])(scratchpad|\.scratch|Temp|tmp)([\\/]|$)/i;
+const SCRATCH = /(^|[\\/])(scratchpad|\.?scratch|Temp|tmp)([\\/]|$)/i;
 
 function touchedFiles(entries) {
   const files = new Set();

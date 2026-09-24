@@ -34,7 +34,7 @@ is inside the sibling `NoMercy` checkout. Other workspaces retain their existing
 startup behavior. Existing sessions are not adopted or restarted.
 
 Inspect records with `node process-owner.mjs status`. Records live in the workspace's
-ignored `.scratch/process-owners/` directory. They contain launcher and child IDs,
+ignored `.claude/scratch/process-owners/` directory. They contain launcher and child IDs,
 timestamps, and lifecycle state; no command arguments or environment values.
 
 Only the live launcher can cancel its original child. The status command never kills

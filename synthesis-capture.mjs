@@ -19,7 +19,7 @@ const MIN_ANSWER = 1500;
 // Share of the directory's prose files the turn must have read for it to count as a set.
 const MIN_COVERAGE = 0.5;
 const PROSE = /\.(md|mdx|txt|rst|adoc)$/i;
-const SCRATCH = /(^|\/)(scratchpad|\.scratch|node_modules|Temp|tmp)(\/|$)/i;
+const SCRATCH = /(^|\/)(scratchpad|\.?scratch|node_modules|Temp|tmp)(\/|$)/i;
 
 const cliPath = () => {
   const exe = join(dirname(new URL(import.meta.url).pathname.replace(/^\//, '')), 'bin-cli', 'aitm.exe');
