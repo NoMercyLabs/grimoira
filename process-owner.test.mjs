@@ -93,7 +93,7 @@ test('retention removes old terminal records but preserves unresolved ownership'
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
-test('launcher removes temporary copy when build output is missing', () => {
+test('launcher never leaks a temporary copy when mcp.cs is not there to build', () => {
   const root = mkdtempSync(join(tmpdir(), 'aitm-owner-'));
   try {
     const app = join(root, 'aitm');
@@ -102,12 +102,17 @@ test('launcher removes temporary copy when build output is missing', () => {
     for (const file of ['launch-mcp.mjs', 'process-owner.mjs']) {
       copyFileSync(join(import.meta.dirname, file), join(app, file));
     }
+    // No mcp.cs beside launch-mcp.mjs and no prebuilt bin/, so the missing-DLL build attempt
+    // (added so a fresh plugin install with no committed bin/ can still build itself) fails
+    // instead of finding a DLL to shadow-copy. The shadow-copy step must never run either way:
+    // check for an aitm-mcp-* shadow dir specifically, since dotnet's own failed build attempt
+    // is expected to leave its own unrelated scratch files under the same TEMP.
     const result = spawnSync(process.execPath, [join(app, 'launch-mcp.mjs')], {
-      encoding: 'utf8', timeout: 5000,
+      encoding: 'utf8', timeout: 15000,
       env: { ...process.env, TEMP: temp, TMP: temp, TMPDIR: temp },
     });
     assert.equal(result.status, 1);
-    assert.match(result.stderr, /could not prepare server files/);
-    assert.deepEqual(readdirSync(temp), []);
+    assert.match(result.stderr, /build failed/);
+    assert.deepEqual(readdirSync(temp).filter(name => name.startsWith('aitm-mcp-')), []);
   } finally { rmSync(root, { recursive: true, force: true }); }
 });

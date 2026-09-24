@@ -62,12 +62,11 @@ Restart an existing agent session to load a new tool registration.
 
 ## Install as a plugin
 
-The shared `skills/aitm/SKILL.md` now describes the same knowledge workflow for
-Claude and Codex. A portable root `plugin.json` and a Codex compatibility manifest
-package that skill. This Codex package does not bundle hooks or another MCP launch:
-NoMercy's `.codex/config.toml` already connects the AITM server. Validate the local
-package with the plugin-creator validator before installing it. A new agent session
-is needed to load a newly installed skill.
+AITM is a Claude Code plugin. It bundles the MCP server (`.mcp.json`, launched via
+`launch-mcp.mjs`), the knowledge skill (`skills/aitm/SKILL.md`), two agents
+(`agents/knowledge-lookup.md` for read-only lookups, `agents/knowledge-writer.md` for
+deciding what to stage and flush), a maintenance slash command
+(`commands/aitm-maintain.md`), and the hard-gate hooks only — see below.
 
 The repo is its own marketplace, so it installs directly:
 
@@ -76,11 +75,48 @@ The repo is its own marketplace, so it installs directly:
 /plugin install aitm@nomercylabs
 ```
 
-The hooks are plain node and work as soon as the plugin is installed. The CLI and MCP server need `build-cli.ps1` / `build-mcp.ps1` first, since build output is not committed.
+`launch-mcp.mjs` builds the MCP server itself on first launch if `bin/mcp.dll` is
+missing (build output is gitignored and never shipped), so no manual build step is
+required after a fresh install. It writes that first build under
+`${CLAUDE_PLUGIN_DATA}/bin` when Claude Code sets that variable, otherwise to `bin/`
+next to the checkout, matching `build-mcp.ps1`. The CLI (`bin-cli/aitm.exe`, used by
+`/aitm-maintain`) still needs `./build-cli.ps1` run once.
 
-If you previously wired these hooks by hand in `settings.json`, migrate those entries before enabling the plugin. On the current NoMercy machine, all 14 plugin hooks also appear as direct global hooks. Another 14 direct AITM hooks are absent from this plugin. Enabling it now duplicates work; removing all direct hooks loses behavior. The NoMercy MCP registration works independently while this migration remains open.
+### What the plugin's hooks do
 
-Run `node hook-doctor.mjs --project C:/Projects/NoMercy` to check hook overlap without running hooks or showing command arguments. It fails when settings enable overlapping plugin hooks or repeat a direct AITM hook. `verify.ps1 -Project C:/Projects/NoMercy` includes this check.
+`hooks/hooks.json` carries only the hard gates — the ones that cannot be a judgment
+call and must run outside the model's reasoning, not the ones that grade Claude's own
+answers:
+
+- `shell-guard.mjs` (PreToolUse `Bash|PowerShell`) — blocks a known-bad Windows path
+  shape before the shell runs it.
+- `chrome-ready.mjs` (PreToolUse on browser MCP tools, PostToolUse `--prune-only` on
+  `Bash|PowerShell`) — makes sure a debugger-attached Chrome is up before a browser
+  tool runs, and prunes stale browser processes after a shell command.
+- `index-on-edit.mjs` (PostToolUse `Write|Edit|MultiEdit|NotebookEdit`) — re-indexes
+  the memory/docs channel when a `.md` memory or spec file is edited.
+- `compact-brief.mjs` (PreCompact) — writes anything durable to the store before
+  compaction throws it away.
+- `session-index.mjs`, `session-index-docs.mjs`, `index-code.mjs --quiet` (SessionEnd,
+  all async) — fold the finished session, its absorbed docs, and its code symbols back
+  into the store.
+
+Everything that used to judge the quality of Claude's own answer by pattern-matching
+text (`hedge-guard`, `goal-guard`, `proof-guard`, `continue-guard`, `population-guard`,
+`loop-guard`, `blast-radius`, `pattern-watch`) and everything that force-fed the store
+onto every Grep/Glob/Read/prompt (`brain-gate`, `brain-read-gate`, `brain-harvest`,
+`brain-history`, `prompt-recall`, `context-watch`, `subagent-context`, `brain-capture`,
+`synthesis-capture`, `brain-context`, `session-continue`) is deliberately left out of
+the plugin. Those scripts still exist in the repo for the direct global-hook setup
+during migration, but the plugin does not carry them: the skill and the two agents
+reach the same tools with judgment instead of a blind script on every turn.
+
+If you previously wired AITM hooks by hand in `settings.json`, do not enable this
+plugin until those direct entries are removed in the same sitting — running both at
+once double-executes a hook that appears in both places. Run
+`node hook-doctor.mjs --project C:/Projects/NoMercy` to check hook overlap without
+running hooks or showing command arguments; `verify.ps1 -Project C:/Projects/NoMercy`
+includes this check.
 
 ## The enforcement loop
 

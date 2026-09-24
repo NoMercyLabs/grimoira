@@ -1,0 +1,93 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/shell-guard.mjs"],
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "mcp__chrome-attached__.*|mcp__plugin_chrome-devtools-mcp_chrome-devtools__.*|mcp__plugin_playwright_playwright__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/chrome-ready.mjs"],
+            "timeout": 30,
+            "statusMessage": "Making sure the agent browser is up…"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/chrome-ready.mjs", "--prune-only"],
+            "timeout": 20
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit|MultiEdit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/index-on-edit.mjs"],
+            "timeout": 65
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/compact-brief.mjs"],
+            "timeout": 20,
+            "statusMessage": "Saving anchors before compaction…"
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/session-index.mjs"],
+            "timeout": 90,
+            "async": true
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/session-index-docs.mjs"],
+            "timeout": 120,
+            "async": true
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/index-code.mjs", "--quiet"],
+            "timeout": 180,
+            "async": true
+          }
+        ]
+      }
+    ]
+  }
+}

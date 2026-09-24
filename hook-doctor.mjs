@@ -64,7 +64,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     const result = auditHooks(
       readJson(join(root, 'settings.json')),
       readJson(join(project, '.claude', 'settings.json')),
-      readJson(join(import.meta.dirname, '.claude-plugin', 'plugin.json')),
+      readJson(join(import.meta.dirname, 'hooks', 'hooks.json')),
     );
     if (process.argv.includes('--json')) console.log(JSON.stringify(result));
     else console.log(`AITM hooks: ${result.pluginHooks} in plugin, ${result.directHooks} direct, ${result.overlap.length} overlapping, ${result.directOnly.length} direct only. Plugin enabled in settings: ${result.pluginEnabledSetting}. ${result.unsafe ? 'FAIL: duplicate hook launches possible.' : 'No duplicate indicated by settings.'}`);
