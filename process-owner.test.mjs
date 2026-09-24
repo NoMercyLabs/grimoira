@@ -42,6 +42,29 @@ test('cancels only the original live child', async () => {
   } finally { run?.cancel(); rmSync(root, { recursive: true, force: true }); }
 });
 
+test('canceling one owner leaves another live child alone', { timeout: 10000 }, async () => {
+  const root = mkdtempSync(join(tmpdir(), 'aitm-owner-'));
+  const first = launchOwned(process.execPath, ['-e', 'setInterval(()=>{},1000)'], { root, cwd: root, stdio: 'ignore' });
+  const second = launchOwned(process.execPath, ['-e', 'setInterval(()=>{},1000)'], { root, cwd: root, stdio: 'ignore' });
+  try {
+    await Promise.all([once(first.child, 'spawn'), once(second.child, 'spawn')]);
+    const firstExit = once(first.child, 'exit');
+    assert.equal(first.cancel(), true);
+    await firstExit;
+    assert.equal(first.child.exitCode !== null || first.child.signalCode !== null, true);
+    assert.equal(second.child.exitCode, null);
+    assert.equal(second.child.signalCode, null);
+    assert.equal(JSON.parse(readFileSync(second.filename)).state, 'running');
+    const secondExit = once(second.child, 'exit');
+    assert.equal(second.cancel(), true);
+    await secondExit;
+    assert.equal(JSON.parse(readFileSync(second.filename)).state, 'exited');
+  } finally {
+    first.cancel(); second.cancel();
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('failed spawn is recorded', async () => {
   const root = mkdtempSync(join(tmpdir(), 'aitm-owner-'));
   try {
