@@ -280,7 +280,18 @@ switch (cmd)
             "stats                               channel counts for the instance",
             "selftest                            run the TDD assertion harness (test* only)",
         };
-        Console.WriteLine("aitm <command> [--instance <name>]\n\n" + string.Join("\n", usage));
+        string usageText = "aitm <command> [--instance <name>]\n\n" + string.Join("\n", usage);
+        if (cmd is "help" or "--help" or "-h")
+        {
+            Console.WriteLine(usageText);
+            break;
+        }
+        // A caller that gets the help text back with exit 0 reads it as success while nothing ran.
+        Console.Error.WriteLine(cmd.StartsWith("-")
+            ? $"error: unknown command '{cmd}': the command comes first, flags go after the command.\n"
+            : $"error: unknown command '{cmd}'.\n");
+        Console.Error.WriteLine(usageText);
+        Environment.Exit(2);
         break;
 }
 }

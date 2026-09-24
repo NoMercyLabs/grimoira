@@ -38,7 +38,7 @@ if ($selftestExit -ne 0 -or "$line" -notmatch 'GREEN') { $failed += 'selftest' }
 foreach ($suite in @('brain-lib.test.mjs', 'ranking-agreement.test.mjs', 'deferral-shape.test.mjs',
                      'continue-guard.test.mjs', 'pattern-watch.test.mjs', 'proof-guard.test.mjs',
                      'synthesis-capture.test.mjs', 'mcp-stage.test.mjs', 'mcp-graph.test.mjs', 'build-stamp.test.mjs', 'workspace-repos.test.mjs', 'blast-radius.test.mjs',
-                     'population-guard.test.mjs', 'idp-impersonate.test.mjs')) {
+                     'population-guard.test.mjs', 'idp-impersonate.test.mjs', 'cli-exit.test.mjs')) {
     Write-Host "-- $suite" -ForegroundColor Cyan
     $out = & node "$PSScriptRoot/$suite" 2>&1
     $testExit = $LASTEXITCODE
