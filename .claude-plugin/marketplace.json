@@ -10,7 +10,7 @@
       "name": "aitm",
       "source": "./",
       "description": "Per-project knowledge store with a hook-enforced read/write loop for agent sessions.",
-      "version": "0.3.1"
+      "version": "0.3.2"
     }
   ]
 }

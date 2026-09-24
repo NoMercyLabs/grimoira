@@ -20,14 +20,17 @@
 import { readdirSync, readFileSync, existsSync } from 'node:fs';
 import { execSync } from 'node:child_process';
 import { join } from 'node:path';
+import { WORKSPACE, registeredRepos } from './workspace-repos.mjs';
 
 const MEM = 'C:/Users/dev/.claude/projects/c--Projects-NoMercy/memory';
-const ROOT = 'C:/Projects/NoMercy';
-const REPOS = ['.', 'apps/nomercy-media-server', 'apps/nomercy-app-web', 'apps/nomercy-app-kmp',
-  'apps/nomercy-tv', 'apps/nomercy-cast-player', 'docs/nomercy-docs'];
+const ROOT = WORKSPACE;
+// From the workspace registry, so a layout move never leaves this checker reading folders that are gone.
+const REGISTERED = registeredRepos(ROOT);
+const REPOS = ['.', ...REGISTERED];
+const TOP_FOLDERS = [...new Set([...REGISTERED.map((repo) => repo.split('/')[0]), '.claude', 'scripts'])];
 
 const BRANCH = /\b(?:feat|fix|feature|release|hotfix|db-fix|refactor)\/[A-Za-z0-9._-]+/g;
-const PATHREF = /\b(?:apps|packages|packages-native|tools|scripts|docs|infra)\/[A-Za-z0-9._\-/]+/g;
+const PATHREF = new RegExp(`\\b(?:${TOP_FOLDERS.map((folder) => folder.replace('.', '\\.')).join('|')})\\/[A-Za-z0-9._\\-/]+`, 'g');
 // A placeholder teaches a shape; only a concrete name is a factual claim.
 const PLACEHOLDER = /\/(?:<|\.\.\.|x$|name|thing|topic|slug|target|feature|branch|concern|bonus|extras|test|format|debug|fix)$/i;
 
@@ -47,17 +50,7 @@ function branches() {
 // Every place a repo-relative path could legitimately be rooted: the monorepo itself, every nested
 // project under it, and the two sibling repos outside it. Enumerated from disk rather than listed by
 // hand — a hardcoded list is the thing that goes stale and makes this checker lie in its own way.
-const ROOTS = (() => {
-  const out = [ROOT, 'C:/Projects/aitm', 'C:/Projects/aaoa-dev/Mom-icons'];
-  for (const group of ['apps', 'packages', 'packages-native', 'tools', 'docs', 'infra']) {
-    const dir = join(ROOT, group);
-    if (!existsSync(dir)) continue;
-    for (const entry of readdirSync(dir, { withFileTypes: true })) {
-      if (entry.isDirectory()) out.push(join(dir, entry.name));
-    }
-  }
-  return out;
-})();
+const ROOTS = [ROOT, 'C:/Projects/aitm', 'C:/Projects/aaoa-dev/Mom-icons', ...REGISTERED.map((repo) => join(ROOT, repo))];
 const resolvesAnywhere = (p) => ROOTS.some((r) => existsSync(join(r, p)));
 
 const known = branches();
