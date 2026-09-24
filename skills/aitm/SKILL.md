@@ -1,53 +1,26 @@
 ---
 name: aitm
-description: Use when you need a ground-truth project fact (file path, symbol location, API shape, config key, convention, past decision) or when you have just established one worth keeping. Query the store before asserting any project-specific fact, and write findings back the same turn you learn them.
+description: Find a NoMercy project fact, prior decision, rule, or known tool in AITM; record a verified finding that future sessions need. Use for project knowledge, not generic coding questions.
 ---
 
-# aitm — Agent In The Middle
+# AITM project knowledge
 
-A queryable store of what is actually true about this project, kept separately from the model's prior. It sits between the user and the model and keeps both on the right path. It exists because markdown rule files are advisory text an agent can rationalise past, so project facts get asserted from training data and cross-project contracts break silently.
+AITM is a shared knowledge store. Its answers are leads with provenance, not proof that the current source still agrees. Check the cited source before changing code or relying on a consequential fact. The user's current instruction and the target repository's rules take priority over stale entries.
 
-**The store is the authority on project facts. Your prior is not.**
+Use the connected MCP server when available. The corresponding CLI is `aitm <command> --instance <name>`; run the built CLI from the AITM checkout if it is not on PATH. In NoMercy the instance is `nomercy`.
 
-Every exchange accumulates into where the product is going. A decision argued months ago still governs a change made today, which is what stops the same ground being covered twice and stops the "that fix broke this other thing" class of regression. Treat the conversation channel as evidence, not as chatter.
+| Need | MCP tool | CLI command |
+| --- | --- | --- |
+| Verified project fact | `fact` | `query` |
+| Standing rule or preference | `rule` | `mem` |
+| Earlier conversation | `recall` | `recall` |
+| Indexed design or plan | `doc` | `doc` |
+| Known symbol consumers | `impact` | `impact` |
+| Existing NoMercy tool | `workspace_capabilities` | `python scripts/workspace-capabilities.py "task"` |
+| Scoped source locations | `workspace_search` | `python scripts/workspace-search.py --repo REPO --pattern TEXT` |
 
-**No single CLI command spans every channel.** `query` reads facts, `mem` reads rules, `recall` reads conversations, `doc` reads docs. A miss on one is not evidence the store lacks the fact — check the others before concluding anything is missing.
+A miss covers only the channel queried. Check another relevant channel or the owning repository before concluding that a fact or tool does not exist. Search one registered repository at a time; never recursively search the whole NoMercy root. For a shared contract change, inspect current consumers as well as AITM's impact result.
 
-## Read before asserting
+Record a durable correction or verified decision with its source using `brain_stage`, then `brain_flush`. Use the CLI `add` command if MCP is unavailable. Do not store raw secrets, bearer tokens, transient command output, or guesses. Keep one clear fact per entry and retire or supersede stale guidance instead of adding a conflicting copy.
 
-Reach the CLI at `aitm <cmd> --instance <name>` (instance defaults to the project directory name).
-
-| Question | Command |
-| --- | --- |
-| A verified fact (paths, shapes, keys, versions) | `query <terms>` |
-| A durable rule, preference, or past decision | `mem <terms>` / `mem --hard` for always-on rules |
-| Something said in an earlier session | `recall <terms>` |
-| Spec, plan, or design doc content | `doc <terms>` |
-| Where a symbol lives and who consumes it | `impact <symbol>` |
-| What the store knows it does not know | `brain_gaps` / the `gaps` table |
-
-If a lookup returns nothing, that is an answer too: the store does not know, so the filesystem is the next stop and whatever you find there is worth recording.
-
-## Write the same turn you learn
-
-The read path is automatic; the write path is the one that decays. A fact established and not written down is re-derived from scratch next session.
-
-```
-aitm add --term "<short handle>" --category <cat> --value "<the finding, stated as a fact>" --source "<where it came from>"
-```
-
-State the finding, not the search that found it. "Encoder stream-copies when source codec matches the target" is durable; "grepped for smart copy" is not.
-
-Rules and preferences belong in the memory channel via `index-memory`; docs via `index-docs`; the code graph refreshes itself via `index-code.mjs`.
-
-## What runs on its own
-
-- **`brain-gate`** (before Grep/Glob) puts the search to the store first. If the store answers, the search is denied and the hits come back instead. Read them. If they genuinely do not answer the question, re-issue the identical search and it runs; the gate fires once per search per session.
-- **`brain-harvest`** (after Grep/Glob) writes whatever the search found back into the code graph.
-- **`brain-capture`** (at stop) blocks once if the session opened gaps and taught none of them back.
-
-None of these replace judgement. They make the default path the correct one.
-
-## Store notes
-
-Node's bundled SQLite has no FTS5, so anything touching an `*_fts` table must go through the C# CLI or the store and its search index drift apart silently. The store runs in WAL mode; readers are never blocked by the long indexers.
+Claude may also run AITM hooks for recall and capture. Other agents must make these reads and writes explicitly unless their own integration provides equivalent hooks. Do not assume a hook ran because this skill is installed.

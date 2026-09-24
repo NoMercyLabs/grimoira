@@ -1,0 +1,9 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "aitm",
+  "version": "0.1.0",
+  "description": "Shared NoMercy project knowledge and tool discovery",
+  "author": {
+    "name": "NoMercy Labs"
+  }
+}

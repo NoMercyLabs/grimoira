@@ -62,6 +62,13 @@ Restart an existing agent session to load a new tool registration.
 
 ## Install as a plugin
 
+The shared `skills/aitm/SKILL.md` now describes the same knowledge workflow for
+Claude and Codex. A portable root `plugin.json` and a Codex compatibility manifest
+package that skill. This Codex package does not bundle hooks or another MCP launch:
+NoMercy's `.codex/config.toml` already connects the AITM server. Validate the local
+package with the plugin-creator validator before installing it. A new agent session
+is needed to load a newly installed skill.
+
 The repo is its own marketplace, so it installs directly:
 
 ```
