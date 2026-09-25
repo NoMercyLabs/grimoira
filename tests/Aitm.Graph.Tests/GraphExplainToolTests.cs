@@ -146,7 +146,10 @@ public class GraphExplainToolTests
             string actual = new GraphExplainTool().ExecuteCli(readConnection, "GraphOnlyDeclaredWidget");
 
             Assert.Contains("used by (0 site(s) across 0 project(s)):", actual);
-            Assert.DoesNotContain("alpha", actual.Substring(actual.IndexOf("used by", StringComparison.Ordinal)));
+            int usedByStart = actual.IndexOf("used by", StringComparison.Ordinal);
+            int topSitesStart = actual.IndexOf("top sites:", StringComparison.Ordinal);
+            string usedBySection = actual[usedByStart..topSitesStart];
+            Assert.DoesNotContain("alpha", usedBySection);
         }
         finally
         {

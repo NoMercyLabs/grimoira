@@ -12,6 +12,15 @@ namespace Aitm.Graph.Tools;
 /// <c>ExecuteMcp</c> from mcp.cs's <c>graph_explain</c> (mcp.cs:1229) — kept as separate paths because the
 /// two oracles diverge slightly (only the MCP side logs a gap on a miss), the same way <c>ImpactTool</c>
 /// keeps its CLI and MCP shapes apart.
+///
+/// Known-issue fix (RESTRUCTURE.md slice 13): today's "used by" count in both oracles is
+/// <c>COUNT(*) FROM edges WHERE symbol=$s AND project != ''</c>, which counts a symbol's own declaration
+/// row (<c>contract='decl'</c>) as a "used by" site for its home project. A symbol declared once and
+/// never consumed elsewhere in that project should not be reported as having a use there. This tool
+/// excludes <c>contract='decl'</c> rows from the "used by" tally; the declaration itself is already
+/// reported separately, above, as "defined:". The same fix is applied to today's aitm.cs
+/// <c>GraphExplainCmd</c> and mcp.cs <c>graph_explain</c>, since it is small and safe and those are what
+/// runs in production right now.
 /// </summary>
 public sealed class GraphExplainTool : ITool
 {
@@ -71,11 +80,13 @@ public sealed class GraphExplainTool : ITool
         foreach ((string project, string file, int line, string usage) d in declRows)
             lines.Add($"  defined: {d.project}  {d.file}:{d.line}");
 
+        // Known-issue fix: contract != 'decl' excludes a symbol's own declaration row from its "used by"
+        // count — a declaration is not a use, and is already reported above as "defined:".
         List<(string project, int sites, int files)> byProject = new();
         using (SqliteCommand c = connection.CreateCommand())
         {
             c.CommandText = @"SELECT project, COUNT(*), COUNT(DISTINCT file) FROM edges
-                WHERE symbol=$s AND project IS NOT NULL AND project != ''
+                WHERE symbol=$s AND project IS NOT NULL AND project != '' AND contract != 'decl'
                 GROUP BY project ORDER BY 2 DESC";
             c.Parameters.AddWithValue("$s", resolved);
             using SqliteDataReader r = c.ExecuteReader();

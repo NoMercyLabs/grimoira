@@ -1268,11 +1268,14 @@ public static partial class AitmTools
         foreach ((string project, string file, int line, string usage) d in declRows)
             lines.Add($"  defined: {d.project}  {d.file}:{d.line}");
 
+        // Known-issue fix (RESTRUCTURE.md slice 13): contract != 'decl' excludes a symbol's own
+        // declaration row from its "used by" count — a declaration is not a use, and is already
+        // reported above as "defined:".
         List<(string project, int sites, int files)> byProject = new();
         using (SqliteCommand c = con.CreateCommand())
         {
             c.CommandText = @"SELECT project, COUNT(*), COUNT(DISTINCT file) FROM edges
-                WHERE symbol=$s AND project IS NOT NULL AND project != ''
+                WHERE symbol=$s AND project IS NOT NULL AND project != '' AND contract != 'decl'
                 GROUP BY project ORDER BY 2 DESC";
             c.Parameters.AddWithValue("$s", resolved);
             using SqliteDataReader r = c.ExecuteReader();
