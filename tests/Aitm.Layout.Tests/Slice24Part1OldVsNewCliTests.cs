@@ -156,9 +156,44 @@ public class Slice24Part1OldVsNewCliTests
     [Fact]
     public void ImportMatchesOldBehaviourOnAMissingFromFlag() => AssertParity(["init"], "import");
 
-    // backup — VACUUM INTO (the new path) refuses to write over an existing file, unlike the old
-    // wal-checkpoint-then-File.Copy, so each binary needs its own --to destination; both are normalized
-    // to the same placeholder before the messages are compared.
+    // add --why — the message text doesn't carry the flag, so parity here needs the mutation-log row
+    // itself, not just stdout. Oracle: aitm.cs's AddCmd() (aitm.cs:2417) logs GetFlag("--why") ?? "manual".
+    [Fact]
+    public void AddLogsTheWhyFlagToTheMutationLogLikeTheOldCli()
+    {
+        string oldInstance = AitmCliRunner.NewTestInstance("p1o-why");
+        string newInstance = AitmCliRunner.NewTestInstance("p1n-why");
+        try
+        {
+            string oldDll = OldVsNewCli.OracleDll();
+            string newDll = OldVsNewCli.BinCliDll();
+            OldVsNewCli.Run(oldDll, oldInstance, "init");
+            OldVsNewCli.Run(newDll, newInstance, "init");
+
+            OldVsNewCli.Run(oldDll, oldInstance,
+                "add --term why-fixture --value one --category manual --provenance stated --why \"reason X\"");
+            OldVsNewCli.Run(newDll, newInstance,
+                "add --term why-fixture --value one --category manual --provenance stated --why \"reason X\"");
+
+            Assert.Equal("reason X", ReadWhy(AitmCliRunner.InstanceDbPath(oldInstance)));
+            Assert.Equal("reason X", ReadWhy(AitmCliRunner.InstanceDbPath(newInstance)));
+        }
+        finally
+        {
+            AitmCliRunner.DeleteInstance(oldInstance);
+            AitmCliRunner.DeleteInstance(newInstance);
+        }
+    }
+
+    private static string? ReadWhy(string dbPath)
+    {
+        using Microsoft.Data.Sqlite.SqliteConnection connection = new($"Data Source={dbPath};Mode=ReadOnly");
+        connection.Open();
+        using Microsoft.Data.Sqlite.SqliteCommand select = connection.CreateCommand();
+        select.CommandText = "SELECT why FROM mutations WHERE k='why-fixture' ORDER BY id DESC LIMIT 1";
+        return select.ExecuteScalar() as string;
+    }
+
     [Fact]
     public void BackupMatchesOldBehaviourWithAnExplicitDestination()
     {
@@ -191,6 +226,60 @@ public class Slice24Part1OldVsNewCliTests
             if (File.Exists(oldDest)) File.Delete(oldDest);
             if (File.Exists(newDest)) File.Delete(newDest);
         }
+    }
+
+    // backup twice to the SAME --to path — the old wal-checkpoint-then-File.Copy(overwrite: true)
+    // always replaced an existing destination; VACUUM INTO refuses to write over one, so BackupTool has
+    // to build into a temp file and swap it into place to keep that behaviour byte-for-byte.
+    [Fact]
+    public void BackupOverwritesAnExistingDestinationLikeTheOldCli()
+    {
+        string oldInstance = AitmCliRunner.NewTestInstance("p1o-backup-twice");
+        string newInstance = AitmCliRunner.NewTestInstance("p1n-backup-twice");
+        string oldDest = Path.Combine(Path.GetTempPath(), "aitm-slice24-backup-twice-old-" + Guid.NewGuid().ToString("N") + ".db");
+        string newDest = Path.Combine(Path.GetTempPath(), "aitm-slice24-backup-twice-new-" + Guid.NewGuid().ToString("N") + ".db");
+        try
+        {
+            string oldDll = OldVsNewCli.OracleDll();
+            string newDll = OldVsNewCli.BinCliDll();
+            OldVsNewCli.Run(oldDll, oldInstance, "init");
+            OldVsNewCli.Run(newDll, newInstance, "init");
+            OldVsNewCli.Run(oldDll, oldInstance, "add --term backed-up-first --value v --category manual");
+            OldVsNewCli.Run(newDll, newInstance, "add --term backed-up-first --value v --category manual");
+
+            OldVsNewCli.Run(oldDll, oldInstance, $"backup --to \"{oldDest}\"");
+            OldVsNewCli.Run(newDll, newInstance, $"backup --to \"{newDest}\"");
+
+            OldVsNewCli.Run(oldDll, oldInstance, "add --term backed-up-second --value v --category manual");
+            OldVsNewCli.Run(newDll, newInstance, "add --term backed-up-second --value v --category manual");
+
+            OldVsNewCli.Result oldResult = OldVsNewCli.Run(oldDll, oldInstance, $"backup --to \"{oldDest}\"");
+            OldVsNewCli.Result newResult = OldVsNewCli.Run(newDll, newInstance, $"backup --to \"{newDest}\"");
+
+            Assert.Equal(oldResult.Stdout.Replace(oldDest, "<dest>"), newResult.Stdout.Replace(newDest, "<dest>"));
+            Assert.Equal(oldResult.Stderr, newResult.Stderr);
+            Assert.Equal(oldResult.ExitCode, newResult.ExitCode);
+            Assert.Equal(0, oldResult.ExitCode);
+            Assert.True(File.Exists(oldDest));
+            Assert.True(File.Exists(newDest));
+            AssertIntegrityOk(newDest);
+        }
+        finally
+        {
+            AitmCliRunner.DeleteInstance(oldInstance);
+            AitmCliRunner.DeleteInstance(newInstance);
+            if (File.Exists(oldDest)) File.Delete(oldDest);
+            if (File.Exists(newDest)) File.Delete(newDest);
+        }
+    }
+
+    private static void AssertIntegrityOk(string dbPath)
+    {
+        using Microsoft.Data.Sqlite.SqliteConnection connection = new($"Data Source={dbPath};Mode=ReadOnly");
+        connection.Open();
+        using Microsoft.Data.Sqlite.SqliteCommand check = connection.CreateCommand();
+        check.CommandText = "PRAGMA integrity_check";
+        Assert.Equal("ok", (string)check.ExecuteScalar()!);
     }
 
     // index-packages walks a real directory, so it gets its own fixture to build one.

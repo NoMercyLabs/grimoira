@@ -52,6 +52,61 @@ public class AddToolTests
     }
 
     [Fact]
+    public void LogsTheWhyFlagToTheMutationLog()
+    {
+        // Oracle: aitm.cs's AddCmd() (aitm.cs:2417) logs GetFlag("--why") ?? "manual" to the mutation
+        // log via UpsertFact's `why` parameter (aitm.cs:616) — not the hardcoded "manual" AddTool used
+        // to pass regardless of what the caller asked for.
+        string instance = AitmCliRunner.NewTestInstance("add-why");
+        try
+        {
+            AitmCliRunner.Run($"init --instance {instance}");
+            string dbPath = AitmCliRunner.InstanceDbPath(instance);
+            using (SqliteConnection connection = StoreConnection.Open(dbPath))
+            {
+                new AddTool().Execute(connection, "why-fixture", "[]", "manual", "one", "", "", "stated", "reason X");
+            }
+
+            using SqliteConnection check = new($"Data Source={dbPath};Mode=ReadOnly");
+            check.Open();
+            using SqliteCommand select = check.CreateCommand();
+            select.CommandText = "SELECT why FROM mutations WHERE k='why-fixture' ORDER BY id DESC LIMIT 1";
+            object? why = select.ExecuteScalar();
+            Assert.Equal("reason X", why);
+        }
+        finally
+        {
+            AitmCliRunner.DeleteInstance(instance);
+        }
+    }
+
+    [Fact]
+    public void DefaultsTheWhyFlagToManualLikeTheOldCli()
+    {
+        string instance = AitmCliRunner.NewTestInstance("add-why-default");
+        try
+        {
+            AitmCliRunner.Run($"init --instance {instance}");
+            string dbPath = AitmCliRunner.InstanceDbPath(instance);
+            using (SqliteConnection connection = StoreConnection.Open(dbPath))
+            {
+                new AddTool().Execute(connection, "why-default-fixture", "[]", "manual", "one", "", "", "stated");
+            }
+
+            using SqliteConnection check = new($"Data Source={dbPath};Mode=ReadOnly");
+            check.Open();
+            using SqliteCommand select = check.CreateCommand();
+            select.CommandText = "SELECT why FROM mutations WHERE k='why-default-fixture' ORDER BY id DESC LIMIT 1";
+            object? why = select.ExecuteScalar();
+            Assert.Equal("manual", why);
+        }
+        finally
+        {
+            AitmCliRunner.DeleteInstance(instance);
+        }
+    }
+
+    [Fact]
     public void RejectsAnUnknownProvenance()
     {
         string instance = AitmCliRunner.NewTestInstance("add-bad-provenance");

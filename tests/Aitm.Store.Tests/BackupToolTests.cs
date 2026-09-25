@@ -56,6 +56,55 @@ public class BackupToolTests
         }
     }
 
+    // Oracle: the old aitm.cs Backup() (aitm.cs:1983-1991) checkpointed the WAL then did
+    // File.Copy(dbPath, dest, overwrite: true) — a second backup to the same --to path always
+    // succeeded and replaced the earlier file. VACUUM INTO refuses to write over an existing file, so
+    // BackupTool has to build into a temp file and swap it into place to keep that behaviour.
+    [Fact]
+    public void OverwritesAnExistingDestinationFileLikeTheOldFileCopyBackup()
+    {
+        string instance = AitmCliRunner.NewTestInstance("backup-overwrite");
+        string dest = Path.Combine(Path.GetTempPath(), $"aitm-store-tests-overwrite-{Guid.NewGuid():N}.db");
+        try
+        {
+            AitmCliRunner.Run($"init --instance {instance}");
+            AitmCliRunner.Run($"add --instance {instance} --term backup-overwrite-one --value one --category manual");
+
+            string dbPath = AitmCliRunner.InstanceDbPath(instance);
+            using (SqliteConnection connection = StoreConnection.Open(dbPath))
+            {
+                new BackupTool().Execute(connection, AitmCliRunner.InstanceDir(instance), dest);
+            }
+            Assert.True(File.Exists(dest));
+
+            AitmCliRunner.Run($"add --instance {instance} --term backup-overwrite-two --value two --category manual");
+            using (SqliteConnection connection = StoreConnection.Open(dbPath))
+            {
+                string message = new BackupTool().Execute(connection, AitmCliRunner.InstanceDir(instance), dest);
+                Assert.Contains(dest, message);
+            }
+
+            Dictionary<string, long> secondCounts = RowCounts(dest);
+            Assert.True(secondCounts["facts"] >= 2);
+            AssertIntegrityOk(dest);
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            try { File.Delete(dest); } catch (IOException) { }
+            AitmCliRunner.DeleteInstance(instance);
+        }
+    }
+
+    private static void AssertIntegrityOk(string dbPath)
+    {
+        using SqliteConnection connection = new($"Data Source={dbPath};Mode=ReadOnly");
+        connection.Open();
+        using SqliteCommand check = connection.CreateCommand();
+        check.CommandText = "PRAGMA integrity_check";
+        Assert.Equal("ok", (string)check.ExecuteScalar()!);
+    }
+
     private static Dictionary<string, long> RowCounts(string dbPath)
     {
         using SqliteConnection connection = new($"Data Source={dbPath};Mode=ReadOnly");
