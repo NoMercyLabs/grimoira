@@ -34,6 +34,11 @@ function invoke({ dllExists, buildResult, dataDir } = {}) {
     // process-owner.mjs stand-in — never exercise the real ownership pilot here.
     pilotRoot: () => null,
     launchOwned: () => null,
+    // build-stamp.mjs stand-in: the source's import line is stripped before the vm runs it (see below),
+    // so needsBuild has to come from somewhere — mirror the one branch these tests exercise (build
+    // needed exactly when the dll is missing) rather than reaching into real file hashing.
+    needsBuild: () => !dllExists,
+    writeStamp: () => {},
     process: {
       env: dataDir ? { CLAUDE_PLUGIN_DATA: dataDir } : {},
       argv: ['node', 'launch-mcp.mjs'],

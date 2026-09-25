@@ -16,3 +16,6 @@ obj/
 seeds/
 probe/runs/
 ship-msg*.txt
+
+# Disposable fixture trees a test builds and deletes; never real content.
+.test-fixtures/
