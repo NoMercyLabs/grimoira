@@ -61,8 +61,14 @@ public sealed class BrainPlaceTool : ITool
         c.Parameters.AddWithValue("$kind", kind);
         (string output, _) = BrainCliRows.RunReader(c);
         BrainUsage.Reinforce(connection, [kind]);
-        return output;
+        // RunReader's output already ends with one AppendLine terminator; the CLI dispatch wraps this
+        // return value in one more Console.WriteLine, so strip that one terminator here (same fix as
+        // part 2's MemTool/DocTool/RecallTool) rather than double it into an extra blank line.
+        return StripOneTrailingNewLine(output);
     }
+
+    private static string StripOneTrailingNewLine(string s) =>
+        s.EndsWith(Environment.NewLine, StringComparison.Ordinal) ? s[..^Environment.NewLine.Length] : s;
 
     public string ExecuteMcp(SqliteConnection connection, string codekind)
     {

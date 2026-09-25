@@ -39,8 +39,15 @@ public sealed class BrainWhyTool : ITool
         Q("in (X -> this)", "SELECT s,p FROM triple_now WHERE o=$k AND o_is_literal=0 ORDER BY p");
         Q("slots", "SELECT name,value FROM slot_now WHERE frame_k=$k ORDER BY name");
         Q("refs", "SELECT channel,payload_k FROM ref WHERE node_k=$k");
-        return sb.ToString();
+        // The last Q() call's RunReader output already ends with one AppendLine terminator; the CLI
+        // dispatch wraps this return value in one more Console.WriteLine, so strip that one terminator
+        // here (same fix as part 2's MemTool/DocTool/RecallTool) rather than double it into an extra
+        // blank line.
+        return StripOneTrailingNewLine(sb.ToString());
     }
+
+    private static string StripOneTrailingNewLine(string s) =>
+        s.EndsWith(Environment.NewLine, StringComparison.Ordinal) ? s[..^Environment.NewLine.Length] : s;
 
     private static long ScalarLong(SqliteConnection connection, string sql, string k)
     {

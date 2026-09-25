@@ -6,6 +6,8 @@
 // RESTRUCTURE.md slice 24, CLI lane part 3: aitm.cs's Graph verbs (project, projects, forget-project,
 // extract-edges, candidates, promote, promote-all, seed-edges, impact, graph-query, graph-path,
 // graph-explain) dispatch to their Aitm.Graph tool classes the same way.
+// RESTRUCTURE.md slice 24, CLI lane part 4a: the Brain-read sub-verbs (core, scope, common, place, why,
+// stale, gaps, verify, audit, export) do the same, nested inside BrainCmd's own switch.
 // RESTRUCTURE.md slice 24, CLI lane part 4b: the Brain write verbs (learn, learn-batch, set-hard, merge,
 // forget, unlink, shed-node, tidy, distill) do the same.
 #:project src/Aitm.Store/Aitm.Store.csproj
@@ -856,10 +858,10 @@ void BrainCmd(List<string> rest)
     List<string> rargs = rest.Skip(1).ToList();
     switch (sub)
     {
-        case "core": BrainCore(); break;
-        case "scope": BrainScope(rargs); break;
-        case "common": BrainCommon(rargs); break;
-        case "place": BrainPlace(rargs.FirstOrDefault() ?? ""); break;
+        case "core": Console.WriteLine(new BrainCoreTool().ExecuteCli(db)); break;
+        case "scope": Console.WriteLine(new BrainScopeTool().ExecuteCli(db, rargs)); break;
+        case "common": Console.WriteLine(new BrainCommonTool().ExecuteCli(db, rargs)); break;
+        case "place": Console.WriteLine(new BrainPlaceTool().ExecuteCli(db, rargs.FirstOrDefault() ?? "")); break;
         case "recall": BrainRecall(string.Join(' ', rargs)); break;
         case "impact": BrainImpact(string.Join(' ', rargs)); break;
         case "learn":
@@ -877,20 +879,18 @@ void BrainCmd(List<string> rest)
             if (rargs.Count < 2) { Console.WriteLine("usage: brain set-hard <node-key> <0|1>"); break; }
             Console.WriteLine(new BrainSetHardTool().Execute(db, rargs[0], rargs[1] == "1"));
             break;
-        case "export": BrainExport(GetFlag("--to") ?? Path.Combine(root, "brain-export.txt")); break;
-        case "audit": BrainAudit(); break;
+        case "export": Console.WriteLine(new BrainExportTool().ExecuteCli(db, GetFlag("--to") ?? Path.Combine(root, "brain-export.txt"))); break;
+        case "audit": Console.WriteLine(new BrainAuditTool().Execute(db, instance)); break;
         case "tidy": Console.WriteLine(new BrainTidyTool().Execute(db, root)); break;
         case "why":
-            if (rargs.Count < 1) { Console.WriteLine("usage: brain why <node-key>"); break; }
-            BrainWhy(rargs[0]);
+            Console.WriteLine(rargs.Count < 1 ? "usage: brain why <node-key>" : new BrainWhyTool().Execute(db, rargs[0]));
             break;
         case "merge":
             if (rargs.Count < 2) { Console.WriteLine("usage: brain merge <from-key> <into-key>"); break; }
             Console.WriteLine(new BrainMergeTool().Execute(db, root, rargs[0], rargs[1]));
             break;
         case "verify":
-            if (rargs.Count < 1) { Console.WriteLine("usage: brain verify <node-key>"); break; }
-            BrainVerify(rargs[0]);
+            Console.WriteLine(rargs.Count < 1 ? "usage: brain verify <node-key>" : new BrainVerifyTool().Execute(db, rargs[0]));
             break;
         case "forget":
             if (rargs.Count < 1) { Console.WriteLine("usage: brain forget <node-key>"); break; }
@@ -900,44 +900,15 @@ void BrainCmd(List<string> rest)
             if (rargs.Count < 3) { Console.WriteLine("usage: brain unlink <subject> <predicate> <object>"); break; }
             Console.WriteLine(new BrainUnlinkTool().Execute(db, root, rargs[0], rargs[1], rargs[2]));
             break;
-        case "stale": BrainStale(int.TryParse(GetFlag("--days"), out int sd) ? sd : 30); break;
+        case "stale": Console.WriteLine(new BrainStaleTool().Execute(db, int.TryParse(GetFlag("--days"), out int sd) ? sd : 30)); break;
         case "distill": Console.WriteLine(new BrainDistillTool().Execute(db, root)); break;
         case "seed": BrainSeed(); break;
         case "stats": BrainStats(); break;
-        case "gaps": BrainGaps(); break;
+        case "gaps": Console.WriteLine(new BrainGapsTool().ExecuteCli(db)); break;
         default:
             Console.WriteLine("brain <core|scope <proj…>|common <proj…>|place <codekind>|recall <text>|impact <symbol>|learn …|gaps|distill|stats>");
             break;
     }
-}
-
-// project token -> node key: a 'proj:' (or any 'x:') key passes through; a short alias resolves via proj_alias;
-// otherwise assume a bare slug and prefix 'proj:'.
-string NormalizeProject(string input)
-{
-    string t = input.Trim();
-    if (t.Contains(':')) return t;
-    return ScalarText("SELECT k FROM proj_alias WHERE short=$s", ("$s", t)) ?? ("proj:" + t);
-}
-
-string NormalizeKind(string input)
-{
-    string t = input.Trim();
-    return t.Contains(':') ? t : "kind:" + t;
-}
-
-void PrintReader(SqliteDataReader r)
-{
-    int n = 0;
-    while (r.Read())
-    {
-        List<string> cols = new();
-        for (int i = 0; i < r.FieldCount; i++)
-            cols.Add(r.IsDBNull(i) ? "" : Convert.ToString(r.GetValue(i), CultureInfo.InvariantCulture) ?? "");
-        Console.WriteLine("  " + string.Join("  |  ", cols));
-        n++;
-    }
-    if (n == 0) Console.WriteLine("  (nothing)");
 }
 
 // Execute, print, and return each row's first column (the node key for a brain read). The reader is disposed
@@ -970,94 +941,6 @@ void Reinforce(IEnumerable<string> keys)
         Run("INSERT INTO usage(node_k,hits,last_used) SELECT $k,1,$ts WHERE EXISTS(SELECT 1 FROM node_now WHERE k=$k) " +
             "ON CONFLICT(node_k) DO UPDATE SET hits=hits+1, last_used=$ts",
             ("$k", k), ("$ts", Now()));
-}
-
-// Always-on slice — the hard=1 nodes that replace the 24KB always-loaded MEMORY.md. Pulled at turn start.
-void BrainCore()
-{
-    using SqliteCommand c = db.CreateCommand();
-    c.CommandText = "SELECT k, kind, label, gloss FROM node_now WHERE hard = 1 ORDER BY scheme, kind, k";
-    using SqliteDataReader r = c.ExecuteReader();
-    PrintReader(r);
-}
-
-// Scoping — everything spanning the given projects, shared concerns floated to top (scope=N), direction
-// preserved (who exposes vs who consumes), salience-ordered.
-void BrainScope(List<string> projects)
-{
-    if (projects.Count < 1) { Console.WriteLine("usage: brain scope <projectA> <projectB> [...]"); return; }
-    List<string> keys = projects.Select(NormalizeProject).ToList();
-    string values = string.Join(",", keys.Select((_, i) => $"($p{i})"));
-    using SqliteCommand c = db.CreateCommand();
-    c.CommandText = $@"WITH targets(k) AS (VALUES {values})
-        SELECT t.o AS topic, n.label, n.gloss, n.scheme, n.hard,
-               COUNT(DISTINCT t.s) AS scope,
-               group_concat(DISTINCT t.s||':'||t.p) AS who_and_how,
-               ROUND(SUM(t.conf),2) AS weight
-        FROM triple_now t
-        JOIN targets g ON g.k = t.s
-        JOIN node_now n ON n.k = t.o
-        WHERE t.p IN (SELECT p FROM pred_vocab WHERE is_sharing=1) AND t.o_is_literal = 0
-        GROUP BY t.o
-        ORDER BY n.hard DESC, scope DESC, weight DESC, n.scheme";
-    for (int i = 0; i < keys.Count; i++) c.Parameters.AddWithValue($"$p{i}", keys[i]);
-    Reinforce(RunReader(c));
-}
-
-// Intersection — what the given projects share. Coverage-tolerant: returns shared_by + present_n + the
-// unresolved list, so a near-miss surfaces and a typo'd project is echoed, never silently dropped.
-void BrainCommon(List<string> projects)
-{
-    if (projects.Count < 2) { Console.WriteLine("usage: brain common <projA> <projB> [projC ...]"); return; }
-    List<string> keys = projects.Select(NormalizeProject).ToList();
-    string values = string.Join(",", keys.Select((_, i) => $"($p{i})"));
-    using SqliteCommand c = db.CreateCommand();
-    c.CommandText = $@"WITH req(name) AS (VALUES {values}),
-        present AS (SELECT DISTINCT n.k FROM req JOIN node_now n ON n.k = req.name)
-        SELECT t.o AS shared, n.label, n.gloss, n.scheme,
-               COUNT(DISTINCT t.s) AS shared_by,
-               (SELECT COUNT(*) FROM present) AS present_n,
-               (SELECT group_concat(name) FROM req WHERE name NOT IN (SELECT k FROM present)) AS unresolved
-        FROM triple_now t
-        JOIN present pr ON pr.k = t.s
-        JOIN node_now n ON n.k = t.o
-        WHERE t.p IN (SELECT p FROM pred_vocab WHERE is_sharing=1) AND t.o_is_literal = 0
-        GROUP BY t.o
-        HAVING COUNT(DISTINCT t.s) >= 2
-        ORDER BY shared_by DESC, n.scheme, n.label";
-    for (int i = 0; i < keys.Count; i++) c.Parameters.AddWithValue($"$p{i}", keys[i]);
-    Reinforce(RunReader(c));
-}
-
-// Placement — where new code of a kind goes AND how it's written here, inheriting project/layer conventions
-// up the broader chain (nearest frame wins), plus belongs_in and forbidden patterns. One recursive query.
-void BrainPlace(string codekind)
-{
-    if (codekind.Length == 0) { Console.WriteLine("usage: brain place <codekind>"); return; }
-    string kind = NormalizeKind(codekind);
-    using SqliteCommand c = db.CreateCommand();
-    c.CommandText = @"WITH RECURSIVE chain(k,depth) AS (
-          SELECT $kind, 0
-          UNION ALL
-          SELECT t.o, c.depth+1 FROM triple_now t JOIN chain c ON t.s = c.k
-          WHERE t.p = 'broader' AND c.depth < 6),
-        ranked AS (
-          SELECT s.name, s.value, s.facet, s.because,
-                 ROW_NUMBER() OVER (PARTITION BY s.name ORDER BY c.depth, s.id) AS rn
-          FROM chain c JOIN slot_now s ON s.frame_k = c.k)
-        SELECT name AS slot, value, facet, because FROM ranked WHERE rn = 1
-        UNION ALL
-        SELECT 'belongs_in', t.o, 'ref:node', n.gloss
-        FROM triple_now t JOIN node_now n ON n.k = t.o
-        WHERE t.s = $kind AND t.p = 'belongs_in'
-        UNION ALL
-        SELECT 'forbidden', t.o, 'ref:rule', n.gloss
-        FROM triple_now t JOIN node_now n ON n.k = t.o
-        WHERE t.s = $kind AND t.p = 'forbids'
-        ORDER BY 1";
-    c.Parameters.AddWithValue("$kind", kind);
-    RunReader(c);
-    Reinforce(new[] { kind });
 }
 
 // Free-text recall — DB-side alias expansion -> porter FTS5 seed (live-filtered) -> same-statement traversal
@@ -1144,16 +1027,6 @@ void BrainStats()
     c.CommandText = "SELECT kind, count(*) FROM node_now GROUP BY kind ORDER BY 2 DESC";
     using SqliteDataReader r = c.ExecuteReader();
     while (r.Read()) Console.WriteLine($"    {r.GetString(0),-12} {r.GetInt32(1)}");
-}
-
-void BrainGaps()
-{
-    using SqliteCommand c = db.CreateCommand();
-    c.CommandText = "SELECT misses, tool, query, substr(last_ts,1,10) FROM gaps WHERE status='open' ORDER BY misses DESC, last_ts DESC LIMIT 25";
-    using SqliteDataReader r = c.ExecuteReader();
-    int n = 0;
-    while (r.Read()) { Console.WriteLine($"  {r.GetInt32(0)}x [{r.GetString(1)}] {r.GetString(2)}  (last {r.GetString(3)})"); n++; }
-    Console.WriteLine(n == 0 ? "  no open gaps." : $"  ({n} open gap(s) — answer one and `brain learn` it; a matching learn auto-resolves)");
 }
 
 // --- Write primitives (the write-last path). Caller owns the transaction. Supersede, never delete; the
@@ -1283,28 +1156,6 @@ void BrainVerify(string k)
     Console.WriteLine($"verified {k} (confirmed against current code).");
 }
 
-// Surface knowledge that was asserted long ago and never re-confirmed — the candidates most likely to have
-// rotted as the code drifted. The freshness signal the confident graph was missing.
-void BrainStale(int days)
-{
-    using SqliteCommand c = db.CreateCommand();
-    c.CommandText = @"SELECT n.k, CAST(julianday('now')-julianday(n.valid_from) AS INT) AS age_days,
-            CAST(julianday('now')-julianday(u.verified_at) AS INT) AS since_verified
-        FROM node_now n LEFT JOIN usage u ON u.node_k=n.k
-        WHERE julianday('now')-julianday(n.valid_from) > $d
-          AND (u.verified_at IS NULL OR julianday('now')-julianday(u.verified_at) > $d)
-        ORDER BY age_days DESC LIMIT 25";
-    c.Parameters.AddWithValue("$d", days);
-    using SqliteDataReader r = c.ExecuteReader();
-    int n = 0;
-    while (r.Read())
-    {
-        Console.WriteLine($"  {r.GetInt32(1),5}d  {r.GetString(0)}  ({(r.IsDBNull(2) ? "never confirmed" : r.GetInt32(2) + "d since confirm")})");
-        n++;
-    }
-    Console.WriteLine($"  ({n} node(s) older than {days}d and unconfirmed; re-check, then: aitm brain verify <key>)");
-}
-
 // Dedup: fold a duplicate node into the canonical one. Re-points triples (subject + link object), slots, refs
 // and usage with collision-safe guards (a move that would duplicate a live edge/slot is dropped instead),
 // sums usage counts, then retires the source via supersession. FTS stays correct because reads join node_now.
@@ -1336,67 +1187,6 @@ void BrainMerge(string from, string to)
     LogMutation("node", from, "merge", from, to, $"merged into {to}");
     Exec("COMMIT");
     Console.WriteLine($"merged {from} -> {to}.");
-}
-
-// One-node 360 view: the node itself, its outgoing and incoming edges, its slots, and its channel refs —
-// everything the brain knows about a single thing, in one read.
-void BrainWhy(string k)
-{
-    if (ScalarLong("SELECT count(*) FROM node_now WHERE k=$k", ("$k", k)) == 0) { Console.WriteLine($"no live node '{k}'."); return; }
-    void Q(string label, string sql)
-    {
-        Console.WriteLine($"  {label}:");
-        using SqliteCommand c = db.CreateCommand();
-        c.CommandText = sql;
-        c.Parameters.AddWithValue("$k", k);
-        RunReader(c);
-    }
-    Q("self", "SELECT kind,label,gloss,COALESCE(scheme,''),'hard='||hard FROM node_now WHERE k=$k");
-    Q("out (this -> X)", "SELECT p,o,because FROM triple_now WHERE s=$k ORDER BY p");
-    Q("in (X -> this)", "SELECT s,p FROM triple_now WHERE o=$k AND o_is_literal=0 ORDER BY p");
-    Q("slots", "SELECT name,value FROM slot_now WHERE frame_k=$k ORDER BY name");
-    Q("refs", "SELECT channel,payload_k FROM ref WHERE node_k=$k");
-}
-
-// Read-only integrity report: surfaces the knowledge-hygiene issues worth fixing (isolated nodes, duplicate
-// labels, incomplete placement frames, seams with no consumer, and any dead-reference triples).
-void BrainAudit()
-{
-    Console.WriteLine($"brain audit ({instance}):");
-    void Section(string label, string sql)
-    {
-        long n = ScalarLong($"SELECT count(*) FROM ({sql})");
-        Console.WriteLine($"  {label,-36} {n}");
-        if (n is > 0 and <= 12)
-        {
-            using SqliteCommand c = db.CreateCommand();
-            c.CommandText = sql + " LIMIT 12";
-            using SqliteDataReader r = c.ExecuteReader();
-            while (r.Read()) Console.WriteLine($"      - {r.GetString(0)}");
-        }
-    }
-    Section("orphan nodes (no edge/slot/ref)",
-        "SELECT k FROM node_now n WHERE NOT EXISTS(SELECT 1 FROM triple_now t WHERE t.s=n.k OR (t.o=n.k AND t.o_is_literal=0)) AND NOT EXISTS(SELECT 1 FROM slot_now s WHERE s.frame_k=n.k) AND NOT EXISTS(SELECT 1 FROM ref r WHERE r.node_k=n.k)");
-    Section("duplicate labels",
-        "SELECT label||' ('||count(*)||')' FROM node_now GROUP BY lower(label) HAVING count(*)>1");
-    Section("codekinds with no placement slots",
-        "SELECT k FROM node_now WHERE kind='codekind' AND NOT EXISTS(SELECT 1 FROM slot_now s WHERE s.frame_k=node_now.k)");
-    Section("codekinds with no belongs_in",
-        "SELECT k FROM node_now WHERE kind='codekind' AND NOT EXISTS(SELECT 1 FROM triple_now t WHERE t.s=node_now.k AND t.p='belongs_in')");
-    Section("seams nobody consumes",
-        "SELECT k FROM node_now WHERE kind='seam' AND NOT EXISTS(SELECT 1 FROM triple_now t WHERE t.o=k AND t.p='consumes')");
-    Section("triples with a dead subject",
-        "SELECT s||' '||p||' '||o FROM triple_now t WHERE NOT EXISTS(SELECT 1 FROM node_now n WHERE n.k=t.s)");
-    Section("link-triples with a dead object",
-        "SELECT s||' '||p||' '||o FROM triple_now t WHERE o_is_literal=0 AND NOT EXISTS(SELECT 1 FROM node_now n WHERE n.k=t.o)");
-    Section("contradictions (conflicting predicates)",
-        "SELECT DISTINCT t1.s||' ['||min(t1.p,t2.p)||' vs '||max(t1.p,t2.p)||'] '||t1.o FROM triple_now t1 JOIN pred_vocab v ON v.p=t1.p AND v.conflicts IS NOT NULL JOIN triple_now t2 ON t2.s=t1.s AND t2.o=t1.o AND t2.p=v.conflicts");
-    Section("nodes with empty gloss",
-        "SELECT k FROM node_now WHERE (gloss IS NULL OR gloss='') AND kind NOT IN ('codekind')");
-    Section("nodes with no scheme",
-        "SELECT k FROM node_now WHERE scheme IS NULL OR scheme=''");
-    Section("scrambled writes (paragraph label/kind)",
-        "SELECT k FROM node_now WHERE length(label) > 90 OR length(kind) > 30 OR kind LIKE '% %'");
 }
 
 // Write-side brake. "Get smarter over time" needs NEW knowledge to actually land, and brain_learn is
@@ -1470,38 +1260,6 @@ void FlushCmd()
     File.Delete(ledger);
     ResolveGaps(string.Join(' ', lines));
     Console.WriteLine($"flushed {n} learning(s) into the brain.");
-}
-
-// Diffable, re-importable snapshot of the live graph in the learn-batch format (nodes, then triples, then
-// slots — the order learn-batch needs). '|' inside a value is sanitized so a round-trip never corrupts.
-void BrainExport(string to)
-{
-    static string San(string s) => s.Replace("|", "/").Replace("\r", " ").Replace("\n", " ");
-    StringBuilder sb = new();
-    sb.AppendLine("# brain graph export — re-import: aitm brain learn-batch --from <this-file>");
-    using (SqliteCommand c = db.CreateCommand())
-    {
-        c.CommandText = "SELECT k,kind,label,gloss,hard,COALESCE(scheme,'') FROM node_now ORDER BY kind,k";
-        using SqliteDataReader r = c.ExecuteReader();
-        while (r.Read())
-            sb.AppendLine($"node | {San(r.GetString(0))} | {San(r.GetString(1))} | {San(r.GetString(2))} | {San(r.GetString(3))} | {r.GetInt32(4)} | {San(r.GetString(5))}");
-    }
-    using (SqliteCommand c = db.CreateCommand())
-    {
-        c.CommandText = "SELECT s,p,o,COALESCE(because,'') FROM triple_now ORDER BY s,p,o";
-        using SqliteDataReader r = c.ExecuteReader();
-        while (r.Read())
-            sb.AppendLine($"triple | {San(r.GetString(0))} | {San(r.GetString(1))} | {San(r.GetString(2))} | {San(r.GetString(3))}");
-    }
-    using (SqliteCommand c = db.CreateCommand())
-    {
-        c.CommandText = "SELECT frame_k,name,value,COALESCE(facet,'text'),multi FROM slot_now ORDER BY frame_k,name,value";
-        using SqliteDataReader r = c.ExecuteReader();
-        while (r.Read())
-            sb.AppendLine($"slot | {San(r.GetString(0))} | {San(r.GetString(1))} | {San(r.GetString(2))} | {San(r.GetString(3))} | {r.GetInt32(4)}");
-    }
-    File.WriteAllText(to, sb.ToString());
-    Console.WriteLine($"exported {ScalarLong("SELECT count(*) FROM node_now")} nodes / {ScalarLong("SELECT count(*) FROM triple_now")} triples / {ScalarLong("SELECT count(*) FROM slot_now")} slots -> {to}");
 }
 
 // PHASE B — the curated spine: the ecosystem as its operator holds it in their head (projects, platforms, shared

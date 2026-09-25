@@ -28,8 +28,16 @@ public sealed class BrainCoreTool : ITool
         using SqliteCommand c = connection.CreateCommand();
         c.CommandText = "SELECT k, kind, label, gloss FROM node_now WHERE hard = 1 ORDER BY scheme, kind, k";
         using SqliteDataReader r = c.ExecuteReader();
-        return BrainCliRows.PrintReader(r);
+        // PrintReader builds its output with AppendLine, so the returned string already ends with one
+        // line terminator (aitm.cs's old BrainCore printed each row with its own Console.WriteLine
+        // instead, ending with exactly one terminator too) — the CLI dispatch wraps this return value in
+        // one more Console.WriteLine, so without stripping, the terminator would double into an extra
+        // blank line the old CLI never had (same fix as part 2's MemTool/DocTool/RecallTool).
+        return StripOneTrailingNewLine(BrainCliRows.PrintReader(r));
     }
+
+    private static string StripOneTrailingNewLine(string s) =>
+        s.EndsWith(Environment.NewLine, StringComparison.Ordinal) ? s[..^Environment.NewLine.Length] : s;
 
     public string ExecuteMcp(SqliteConnection connection)
     {

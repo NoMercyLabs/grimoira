@@ -40,6 +40,12 @@ public sealed class BrainStaleTool : ITool
             n++;
         }
         sb.AppendLine($"  ({n} node(s) older than {days}d and unconfirmed; re-check, then: aitm brain verify <key>)");
-        return sb.ToString();
+        // sb already ends with one AppendLine terminator; the CLI dispatch wraps this return value in one
+        // more Console.WriteLine, so strip that one terminator here (same fix as part 2's
+        // MemTool/DocTool/RecallTool) rather than double it into an extra blank line.
+        return StripOneTrailingNewLine(sb.ToString());
     }
+
+    private static string StripOneTrailingNewLine(string s) =>
+        s.EndsWith(Environment.NewLine, StringComparison.Ordinal) ? s[..^Environment.NewLine.Length] : s;
 }

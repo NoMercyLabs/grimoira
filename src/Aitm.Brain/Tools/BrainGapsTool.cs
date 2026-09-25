@@ -32,8 +32,14 @@ public sealed class BrainGapsTool : ITool
         int n = 0;
         while (r.Read()) { sb.AppendLine($"  {r.GetInt32(0)}x [{r.GetString(1)}] {r.GetString(2)}  (last {r.GetString(3)})"); n++; }
         sb.AppendLine(n == 0 ? "  no open gaps." : $"  ({n} open gap(s) — answer one and `brain learn` it; a matching learn auto-resolves)");
-        return sb.ToString();
+        // sb already ends with one AppendLine terminator; the CLI dispatch wraps this return value in one
+        // more Console.WriteLine, so strip that one terminator here (same fix as part 2's
+        // MemTool/DocTool/RecallTool) rather than double it into an extra blank line.
+        return StripOneTrailingNewLine(sb.ToString());
     }
+
+    private static string StripOneTrailingNewLine(string s) =>
+        s.EndsWith(Environment.NewLine, StringComparison.Ordinal) ? s[..^Environment.NewLine.Length] : s;
 
     public string ExecuteMcp(SqliteConnection connection)
     {

@@ -57,8 +57,14 @@ public sealed class BrainAuditTool : ITool
             "SELECT k FROM node_now WHERE scheme IS NULL OR scheme=''");
         Section("scrambled writes (paragraph label/kind)",
             "SELECT k FROM node_now WHERE length(label) > 90 OR length(kind) > 30 OR kind LIKE '% %'");
-        return sb.ToString();
+        // sb already ends with one AppendLine terminator; the CLI dispatch wraps this return value in one
+        // more Console.WriteLine, so strip that one terminator here (same fix as part 2's
+        // MemTool/DocTool/RecallTool) rather than double it into an extra blank line.
+        return StripOneTrailingNewLine(sb.ToString());
     }
+
+    private static string StripOneTrailingNewLine(string s) =>
+        s.EndsWith(Environment.NewLine, StringComparison.Ordinal) ? s[..^Environment.NewLine.Length] : s;
 
     private static long ScalarLong(SqliteConnection connection, string sql)
     {
