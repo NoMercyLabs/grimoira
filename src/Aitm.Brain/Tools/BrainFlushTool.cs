@@ -33,6 +33,10 @@ public sealed class BrainFlushTool : ITool
     public string ExecuteCli(SqliteConnection connection)
     {
         string ledger = BrainStageTool.LedgerPath(connection);
+        // See LedgerFileLock's own comment: a second `aitm stage`/`aitm flush` process (or an MCP call)
+        // targeting this same ledger must not interleave with this read-modify-write — held for the whole
+        // read/commit/delete so a stage landing between the read and the delete is never wiped by it.
+        using IDisposable ledgerLock = LedgerFileLock.Acquire(ledger);
         if (!File.Exists(ledger)) return "nothing staged.";
         string[] lines = File.ReadAllLines(ledger).Where(l => l.Trim().Length > 0).ToArray();
         if (lines.Length == 0) { File.Delete(ledger); return "nothing staged."; }
@@ -58,11 +62,10 @@ public sealed class BrainFlushTool : ITool
     public string ExecuteMcp(SqliteConnection connection)
     {
         string ledger = BrainStageTool.LedgerPath(connection);
-        // See LedgerGate's own comment: a pipelined brain_stage/brain_flush (or a second concurrent
-        // brain_flush) targeting this same ledger must not interleave with this read-modify-write.
-        SemaphoreSlim gate = LedgerGate.For(ledger);
-        gate.Wait();
-        try
+        // See LedgerFileLock's own comment: a pipelined brain_stage/brain_flush (or a second concurrent
+        // brain_flush from another process entirely) targeting this same ledger must not interleave with
+        // this read-modify-write.
+        using (LedgerFileLock.Acquire(ledger))
         {
             if (!File.Exists(ledger)) return "nothing staged.";
             string[] lines = File.ReadAllLines(ledger).Where(l => l.Trim().Length > 0).ToArray();
@@ -94,15 +97,24 @@ public sealed class BrainFlushTool : ITool
                 else
                     n++;
             }
-            if (keepForRetry.Count > 0) File.WriteAllLines(ledger, keepForRetry);
+            if (keepForRetry.Count > 0) AtomicWriteAllLines(ledger, keepForRetry);
             else File.Delete(ledger);
             string retryNote = keepForRetry.Count > 0 ? $" {keepForRetry.Count} kept for retry (DB was locked — flush again)." : "";
             return $"flushed {n} learning(s) into the brain.{retryNote}" + (rejects.Length > 0 ? "\n" + rejects : "");
         }
-        finally
-        {
-            gate.Release();
-        }
+    }
+
+    /// <summary>Rewrites the ledger with exactly <paramref name="lines"/>, never leaving a reader (another
+    /// process's <c>list</c>, or this same file re-opened after a crash mid-write) able to observe a
+    /// half-written file: write the new content to a temp file beside the ledger, then rename it over the
+    /// ledger in one filesystem operation. <see cref="File.Move(string, string, bool)"/> is atomic on both
+    /// Windows (a rename within the same volume) and Linux (POSIX <c>rename(2)</c>) as long as the temp
+    /// file is on the same volume, which it is here (same directory).</summary>
+    private static void AtomicWriteAllLines(string path, IReadOnlyList<string> lines)
+    {
+        string tempPath = path + $".tmp-{Guid.NewGuid():N}";
+        File.WriteAllLines(tempPath, lines);
+        File.Move(tempPath, path, overwrite: true);
     }
 
     private static string JStr(JsonElement e, string name) =>

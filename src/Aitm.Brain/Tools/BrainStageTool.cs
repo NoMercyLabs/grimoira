@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using Aitm.Brain.Data;
 using Aitm.Store.Tools;
 using Microsoft.Data.Sqlite;
@@ -6,25 +5,66 @@ using Microsoft.Data.Sqlite;
 namespace Aitm.Brain.Tools;
 
 /// <summary>
-/// Per-ledger-path async gate. Over MCP stdio, a client is free to pipeline requests — send
-/// <c>brain_stage</c> then <c>brain_flush</c> (then a second <c>brain_flush</c>) without waiting for
-/// each reply — and the MCP host dispatches each <c>tools/call</c> concurrently rather than one at a
-/// time. Two concurrent calls hitting the SAME <c>pending-learn.jsonl</c> would otherwise race its
-/// read-modify-write (<see cref="BrainStageTool.ExecuteMcp"/>'s append, <see cref="BrainFlushTool.ExecuteMcp"/>'s
-/// read-then-delete-or-rewrite): observed as a flush reading the file mid-write ("nothing staged." when a
-/// learning was in fact staged), two flushes applying the same staged line twice (a
-/// <c>UNIQUE constraint failed</c> reject), or a flush's read racing another flush's delete (an unhandled
-/// <see cref="IOException"/>, surfaced to the MCP client as "An error occurred invoking 'brain_flush'").
-/// Keyed by the ledger's full path so unrelated instances never block each other; the HTTP path needs no
-/// equivalent because <see cref="Aitm.Server.Data.LockingAIFunction"/> already serializes every tool call
-/// per project instance before it reaches here.
+/// Cross-process exclusive lock around a ledger's read-modify-write, held via an OS file lock rather than
+/// in-memory state. A client is free to pipeline requests — send <c>brain_stage</c> then <c>brain_flush</c>
+/// (then a second <c>brain_flush</c>) without waiting for each reply over MCP stdio, or fire off two
+/// separate <c>aitm stage</c>/<c>aitm flush</c> CLI processes back to back — and the same
+/// <c>pending-learn.jsonl</c> can be touched by two entirely separate OS processes at once: two Claude Code
+/// sessions each running their own <c>mcp.dll</c>, or a hook's CLI invocation racing an MCP call, all
+/// pointed at the same instance. An in-memory gate (a <c>SemaphoreSlim</c> keyed in a
+/// <c>ConcurrentDictionary</c>, this class's previous shape) only ever serializes callers inside ONE
+/// process's memory — it does nothing for a second process, which has no way to see it. Without a lock
+/// that lives outside any one process, two such callers can race <see cref="BrainStageTool"/>'s append
+/// against <see cref="BrainFlushTool"/>'s read-then-delete-or-rewrite: a flush reading the file mid-write
+/// ("nothing staged." for a learning that was in fact staged), two flushes applying the same staged line
+/// twice (a <c>UNIQUE constraint failed</c> reject), or a flush's read racing another flush's delete (an
+/// unhandled <see cref="IOException"/>, surfaced to the caller as "An error occurred invoking
+/// 'brain_flush'"). The lock file sits next to the ledger it protects (<c>&lt;ledger&gt;.lock</c>); holding
+/// an exclusive, non-shared handle on it (<see cref="FileShare.None"/>) is itself the lock — the OS refuses
+/// a second such handle, in this process or any other, until the first is released, and releases it for
+/// free if the holding process dies. Acquiring retries for a bounded wait rather than blocking forever, so
+/// a genuinely stuck holder surfaces as a clear error instead of a hang. The HTTP path needs no equivalent
+/// because <see cref="Aitm.Server.Data.LockingAIFunction"/> already serializes every tool call per project
+/// instance, in one process, before it reaches here.
 /// </summary>
-internal static class LedgerGate
+internal static class LedgerFileLock
 {
-    private static readonly ConcurrentDictionary<string, SemaphoreSlim> Gates = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly TimeSpan MaxWait = TimeSpan.FromSeconds(10);
+    private const int RetryDelayMs = 25;
 
-    public static SemaphoreSlim For(string ledgerPath) =>
-        Gates.GetOrAdd(Path.GetFullPath(ledgerPath), static _ => new SemaphoreSlim(1, 1));
+    /// <summary>Blocks (retrying) until this process holds the ledger's lock file exclusively, then
+    /// returns a handle that releases it on <see cref="IDisposable.Dispose"/>. Throws
+    /// <see cref="IOException"/> if no other process/thread ever gives it up within <see cref="MaxWait"/>.</summary>
+    public static IDisposable Acquire(string ledgerPath)
+    {
+        string lockPath = Path.GetFullPath(ledgerPath) + ".lock";
+        string? dir = Path.GetDirectoryName(lockPath);
+        if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
+
+        System.Diagnostics.Stopwatch elapsed = System.Diagnostics.Stopwatch.StartNew();
+        IOException? lastFailure = null;
+        while (elapsed.Elapsed < MaxWait)
+        {
+            try
+            {
+                FileStream handle = new(lockPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+                return new Handle(handle);
+            }
+            catch (IOException ex)
+            {
+                lastFailure = ex;
+                Thread.Sleep(RetryDelayMs);
+            }
+        }
+        throw new IOException(
+            $"could not acquire ledger lock '{lockPath}' within {MaxWait.TotalSeconds:0}s — another process is still holding it.",
+            lastFailure);
+    }
+
+    private sealed class Handle(FileStream stream) : IDisposable
+    {
+        public void Dispose() => stream.Dispose();
+    }
 }
 
 /// <summary>
@@ -72,6 +112,10 @@ public sealed class BrainStageTool : ITool
         string J(string s) => "\"" + s.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\n", " ").Replace("\r", " ").Replace("\t", " ") + "\"";
         string sub = pos.Count > 0 ? pos[0] : "list";
         string ledger = LedgerPath(connection);
+        // Every branch below reads and/or writes the ledger file; a second `aitm stage`/`aitm flush`
+        // process (a hook firing back to back, or a CLI call racing an MCP call on the same instance) must
+        // never interleave with it — see LedgerFileLock's own comment.
+        using IDisposable ledgerLock = LedgerFileLock.Acquire(ledger);
         switch (sub)
         {
             case "node":
@@ -126,16 +170,10 @@ public sealed class BrainStageTool : ITool
         if (line.Length == 0) return WrongRowKind(kind);
         // A brand-new instance has no directory yet, and AppendAllText does not make one.
         string ledger = LedgerPath(connection);
-        SemaphoreSlim gate = LedgerGate.For(ledger);
-        gate.Wait();
-        try
+        using (LedgerFileLock.Acquire(ledger))
         {
             Directory.CreateDirectory(Path.GetDirectoryName(ledger)!);
             File.AppendAllText(ledger, line + "\n");
-        }
-        finally
-        {
-            gate.Release();
         }
         return coerced
             ? $"staged node {key} as kind \"{a}\" (owe brain_flush). Note: the first argument is the ROW type — node / triple / slot — and \"{a}\" is the node's own kind, so it was moved for you."
