@@ -4,6 +4,8 @@
 import { spawnSync } from 'node:child_process';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { rmSync } from 'node:fs';
+import { homedir } from 'node:os';
 
 const exe = join(dirname(fileURLToPath(import.meta.url)), 'bin-cli', 'aitm.exe');
 let passed = 0, failed = 0;
@@ -39,6 +41,13 @@ check('loop start says removed in 0.4', /removed in 0\.4/.test(loopStart.stderr)
 const loopTick = run('loop', 'tick', '--instance', 'test');
 check('loop tick exits 2', loopTick.status, 2);
 check('loop tick says removed in 0.4', /removed in 0\.4/.test(loopTick.stderr), true);
+
+// selftest resets tables, so it refuses any instance not named test*. That refusal exited 0, and CI ran
+// `selftest --instance ci-selftest` green for weeks without one check ever running.
+const refusedInstance = 'fixture-selftest-refusal';
+const refused = run('selftest', '--instance', refusedInstance);
+check('selftest on a non-test instance exits 2', refused.status, 2);
+rmSync(join(homedir(), '.aitm', refusedInstance), { recursive: true, force: true });
 
 console.log(`${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

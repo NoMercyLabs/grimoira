@@ -2448,11 +2448,11 @@ void HistoryCmd(string term)
 }
 
 // Seed the real cross-project consumption edges mapped from the monorepo (the AITM graph).
-void SeedEdges()
+void SeedEdges(string? from = null)
 {
     // Curated cross-project edges are one ecosystem's contract map, not engine data. They ride in
     // the same spine file as the nodes so an install brings its own, or brings none.
-    string seed = GetFlag("--from") ?? Path.Combine(AppContext.BaseDirectory, "..", "seeds", "spine.json");
+    string seed = from ?? GetFlag("--from") ?? Path.Combine(AppContext.BaseDirectory, "..", "seeds", "spine.json");
     if (!File.Exists(seed)) { Console.Error.WriteLine($"no spine file at {Path.GetFullPath(seed)}"); return; }
 
     using JsonDocument doc = JsonDocument.Parse(File.ReadAllText(seed));
@@ -3042,8 +3042,8 @@ void SelfTest()
 {
     if (!instance.StartsWith("test", StringComparison.OrdinalIgnoreCase))
     {
-        Console.WriteLine("selftest refuses to run outside a 'test*' instance (it resets tables). Use: aitm selftest --instance test");
-        return;
+        Console.Error.WriteLine("selftest refuses to run outside a 'test*' instance (it resets tables). Use: aitm selftest --instance test");
+        Environment.Exit(2);
     }
     Exec("PRAGMA foreign_keys=OFF"); // node has a self-FK (superseded_by); drop enforcement only for the bulk reset
     foreach (string t in new[] { "facts", "facts_fts", "mutations", "edges", "todos", "findings", "chat", "chat_fts", "edge_candidates", "projects", "docs", "docs_fts", "memory", "memory_fts", "ref", "triple", "slot", "usage", "distill_log", "node", "gaps", "meta" }) Exec($"DELETE FROM {t}");
@@ -3090,11 +3090,17 @@ void SelfTest()
     Check("current: projection reflects latest value only", latest.Count == 1 && latest[0].value == "9999");
     Check("history: cold log retains both fact mutations", Count("SELECT count(*) FROM mutations WHERE kind='fact' AND k='port'") == 2);
 
-    SeedEdges();
+    // seeds/ is gitignored operator data, so a clean checkout (CI, a worktree) has no spine.json. The
+    // selftest writes the one edge it checks rather than passing only where that private file exists.
+    string fixtureSpine = Path.Combine(root, "selftest-spine.json");
+    File.WriteAllText(fixtureSpine, """
+        {"edges":[{"symbol":"has_more","contract":"PaginatedResponse","project":"test-a","file":"src/list.ts","line":1,"usage":"page.has_more","hardcoded":1}]}
+        """);
+    SeedEdges(fixtureSpine);
     Check("impact: has_more is flagged hardcoded", Count("SELECT count(*) FROM edges WHERE symbol='has_more' AND hardcoded=1") >= 1);
 
     long edgeMutsBefore = Count("SELECT count(*) FROM mutations WHERE kind='edge'");
-    SeedEdges();
+    SeedEdges(fixtureSpine);
     Check("edges: re-sync is idempotent (no new mutations)", Count("SELECT count(*) FROM mutations WHERE kind='edge'") == edgeMutsBefore);
 
     Exec("BEGIN");
@@ -3218,6 +3224,10 @@ void SelfTest()
     Check("recall: hyphenated alias expansion is quoted (no FTS5 syntax crash)",
         Count("SELECT count(*) FROM (WITH expanded(term) AS (VALUES('screen'),('compose-screen')), me AS (SELECT group_concat('\"'||term||'\"',' OR ') AS m FROM expanded) SELECT 1 FROM node_fts WHERE node_fts MATCH (SELECT m FROM me))") >= 1);
 
+    // hub -> signalr is ecosystem vocabulary: it left the built-in aliases in 291c7cc and arrives through
+    // spine-import. A store made before that kept the old row (the reset list never clears term_alias),
+    // which hid that a fresh instance had no alias to expand. The selftest adds the one it checks.
+    Run("INSERT OR IGNORE INTO term_alias(term,canonical) VALUES('hub','signalr')");
     Run("INSERT INTO node(k,kind,label,gloss,hard) VALUES('seam:hubtest','seam','Realtime thing','signalr realtime sync',0)");
     Check("recall: a synonym alias expands the query (hub -> signalr)",
         Count("SELECT count(*) FROM (WITH q(raw) AS (VALUES('hub')), expanded AS (SELECT raw AS term FROM q UNION SELECT a.canonical FROM q JOIN term_alias a ON a.term=q.raw), me AS (SELECT group_concat('\"'||term||'\"',' OR ') AS m FROM expanded) SELECT 1 FROM node_fts WHERE node_fts MATCH (SELECT m FROM me))") >= 1);
@@ -3313,4 +3323,5 @@ void SelfTest()
     Check("graph-explain: lists users grouped by project", ge.Contains("beta") && ge.Contains("2 site(s)") && ge.Contains("gamma") && ge.Contains("1 site(s)"));
 
     Console.WriteLine($"\nselftest: {pass} passed, {fail} failed ({(fail == 0 ? "GREEN" : "RED")}).");
+    if (fail > 0) Environment.ExitCode = 1;
 }

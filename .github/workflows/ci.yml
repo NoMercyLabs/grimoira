@@ -58,7 +58,7 @@ jobs:
         run: node ranking-agreement.test.mjs
 
       - name: Store selftest
-        run: dotnet bin-cli/aitm.dll selftest --instance ci-selftest
+        run: dotnet bin-cli/aitm.dll selftest --instance test-ci-selftest
 
       - name: Cold start on a scratch instance
         run: node init.mjs --root "$GITHUB_WORKSPACE" --instance ci-init --skip-chat --quiet

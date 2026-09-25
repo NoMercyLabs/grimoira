@@ -37,8 +37,13 @@ $out | Select-Object -Last 1
 if ($hookExit -ne 0) { $failed += 'hook registration' }
 
 Write-Host '-- selftest' -ForegroundColor Cyan
-$out = & "$PSScriptRoot/bin-cli/aitm.exe" selftest --instance test 2>&1
+# A fresh, uniquely named store every run. The selftest reset never clears term_alias, so a reused
+# "test" store kept an alias the product stopped seeding and read GREEN while a fresh one was RED.
+$selftestInstance = "test-verify-$(Get-Date -Format 'yyyyMMddHHmmss')-$PID"
+$selftestStore = Join-Path ([Environment]::GetFolderPath('UserProfile')) ".aitm/$selftestInstance"
+$out = & "$PSScriptRoot/bin-cli/aitm.exe" selftest --instance $selftestInstance 2>&1
 $selftestExit = $LASTEXITCODE
+if (Test-Path $selftestStore) { Remove-Item -Recurse -Force $selftestStore }
 $line = $out | Select-String 'selftest:' | Select-Object -Last 1
 Write-Host "   $line"
 if ($selftestExit -ne 0 -or "$line" -notmatch 'GREEN') { $failed += 'selftest' }
