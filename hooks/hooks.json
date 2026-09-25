@@ -30,8 +30,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/compact-restore.mjs"],
+            "command": "dotnet",
+            "args": ["run", "--project", "${CLAUDE_PLUGIN_ROOT}/src/Aitm.Cli", "-c", "Release", "--", "hook", "UserPromptSubmit"],
             "timeout": 10
           }
         ]
@@ -66,8 +66,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/compact-brief.mjs"],
+            "command": "dotnet",
+            "args": ["run", "--project", "${CLAUDE_PLUGIN_ROOT}/src/Aitm.Cli", "-c", "Release", "--", "hook", "PreCompact"],
             "timeout": 20,
             "statusMessage": "Saving anchors before compaction…"
           }
