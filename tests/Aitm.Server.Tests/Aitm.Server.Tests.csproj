@@ -10,5 +10,6 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/Aitm.Server/Aitm.Server.csproj" />
+    <ProjectReference Include="../Aitm.Layout.Tests/Aitm.Layout.Tests.csproj" />
   </ItemGroup>
 </Project>
