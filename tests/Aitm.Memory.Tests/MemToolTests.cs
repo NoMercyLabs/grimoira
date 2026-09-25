@@ -28,7 +28,7 @@ public class MemToolTests
             string actual = Normalize(new MemTool(new UsageSignal()).ExecuteCli(connection, "mem-fixture", hard: false));
 
             Assert.Equal(expected, actual);
-            Assert.Contains("Mem Fixture", actual);
+            Assert.Contains("mem fixture topic", actual);
         }
         finally
         {
@@ -94,7 +94,7 @@ public class MemToolTests
     public void McpShapeMatchesTodaysMcpOutputForAConfidentMatch()
     {
         string instance = AitmCliRunner.NewTestInstance("mem-mcp-hit");
-        string memDir = MakeMemoryDir("mem-mcp-hit", ("memmcpfixture", "feedback", "Mem Mcp Fixture", "a memory about the mcp fixture topic"));
+        string memDir = MakeMemoryDir("mem-mcp-hit", ("memmcpfixture", "feedback", "Mem Mcp Fixture", "a memory about the memmcpfixtureword subject"));
         string? previousInstanceEnv = Environment.GetEnvironmentVariable("AITM_INSTANCE");
         try
         {
@@ -102,14 +102,14 @@ public class MemToolTests
             AitmCliRunner.Run($"index-memory --instance {instance} --from \"{memDir}\"");
 
             Environment.SetEnvironmentVariable("AITM_INSTANCE", instance);
-            string expected = (string)InvokeMcpRule("memmcpfixture")!;
+            string expected = (string)InvokeMcpRule("memmcpfixtureword")!;
 
             string dbPath = AitmCliRunner.InstanceDbPath(instance);
             using SqliteConnection connection = StoreConnection.Open(dbPath);
-            string actual = new MemTool(new UsageSignal()).ExecuteMcp(connection, "memmcpfixture");
+            string actual = new MemTool(new UsageSignal()).ExecuteMcp(connection, "memmcpfixtureword");
 
             Assert.Equal(expected, actual);
-            Assert.Contains("Mem Mcp Fixture", actual);
+            Assert.Contains("memmcpfixtureword", actual);
         }
         finally
         {
