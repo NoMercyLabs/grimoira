@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
 using Aitm.Store.Data;
-using Aitm.Store.Tests.Support;
+using Aitm.TestSupport;
 using Aitm.Store.Tools;
 using Microsoft.Data.Sqlite;
 using Xunit;

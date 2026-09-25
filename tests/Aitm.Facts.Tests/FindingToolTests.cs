@@ -1,5 +1,5 @@
 using System.Reflection;
-using Aitm.Facts.Tests.Support;
+using Aitm.TestSupport;
 using Aitm.Facts.Tools;
 using Aitm.Store.Data;
 using Microsoft.Data.Sqlite;

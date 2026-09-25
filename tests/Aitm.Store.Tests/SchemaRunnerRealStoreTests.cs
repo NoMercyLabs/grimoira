@@ -6,6 +6,7 @@ using Aitm.Memory.Schema;
 using Aitm.Store.Data;
 using Aitm.Store.Schema;
 using Aitm.Store.Tests.Support;
+using Aitm.TestSupport;
 using Microsoft.Data.Sqlite;
 using Xunit;
 

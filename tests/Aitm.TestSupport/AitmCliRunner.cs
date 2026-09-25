@@ -1,14 +1,16 @@
 using System.Diagnostics;
 
-namespace Aitm.Store.Tests.Support;
+namespace Aitm.TestSupport;
 
 /// <summary>
 /// Runs today's compiled <c>bin-cli/aitm.dll</c> against a throwaway <c>test-*</c> instance and returns
-/// its stdout — the oracle for slice 4's pinned-output tests (RESTRUCTURE.md: "pinned output for
-/// `import`, `backup`, `stats`, `history` ... taken from today's aitm.cs ... on a temp test-* store").
-/// Mirrors <see cref="V3StoreFixture"/>'s own subprocess pattern.
+/// its stdout — the oracle every project's pinned-output tests run against. Previously duplicated once
+/// per test project (<c>Aitm.Store.Tests</c>, then <c>Aitm.Facts.Tests</c>) because the class was
+/// internal to its own assembly; a third copy for <c>Aitm.Memory.Tests</c> would have made three, so
+/// this is the one shared place instead (Aitm.Layout.Tests' folder rules only govern src/*, not
+/// tests/*, so nothing there blocks the move).
 /// </summary>
-internal static class AitmCliRunner
+public static class AitmCliRunner
 {
     public static string NewTestInstance(string label) => $"test-{label}-{Guid.NewGuid():N}";
 
@@ -36,6 +38,10 @@ internal static class AitmCliRunner
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,
+            // The CLI prints "•" and "—" (query's fixture hits). Without this the redirected pipe
+            // is read back with the OS codepage, mangling both into control characters.
+            StandardOutputEncoding = System.Text.Encoding.UTF8,
+            StandardErrorEncoding = System.Text.Encoding.UTF8,
         };
         using Process process = Process.Start(psi) ?? throw new InvalidOperationException($"could not start dotnet {dll}");
         string stdout = process.StandardOutput.ReadToEnd();

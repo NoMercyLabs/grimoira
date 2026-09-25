@@ -1,4 +1,4 @@
-using Aitm.Store.Tests.Support;
+using Aitm.TestSupport;
 using Aitm.Store.Tools;
 using Xunit;
 

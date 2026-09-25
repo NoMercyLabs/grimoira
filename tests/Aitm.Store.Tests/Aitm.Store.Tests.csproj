@@ -17,5 +17,6 @@
     <ProjectReference Include="../../src/Aitm.Docs/Aitm.Docs.csproj" />
     <ProjectReference Include="../../src/Aitm.Graph/Aitm.Graph.csproj" />
     <ProjectReference Include="../../src/Aitm.Brain/Aitm.Brain.csproj" />
+    <ProjectReference Include="../Aitm.TestSupport/Aitm.TestSupport.csproj" />
   </ItemGroup>
 </Project>
