@@ -48,7 +48,9 @@ public sealed class ShedDocTool : ITool
         return $"shed {before} section(s) matching '{pathFragment}'.";
     }
 
-    private static void ForgetSynthesisIndex(SqliteConnection connection, string pathFragment)
+    /// <summary>Shared with <see cref="ShedSynthesisTool"/>, which also has to drop a shed directory from
+    /// the read gate's synthesis cache.</summary>
+    internal static void ForgetSynthesisIndex(SqliteConnection connection, string pathFragment)
     {
         string? dataSource = connection.DataSource;
         if (string.IsNullOrEmpty(dataSource)) return;
