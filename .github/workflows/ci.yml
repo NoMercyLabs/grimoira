@@ -18,8 +18,11 @@ jobs:
 
       - uses: actions/setup-dotnet@v4
         with:
-          # File-based apps (dotnet build aitm.cs) need the .NET 10 SDK.
-          dotnet-version: '10.0.x'
+          # Pinned to global.json's exact SDK, not a floating '10.0.x': a different feature band
+          # names a file-based app's generated project "aitm.cs" instead of "aitm", which slips
+          # past Directory.Build.props's file-based-app guard and NU1008s on central package
+          # management (see Directory.Build.props and the fix commit for the full story).
+          global-json-file: global.json
 
       - uses: actions/setup-node@v4
         with:

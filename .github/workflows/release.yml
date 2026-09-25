@@ -20,7 +20,8 @@ jobs:
 
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '10.0.x'
+          # Pinned to global.json's exact SDK — see ci.yml for why a floating '10.0.x' is unsafe here.
+          global-json-file: global.json
 
       - uses: actions/setup-node@v4
         with:

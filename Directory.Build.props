@@ -6,12 +6,27 @@
        management collides with their own inline #:package version directives, and warnings-as-errors
        turns their existing (pre-slice-2) trim-safety warning into a build failure. Scoped by project
        name, not by command line, so a real project reference such as Aitm.Store (proved by the
-       #:project line slice 2 adds to aitm.cs) still gets the strict settings. -->
-  <PropertyGroup Condition="'$(MSBuildProjectName)' != 'aitm' AND '$(MSBuildProjectName)' != 'mcp'">
+       #:project line slice 2 adds to aitm.cs) still gets the strict settings.
+
+       The name a file-based app's generated project gets is not stable across .NET SDK feature
+       bands: SDK 10.0.112 (the dev box, pinned in global.json) names it "aitm"/"mcp", but CI's
+       "10.0.x" resolved a band that names it "aitm.cs"/"mcp.cs" instead, so the exact-name match
+       below missed it, central package management applied anyway, and NU1008 failed the restore
+       (the #:package lines set a Version, which CPM forbids). Matching by StartsWith keeps both
+       forms, and ManagePackageVersionsCentrally gets its own explicit condition on both sides
+       (false for the two apps, true otherwise) instead of being merely absent for them, so the
+       property is never left to whatever the ambient default happens to be. -->
+  <PropertyGroup Condition="!$(MSBuildProjectName.StartsWith('aitm')) AND !$(MSBuildProjectName.StartsWith('mcp'))">
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="$(MSBuildProjectName.StartsWith('aitm')) OR $(MSBuildProjectName.StartsWith('mcp'))">
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+  <PropertyGroup Condition="!$(MSBuildProjectName.StartsWith('aitm')) AND !$(MSBuildProjectName.StartsWith('mcp'))">
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
   </PropertyGroup>
 </Project>
