@@ -2,8 +2,11 @@
 #:package SQLitePCLRaw.bundle_e_sqlite3@3.0.3
 // RESTRUCTURE.md slice 24, CLI lane part 1: aitm.cs's Store and Facts verbs now dispatch to their
 // tool classes instead of carrying the logic inline.
+// RESTRUCTURE.md slice 24, CLI lane part 2: the Memory and Docs verbs do the same.
 #:project src/Aitm.Store/Aitm.Store.csproj
 #:project src/Aitm.Facts/Aitm.Facts.csproj
+#:project src/Aitm.Memory/Aitm.Memory.csproj
+#:project src/Aitm.Docs/Aitm.Docs.csproj
 // AITM foundation — core slice: a per-instance SQLite store with a CURRENT projection
 // (one row per entity, the only thing normal reads touch) plus an append-only MUTATIONS
 // log (cold; read only for trace/rollback). FTS5-ranked knowledge lookup. Generic: the
@@ -13,7 +16,9 @@ using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using Aitm.Docs.Tools;
 using Aitm.Facts.Tools;
+using Aitm.Memory.Tools;
 using Aitm.Store.Data;
 using Aitm.Store.Tools;
 using Microsoft.Data.Sqlite;
@@ -82,7 +87,8 @@ switch (cmd)
         Console.WriteLine(new QueryTool(new UsageSignal()).ExecuteCli(db, string.Join(' ', Positionals().Skip(1))));
         break;
     case "index-chat":
-        IndexChat(GetFlag("--from") ?? throw new ArgumentException("index-chat needs --from <session.jsonl | transcript dir>"));
+        Console.WriteLine(new IndexChatTool().Execute(db,
+            GetFlag("--from") ?? throw new ArgumentException("index-chat needs --from <session.jsonl | transcript dir>")));
         break;
     case "index-packages":
         // --from is what every other index-* command takes; accepting only --root here silently
@@ -90,44 +96,49 @@ switch (cmd)
         Console.WriteLine(new IndexPackagesTool().Execute(db, GetFlag("--root") ?? GetFlag("--from") ?? Directory.GetCurrentDirectory()));
         break;
     case "index-docs":
-        IndexDocs(GetFlag("--from") ?? throw new ArgumentException("index-docs needs --from <dir|file.md>"), GetFlag("--category") ?? "doc");
+        Console.WriteLine(new IndexDocsTool().Execute(db,
+            GetFlag("--from") ?? throw new ArgumentException("index-docs needs --from <dir|file.md>"), GetFlag("--category") ?? "doc"));
         break;
     case "doc":
-        DocCmd(string.Join(' ', Positionals().Skip(1)));
+        Console.WriteLine(new DocTool().ExecuteCli(db, string.Join(' ', Positionals().Skip(1))));
         break;
     case "index-memory":
-        IndexMemory(GetFlag("--from") ?? throw new ArgumentException("index-memory needs --from <memory dir>"));
+        Console.WriteLine(new IndexMemoryTool().Execute(db,
+            GetFlag("--from") ?? throw new ArgumentException("index-memory needs --from <memory dir>")));
         break;
     case "mem":
-        MemCmd(string.Join(' ', Positionals().Skip(1)));
+        Console.WriteLine(new MemTool(new UsageSignal()).ExecuteCli(db, string.Join(' ', Positionals().Skip(1)), a.Contains("--hard")));
         break;
     case "brain":
         BrainCmd(Positionals().Skip(1).ToList());
         break;
     case "shed-doc":
-        ShedDoc(GetFlag("--path") ?? throw new ArgumentException("shed-doc needs --path <substring>"));
+        Console.WriteLine(new ShedDocTool().Execute(db, GetFlag("--path") ?? throw new ArgumentException("shed-doc needs --path <substring>")));
         break;
     case "shed-synthesis":
-        ShedSynthesis(GetFlag("--path") ?? throw new ArgumentException("shed-synthesis needs --path <source dir>"));
+        Console.WriteLine(new ShedSynthesisTool().Execute(db, GetFlag("--path") ?? throw new ArgumentException("shed-synthesis needs --path <source dir>")));
         break;
     case "add-synthesis":
-        AddSynthesis(
+        Console.WriteLine(new AddSynthesisTool().Execute(db,
             GetFlag("--path") ?? throw new ArgumentException("add-synthesis needs --path <source dir>"),
             GetFlag("--from") ?? throw new ArgumentException("add-synthesis needs --from <file>"),
             GetFlag("--title") ?? "",
-            GetFlag("--sources") ?? "");
+            GetFlag("--sources") ?? ""));
         break;
     case "shed-memory":
-        ShedMemory(GetFlag("--key") ?? throw new ArgumentException("shed-memory needs --key <slug>"));
+        Console.WriteLine(new ShedMemoryTool().ExecuteCli(db, GetFlag("--key") ?? throw new ArgumentException("shed-memory needs --key <slug>")));
         break;
     case "shed-fact":
         Console.WriteLine(new ShedFactTool().Execute(db, GetFlag("--key") ?? throw new ArgumentException("shed-fact needs --key <term>")));
         break;
     case "recompact-docs":
-        RecompactDocs();
+        Console.WriteLine(new RecompactDocsTool().Execute(db));
         break;
     case "recall":
-        RecallCmd(string.Join(' ', Positionals().Skip(1)));
+        Console.WriteLine(new RecallTool().ExecuteCli(db, string.Join(' ', Positionals().Skip(1))));
+        break;
+    case "redact-chat":
+        Console.WriteLine(new RedactChatTool().Execute(db, root, a.Contains("--dry-run")));
         break;
     case "eval":
         Eval();
@@ -719,50 +730,6 @@ string BuildMatch(string terms) => string.Join(" OR ", Tokens(terms).Select(t =>
     return (rows, sw.Elapsed.TotalMilliseconds);
 }
 
-// Absorb AI-meta docs into the docs channel, chunked by markdown heading so recall returns the relevant
-// section. Sheds outdated text: completed-checklist tracking, changelogs, and done/superseded sections.
-void IndexDocs(string fromPath, string category)
-{
-    IEnumerable<string> found = Directory.Exists(fromPath) ? EnumerateSource(fromPath, new[] { "*.md" }) : new[] { fromPath };
-    List<string> files = CanonicalCopies(found);
-    int docCount = 0, chunkCount = 0, shedCount = 0;
-    Exec("BEGIN");
-    foreach (string file in files)
-    {
-        string text;
-        try { text = File.ReadAllText(file); }
-        catch { continue; }
-        // Identity must not depend on the CWD. Keying off a CWD-relative path meant the same file
-        // indexed from the monorepo root, a nested repo, and a worktree produced three different keys,
-        // so the ON CONFLICT upsert below never fired and every re-index duplicated the whole tree.
-        string rel = Path.GetFullPath(file).Replace('\\', '/');
-        // Windows paths are case-insensitive, so "c:/repo/x.md" and "C:/repo/x.md" are one file. The
-        // key has to agree: keying on the raw casing let a run started from a differently-cased root
-        // duplicate the entire tree again, which is the same defect the absolute path was meant to fix.
-        string key = rel.ToLowerInvariant();
-        string terms = PathTerms(rel);
-        bool any = false;
-        foreach ((string title, string body, int idx) in ChunkMarkdown(text))
-        {
-            if (IsOutdated(title, body)) { shedCount++; continue; }
-            string content = Compact(title + "\n" + body); // store densified, not raw markdown — markdown chrome is token-expensive
-            if (content.Length < 24) continue;
-            string k = $"{key}#{idx}";
-            Run("INSERT INTO docs(k,path,title,category,content,terms) VALUES($k,$p,$t,$c,$co,$te) ON CONFLICT(k) DO UPDATE SET title=$t,category=$c,content=$co,terms=$te",
-                ("$k", k), ("$p", rel), ("$t", title), ("$c", category), ("$co", content), ("$te", terms));
-            Run("DELETE FROM docs_fts WHERE k=$k", ("$k", k));
-            // The FTS title column carries the path words too. It is never displayed — DocCmd reads the
-            // title back from docs — so this buys retrieval without polluting what the reader sees.
-            Run("INSERT INTO docs_fts(k,title,content) VALUES($k,$t,$co)", ("$k", k), ("$t", $"{title} {terms}"), ("$co", content));
-            chunkCount++;
-            any = true;
-        }
-        if (any) docCount++;
-    }
-    Exec("COMMIT");
-    Console.WriteLine($"indexed {docCount} doc(s) -> {chunkCount} section(s) [{category}]; shed {shedCount} outdated section(s).");
-}
-
 // A document's own name usually lives in its path, not its prose. The 12-part encoder report never
 // writes the words "effortless encoder" in its body — the name is the folder — so a search for the
 // thing by name returned a one-line stub instead of the 157 sections that answer the question.
@@ -780,170 +747,6 @@ string PathTerms(string fullPath)
     return string.Join(' ', words.Distinct());
 }
 
-// One document reachable by two paths is one document. Astro and similar site generators copy their
-// source markdown into a content collection, which is a byte-identical mirror the path-based key can
-// never collapse — so every hit in the docs channel came back twice and each duplicate cost a result
-// slot. The shortest path wins, because the copy always lives deeper than the source.
-List<string> CanonicalCopies(IEnumerable<string> files)
-{
-    Dictionary<string, string> byHash = new();
-    List<string> ordered = new();
-    foreach (string file in files)
-    {
-        string hash;
-        try { hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(file))); }
-        catch { continue; }
-        string norm = Path.GetFullPath(file).Replace('\\', '/');
-        if (!byHash.TryGetValue(hash, out string? held)) { byHash[hash] = norm; ordered.Add(hash); continue; }
-        if (norm.Length < held.Length) byHash[hash] = norm;
-    }
-    return ordered.Select(h => byHash[h]).ToList();
-}
-
-// Densify text for cheap re-injection: strip markdown chrome (headings, emphasis, list/quote markers,
-// code fences, table pipes, link URLs, image/badge lines, separators) and collapse whitespace. Lossless
-// of meaning; the markdown syntax it removes is pure token cost. Tokens-saved is measured by tok.cs.
-string Compact(string text)
-{
-    StringBuilder sb = new();
-    foreach (string raw in text.Replace("\r\n", "\n").Split('\n'))
-    {
-        string line = raw.Trim();
-        if (line.Length == 0 || line.StartsWith("![") || line.StartsWith("```")) continue;
-        if (line.All(ch => ch is '-' or '=' or '*' or '_' or '|' or ' ' or ':')) continue; // separators / empty table borders
-        line = line.TrimStart('#', '>', '-', '*', '+', ' ', '\t');
-        if (line.StartsWith("[ ] ")) line = line[4..];
-        else if (line.StartsWith("[x] ", StringComparison.OrdinalIgnoreCase)) line = line[4..];
-        line = Regex.Replace(line, @"\[([^\]]+)\]\([^)]+\)", "$1"); // [text](url) -> text
-        line = line.Replace("**", "").Replace("__", "").Replace("`", "").Replace("|", " ");
-        line = Regex.Replace(line, @"\s{2,}", " ").Trim();
-        if (line.Length > 0) sb.Append(line).Append('\n');
-    }
-    return StripFiller(sb.ToString().Trim());
-}
-
-// Drop human-speech filler that carries no technical meaning (Microsoft markdown-token-optimizer patterns):
-// verbose phrases -> concise, qualifier words removed, emoji stripped. Articles are NOT touched (too close
-// to identifiers); \b boundaries mean camelCase/snake_case identifiers (justStarted, the_value) are safe.
-string StripFiller(string text)
-{
-    (string from, string to)[] phrases =
-    {
-        ("in order to", "to"), ("due to the fact that", "because"), ("in the event that", "if"),
-        ("for the purpose of", "for"), ("a large number of", "many"), ("in close proximity to", "near"),
-        ("at this point in time", "now"), ("it is important to note that", "note:"),
-        ("with the exception of", "except"), ("in spite of the fact that", "although"),
-        ("on account of the fact that", "because"), ("has the ability to", "can"),
-        ("is able to", "can"), ("a number of", "several"), ("the majority of", "most"),
-    };
-    foreach ((string from, string to) in phrases)
-        text = Regex.Replace(text, Regex.Escape(from), to, RegexOptions.IgnoreCase);
-    text = Regex.Replace(text, @"\b(very|really|just|actually|basically|simply|essentially|quite|somewhat|fairly|definitely|absolutely|literally|obviously|clearly|please|kindly)\b ?", "", RegexOptions.IgnoreCase);
-    text = Regex.Replace(text, @"\p{Cs}", ""); // emoji (surrogate pairs)
-    return Regex.Replace(text, @"[ \t]{2,}", " ");
-}
-
-// Re-densify already-stored docs (one-off after a storage-format change). Reports char delta;
-// run tok.cs before/after for the real token delta.
-void RecompactDocs()
-{
-    List<(string k, string title, string content)> rows = new();
-    using (SqliteCommand c = db.CreateCommand())
-    {
-        c.CommandText = "SELECT k, title, content FROM docs";
-        using SqliteDataReader r = c.ExecuteReader();
-        while (r.Read()) rows.Add((r.GetString(0), r.GetString(1), r.GetString(2)));
-    }
-    long before = rows.Sum(x => (long)x.content.Length);
-    long after = 0;
-    int changed = 0;
-    Exec("BEGIN");
-    foreach ((string k, string title, string content) in rows)
-    {
-        string compact = Compact(content);
-        after += compact.Length;
-        if (compact != content)
-        {
-            Run("UPDATE docs SET content=$co WHERE k=$k", ("$co", compact), ("$k", k));
-            Run("DELETE FROM docs_fts WHERE k=$k", ("$k", k));
-            Run("INSERT INTO docs_fts(k,title,content) VALUES($k,$t,$co)", ("$k", k), ("$t", title), ("$co", compact));
-            changed++;
-        }
-    }
-    Exec("COMMIT");
-    Console.WriteLine($"recompacted {changed}/{rows.Count} section(s): {before} -> {after} chars ({(before == 0 ? 0 : 100.0 * (before - after) / before):F0}% smaller). Run tok.cs for the token delta.");
-}
-
-// Outdated = finished task-tracking or historical record, not durable knowledge.
-bool IsOutdated(string title, string body)
-{
-    string t = title.ToLowerInvariant();
-    if (t.Contains("changelog") || t.Contains("superseded") || t.Contains("obsolete") || t.Contains("revision history") || t.Contains("completed") || t.Contains("✅"))
-        return true;
-    string[] lines = body.Split('\n', StringSplitOptions.RemoveEmptyEntries);
-    if (lines.Length >= 4)
-    {
-        int done = lines.Count(l => l.TrimStart().StartsWith("- [x]", StringComparison.OrdinalIgnoreCase));
-        if (done * 2 >= lines.Length) return true; // a section that is mostly checked-off tasks is finished work
-    }
-    return false;
-}
-
-IEnumerable<(string title, string body, int idx)> ChunkMarkdown(string text)
-{
-    string[] lines = text.Replace("\r\n", "\n").Split('\n');
-    string title = "(intro)";
-    StringBuilder body = new();
-    int idx = 0;
-    foreach (string line in lines)
-    {
-        if (line.StartsWith('#'))
-        {
-            if (body.Length > 0) { yield return (title, body.ToString(), idx++); body.Clear(); }
-            title = line.TrimStart('#', ' ').Trim();
-        }
-        else body.AppendLine(line);
-    }
-    if (body.Length > 0) yield return (title, body.ToString(), idx);
-}
-
-// Recall channel for absorbed docs (separate from facts and chat).
-void DocCmd(string terms)
-{
-    string match = BuildMatch(terms);
-    if (match.Length == 0) { Console.WriteLine("no usable terms."); return; }
-    // A synthesis is an answer; the sections it was distilled from are sources. When both match, the
-    // answer must come first, or the reader is handed the raw material it already replaces.
-    //
-    // It gets its own query rather than a rank bonus, because bm25 scores against document length and a
-    // synthesis is by nature the longest row on its subject — it lost to short sections of its own
-    // source, and widening the candidate pool only moved the point where it fell out.
-    int n = 0;
-    n += PrintDocs("SELECT d.path,d.title,d.category,d.content FROM (SELECT k, bm25(docs_fts) AS score FROM docs_fts WHERE docs_fts MATCH $m) m JOIN docs d ON d.k=m.k WHERE d.category='synthesis' ORDER BY m.score LIMIT 2", match);
-    n += PrintDocs("SELECT d.path,d.title,d.category,d.content FROM (SELECT k, bm25(docs_fts) AS score FROM docs_fts WHERE docs_fts MATCH $m ORDER BY score LIMIT 5) m JOIN docs d ON d.k=m.k WHERE d.category<>'synthesis' ORDER BY m.score", match);
-    if (n == 0) Console.WriteLine($"no docs match \"{terms}\".");
-}
-
-int PrintDocs(string sql, string match)
-{
-    using SqliteCommand c = db.CreateCommand();
-    c.CommandText = sql;
-    c.Parameters.AddWithValue("$m", match);
-    using SqliteDataReader r = c.ExecuteReader();
-    int n = 0;
-    while (r.Read())
-    {
-        string category = r.GetString(2);
-        string content = r.GetString(3);
-        // A synthesis IS the answer, so clipping it to a preview defeats the point of having one.
-        int cap = category == "synthesis" ? 20000 : 400;
-        string snip = content.Length <= cap ? content : content[..cap] + "…";
-        Console.WriteLine($"• [{category}] {r.GetString(1)}  ({r.GetString(0)})\n  {snip}\n");
-        n++;
-    }
-    return n;
-}
-
 // Store an answer that was distilled from a set of source files.
 //
 // The compacted sources are barely smaller than the originals — prose has no markdown chrome to strip —
@@ -953,47 +756,27 @@ int PrintDocs(string sql, string match)
 //
 // It is explicitly second-hand: category 'synthesis', sources listed, and stamped with the newest source
 // mtime so a reader can tell when the sources have moved on underneath it.
-void AddSynthesis(string sourceDir, string bodyFile, string title, string sources)
+
+// Shed outdated absorbed docs by path substring (e.g. a superseded plan or a historical session log).
+// Still called by SelfTest (shed-doc itself now dispatches through ShedDocTool).
+void ShedDoc(string pathFragment)
 {
-    string body;
-    try { body = File.ReadAllText(bodyFile); }
-    catch (Exception e) { Console.Error.WriteLine($"add-synthesis: cannot read {bodyFile} ({e.Message})"); return; }
-    if (body.Trim().Length < 400) { Console.WriteLine("add-synthesis: body too short to be worth storing."); return; }
-
-    string dir = Path.GetFullPath(sourceDir).Replace('\\', '/').TrimEnd('/');
-    string key = $"synthesis:{dir.ToLowerInvariant()}";
-    string name = string.IsNullOrWhiteSpace(title) ? dir.Split('/').Last().Replace('-', ' ') : title;
-
-    long newest = 0;
-    foreach (string s in sources.Split(';', StringSplitOptions.RemoveEmptyEntries))
-    {
-        try { newest = Math.Max(newest, new FileInfo(s.Trim()).LastWriteTimeUtc.Ticks); }
-        catch { /* source moved or renamed */ }
-    }
-
-    // The stamp travels in the row so the read gate can refuse a synthesis its sources have outrun.
-    // Sources are named, not pathed: they all live in dir, and twelve repeated absolute paths ahead of
-    // the answer is a kilobyte of provenance nobody reads.
-    string names = string.Join(", ", sources.Split(';', StringSplitOptions.RemoveEmptyEntries).Select(s => Path.GetFileName(s.Trim())));
-    // Stored VERBATIM, unlike an absorbed source section. Compact() strips table pipes, which is a fair
-    // trade for a doc whose original is still on disk — but a synthesis has no original, and running it
-    // through Compact() collapsed "H.264 | libx264 | h264_nvenc | …" into a row of words with no columns.
-    // The only thing worth normalising is line endings.
-    string content = body.Replace("\r\n", "\n").Trim();
-    string stamped = $"synthesis of {dir}\nfrom: {names}\nnewest_source_ticks: {newest}\n\n{content}";
-    string terms = $"{PathTerms(dir)} synthesis overview brief";
-
+    string like = "%" + pathFragment + "%";
+    long before = ScalarLong("SELECT count(*) FROM docs WHERE path LIKE $p", ("$p", like));
+    if (before == 0) { Console.WriteLine($"no docs match path '{pathFragment}'."); return; }
     Exec("BEGIN");
-    Run("INSERT INTO docs(k,path,title,category,content,terms) VALUES($k,$p,$t,'synthesis',$co,$te) ON CONFLICT(k) DO UPDATE SET title=$t,content=$co,terms=$te",
-        ("$k", key), ("$p", dir), ("$t", name), ("$co", stamped), ("$te", terms));
-    Run("DELETE FROM docs_fts WHERE k=$k", ("$k", key));
-    Run("INSERT INTO docs_fts(k,title,content) VALUES($k,$t,$co)", ("$k", key), ("$t", $"{name} {terms}"), ("$co", stamped));
+    Run("DELETE FROM docs_fts WHERE k IN (SELECT k FROM docs WHERE path LIKE $p)", ("$p", like));
+    Run("DELETE FROM docs WHERE path LIKE $p", ("$p", like));
     Exec("COMMIT");
-    Console.WriteLine($"synthesis stored for {dir} ({content.Length} chars).");
+    // The read gate keeps its own index of which directories have a synthesis. Leaving a shed entry in
+    // it means the gate keeps claiming an answer exists for a row that is gone.
+    ForgetSynthesisIndex(pathFragment);
+    Console.WriteLine($"shed {before} section(s) matching '{pathFragment}'.");
 }
 
 // Drop matching directories from the read gate's synthesis index, which lives beside the store as JSON
 // because the gate runs on every Read and cannot afford to open the database to find out there is nothing.
+// Still called (via ShedDoc) by SelfTest.
 void ForgetSynthesisIndex(string pathFragment)
 {
     string idx = Path.Combine(root, "synthesis.json");
@@ -1029,54 +812,6 @@ void ForgetSynthesisIndex(string pathFragment)
     catch { /* the index is a cache; a malformed one degrades to "no synthesis known" */ }
 }
 
-// Drop ONLY the synthesis for a directory, leaving the absorbed sources alone.
-//
-// shed-doc matches every row under a path, so using it to remove one bad synthesis took 1352 indexed
-// sections of the player campaign with it. A synthesis is a single row with a known key; removing it
-// never needs a path sweep.
-void ShedSynthesis(string sourceDir)
-{
-    string dir = Path.GetFullPath(sourceDir).Replace('\\', '/').TrimEnd('/');
-    string key = $"synthesis:{dir.ToLowerInvariant()}";
-    long before = ScalarLong("SELECT count(*) FROM docs WHERE k=$k", ("$k", key));
-    if (before == 0) { Console.WriteLine($"no synthesis stored for {dir}."); return; }
-    Exec("BEGIN");
-    Run("DELETE FROM docs_fts WHERE k=$k", ("$k", key));
-    Run("DELETE FROM docs WHERE k=$k", ("$k", key));
-    Exec("COMMIT");
-    ForgetSynthesisIndex(dir);
-    Console.WriteLine($"shed the synthesis for {dir}.");
-}
-
-// Shed outdated absorbed docs by path substring (e.g. a superseded plan or a historical session log).
-void ShedDoc(string pathFragment)
-{
-    string like = "%" + pathFragment + "%";
-    long before = ScalarLong("SELECT count(*) FROM docs WHERE path LIKE $p", ("$p", like));
-    if (before == 0) { Console.WriteLine($"no docs match path '{pathFragment}'."); return; }
-    Exec("BEGIN");
-    Run("DELETE FROM docs_fts WHERE k IN (SELECT k FROM docs WHERE path LIKE $p)", ("$p", like));
-    Run("DELETE FROM docs WHERE path LIKE $p", ("$p", like));
-    Exec("COMMIT");
-    // The read gate keeps its own index of which directories have a synthesis. Leaving a shed entry in
-    // it means the gate keeps claiming an answer exists for a row that is gone.
-    ForgetSynthesisIndex(pathFragment);
-    Console.WriteLine($"shed {before} section(s) matching '{pathFragment}'.");
-}
-
-// Forget one memory by key + keep FTS in sync + log the deletion to the cold trail.
-void ShedMemory(string key)
-{
-    string? before = ScalarText("SELECT type||'|'||title||'|'||hook||'|'||body FROM memory WHERE k=$k", ("$k", key));
-    if (before is null) { Console.WriteLine($"no memory '{key}'."); return; }
-    Exec("BEGIN");
-    Run("DELETE FROM memory_fts WHERE k=$k", ("$k", key));
-    Run("DELETE FROM memory WHERE k=$k", ("$k", key));
-    LogMutation("memory", key, "delete", before, null, "shed-memory");
-    Exec("COMMIT");
-    Console.WriteLine($"shed memory '{key}'.");
-}
-
 // Forget one fact by key + keep FTS in sync + log the deletion to the cold trail.
 // Mirrors ShedMemory. Manually-added facts (add --term) have no graph node, but a fact
 // that WAS graph-linked would leave a dangling ref behind, so drop those too — the ref
@@ -1094,60 +829,8 @@ void ShedFact(string key)
     Console.WriteLine($"shed fact '{key}'.");
 }
 
-// Migrate the always-loaded MEMORY.md files into the pull-based memory channel. Handles both frontmatter
-// shapes in the corpus (top-level type: and nested metadata: type:), densifies hook + body, and flags hard
-// rules (the subset the thin MEMORY.md core keeps). MEMORY.md itself is the index, not a memory — skipped.
-void IndexMemory(string dir)
-{
-    if (!Directory.Exists(dir)) { Console.WriteLine($"memory dir not found: {dir}"); return; }
-    int n = 0, hardN = 0;
-    Exec("BEGIN");
-    foreach (string file in Directory.GetFiles(dir, "*.md"))
-    {
-        string slug = Path.GetFileNameWithoutExtension(file);
-        if (slug.Equals("MEMORY", StringComparison.OrdinalIgnoreCase)) continue;
-        string text;
-        try { text = File.ReadAllText(file); }
-        catch { continue; }
-        (Dictionary<string, string> fm, string rawBody) = ParseFrontmatter(text);
-        string type = fm.GetValueOrDefault("type", "feedback");
-        string title = fm.GetValueOrDefault("name", slug);
-        string hook = Compact(fm.GetValueOrDefault("description", ""));
-        string body = Compact(rawBody);
-        if (hook.Length == 0) hook = body.Length <= 200 ? body : body[..200];
-        string links = string.Join(",", Regex.Matches(rawBody, @"\[\[([^\]]+)\]\]").Select(m => m.Groups[1].Value).Distinct());
-        // "hard rule" must announce itself in the name/description — a body mention is not enough (false positives).
-        bool hard = (title + " " + hook).Contains("hard rule", StringComparison.OrdinalIgnoreCase);
-        if (hard) hardN++;
-        UpsertMemory(slug, type, title, hook, body, links, hard, "index-memory");
-        n++;
-    }
-    Exec("COMMIT");
-    Console.WriteLine($"indexed {n} memor(ies) ({hardN} hard rule(s)).");
-}
-
-// Split YAML-ish frontmatter from body. Tolerant: first non-empty value per key wins, so a nested
-// `metadata:\n  type: x` still yields type=x while a top-level `type: x` yields the same.
-(Dictionary<string, string> fm, string body) ParseFrontmatter(string text)
-{
-    text = text.Replace("\r\n", "\n");
-    Dictionary<string, string> fm = new(StringComparer.OrdinalIgnoreCase);
-    if (!text.StartsWith("---\n", StringComparison.Ordinal)) return (fm, text.Trim());
-    int end = text.IndexOf("\n---", 4, StringComparison.Ordinal);
-    if (end < 0) return (fm, text.Trim());
-    foreach (string line in text[4..end].Split('\n'))
-    {
-        int colon = line.IndexOf(':');
-        if (colon <= 0) continue;
-        string key = line[..colon].Trim();
-        string val = line[(colon + 1)..].Trim().Trim('"', '\'');
-        if (val.Length > 0 && !fm.ContainsKey(key)) fm[key] = val;
-    }
-    string body = text[(end + 4)..].TrimStart('\n', '-', ' ').Trim();
-    return (fm, body);
-}
-
 // Upsert a memory + keep FTS in sync + log to the cold trail (changes only, never no-op rewrites).
+// Still called by SelfTest (index-memory itself now dispatches through IndexMemoryTool).
 void UpsertMemory(string k, string type, string title, string hook, string body, string links, bool hard, string why)
 {
     string? before = ScalarText("SELECT type||'|'||title||'|'||hook||'|'||body FROM memory WHERE k=$k", ("$k", k));
@@ -1158,43 +841,6 @@ void UpsertMemory(string k, string type, string title, string hook, string body,
     Run("INSERT INTO memory_fts(k,title,hook,body) VALUES($k,$ti,$h,$b)", ("$k", k), ("$ti", title), ("$h", hook), ("$b", body));
     string after = $"{type}|{title}|{hook}|{body}";
     if (before != after) LogMutation("memory", k, before is null ? "insert" : "update", before, after, why);
-}
-
-// Pull-based recall of the migrated rules. `mem --hard` lists the always-on core (what MEMORY.md still carries).
-void MemCmd(string terms)
-{
-    if (a.Contains("--hard"))
-    {
-        using SqliteCommand h = db.CreateCommand();
-        h.CommandText = "SELECT type,title,hook FROM memory WHERE hard=1 ORDER BY type,title";
-        using SqliteDataReader hr = h.ExecuteReader();
-        int hn = 0;
-        while (hr.Read()) { Console.WriteLine($"• [{hr.GetString(0)}] {hr.GetString(1)} — {hr.GetString(2)}"); hn++; }
-        Console.WriteLine($"({hn} hard rule(s) — the always-on core)");
-        return;
-    }
-    string match = BuildMatch(terms);
-    if (match.Length == 0) { Console.WriteLine("no usable terms."); return; }
-    using SqliteCommand c = db.CreateCommand();
-    c.CommandText = @"SELECT mem.type,mem.hook,mem.body,mem.hard,m.score
-        FROM (SELECT k, bm25(memory_fts) AS score FROM memory_fts WHERE memory_fts MATCH $m ORDER BY score LIMIT 6) m
-        JOIN memory mem ON mem.k=m.k ORDER BY m.score";
-    c.Parameters.AddWithValue("$m", match);
-    using SqliteDataReader r = c.ExecuteReader();
-    int n = 0;
-    while (r.Read())
-    {
-        string body = r.GetString(2);
-        string snip = body.Length <= 300 ? body : body[..300] + "…";
-        string tag = r.GetInt32(3) == 1 ? "HARD " : "";
-        Console.WriteLine($"• [{tag}{r.GetString(0)}] {r.GetString(1)}\n  {snip}\n");
-        n++;
-    }
-    if (n == 0)
-    {
-        LogGap("mem", terms);
-        Console.WriteLine($"no memory matches \"{terms}\" (gap logged).");
-    }
 }
 
 // BRAIN router — one-shot recall over the knowledge graph. Each read is a single self-contained statement
@@ -2164,93 +1810,6 @@ void SpineImport(string fromPath)
     Exec("COMMIT");
     Exec("INSERT INTO node_fts(node_fts) VALUES('rebuild')");
     Console.WriteLine($"imported spine: {n} nodes, {s} slots, {l} links, {a} alias(es), {g} edge(s).");
-}
-
-// Ingest a Claude Code session transcript (one .jsonl file) or a whole transcript dir into the chat channel.
-void IndexChat(string fromPath)
-{
-    IEnumerable<string> files = Directory.Exists(fromPath)
-        ? Directory.EnumerateFiles(fromPath, "*.jsonl")
-        : new[] { fromPath };
-    int total = 0;
-    foreach (string file in files) total += IndexChatFile(file);
-    Console.WriteLine($"done: {total} user message(s) indexed into the chat channel.");
-}
-
-int IndexChatFile(string path)
-{
-    if (!File.Exists(path)) { Console.WriteLine($"  not found: {path}"); return 0; }
-    string session = Path.GetFileNameWithoutExtension(path);
-    int stored = 0;
-    Exec("BEGIN");
-    foreach (string line in File.ReadLines(path))
-    {
-        if (string.IsNullOrWhiteSpace(line)) continue;
-        JsonDocument doc;
-        try { doc = JsonDocument.Parse(line); }
-        catch { continue; }
-        using (doc)
-        {
-            JsonElement root = doc.RootElement;
-            if (!root.TryGetProperty("type", out JsonElement type) || type.GetString() != "user") continue;
-            if (!root.TryGetProperty("message", out JsonElement msg)) continue;
-            string? text = ExtractUserText(msg)?.Trim();
-            if (string.IsNullOrEmpty(text) || text.Length < 40 || text[0] == '<') continue; // skip acks, tool echoes, wrappers
-            // Secrets in outputs (docs/RESTRUCTURE.md): scrub token-shaped strings before storing.
-            (text, _) = Aitm.Store.Data.SecretScrubber.Redact(text);
-            string uuid = root.TryGetProperty("uuid", out JsonElement u) ? u.GetString() ?? "" : "";
-            string ts = root.TryGetProperty("timestamp", out JsonElement t) ? t.GetString() ?? "" : "";
-            string k = $"{session}:{uuid}";
-            Run("INSERT INTO chat(k,session,ts,role,text) VALUES($k,$se,$ts,'user',$tx) ON CONFLICT(k) DO UPDATE SET text=$tx,ts=$ts",
-                ("$k", k), ("$se", session), ("$ts", ts), ("$tx", text));
-            Run("DELETE FROM chat_fts WHERE k=$k", ("$k", k));
-            Run("INSERT INTO chat_fts(k,text) VALUES($k,$tx)", ("$k", k), ("$tx", text));
-            stored++;
-        }
-    }
-    Exec("COMMIT");
-    Console.WriteLine($"  {session}: {stored} message(s)");
-    return stored;
-}
-
-// User content is a plain string or an array of blocks; only real text blocks are human input
-// (a content array of tool_result blocks is a tool echo, not something the operator said) -> null.
-string? ExtractUserText(JsonElement message)
-{
-    if (!message.TryGetProperty("content", out JsonElement content)) return null;
-    if (content.ValueKind == JsonValueKind.String) return content.GetString();
-    if (content.ValueKind != JsonValueKind.Array) return null;
-    StringBuilder sb = new();
-    foreach (JsonElement block in content.EnumerateArray())
-    {
-        if (block.ValueKind == JsonValueKind.Object
-            && block.TryGetProperty("type", out JsonElement bt) && bt.GetString() == "text"
-            && block.TryGetProperty("text", out JsonElement txt))
-            sb.AppendLine(txt.GetString());
-    }
-    return sb.Length == 0 ? null : sb.ToString();
-}
-
-// Recall channel: search past conversations (separate from the verified-facts query channel).
-void RecallCmd(string terms)
-{
-    string match = BuildMatch(terms);
-    if (match.Length == 0) { Console.WriteLine("no usable terms."); return; }
-    using SqliteCommand c = db.CreateCommand();
-    c.CommandText = @"SELECT ch.session,ch.ts,ch.text,m.score
-        FROM (SELECT k, bm25(chat_fts) AS score FROM chat_fts WHERE chat_fts MATCH $m ORDER BY score LIMIT 5) m
-        JOIN chat ch ON ch.k=m.k ORDER BY m.score";
-    c.Parameters.AddWithValue("$m", match);
-    using SqliteDataReader r = c.ExecuteReader();
-    int n = 0;
-    while (r.Read())
-    {
-        string text = r.GetString(2);
-        string snip = text.Length <= 240 ? text : text[..240] + "…";
-        Console.WriteLine($"• [{r.GetString(0)[..Math.Min(8, r.GetString(0).Length)]}… {r.GetString(1)}]  (score {r.GetDouble(3):F2})\n  {snip}\n");
-        n++;
-    }
-    if (n == 0) Console.WriteLine($"no chat history matches \"{terms}\".");
 }
 
 void Eval()

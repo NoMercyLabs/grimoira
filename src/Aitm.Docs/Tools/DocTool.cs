@@ -53,7 +53,12 @@ public sealed class DocTool : ITool
             JOIN docs d ON d.k=m.k WHERE d.category<>'synthesis' ORDER BY m.score
             """, match);
         if (n == 0) return $"no docs match \"{terms}\".";
-        return sb.ToString();
+        // Each row was appended with AppendLine on top of its own embedded trailing "\n" (aitm.cs's old
+        // PrintDocs did the same via one Console.WriteLine per row) — CLI dispatch wraps this return value
+        // in one more Console.WriteLine, so the AppendLine terminator on the LAST row would double up
+        // into an extra blank line the old CLI never had. Strip exactly that one terminator; the embedded
+        // "\n" stays, so the final Console.WriteLine reproduces the old row's own line ending exactly.
+        return StripOneTrailingNewLine(sb.ToString());
     }
 
     public string ExecuteMcp(SqliteConnection connection, string query)
@@ -118,6 +123,9 @@ public sealed class DocTool : ITool
     }
 
     private static string Clip(string s, int max) => s.Length <= max ? s : s[..max].TrimEnd() + "…";
+
+    private static string StripOneTrailingNewLine(string s) =>
+        s.EndsWith(Environment.NewLine, StringComparison.Ordinal) ? s[..^Environment.NewLine.Length] : s;
 
     private static string BuildMatch(string terms) => string.Join(" OR ", Tokens(terms).Select(t => $"\"{t}\""));
 
