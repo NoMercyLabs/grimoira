@@ -22,6 +22,15 @@ public sealed class MemTool : ITool
         "was", "were", "which", "when", "where", "name", "called", "get", "got", "me", "us", "about",
     };
 
+    // mcp.cs@bbb9b4d's own Stop set (mcp.cs:93) — one word short of the CLI's (no "me"/"us"/"about"),
+    // kept separate so the MCP path stays byte-for-byte with the pre-dispatch oracle.
+    private static readonly HashSet<string> McpStop = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "the", "is", "a", "an", "of", "to", "in", "on", "for", "and", "or", "what", "how", "are",
+        "does", "do", "it", "its", "be", "this", "that", "with", "as", "at", "by", "my", "i", "you",
+        "we", "there", "was", "were", "which", "when", "where", "name", "called", "get", "got",
+    };
+
     private readonly IUsageSignal _usageSignal;
 
     public MemTool(IUsageSignal usageSignal) => _usageSignal = usageSignal;
@@ -87,7 +96,7 @@ public sealed class MemTool : ITool
 
     public string ExecuteMcp(SqliteConnection connection, string query)
     {
-        string match = Match(query);
+        string match = McpMatch(query);
         if (match.Length == 0) return "no usable query terms.";
         try
         {
@@ -124,7 +133,7 @@ public sealed class MemTool : ITool
     {
         try
         {
-            string norm = string.Join(' ', Tokens(query));
+            string norm = string.Join(' ', McpTokens(query));
             if (norm.Length < 3) return "";
             GapLog.Record(connection, "rule", norm);
             return " [gap logged — stage the answer via brain_stage once you learn it]";
@@ -139,11 +148,20 @@ public sealed class MemTool : ITool
 
     private static string BuildMatch(string terms) => string.Join(" OR ", Tokens(terms).Select(t => $"\"{t}\""));
 
-    private static string Match(string terms) => string.Join(" OR ", Tokens(terms).Select(t => $"\"{t}\""));
+    private static string McpMatch(string terms) => string.Join(" OR ", McpTokens(terms).Select(t => $"\"{t}\""));
 
     private static List<string> Tokens(string terms) =>
         [.. terms.ToLowerInvariant()
             .Split(" \t\r\n-_./\\,;:()[]{}<>\"'`|!?*+=&#@~%$^".ToCharArray(), StringSplitOptions.RemoveEmptyEntries)
             .Where(t => t.All(char.IsLetterOrDigit) && t.Length > 1 && !Stop.Contains(t))
             .Distinct()];
+
+    // mcp.cs@bbb9b4d's own Tokens (mcp.cs:249): split on spaces only, then strip non-alphanumeric
+    // characters out of each token — a hyphenated/punctuated query glues into one token instead of
+    // splitting into several the way the CLI's Tokens() (above) does.
+    private static List<string> McpTokens(string terms) =>
+        [.. terms.ToLowerInvariant()
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .Select(t => new string([.. t.Where(char.IsLetterOrDigit)]))
+            .Where(t => t.Length > 1 && !McpStop.Contains(t))];
 }
