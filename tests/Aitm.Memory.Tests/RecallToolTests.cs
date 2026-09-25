@@ -105,7 +105,7 @@ public class RecallToolTests
     public void McpShapeMatchesTodaysMcpOutputForAConfidentMatch()
     {
         string instance = AitmCliRunner.NewTestInstance("recall-mcp-hit");
-        string transcript = MakeFixtureTranscript("recallmcphit");
+        string transcript = MakeFixtureTranscript("recallmcp"); // indexed token "recallmcptopic" must equal the query (see the CLI twin above)
         string? previousInstanceEnv = Environment.GetEnvironmentVariable("AITM_INSTANCE");
         try
         {
@@ -121,6 +121,7 @@ public class RecallToolTests
 
             Assert.Equal(expected, actual);
             Assert.Contains("recallmcptopic", actual);
+            Assert.DoesNotContain("no chat history matches", actual);
         }
         finally
         {
