@@ -2315,6 +2315,8 @@ int IndexChatFile(string path)
             if (!root.TryGetProperty("message", out JsonElement msg)) continue;
             string? text = ExtractUserText(msg)?.Trim();
             if (string.IsNullOrEmpty(text) || text.Length < 40 || text[0] == '<') continue; // skip acks, tool echoes, wrappers
+            // Secrets in outputs (docs/RESTRUCTURE.md): scrub token-shaped strings before storing.
+            (text, _) = Aitm.Store.Data.SecretScrubber.Redact(text);
             string uuid = root.TryGetProperty("uuid", out JsonElement u) ? u.GetString() ?? "" : "";
             string ts = root.TryGetProperty("timestamp", out JsonElement t) ? t.GetString() ?? "" : "";
             string k = $"{session}:{uuid}";
