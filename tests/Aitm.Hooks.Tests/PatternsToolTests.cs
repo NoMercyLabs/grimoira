@@ -20,8 +20,9 @@ public class PatternsToolTests
         try
         {
             AitmCliRunner.Run($"init --instance {instance}");
-            using (SqliteConnection connection = HookStore.Open(HookPaths.DbPath(instance)))
+            using (SqliteConnection connection = new($"Data Source={HookPaths.DbPath(instance)}"))
             {
+                connection.Open();
                 using SqliteCommand create = connection.CreateCommand();
                 create.CommandText = "CREATE TABLE IF NOT EXISTS patterns(" +
                     "sig TEXT PRIMARY KEY, sample TEXT, count INTEGER NOT NULL DEFAULT 1, " +

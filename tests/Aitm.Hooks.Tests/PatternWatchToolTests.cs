@@ -112,8 +112,8 @@ public class PatternWatchToolTests
             using SqliteConnection connection = new($"Data Source={HookPaths.DbPath(instance)};Mode=ReadOnly");
             connection.Open();
             using SqliteCommand count = connection.CreateCommand();
-            count.CommandText = "SELECT count(*) FROM patterns";
-            Assert.Equal(0L, (long)count.ExecuteScalar()!);
+            count.CommandText = "SELECT name FROM sqlite_master WHERE type='table' AND name='patterns'";
+            Assert.Null(count.ExecuteScalar());
         }
         finally
         {
