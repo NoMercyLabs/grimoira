@@ -147,6 +147,14 @@ public static class McpSnapshotHarness
         try
         {
             if (File.Exists(dll) && File.Exists(stamp)) return dll;
+
+            // Another test run (a parallel agent in another worktree) may build the same snapshot at
+            // the same time. Build in a folder of our own and move it into place in one step, so no run
+            // ever reads a half-built snapshot. The loser of the race uses the winner's copy.
+            string finalDir = snapshotDir;
+            snapshotDir = $"{finalDir}.building-{Environment.ProcessId}-{Guid.NewGuid():N}";
+            dll = Path.Combine(snapshotDir, "mcp.dll");
+            stamp = Path.Combine(snapshotDir, ".built-ok");
             Directory.CreateDirectory(snapshotDir);
 
             string source = RunGit(repoRoot, $"show {commit}:mcp.cs");
@@ -170,12 +178,35 @@ public static class McpSnapshotHarness
                 throw new InvalidOperationException($"snapshot build of mcp.cs@{commit} failed:\n{stdout}\n{stderr}");
 
             File.WriteAllText(stamp, DateTime.UtcNow.ToString("o"));
-            return dll;
+            return MoveIntoPlace(snapshotDir, finalDir);
         }
         finally
         {
             BuildLock.Release();
         }
+    }
+
+    private static string MoveIntoPlace(string builtDir, string finalDir)
+    {
+        string finalDll = Path.Combine(finalDir, "mcp.dll");
+        string finalStamp = Path.Combine(finalDir, ".built-ok");
+        // A final folder without the stamp is a leftover of the old in-place build; builds now happen
+        // only in private folders, so nobody else is writing it.
+        if (Directory.Exists(finalDir) && !File.Exists(finalStamp)) TryDelete(finalDir);
+        try
+        {
+            Directory.Move(builtDir, finalDir);
+        }
+        catch (IOException) when (File.Exists(finalStamp))
+        {
+            TryDelete(builtDir); // another run won the race; its copy is complete
+        }
+        return finalDll;
+    }
+
+    private static void TryDelete(string dir)
+    {
+        try { Directory.Delete(dir, recursive: true); } catch (IOException) { } catch (UnauthorizedAccessException) { }
     }
 
     private static string RunGit(string repoRoot, string arguments)
