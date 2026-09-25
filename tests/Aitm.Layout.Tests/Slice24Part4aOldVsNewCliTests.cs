@@ -138,7 +138,11 @@ public class Slice24Part4aOldVsNewCliTests
             "brain learn triple proj:svc-a-fixture consumes seam:shared-fixture --because fixture",
             "brain learn triple proj:svc-b-fixture consumes seam:shared-fixture --because fixture",
             "brain learn node kind:fixture-service-a codekind \"Fixture Service A\"",
-            "brain learn slot kind:fixture-service-a language TypeScript --facet lang --because fixture",
+            // No --facet override: aitm.cs's own `brain learn slot` case (part 4b's wiring, not this
+            // part's) currently ignores --facet and always writes the "text" default — a real bug, but
+            // in a verb this part does not own. Leaving --facet off keeps this fixture (which exists
+            // only to exercise `place`'s slot read) decoupled from that unrelated defect.
+            "brain learn slot kind:fixture-service-a language TypeScript --because fixture",
             "brain learn triple kind:fixture-service-a belongs_in proj:svc-a-fixture --because fixture",
         ];
 
