@@ -106,6 +106,7 @@ public class InitFullRunFullTests : IDisposable
 
     public void Dispose()
     {
+        SqliteConnection.ClearAllPools();
         Directory.Delete(_workspace, recursive: true);
         Directory.Delete(_home, recursive: true);
         Directory.Delete(_storeDir, recursive: true);
