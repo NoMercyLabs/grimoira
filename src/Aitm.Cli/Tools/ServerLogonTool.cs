@@ -35,7 +35,17 @@ public static class WindowsLogonTask
             RestartCount: 3,
             RestartInterval: TimeSpan.FromMinutes(1),
             ExecutablePath: executablePath,
-            WorkingDirectory: Path.GetDirectoryName(executablePath) ?? "");
+            WorkingDirectory: WindowsDirectoryOf(executablePath));
+
+    // A Windows path, split the Windows way on any host: Path.GetDirectoryName on Linux does not treat
+    // '\' as a separator and returns "" for "C:\Program Files\Aitm\Aitm.Server.exe".
+    private static string WindowsDirectoryOf(string path)
+    {
+        int cut = path.LastIndexOfAny(['\\', '/']);
+        if (cut <= 0) return "";
+        string dir = path[..cut];
+        return dir.EndsWith(':') ? dir + "\\" : dir; // "C:\a.exe" -> "C:\", as on Windows
+    }
 
     /// <summary>The Task Scheduler XML (schema 1.2) for <paramref name="def"/>. A pure function: no
     /// file or process I/O.</summary>
