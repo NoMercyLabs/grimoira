@@ -124,6 +124,71 @@ public class McpSnapshotParityTests
             new { query = "paritydoc" },
             new { query = "nothing-ever-matches-this-term-at-all" },
         ];
+
+        // Punctuated queries: bbb9b4d's mcp.cs (and QueryTool's McpTokens, copied from it) tokenized a
+        // query by splitting on spaces only and stripping punctuation *inside* each token, so
+        // "Parity-Punct/Term.Alpha:Beta_Gamma" collapsed to one glued token. The shared Tokens() used
+        // by MemTool/RecallTool/DocTool (copied from the CLI tokenizer, which deliberately splits on
+        // those delimiters — aitm.cs's own comment about "nomercy-app-kmp") instead splits into several
+        // tokens. Every wired tool must still answer exactly like the old mcp.cs even when the query or
+        // seeded content carries a hyphen, slash, dot, colon, underscore, or mixed case.
+        const string punct = "Parity-Punct/Term.Alpha:Beta_Gamma";
+        yield return
+        [
+            "fact",
+            (Action<string>)(instance => AitmCliRunner.Run($"add --instance {instance} --term \"{punct}\" --value parity-answer --category manual")),
+            new { query = punct },
+            new { query = "nothing-ever-matches-this-term-at-all" },
+        ];
+        yield return
+        [
+            "history",
+            (Action<string>)(instance => AitmCliRunner.Run($"add --instance {instance} --term \"{punct}\" --value one --category manual")),
+            new { term = punct },
+            new { term = "nothing-was-ever-named-this" },
+        ];
+        yield return
+        [
+            "log_finding",
+            (Action<string>)(_ => { }),
+            new { title = punct, detail = "d", source = "s" },
+            new { title = "", detail = "", source = "" },
+        ];
+        yield return
+        [
+            "open_findings",
+            (Action<string>)(instance => AitmCliRunner.Run($"finding --instance {instance} --title \"{punct}\" --detail d --source s")),
+            new { },
+            new { },
+        ];
+        yield return
+        [
+            "rule",
+            (Action<string>)(instance => SeedMemory(instance, "punct-rule", punct)),
+            new { query = punct },
+            new { query = "nothing-ever-matches-this-term-at-all" },
+        ];
+        yield return
+        [
+            "shed_memory",
+            (Action<string>)(instance => SeedMemory(instance, "punct-shed", punct)),
+            new { key = MemoryKey("punct-shed") },
+            new { key = "no-such-key-ever" },
+        ];
+        yield return
+        [
+            "recall",
+            (Action<string>)(instance => SeedChat(instance, punct)),
+            new { query = punct },
+            new { query = "nothing-ever-matches-this-term-at-all" },
+        ];
+        yield return
+        [
+            "doc",
+            (Action<string>)(instance => SeedDocs(instance, "punct-doc", punct)),
+            new { query = punct },
+            new { query = "nothing-ever-matches-this-term-at-all" },
+        ];
     }
 
     // History's rows carry a real insertion timestamp, which differs by construction between the old
@@ -134,28 +199,34 @@ public class McpSnapshotParityTests
 
     private static string MemoryKey(string label) => $"memory-fixture-{label}";
 
-    private static void SeedMemory(string instance, string label)
+    private static void SeedMemory(string instance, string label) => SeedMemory(instance, label, label);
+
+    private static void SeedMemory(string instance, string label, string topic)
     {
         string dir = Directory.CreateTempSubdirectory("aitm-mcp-parity-mem-").FullName;
         File.WriteAllText(Path.Combine(dir, $"{MemoryKey(label)}.md"),
-            $"---\ntype: feedback\ntitle: {label}\nhook: {label}\n---\n\nA memory about {label} topic.\n");
+            $"---\ntype: feedback\ntitle: {label}\nhook: {label}\n---\n\nA memory about {topic} topic.\n");
         AitmCliRunner.Run($"index-memory --instance {instance} --from \"{dir}\"");
     }
 
     private static void SeedChat(string instance, string label)
     {
+        // IndexChatTool.Execute enumerates *.jsonl in --from non-recursively, so the file has to sit
+        // directly in that directory (not in a nested project subfolder) or it silently indexes zero
+        // messages, which would let a real match-vs-no-match parity gap hide behind an empty result on
+        // both sides.
         string dir = Directory.CreateTempSubdirectory("aitm-mcp-parity-chat-").FullName;
-        string project = Path.Combine(dir, "proj-parity");
-        Directory.CreateDirectory(project);
-        File.WriteAllText(Path.Combine(project, "session.jsonl"),
-            $"{{\"type\":\"user\",\"message\":{{\"role\":\"user\",\"content\":\"a message about {label} topic\"}},\"sessionId\":\"s1\",\"timestamp\":\"2026-01-01T00:00:00Z\"}}\n");
+        File.WriteAllText(Path.Combine(dir, "session.jsonl"),
+            $"{{\"type\":\"user\",\"message\":{{\"role\":\"user\",\"content\":\"a message about {label} topic, said during a real working session\"}},\"sessionId\":\"s1\",\"timestamp\":\"2026-01-01T00:00:00Z\"}}\n");
         AitmCliRunner.Run($"index-chat --instance {instance} --from \"{dir}\"");
     }
 
-    private static void SeedDocs(string instance, string label)
+    private static void SeedDocs(string instance, string label) => SeedDocs(instance, label, label);
+
+    private static void SeedDocs(string instance, string label, string topic)
     {
         string dir = Directory.CreateTempSubdirectory("aitm-mcp-parity-docs-").FullName;
-        File.WriteAllText(Path.Combine(dir, $"{label}.md"), $"# {label}\n\nContent about {label} topic.\n");
+        File.WriteAllText(Path.Combine(dir, $"{label}.md"), $"# {label}\n\nContent about {topic} topic.\n");
         AitmCliRunner.Run($"index-docs --instance {instance} --from \"{dir}\"");
     }
 
