@@ -26,19 +26,33 @@ public sealed class SeedEdgesTool : ITool
         static string S(JsonElement e, string n) => e.TryGetProperty(n, out JsonElement v) && v.ValueKind == JsonValueKind.String ? v.GetString() ?? "" : "";
         static int I(JsonElement e, string n) => e.TryGetProperty(n, out JsonElement v) && v.ValueKind == JsonValueKind.Number ? v.GetInt32() : 0;
 
+        // file_rel (RESTRUCTURE.md slice 31b): same column-exists guard GraphFileRelSchema.HasColumn
+        // already gives every reader, so a v3 store (no column yet) inserts exactly as before.
+        bool hasFileRel = Schema.GraphFileRelSchema.HasColumn(connection, "edges", "file_rel");
+        Dictionary<string, string> roots = hasFileRel ? Schema.GraphFileRelSchema.LoadProjectRoots(connection) : new();
+
         int n = 0;
         using (SqliteCommand begin = connection.CreateCommand()) { begin.CommandText = "BEGIN"; begin.ExecuteNonQuery(); }
         foreach (JsonElement e in edges.EnumerateArray())
         {
+            string proj = S(e, "project");
+            string file = S(e, "file");
+            string? fileRel = hasFileRel && roots.TryGetValue(proj, out string? root)
+                ? Schema.GraphFileRelSchema.ToRelative(root, file)
+                : null;
+
             using SqliteCommand insert = connection.CreateCommand();
-            insert.CommandText = "INSERT INTO edges(symbol,contract,project,file,line,usage,hardcoded) VALUES($s,$c,$p,$f,$l,$u,$h)";
+            insert.CommandText = hasFileRel
+                ? "INSERT INTO edges(symbol,contract,project,file,line,usage,hardcoded,file_rel) VALUES($s,$c,$p,$f,$l,$u,$h,$fr)"
+                : "INSERT INTO edges(symbol,contract,project,file,line,usage,hardcoded) VALUES($s,$c,$p,$f,$l,$u,$h)";
             insert.Parameters.AddWithValue("$s", S(e, "symbol"));
             insert.Parameters.AddWithValue("$c", S(e, "contract"));
-            insert.Parameters.AddWithValue("$p", S(e, "project"));
-            insert.Parameters.AddWithValue("$f", S(e, "file"));
+            insert.Parameters.AddWithValue("$p", proj);
+            insert.Parameters.AddWithValue("$f", file);
             insert.Parameters.AddWithValue("$l", I(e, "line"));
             insert.Parameters.AddWithValue("$u", S(e, "usage"));
             insert.Parameters.AddWithValue("$h", I(e, "hardcoded"));
+            if (hasFileRel) insert.Parameters.AddWithValue("$fr", (object?)fileRel ?? DBNull.Value);
             insert.ExecuteNonQuery();
             n++;
         }

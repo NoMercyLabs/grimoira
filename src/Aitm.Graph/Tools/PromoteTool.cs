@@ -43,12 +43,21 @@ public sealed class PromoteTool : ITool
             exists = (long)(count.ExecuteScalar() ?? 0L);
         }
 
+        // file_rel (RESTRUCTURE.md slice 31b): same column-exists guard GraphFileRelSchema.HasColumn
+        // already gives every reader, so a v3 store (no column yet) inserts exactly as before.
+        bool hasFileRel = Schema.GraphFileRelSchema.HasColumn(connection, "edges", "file_rel");
+        string? fileRel = null;
+        if (hasFileRel && Schema.GraphFileRelSchema.LoadProjectRoots(connection).TryGetValue(proj, out string? root))
+            fileRel = Schema.GraphFileRelSchema.ToRelative(root, file);
+
         using (SqliteCommand begin = connection.CreateCommand()) { begin.CommandText = "BEGIN"; begin.ExecuteNonQuery(); }
         if (exists == 0)
         {
             using (SqliteCommand insert = connection.CreateCommand())
             {
-                insert.CommandText = "INSERT INTO edges(symbol,contract,project,file,line,usage,hardcoded) VALUES($s,$c,$p,$f,$l,$u,$h)";
+                insert.CommandText = hasFileRel
+                    ? "INSERT INTO edges(symbol,contract,project,file,line,usage,hardcoded,file_rel) VALUES($s,$c,$p,$f,$l,$u,$h,$fr)"
+                    : "INSERT INTO edges(symbol,contract,project,file,line,usage,hardcoded) VALUES($s,$c,$p,$f,$l,$u,$h)";
                 insert.Parameters.AddWithValue("$s", sym);
                 insert.Parameters.AddWithValue("$c", contract);
                 insert.Parameters.AddWithValue("$p", proj);
@@ -56,6 +65,7 @@ public sealed class PromoteTool : ITool
                 insert.Parameters.AddWithValue("$l", line);
                 insert.Parameters.AddWithValue("$u", usage);
                 insert.Parameters.AddWithValue("$h", hard);
+                if (hasFileRel) insert.Parameters.AddWithValue("$fr", (object?)fileRel ?? DBNull.Value);
                 insert.ExecuteNonQuery();
             }
             MutationLog.Append(connection, "edge", $"{sym}|{proj}|{file}|{line}", "insert", null, $"{contract}:{usage}", $"promote:#{id}");

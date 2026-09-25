@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Aitm.Brain.Data;
+using Aitm.Graph.Schema;
 using Aitm.Store.Tools;
 using Microsoft.Data.Sqlite;
 
@@ -62,15 +63,30 @@ public sealed class SpineImportTool : ITool
             foreach (JsonElement e in terms.EnumerateArray())
                 Exec(connection, "INSERT OR IGNORE INTO term_alias(term,canonical) VALUES($t,$c)", ("$t", Str(e, "term")), ("$c", Str(e, "canonical")));
 
+        // file_rel (RESTRUCTURE.md slice 31b): same column-exists guard GraphFileRelSchema.HasColumn
+        // already gives every reader, so a v3 store (no column yet) inserts exactly as before.
+        bool hasFileRel = GraphFileRelSchema.HasColumn(connection, "edges", "file_rel");
+        Dictionary<string, string> roots = hasFileRel ? GraphFileRelSchema.LoadProjectRoots(connection) : new();
+
         int g = 0;
         if (root.TryGetProperty("edges", out JsonElement edges))
             foreach (JsonElement e in edges.EnumerateArray())
             {
                 int line = e.TryGetProperty("line", out JsonElement lv) && lv.ValueKind == JsonValueKind.Number ? lv.GetInt32() : 0;
                 int hard = e.TryGetProperty("hardcoded", out JsonElement hv) && hv.ValueKind == JsonValueKind.Number ? hv.GetInt32() : 0;
-                Exec(connection, "INSERT INTO edges(symbol,contract,project,file,line,usage,hardcoded) VALUES($s,$c,$p,$f,$l,$u,$h)",
-                    ("$s", Str(e, "symbol")), ("$c", Str(e, "contract")), ("$p", Str(e, "project")),
-                    ("$f", Str(e, "file")), ("$l", line), ("$u", Str(e, "usage")), ("$h", hard));
+                string proj = Str(e, "project");
+                string file = Str(e, "file");
+                string? fileRel = hasFileRel && roots.TryGetValue(proj, out string? projRoot)
+                    ? GraphFileRelSchema.ToRelative(projRoot, file)
+                    : null;
+                if (hasFileRel)
+                    Exec(connection, "INSERT INTO edges(symbol,contract,project,file,line,usage,hardcoded,file_rel) VALUES($s,$c,$p,$f,$l,$u,$h,$fr)",
+                        ("$s", Str(e, "symbol")), ("$c", Str(e, "contract")), ("$p", proj),
+                        ("$f", file), ("$l", line), ("$u", Str(e, "usage")), ("$h", hard), ("$fr", fileRel));
+                else
+                    Exec(connection, "INSERT INTO edges(symbol,contract,project,file,line,usage,hardcoded) VALUES($s,$c,$p,$f,$l,$u,$h)",
+                        ("$s", Str(e, "symbol")), ("$c", Str(e, "contract")), ("$p", proj),
+                        ("$f", file), ("$l", line), ("$u", Str(e, "usage")), ("$h", hard));
                 g++;
             }
 

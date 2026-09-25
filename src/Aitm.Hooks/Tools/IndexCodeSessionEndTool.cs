@@ -1,6 +1,8 @@
 using System.Text.Json;
+using Aitm.Brain.Schema;
 using Aitm.Graph.Tools;
 using Aitm.Hooks.Data;
+using Aitm.Store.Schema;
 using Microsoft.Data.Sqlite;
 
 namespace Aitm.Hooks.Tools;
@@ -26,6 +28,14 @@ public static class IndexCodeSessionEndTool
             using SqliteConnection connection = HookStore.Open(HookPaths.DbPath(instance));
             string backupDir = Path.Combine(HookPaths.InstanceDir(instance), "backups");
             new IndexCodeTool().Execute(connection, null, backupDir);
+            // slice 31b: once edges.file_rel exists, keep legacy_consumes (brain_impact's read path) in
+            // sync with it. The provider's own guard (2 cheap PRAGMA table_info reads, no lock needed)
+            // is checked BEFORE calling SchemaRunner.Run, so the backup-and-transaction cost — and its
+            // own busy-timeout wait on a locked store — is only ever paid when there is real work to do,
+            // never on every session end.
+            BrainLegacyConsumesFileRelSchema legacyConsumesSchema = new(connection);
+            if (legacyConsumesSchema.Statements.Count > 0)
+                SchemaRunner.Run(connection, [legacyConsumesSchema], backupDir);
         }
         catch
         {
