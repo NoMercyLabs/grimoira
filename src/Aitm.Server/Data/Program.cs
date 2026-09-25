@@ -109,6 +109,10 @@ app.MapGet("/health", () => Results.Json(new
 // The 25 golden MCP tools, behind the same auth middleware as every non-/health route above.
 app.MapMcp("/mcp");
 
+// RESTRUCTURE.md "Slice 34": Claude Code http hooks, behind the same auth middleware; runs the
+// slice 20-22 handlers under the same per-project writer gate as /mcp (HookEndpoint).
+app.MapPost("/hooks/{event}", (string @event, HttpContext context) => HookEndpoint.Handle(@event, context, projectStore));
+
 app.Run();
 
 // Makes the top-level Program class visible to Aitm.Server.Tests' WebApplicationFactory<Program>.
