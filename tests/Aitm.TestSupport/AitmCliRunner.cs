@@ -12,6 +12,27 @@ namespace Aitm.TestSupport;
 /// </summary>
 public static class AitmCliRunner
 {
+    // A test-* store older than this has no owner left: another agent's run would still be touching it
+    // (writing to it, at least once, well within an hour), so anything past this is safe to sweep.
+    private static readonly TimeSpan StaleInstanceAge = TimeSpan.FromHours(1);
+
+    // WAL-mode sqlite (StoreConnection.ApplyPragmas) can leave a native file handle on the -wal/-shm file
+    // for a few hundred milliseconds after SqliteConnection.ClearAllPools() returns on Windows, so a
+    // Directory.Delete right after it intermittently throws IOException/UnauthorizedAccessException. Same
+    // fix as McpSnapshotHarness.TryDelete and OldVsNewCli's equivalent (both in this project), and the
+    // matching Node fix in bbb9b4d (rmSync maxRetries/retryDelay) — retry instead of surfacing the race.
+    private const int DeleteMaxRetries = 20;
+    private const int DeleteRetryDelayMs = 250;
+
+    // Runs once per test process, the first time anything in this class is touched — effectively "at test
+    // run start" for every test project that uses AitmCliRunner. Clears out instances no run of this class
+    // still owns, so a store leaked by a lock that outlasted DeleteMaxRetries * DeleteRetryDelayMs (5s)
+    // doesn't accumulate under ~/.aitm forever.
+    static AitmCliRunner()
+    {
+        SweepStaleInstances();
+    }
+
     public static string NewTestInstance(string label) => $"test-{label}-{Guid.NewGuid():N}";
 
     public static string InstanceDbPath(string instance) => Path.Combine(InstanceDir(instance), "aitm.db");
@@ -25,7 +46,44 @@ public static class AitmCliRunner
             throw new InvalidOperationException($"refusing to delete '{instance}': not a test-* instance");
         Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
         string dir = InstanceDir(instance);
-        if (Directory.Exists(dir)) Directory.Delete(dir, recursive: true);
+        if (Directory.Exists(dir)) DeleteDirectoryWithRetry(dir);
+    }
+
+    /// <summary>Removes every <c>test-*</c> instance directory under <c>~/.aitm</c> that has not been
+    /// written to in over an hour. Never touches anything younger — a run from another agent's worktree may
+    /// still own it. Exposed (not just run from the static constructor) so a test can call it directly and
+    /// assert on exactly what it does and does not remove.</summary>
+    public static void SweepStaleInstances()
+    {
+        string root = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".aitm");
+        if (!Directory.Exists(root)) return;
+        DateTime cutoffUtc = DateTime.UtcNow - StaleInstanceAge;
+        foreach (string dir in Directory.EnumerateDirectories(root, "test-*"))
+        {
+            try
+            {
+                if (Directory.GetLastWriteTimeUtc(dir) >= cutoffUtc) continue;
+                DeleteDirectoryWithRetry(dir);
+            }
+            catch (IOException) { /* still locked, or another sweep/agent won the race; leave it for next time */ }
+            catch (UnauthorizedAccessException) { /* same */ }
+        }
+    }
+
+    private static void DeleteDirectoryWithRetry(string dir, int maxRetries = DeleteMaxRetries, int retryDelayMs = DeleteRetryDelayMs)
+    {
+        for (int attempt = 0; ; attempt++)
+        {
+            try
+            {
+                Directory.Delete(dir, recursive: true);
+                return;
+            }
+            catch (Exception ex) when ((ex is IOException || ex is UnauthorizedAccessException) && attempt < maxRetries)
+            {
+                Thread.Sleep(retryDelayMs);
+            }
+        }
     }
 
     /// <summary>Runs <c>aitm &lt;arguments&gt;</c> and returns (stdout, exit code). Never throws on a
