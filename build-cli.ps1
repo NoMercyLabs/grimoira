@@ -10,3 +10,9 @@
 # and verify.ps1 (searched: no external caller under C:/Projects/NoMercy/.claude invokes this script by
 # name — they only read the exe path it produces).
 dotnet build "$PSScriptRoot/aitm.cs" -c Release -o "$PSScriptRoot/bin-cli"
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+# RESTRUCTURE.md slice 29 part 1: the published CLI, beside bin-cli/ and never over it (brain-sweep and
+# the hooks still run bin-cli/aitm.exe). PublishAot=false: a file-based app publishes as Native AOT by
+# default, and the tool registry and Sqlite are not AOT-checked; AOT is its own decision, not this one.
+dotnet publish "$PSScriptRoot/aitm.cs" -c Release -o "$PSScriptRoot/bin-cli-next" -p:PublishAot=false
