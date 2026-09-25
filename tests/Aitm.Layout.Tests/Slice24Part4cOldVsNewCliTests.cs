@@ -20,13 +20,17 @@ namespace Aitm.Layout.Tests;
 // repo or ~/.claude, and never real content.
 public class Slice24Part4cOldVsNewCliTests
 {
-    // eval prints its own elapsed time per question ("  4,46ms  ", no parens) on top of the
-    // "(N.Nms)" shape other verbs use, so both need normalizing before a diff.
+    // eval prints its own elapsed time per question via "{ms,5:F2}ms" — a 5-char right-aligned field, so
+    // a single-digit value ("1.23ms") carries one more leading pad space than a double-digit one
+    // ("12.34ms"). Leaving that pad space out of the match made the old-vs-new diff flaky under load: two
+    // runs landing on either side of the single/double-digit boundary differed by exactly one space
+    // ahead of an otherwise-identical line. Consuming the leading whitespace along with the number fixes
+    // it. On top of the "(N.Nms)" shape other verbs use, so both need normalizing before a diff.
     private static string StripVolatile(string s) =>
         Regex.Replace(
             Regex.Replace(Regex.Replace(s, @"\(\d+[.,]\d+ms\)", "(<ms>)"),
                 @"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z", "<ts>"),
-            @"\d+[.,]\d+ms", "<ms>");
+            @"[ \t]*\d+[.,]\d+ms", "<ms>");
 
     private static (string stdout, string stderr, int exitCode) RunNormalized(
         OldVsNewCli.Result result, string instance, string dbPath)
