@@ -3,10 +3,14 @@
 // RESTRUCTURE.md slice 24, CLI lane part 1: aitm.cs's Store and Facts verbs now dispatch to their
 // tool classes instead of carrying the logic inline.
 // RESTRUCTURE.md slice 24, CLI lane part 2: the Memory and Docs verbs do the same.
+// RESTRUCTURE.md slice 24, CLI lane part 3: aitm.cs's Graph verbs (project, projects, forget-project,
+// extract-edges, candidates, promote, promote-all, seed-edges, impact, graph-query, graph-path,
+// graph-explain) dispatch to their Aitm.Graph tool classes the same way.
 #:project src/Aitm.Store/Aitm.Store.csproj
 #:project src/Aitm.Facts/Aitm.Facts.csproj
 #:project src/Aitm.Memory/Aitm.Memory.csproj
 #:project src/Aitm.Docs/Aitm.Docs.csproj
+#:project src/Aitm.Graph/Aitm.Graph.csproj
 // AITM foundation — core slice: a per-instance SQLite store with a CURRENT projection
 // (one row per entity, the only thing normal reads touch) plus an append-only MUTATIONS
 // log (cold; read only for trace/rollback). FTS5-ranked knowledge lookup. Generic: the
@@ -18,6 +22,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using Aitm.Docs.Tools;
 using Aitm.Facts.Tools;
+using Aitm.Graph.Tools;
 using Aitm.Memory.Tools;
 using Aitm.Store.Data;
 using Aitm.Store.Tools;
@@ -155,8 +160,14 @@ switch (cmd)
         Console.WriteLine(new HistoryTool().ExecuteCli(db, string.Join(' ', Positionals().Skip(1))));
         break;
     case "seed-edges":
-        SeedEdges();
+    {
+        string seedPath = GetFlag("--from") ?? Path.Combine(AppContext.BaseDirectory, "..", "seeds", "spine.json");
+        // SeedEdgesTool.Execute returns the same "no spine file at ..." text the old inline SeedEdges
+        // wrote to stderr, so the missing-file case has to be checked here to keep it on stderr.
+        if (!File.Exists(seedPath)) { Console.Error.WriteLine($"no spine file at {Path.GetFullPath(seedPath)}"); break; }
+        Console.WriteLine(new SeedEdgesTool().Execute(db, seedPath));
         break;
+    }
     case "spine-export":
         SpineExport(GetFlag("--to") ?? Path.Combine(AppContext.BaseDirectory, "..", "seeds", "spine.json"));
         break;
@@ -179,53 +190,49 @@ switch (cmd)
         SpineImport(GetFlag("--from") ?? throw new ArgumentException("spine-import needs --from <spine.json>"));
         break;
     case "project":
-        Run("INSERT INTO projects(name,root,lang,globs) VALUES($n,$r,$l,$g) ON CONFLICT(name) DO UPDATE SET root=$r,lang=$l,globs=$g",
-            ("$n", GetFlag("--name") ?? throw new ArgumentException("project needs --name")),
-            ("$r", GetFlag("--root") ?? throw new ArgumentException("project needs --root")),
-            ("$l", GetFlag("--lang") ?? ""), ("$g", GetFlag("--globs") ?? "*.ts,*.tsx,*.vue,*.kt,*.cs"));
-        Console.WriteLine($"project '{GetFlag("--name")}' registered.");
+        Console.WriteLine(new ProjectTool().Execute(db,
+            GetFlag("--name") ?? throw new ArgumentException("project needs --name"),
+            GetFlag("--root") ?? throw new ArgumentException("project needs --root"),
+            GetFlag("--lang") ?? "", GetFlag("--globs") ?? "*.ts,*.tsx,*.vue,*.kt,*.cs"));
         break;
     case "projects":
-        ListProjects();
+        Console.WriteLine(new ProjectsTool().Execute(db));
         break;
     // Registration without deregistration left roots that no longer exist on disk still answering
     // questions with paths that are gone, which is worse than not knowing.
     case "forget-project":
-    {
-        string pn = GetFlag("--name") ?? throw new ArgumentException("forget-project needs --name");
-        long dropped = ScalarLong("SELECT count(*) FROM edges WHERE project=$n", ("$n", pn));
-        Run("DELETE FROM edges WHERE project=$n", ("$n", pn));
-        Run("DELETE FROM projects WHERE name=$n", ("$n", pn));
-        Console.WriteLine($"project '{pn}' forgotten ({dropped} edge(s) dropped).");
+        Console.WriteLine(new ForgetProjectTool().Execute(db, root,
+            GetFlag("--name") ?? throw new ArgumentException("forget-project needs --name")));
         break;
-    }
     case "extract-edges":
-        ExtractEdges(GetFlag("--symbol") ?? throw new ArgumentException("extract-edges needs --symbol"), GetFlag("--contract") ?? "");
+        Console.WriteLine(new ExtractEdgesTool().Execute(db,
+            GetFlag("--symbol") ?? throw new ArgumentException("extract-edges needs --symbol"), GetFlag("--contract") ?? ""));
         break;
     case "candidates":
-        ListCandidates(GetFlag("--symbol"));
+        Console.WriteLine(new CandidatesTool().Execute(db, GetFlag("--symbol")));
         break;
     case "promote":
-        PromoteCandidate(int.Parse(Pos1(), CultureInfo.InvariantCulture));
+        Console.WriteLine(new PromoteTool().Execute(db, int.Parse(Pos1(), CultureInfo.InvariantCulture)));
         break;
     case "promote-all":
-        PromoteAll(GetFlag("--symbol") ?? throw new ArgumentException("promote-all needs --symbol"));
+        Console.WriteLine(new PromoteAllTool().Execute(db, root,
+            GetFlag("--symbol") ?? throw new ArgumentException("promote-all needs --symbol")));
         break;
     case "impact":
-        ImpactCmd(string.Join(' ', Positionals().Skip(1)));
+        Console.WriteLine(new ImpactTool().ExecuteCli(db, string.Join(' ', Positionals().Skip(1))));
         break;
     case "graph-query":
-        GraphQueryCmd(string.Join(' ', Positionals().Skip(1)));
+        Console.WriteLine(new GraphQueryTool().ExecuteCli(db, string.Join(' ', Positionals().Skip(1))));
         break;
     case "graph-path":
     {
         List<string> gp = Positionals().Skip(1).ToList();
         if (gp.Count < 2) { Console.WriteLine("usage: aitm graph-path <A> <B>"); break; }
-        GraphPathCmd(gp[0], gp[1]);
+        Console.WriteLine(new GraphPathTool().ExecuteCli(db, gp[0], gp[1]));
         break;
     }
     case "graph-explain":
-        GraphExplainCmd(Pos1());
+        Console.WriteLine(new GraphExplainTool().ExecuteCli(db, Pos1()));
         break;
     case "todo":
         Console.WriteLine(new TodoTool().Execute(db, GetFlag("--title") ?? Pos1(), GetFlag("--why") ?? ""));
@@ -1883,40 +1890,6 @@ void SeedEdges(string? from = null)
     Console.WriteLine($"seeded {n} curated edge(s) from {Path.GetFullPath(seed)}.");
 }
 
-// The AITM core, signal-first: separate genuine logic CONSUMERS (review each) from the CONTRACT SURFACE
-// (DTO annotations / type mirrors that just declare the field and update mechanically on a rename). The
-// contract sites are summarized per project, not enumerated as individual break-risks — that was noise.
-void ImpactCmd(string symbol)
-{
-    List<(string project, string file, int line, string usage)> edges = new();
-    string contract = "";
-    using (SqliteCommand c = db.CreateCommand())
-    {
-        c.CommandText = "SELECT project,file,line,usage,contract FROM edges WHERE symbol=$s COLLATE NOCASE ORDER BY project, file";
-        c.Parameters.AddWithValue("$s", symbol);
-        using SqliteDataReader r = c.ExecuteReader();
-        while (r.Read())
-        {
-            contract = r.GetString(4);
-            edges.Add((r.GetString(0), r.GetString(1), r.GetInt32(2), r.GetString(3)));
-        }
-    }
-    if (edges.Count == 0)
-    {
-        Console.WriteLine($"'{symbol}' has no recorded consumers (safe to change, or not yet indexed).");
-        return;
-    }
-    List<(string project, string file, int line, string usage)> consumers = edges.Where(e => e.usage.Length > 0).ToList();
-    List<(string project, string file, int line, string usage)> contractSites = edges.Where(e => e.usage.Length == 0).ToList();
-    int projects = edges.Select(e => e.project).Distinct().Count();
-    Console.WriteLine($"Changing '{symbol}' ({contract}): {consumers.Count} consumer(s) to review, {contractSites.Count} contract site(s) (mechanical), across {projects} project(s).");
-    foreach ((string project, string file, int line, string usage) in consumers)
-        Console.WriteLine($"  consumer  {project,-8} {file}:{line}  {usage}");
-    foreach (IGrouping<string, (string project, string file, int line, string usage)> g in contractSites.GroupBy(e => e.project))
-        Console.WriteLine($"  contract  {g.Key,-8} {string.Join(", ", g.Select(e => Path.GetFileName(e.file) + ":" + e.line))}");
-    Console.WriteLine("  => reconcile in lockstep; never break existing users.");
-}
-
 // --- Code graph: graph-query / graph-path / graph-explain --------------------------------------
 // All three walk the SAME graph the `impact` command reads: `edges` rows, each one a (symbol, file,
 // line, project) fact — either a declaration (contract='decl') or a curated usage site. There is no
@@ -2223,68 +2196,6 @@ void GraphExplainCmd(string symbol)
     Console.WriteLine(CapLines(lines));
 }
 
-void ListProjects()
-{
-    using SqliteCommand c = db.CreateCommand();
-    c.CommandText = "SELECT name,root,lang,globs FROM projects ORDER BY name";
-    using SqliteDataReader r = c.ExecuteReader();
-    int n = 0;
-    while (r.Read()) { Console.WriteLine($"  {r.GetString(0),-10} [{r.GetString(2)}]  {r.GetString(1)}  ({r.GetString(3)})"); n++; }
-    Console.WriteLine($"({n} project(s) registered)");
-}
-
-// Heuristic edge extraction: scan each registered project's source for a changing symbol and stage
-// the hits as candidates (reviewed before promotion, so grep noise never reaches impact()).
-// AST-precise extraction (Roslyn/ts-morph) is the future upgrade behind the same candidate pipeline.
-void ExtractEdges(string symbol, string contract)
-{
-    List<(string name, string root, string globs)> projects = new();
-    using (SqliteCommand c = db.CreateCommand())
-    {
-        c.CommandText = "SELECT name,root,globs FROM projects ORDER BY name";
-        using SqliteDataReader r = c.ExecuteReader();
-        while (r.Read()) projects.Add((r.GetString(0), r.GetString(1), r.GetString(2)));
-    }
-    if (projects.Count == 0) { Console.WriteLine("no projects registered — add one: aitm project --name web --root <path> --globs \"*.ts,*.vue\""); return; }
-
-    Exec("BEGIN");
-    Run("DELETE FROM edge_candidates WHERE symbol=$s AND status='pending'", ("$s", symbol));
-    int found = 0;
-    foreach ((string name, string root, string globs) in projects)
-    {
-        if (!Directory.Exists(root)) { Console.WriteLine($"  {name}: root not found ({root}) — skipped"); continue; }
-        string[] patterns = globs.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        // One edge per (project, file): a contract touchpoint is a file relationship, not every line.
-        // Representative line prefers a hardcoded (by-name) hit; hardcoded flag is OR over the file's hits.
-        foreach (string file in EnumerateSource(root, patterns))
-        {
-            int lineNo = 0, repLine = 0;
-            string? repUsage = null;
-            bool anyHard = false, any = false;
-            foreach (string line in File.ReadLines(file))
-            {
-                lineNo++;
-                if (!ContainsToken(line, symbol)) continue;
-                bool hard = IsHardcoded(line, symbol);
-                if (!any || (hard && !anyHard))
-                {
-                    repLine = lineNo;
-                    repUsage = LeanUsage(line, symbol);
-                }
-                anyHard |= hard;
-                any = true;
-            }
-            if (!any) continue;
-            string rel = Path.GetRelativePath(root, file).Replace('\\', '/');
-            Run("INSERT INTO edge_candidates(symbol,contract,project,file,line,usage,hardcoded,status) VALUES($s,$c,$p,$f,$l,$u,$h,'pending')",
-                ("$s", symbol), ("$c", contract), ("$p", name), ("$f", rel), ("$l", repLine), ("$u", repUsage), ("$h", anyHard ? 1 : 0));
-            found++;
-        }
-    }
-    Exec("COMMIT");
-    Console.WriteLine($"extracted {found} candidate consumer(s) of '{symbol}'. Review: aitm candidates --symbol {symbol}   then: aitm promote <id>");
-}
-
 // Prune heavy dirs DURING the walk (never descend into node_modules); tolerate unreadable dirs.
 IEnumerable<string> EnumerateSource(string root, string[] patterns)
 {
@@ -2332,48 +2243,6 @@ bool ContainsToken(string line, string symbol)
 
 static bool IsIdent(char ch) => char.IsLetterOrDigit(ch) || ch == '_';
 
-// Store the code line only when it shows non-obvious USAGE. A bare declaration/annotation of the symbol
-// ([JsonProperty("device_id")], @SerialName("device_id"), device_id: string) just echoes the symbol and is
-// identical across many files — return "" so impact() shows file:line without the repeated boilerplate.
-string LeanUsage(string line, string symbol)
-{
-    string trimmed = line.Trim();
-    if (trimmed.Length > 120) trimmed = trimmed[..120];
-    string camel = Regex.Replace(symbol, @"_(\w)", m => m.Groups[1].Value.ToUpperInvariant());
-    string residue = Regex.Replace(trimmed,
-        @"@?\[?\b(JsonProperty|JsonPropertyName|SerialName|JsonInclude|DataMember|field|get|set|init|public|private|internal|val|var|let|const|readonly|required|override|string|String|int|Int|long|Long|bool|Boolean|number|Guid|Ulid)\b|[\[\]@(){}<>"":;,?=]",
-        "", RegexOptions.IgnoreCase);
-    residue = Regex.Replace(residue, Regex.Escape(symbol), "", RegexOptions.IgnoreCase);
-    residue = Regex.Replace(residue, Regex.Escape(camel), "", RegexOptions.IgnoreCase);
-    residue = Regex.Replace(residue, @"\s+", "");
-    return residue.Length <= 1 ? "" : trimmed; // nothing left but the symbol + decl syntax -> declaration, no usage
-}
-
-// Consumed by NAME (the break-on-rename case): symbol in quotes, via @JsonProperty, or a property access.
-bool IsHardcoded(string line, string symbol) =>
-    line.Contains($"\"{symbol}\"", StringComparison.Ordinal) ||
-    line.Contains($"'{symbol}'", StringComparison.Ordinal) ||
-    line.Contains($"@JsonProperty({symbol}", StringComparison.Ordinal) ||
-    line.Contains($".{symbol}", StringComparison.Ordinal);
-
-void ListCandidates(string? symbol)
-{
-    using SqliteCommand c = db.CreateCommand();
-    c.CommandText = symbol is null
-        ? "SELECT id,symbol,project,file,line,hardcoded,usage FROM edge_candidates WHERE status='pending' ORDER BY symbol,project,file"
-        : "SELECT id,symbol,project,file,line,hardcoded,usage FROM edge_candidates WHERE status='pending' AND symbol=$s ORDER BY project,file";
-    if (symbol is not null) c.Parameters.AddWithValue("$s", symbol);
-    using SqliteDataReader r = c.ExecuteReader();
-    int n = 0;
-    while (r.Read())
-    {
-        string cu = r.GetString(6);
-        Console.WriteLine($"  #{r.GetInt32(0)}  {r.GetString(1)}  {r.GetString(2)} {r.GetString(3)}:{r.GetInt32(4)}{(r.GetInt32(5) == 1 ? "  [HARDCODED]" : "")}{(cu.Length > 0 ? "  " + cu : "")}");
-        n++;
-    }
-    Console.WriteLine($"({n} pending candidate(s) — promote with: aitm promote <id>)");
-}
-
 // Promote a reviewed candidate into the curated graph through the same diff-and-log path as seed-edges.
 void PromoteCandidate(int id)
 {
@@ -2400,37 +2269,6 @@ void PromoteCandidate(int id)
     Run("UPDATE edge_candidates SET status='promoted' WHERE id=$i", ("$i", id));
     Exec("COMMIT");
     Console.WriteLine(exists == 0 ? $"promoted #{id}: {sym} -> {proj} {file}:{line} (now in the graph)." : $"#{id} already in graph; marked promoted.");
-}
-
-// Authoritative: the reviewed candidate set BECOMES the graph for this symbol, replacing any prior
-// edges (including the bootstrap seed's abbreviated paths) — extraction is the single source of truth
-// per symbol it covers. Generic names that can't be cleanly extracted keep their hand-seed.
-void PromoteAll(string symbol)
-{
-    List<int> ids = new();
-    using (SqliteCommand c = db.CreateCommand())
-    {
-        c.CommandText = "SELECT id FROM edge_candidates WHERE symbol=$s AND status='pending' ORDER BY id";
-        c.Parameters.AddWithValue("$s", symbol);
-        using SqliteDataReader r = c.ExecuteReader();
-        while (r.Read()) ids.Add(r.GetInt32(0));
-    }
-    if (ids.Count == 0) { Console.WriteLine($"no pending candidates for '{symbol}'."); return; }
-    List<(string project, string file, int line, string usage, string contract)> old = new();
-    using (SqliteCommand c = db.CreateCommand())
-    {
-        c.CommandText = "SELECT project,file,line,usage,contract FROM edges WHERE symbol=$s";
-        c.Parameters.AddWithValue("$s", symbol);
-        using SqliteDataReader r = c.ExecuteReader();
-        while (r.Read()) old.Add((r.GetString(0), r.GetString(1), r.GetInt32(2), r.GetString(3), r.GetString(4)));
-    }
-    Exec("BEGIN");
-    foreach ((string project, string file, int line, string usage, string contract) in old)
-        LogMutation("edge", $"{symbol}|{project}|{file}|{line}", "delete", $"{contract}:{usage}", null, "promote-all-replace");
-    Run("DELETE FROM edges WHERE symbol=$s", ("$s", symbol));
-    Exec("COMMIT");
-    foreach (int id in ids) PromoteCandidate(id);
-    Console.WriteLine($"promoted {ids.Count} candidate(s) for '{symbol}' (replaced {old.Count} prior edge(s)).");
 }
 
 // TDD harness: assertions over the foundation's invariants. It resets tables, so it refuses any

@@ -45,8 +45,11 @@ public class Slice24Part3WiringTests
         Match caseMatch = Regex.Match(source, $"case \"{Regex.Escape(verb)}\":");
         Assert.True(caseMatch.Success, $"aitm.cs has no case for '{verb}'");
 
-        int blockEnd = source.IndexOf("break;", caseMatch.Index, StringComparison.Ordinal);
-        Assert.True(blockEnd > 0, $"case \"{verb}\" has no break; to bound the block");
+        // Bound the block at the next top-level "case " or "default:" rather than the first "break;" —
+        // a case whose body refuses early (seed-edges' missing-file guard, graph-path's usage guard)
+        // has its own inner "break;" before the line that actually calls the tool class.
+        Match nextCase = Regex.Match(source[(caseMatch.Index + 1)..], "\\n    (case \"|default:)");
+        int blockEnd = nextCase.Success ? caseMatch.Index + 1 + nextCase.Index : source.Length;
         string block = source[caseMatch.Index..blockEnd];
         Assert.True(block.Contains($"new {toolType}", StringComparison.Ordinal),
             $"case \"{verb}\" does not call new {toolType}(...)");

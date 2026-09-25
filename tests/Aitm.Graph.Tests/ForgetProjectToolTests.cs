@@ -82,25 +82,33 @@ public class ForgetProjectToolTests
     [Fact]
     public void ForgettingAnUnknownProjectReportsZeroEdgesDropped()
     {
-        string instance = AitmCliRunner.NewTestInstance("forget-project-missing");
+        // Two instances, not one: aitm.cs's own "forget-project" case calls this same ForgetProjectTool
+        // (RESTRUCTURE.md slice 24, CLI lane part 3), so the CLI run below and the direct call further
+        // down each take their own BackupTool snapshot. BackupTool's default filename only has
+        // second-resolution, so one instance running both within the same second collided with itself
+        // ("output file already exists") — the same isolation test #1 above already uses, for the same
+        // reason.
+        string oldInstance = AitmCliRunner.NewTestInstance("forget-project-missing-old");
+        string newInstance = AitmCliRunner.NewTestInstance("forget-project-missing-new");
         try
         {
-            AitmCliRunner.Run($"init --instance {instance}");
-
-            (string stdout, int exitCode) = AitmCliRunner.Run($"forget-project --instance {instance} --name ghost");
+            AitmCliRunner.Run($"init --instance {oldInstance}");
+            (string stdout, int exitCode) = AitmCliRunner.Run($"forget-project --instance {oldInstance} --name ghost");
             Assert.Equal(0, exitCode);
             string expected = stdout.Trim();
 
-            string dbPath = AitmCliRunner.InstanceDbPath(instance);
+            AitmCliRunner.Run($"init --instance {newInstance}");
+            string dbPath = AitmCliRunner.InstanceDbPath(newInstance);
             using SqliteConnection connection = StoreConnection.Open(dbPath);
-            string actual = new ForgetProjectTool().Execute(connection, AitmCliRunner.InstanceDir(instance), "ghost").Trim();
+            string actual = new ForgetProjectTool().Execute(connection, AitmCliRunner.InstanceDir(newInstance), "ghost").Trim();
 
             Assert.Equal(expected, actual);
             Assert.Equal("project 'ghost' forgotten (0 edge(s) dropped).", actual);
         }
         finally
         {
-            AitmCliRunner.DeleteInstance(instance);
+            AitmCliRunner.DeleteInstance(oldInstance);
+            AitmCliRunner.DeleteInstance(newInstance);
         }
     }
 
