@@ -1,0 +1,6 @@
+# RESTRUCTURE.md slice 24 "Also": an unused parameter fails the build for everything under src/.
+# Paired with EnforceCodeStyleInBuild=true in src/Directory.Build.props.
+root = false
+
+[*.cs]
+dotnet_diagnostic.IDE0060.severity = error
