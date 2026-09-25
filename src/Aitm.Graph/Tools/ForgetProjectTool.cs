@@ -9,9 +9,9 @@ namespace Aitm.Graph.Tools;
 /// answering questions with paths that are gone, which is worse than not knowing.
 ///
 /// RESTRUCTURE.md section 5 ("Protecting the system from the agents it serves") says the CLI admin verbs
-/// that delete or bulk-change, including <c>forget-project</c>, make an automatic backup first. Slice 11
-/// (docs/RESTRUCTURE.md) does not name that step, and its exit is "the standard check" only, so no
-/// backup is added here — flagged for whichever slice wires the backup-before-delete rule in.
+/// that delete or bulk-change, including <c>forget-project</c>, make an automatic backup first. Slice 11b
+/// gives it that rule, since it is the first delete verb that moved: it takes a <see cref="BackupTool"/>
+/// (VACUUM INTO) snapshot before it deletes, reusing the Store's own backup code rather than copying it.
 /// </summary>
 public sealed class ForgetProjectTool : ITool
 {
@@ -20,8 +20,10 @@ public sealed class ForgetProjectTool : ITool
     public string? McpName => null;
     public string Help => "forget-project --name <n>           unregister a project and drop its edges";
 
-    public string Execute(SqliteConnection connection, string name)
+    public string Execute(SqliteConnection connection, string root, string name)
     {
+        new BackupTool().Execute(connection, root, null);
+
         long dropped;
         using (SqliteCommand count = connection.CreateCommand())
         {
