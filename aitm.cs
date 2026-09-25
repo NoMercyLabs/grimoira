@@ -6,11 +6,14 @@
 // RESTRUCTURE.md slice 24, CLI lane part 3: aitm.cs's Graph verbs (project, projects, forget-project,
 // extract-edges, candidates, promote, promote-all, seed-edges, impact, graph-query, graph-path,
 // graph-explain) dispatch to their Aitm.Graph tool classes the same way.
+// RESTRUCTURE.md slice 24, CLI lane part 4b: the Brain write verbs (learn, learn-batch, set-hard, merge,
+// forget, unlink, shed-node, tidy, distill) do the same.
 #:project src/Aitm.Store/Aitm.Store.csproj
 #:project src/Aitm.Facts/Aitm.Facts.csproj
 #:project src/Aitm.Memory/Aitm.Memory.csproj
 #:project src/Aitm.Docs/Aitm.Docs.csproj
 #:project src/Aitm.Graph/Aitm.Graph.csproj
+#:project src/Aitm.Brain/Aitm.Brain.csproj
 // AITM foundation — core slice: a per-instance SQLite store with a CURRENT projection
 // (one row per entity, the only thing normal reads touch) plus an append-only MUTATIONS
 // log (cold; read only for trace/rollback). FTS5-ranked knowledge lookup. Generic: the
@@ -20,6 +23,7 @@ using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using Aitm.Brain.Tools;
 using Aitm.Docs.Tools;
 using Aitm.Facts.Tools;
 using Aitm.Graph.Tools;
@@ -177,13 +181,7 @@ switch (cmd)
     case "shed-node":
     {
         string nk = GetFlag("--key") ?? throw new ArgumentException("shed-node needs --key");
-        Exec("BEGIN");
-        Run("UPDATE node SET valid_to = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE k=$k AND valid_to IS NULL", ("$k", nk));
-        Run(@"UPDATE triple SET valid_to = strftime('%Y-%m-%dT%H:%M:%fZ','now')
-              WHERE valid_to IS NULL AND o_is_literal = 0 AND (s=$k OR o=$k)", ("$k", nk));
-        Exec("COMMIT");
-        Exec("INSERT INTO node_fts(node_fts) VALUES('rebuild')");
-        Console.WriteLine($"retired node '{nk}' and its links.");
+        Console.WriteLine(new ShedNodeTool().Execute(db, root, nk));
         break;
     }
     case "spine-import":
@@ -864,22 +862,31 @@ void BrainCmd(List<string> rest)
         case "place": BrainPlace(rargs.FirstOrDefault() ?? ""); break;
         case "recall": BrainRecall(string.Join(' ', rargs)); break;
         case "impact": BrainImpact(string.Join(' ', rargs)); break;
-        case "learn": BrainLearn(rargs); break;
-        case "learn-batch": BrainLearnBatch(GetFlag("--from") ?? throw new ArgumentException("brain learn-batch needs --from <file>")); break;
+        case "learn":
+        {
+            string learnResult = new BrainLearnTool().ExecuteCli(db, rargs, GetFlag("--gloss") ?? "",
+                GetFlag("--scheme") ?? "", "text", GetFlag("--because") ?? "", a.Contains("--hard"), a.Contains("--multi"));
+            if (learnResult.Length > 0) Console.WriteLine(learnResult);
+            break;
+        }
+        case "learn-batch":
+            Console.WriteLine(new BrainLearnBatchTool().ExecuteCli(db,
+                GetFlag("--from") ?? throw new ArgumentException("brain learn-batch needs --from <file>")));
+            break;
         case "set-hard":
             if (rargs.Count < 2) { Console.WriteLine("usage: brain set-hard <node-key> <0|1>"); break; }
-            BrainSetHard(rargs[0], rargs[1] == "1");
+            Console.WriteLine(new BrainSetHardTool().Execute(db, rargs[0], rargs[1] == "1"));
             break;
         case "export": BrainExport(GetFlag("--to") ?? Path.Combine(root, "brain-export.txt")); break;
         case "audit": BrainAudit(); break;
-        case "tidy": BrainTidy(); break;
+        case "tidy": Console.WriteLine(new BrainTidyTool().Execute(db, root)); break;
         case "why":
             if (rargs.Count < 1) { Console.WriteLine("usage: brain why <node-key>"); break; }
             BrainWhy(rargs[0]);
             break;
         case "merge":
             if (rargs.Count < 2) { Console.WriteLine("usage: brain merge <from-key> <into-key>"); break; }
-            BrainMerge(rargs[0], rargs[1]);
+            Console.WriteLine(new BrainMergeTool().Execute(db, root, rargs[0], rargs[1]));
             break;
         case "verify":
             if (rargs.Count < 1) { Console.WriteLine("usage: brain verify <node-key>"); break; }
@@ -887,14 +894,14 @@ void BrainCmd(List<string> rest)
             break;
         case "forget":
             if (rargs.Count < 1) { Console.WriteLine("usage: brain forget <node-key>"); break; }
-            BrainForget(rargs[0]);
+            Console.WriteLine(new BrainForgetTool().Execute(db, root, rargs[0]));
             break;
         case "unlink":
             if (rargs.Count < 3) { Console.WriteLine("usage: brain unlink <subject> <predicate> <object>"); break; }
-            BrainUnlink(rargs[0], rargs[1], rargs[2]);
+            Console.WriteLine(new BrainUnlinkTool().Execute(db, root, rargs[0], rargs[1], rargs[2]));
             break;
         case "stale": BrainStale(int.TryParse(GetFlag("--days"), out int sd) ? sd : 30); break;
-        case "distill": BrainDistill(); break;
+        case "distill": Console.WriteLine(new BrainDistillTool().Execute(db, root)); break;
         case "seed": BrainSeed(); break;
         case "stats": BrainStats(); break;
         case "gaps": BrainGaps(); break;
@@ -1221,26 +1228,6 @@ void AddSlot(string frame, string name, string value, string facet, bool multi, 
     LogMutation("slot", $"{frame}/{name}", before is null ? "insert" : "update", before, value, why);
 }
 
-string Hash(string text)
-{
-    byte[] b = System.Security.Cryptography.SHA1.HashData(Encoding.UTF8.GetBytes(text));
-    return Convert.ToHexString(b);
-}
-
-// Resolve a memory.links token to an actual memory.k: exact, then '-'->'_', then probe the type prefixes.
-string? ResolveMemToken(string tok, HashSet<string> keys)
-{
-    if (keys.Contains(tok)) return tok;
-    string u = tok.Replace('-', '_');
-    if (keys.Contains(u)) return u;
-    foreach (string pre in new[] { "feedback_", "reference_", "project_", "user_" })
-    {
-        if (keys.Contains(pre + u)) return pre + u;
-        if (keys.Contains(pre + tok)) return pre + tok;
-    }
-    return null;
-}
-
 void BrainLearn(List<string> args)
 {
     string what = args.Count > 0 ? args[0] : "";
@@ -1269,34 +1256,6 @@ void BrainLearn(List<string> args)
     Exec("COMMIT");
     if (what is "node" or "triple" or "slot" && p.Count >= 3)
         ResolveGaps($"{string.Join(' ', p)} {GetFlag("--gloss") ?? ""} {GetFlag("--because") ?? ""}");
-}
-
-// Correct a node's always-on flag through proper supersession (keeps history; resyncs FTS). Used to fix
-// hard=1 false positives in the always-on core without a raw UPDATE.
-void BrainSetHard(string k, bool hard)
-{
-    string? row = ScalarText("SELECT kind||char(31)||label||char(31)||gloss||char(31)||COALESCE(scheme,'') FROM node_now WHERE k=$k", ("$k", k));
-    if (row is null) { Console.WriteLine($"no live node '{k}'."); return; }
-    string[] f = row.Split('\x1f');
-    Exec("BEGIN");
-    AddNode(k, f[0], f[1], f[2], f[3], hard, "set-hard");
-    Exec("COMMIT");
-    Console.WriteLine($"{k} hard={(hard ? 1 : 0)}.");
-}
-
-// Retract a single wrong edge (e.g. an inference that turned out false) without touching the nodes it links.
-void BrainUnlink(string s, string p, string o)
-{
-    if (ScalarLong("SELECT count(*) FROM triple_now WHERE s=$s AND p=$p AND o=$o", ("$s", s), ("$p", p), ("$o", o)) == 0)
-    {
-        Console.WriteLine($"no live triple '{s} {p} {o}'.");
-        return;
-    }
-    Exec("BEGIN");
-    Run("UPDATE triple SET valid_to=$now WHERE s=$s AND p=$p AND o=$o AND valid_to IS NULL", ("$now", Now()), ("$s", s), ("$p", p), ("$o", o));
-    LogMutation("triple", $"{s} {p} {o}", "unlink", $"{s}|{p}|{o}", null, "retracted");
-    Exec("COMMIT");
-    Console.WriteLine($"unlinked {s} {p} {o}.");
 }
 
 // Deliberate removal: retire a node confirmed wrong/obsolete along with its live edges and slots, so the audit
@@ -1440,17 +1399,6 @@ void BrainAudit()
         "SELECT k FROM node_now WHERE length(label) > 90 OR length(kind) > 30 OR kind LIKE '% %'");
 }
 
-// Data-quality backfill: give scheme-less nodes a sensible default (their kind) so scope grouping/ordering
-// is consistent. A live-row metadata update; the node_au trigger keeps FTS in sync.
-void BrainTidy()
-{
-    long n = ScalarLong("SELECT count(*) FROM node_now WHERE scheme IS NULL OR scheme=''");
-    Exec("BEGIN");
-    Run("UPDATE node SET scheme=kind WHERE valid_to IS NULL AND (scheme IS NULL OR scheme='')");
-    Exec("COMMIT");
-    Console.WriteLine($"tidy: backfilled scheme=kind on {n} node(s).");
-}
-
 // Write-side brake. "Get smarter over time" needs NEW knowledge to actually land, and brain_learn is
 // unenforced — so a durable fact noticed mid-turn rots the same way MEMORY.md did. `stage` resolves a learn
 // the instant it's noticed (cheap append, no DB write); `flush` commits the batch; the Stop hook
@@ -1554,134 +1502,6 @@ void BrainExport(string to)
     }
     File.WriteAllText(to, sb.ToString());
     Console.WriteLine($"exported {ScalarLong("SELECT count(*) FROM node_now")} nodes / {ScalarLong("SELECT count(*) FROM triple_now")} triples / {ScalarLong("SELECT count(*) FROM slot_now")} slots -> {to}");
-}
-
-// Bulk write-last: load a pipe-delimited knowledge file in ONE transaction. Blank / # lines skipped.
-//   node   | <k> | <kind> | <label> | <gloss> | <hard 0|1> | <scheme>
-//   triple | <s> | <predicate> | <o> | <because>
-//   slot   | <frame> | <name> | <value> | <facet> | <multi 0|1>
-// Order nodes BEFORE the triples/slots that reference them (triggers reject dangling subjects/frames).
-// Idempotent: AddNode/Triple/Slot supersede-or-noop, so re-running re-confirms (and reinforces conf) safely.
-void BrainLearnBatch(string file)
-{
-    if (!File.Exists(file)) { Console.WriteLine($"file not found: {file}"); return; }
-    int nodes = 0, triples = 0, slots = 0, bad = 0;
-    Exec("BEGIN");
-    foreach (string raw in File.ReadAllLines(file))
-    {
-        string line = raw.Trim();
-        if (line.Length == 0 || line.StartsWith('#')) continue;
-        string[] f = line.Split('|').Select(x => x.Trim()).ToArray();
-        try
-        {
-            switch (f[0])
-            {
-                case "node" when f.Length >= 4:
-                    AddNode(f[1], f[2], f[3], f.Length > 4 ? f[4] : "", f.Length > 6 ? f[6] : "", f.Length > 5 && f[5] == "1", "learn-batch");
-                    nodes++;
-                    break;
-                case "triple" when f.Length >= 4:
-                    AddTriple(f[1], f[2], f[3], f.Length > 4 ? f[4] : "", "learn-batch", false, "learn-batch");
-                    triples++;
-                    break;
-                case "slot" when f.Length >= 4:
-                    AddSlot(f[1], f[2], f[3], f.Length > 4 ? f[4] : "text", f.Length > 5 && f[5] == "1", "", "learn-batch", "learn-batch");
-                    slots++;
-                    break;
-                default:
-                    Console.Error.WriteLine($"skip (malformed): {line}");
-                    bad++;
-                    break;
-            }
-        }
-        catch (SqliteException e)
-        {
-            Console.Error.WriteLine($"skip ({e.Message}): {line}");
-            bad++;
-        }
-    }
-    Exec("COMMIT");
-    Console.WriteLine($"learn-batch: {nodes} nodes, {triples} triples, {slots} slots ({bad} skipped).");
-}
-
-// PHASE A — deterministic, idempotent, reversible distillation of the existing channels into the graph.
-// memory -> rule nodes (gloss=hook kept signal; body dropped to distill_log but reachable via ref);
-// memory.links -> related triples (resolved tokens only); facts -> fact nodes; edges -> symbol nodes +
-// consumes triples (+ per-site refs). Nothing physically deleted; the source channels stay intact.
-void BrainDistill()
-{
-    List<(string k, string title, string hook, string body, string links, long hard)> mems = new();
-    using (SqliteCommand c = db.CreateCommand())
-    {
-        c.CommandText = "SELECT k,title,hook,body,links,hard FROM memory";
-        using SqliteDataReader r = c.ExecuteReader();
-        while (r.Read())
-            mems.Add((r.GetString(0), r.IsDBNull(1) ? "" : r.GetString(1), r.IsDBNull(2) ? "" : r.GetString(2),
-                r.IsDBNull(3) ? "" : r.GetString(3), r.IsDBNull(4) ? "" : r.GetString(4), r.GetInt64(5)));
-    }
-    List<(string k, string cat, string val)> facts = new();
-    using (SqliteCommand c = db.CreateCommand())
-    {
-        c.CommandText = "SELECT k,category,value FROM facts";
-        using SqliteDataReader r = c.ExecuteReader();
-        while (r.Read()) facts.Add((r.GetString(0), r.IsDBNull(1) ? "" : r.GetString(1), r.IsDBNull(2) ? "" : r.GetString(2)));
-    }
-    List<(long id, string project, string contract, string symbol)> edges = new();
-    using (SqliteCommand c = db.CreateCommand())
-    {
-        c.CommandText = "SELECT id,project,contract,symbol FROM edges";
-        using SqliteDataReader r = c.ExecuteReader();
-        while (r.Read()) edges.Add((r.GetInt64(0), r.GetString(1), r.IsDBNull(2) ? "" : r.GetString(2), r.GetString(3)));
-    }
-
-    HashSet<string> memKeys = mems.Select(m => m.k).ToHashSet();
-    int memN = 0, factN = 0, symN = 0, relN = 0, unresolved = 0;
-    Exec("BEGIN");
-
-    foreach ((string k, string title, string hook, string body, string links, long hard) in mems)
-    {
-        string nk = "rule:" + k;
-        AddNode(nk, "rule", title.Length > 0 ? title : k, hook, "", hard == 1, "distill:memory");
-        Run("INSERT OR IGNORE INTO ref(node_k,channel,payload_k,role) VALUES($n,'memory',$p,'rule')", ("$n", nk), ("$p", k));
-        Run("INSERT OR IGNORE INTO distill_log(node_k,source_file,content_hash,dropped) VALUES($n,$sf,$h,$d)",
-            ("$n", nk), ("$sf", "memory:" + k), ("$h", Hash(hook + "|" + body)), ("$d", body));
-        memN++;
-    }
-    foreach ((string k, string title, string hook, string body, string links, long hard) in mems)
-    {
-        if (links.Length == 0) continue;
-        string sk = "rule:" + k;
-        foreach (string tok in links.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-        {
-            string? target = ResolveMemToken(tok, memKeys);
-            if (target is null) { unresolved++; Run("UPDATE distill_log SET unresolved = unresolved||$t||',' WHERE node_k=$n", ("$t", tok), ("$n", sk)); continue; }
-            AddTriple(sk, "related", "rule:" + target, "", "distill:links", false, "distill:links");
-            relN++;
-        }
-    }
-    foreach ((string k, string cat, string val) in facts)
-    {
-        string nk = "fact:" + k;
-        AddNode(nk, "fact", k, val.Length <= 120 ? val : val[..120], cat, false, "distill:facts");
-        Run("INSERT OR IGNORE INTO ref(node_k,channel,payload_k,role) VALUES($n,'facts',$p,'value')", ("$n", nk), ("$p", k));
-        factN++;
-    }
-    foreach (string ps in edges.Select(e => e.project).Distinct())
-        AddNode(NormalizeProject(ps), "project", ps, "", "", false, "distill:edges");
-    foreach ((string contract, string symbol) in edges.Select(e => (e.contract, e.symbol)).Distinct())
-    {
-        AddNode($"contract:{contract}.{symbol}", "symbol", symbol, "", "", false, "distill:edges");
-        symN++;
-    }
-    foreach ((string project, string contract, string symbol) in edges.Select(e => (e.project, e.contract, e.symbol)).Distinct())
-        AddTriple(NormalizeProject(project), "consumes", $"contract:{contract}.{symbol}", "", "distill:edges", false, "distill:edges");
-    foreach ((long id, string project, string contract, string symbol) in edges)
-        Run("INSERT OR IGNORE INTO ref(node_k,channel,payload_k,role) VALUES($n,'edges',$p,'site')", ("$n", $"contract:{contract}.{symbol}"), ("$p", id.ToString(CultureInfo.InvariantCulture)));
-
-    Exec("COMMIT");
-    Exec("INSERT INTO node_fts(node_fts) VALUES('rebuild')");
-    Exec("INSERT INTO slot_fts(slot_fts) VALUES('rebuild')");
-    Console.WriteLine($"distilled: {memN} rule nodes, {factN} fact nodes, {symN} symbol nodes, {relN} related links ({unresolved} unresolved -> distill_log). source channels untouched.");
 }
 
 // PHASE B — the curated spine: the ecosystem as its operator holds it in their head (projects, platforms, shared
