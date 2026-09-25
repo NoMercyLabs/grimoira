@@ -1,4 +1,5 @@
 using Aitm.Server.Data;
+using Microsoft.Data.Sqlite;
 using Xunit;
 
 namespace Aitm.Server.Tests;
@@ -91,5 +92,131 @@ public class InitFullTests : IDisposable
         string dir = Path.Combine(_dir, "clients", "shared");
         HashSet<string> taken = new() { "shared", "clients-shared" };
         Assert.Null(InitFull.DeriveUniqueName(dir, taken));
+    }
+}
+
+// The orchestration steps of init.mjs, ported as InitFull.RunFull ("aitm init --full", RESTRUCTURE.md
+// section 2.3, slice 23). Everything runs against a temp workspace and a temp store; nothing here ever
+// touches ~/.aitm, a live store, or a real repo.
+public class InitFullRunFullTests : IDisposable
+{
+    private readonly string _workspace = Directory.CreateTempSubdirectory("aitm-initfull-ws-").FullName;
+    private readonly string _home = Directory.CreateTempSubdirectory("aitm-initfull-home-").FullName;
+    private readonly string _storeDir = Directory.CreateTempSubdirectory("aitm-initfull-store-").FullName;
+
+    public void Dispose()
+    {
+        Directory.Delete(_workspace, recursive: true);
+        Directory.Delete(_home, recursive: true);
+        Directory.Delete(_storeDir, recursive: true);
+    }
+
+    private InitFullOptions Options(bool skipChat = true) => new(
+        Root: _workspace,
+        Instance: "initfull-test",
+        DbPath: Path.Combine(_storeDir, "aitm.db"),
+        HomeDir: _home,
+        SkipChat: skipChat);
+
+    private static void MakeProject(string dir, string manifest)
+    {
+        Directory.CreateDirectory(dir);
+        File.WriteAllText(Path.Combine(dir, manifest), manifest == "package.json" ? "{}" : "x");
+    }
+
+    private List<(string Name, string Root)> ReadProjects()
+    {
+        using SqliteConnection connection = new($"Data Source={Path.Combine(_storeDir, "aitm.db")};Mode=ReadOnly");
+        connection.Open();
+        using SqliteCommand command = connection.CreateCommand();
+        command.CommandText = "SELECT name, root FROM projects ORDER BY name";
+        using SqliteDataReader reader = command.ExecuteReader();
+        List<(string, string)> rows = [];
+        while (reader.Read()) rows.Add((reader.GetString(0), reader.GetString(1)));
+        return rows;
+    }
+
+    [Fact]
+    public void RegistersEveryDiscoveredProjectUnderTheSameNamesInitMjsWouldGive()
+    {
+        MakeProject(Path.Combine(_workspace, "web-app"), "package.json");
+        MakeProject(Path.Combine(_workspace, "api"), "composer.json");
+
+        InitFullResult result = InitFull.RunFull(Options());
+
+        Assert.True(result.Success);
+        List<(string Name, string Root)> projects = ReadProjects();
+        Assert.Contains(projects, p => p.Name == "web-app");
+        Assert.Contains(projects, p => p.Name == "api");
+    }
+
+    [Fact]
+    public void RunsEveryStepInOrder()
+    {
+        MakeProject(Path.Combine(_workspace, "web-app"), "package.json");
+
+        InitFullResult result = InitFull.RunFull(Options());
+
+        Assert.True(result.Success);
+        string[] markers = ["[1] ", "[2] ", "[3] ", "[4] ", "[5] ", "[6] ", "[7] ", "[8] "];
+        int[] positions = markers
+            .Select(marker => result.Log.IndexOf(marker, StringComparison.Ordinal))
+            .ToArray();
+        Assert.All(positions, p => Assert.True(p >= 0));
+        for (int i = 1; i < positions.Length; i++) Assert.True(positions[i] > positions[i - 1]);
+    }
+
+    [Fact]
+    public void SkipsPastConversationsWhenAsked()
+    {
+        InitFullResult result = InitFull.RunFull(Options(skipChat: true));
+
+        Assert.True(result.Success);
+        Assert.Contains("skipped", result.Log);
+    }
+
+    [Fact]
+    public void ReportsNoMemoryDirectoryWhenNoneExistsForThisRepo()
+    {
+        InitFullResult result = InitFull.RunFull(Options());
+
+        Assert.Contains("no memory directory for this repo", result.Log);
+    }
+
+    [Fact]
+    public void ARunningASecondTimeIsIdempotent()
+    {
+        MakeProject(Path.Combine(_workspace, "web-app"), "package.json");
+        File.WriteAllText(Path.Combine(_workspace, "web-app", "widget.ts"), "export class Widget {}\n");
+
+        InitFull.RunFull(Options());
+        List<(string Name, string Root)> firstRun = ReadProjects();
+
+        InitFullResult second = InitFull.RunFull(Options());
+        List<(string Name, string Root)> secondRun = ReadProjects();
+
+        Assert.True(second.Success);
+        Assert.Equal(firstRun, secondRun);
+
+        using SqliteConnection connection = new($"Data Source={Path.Combine(_storeDir, "aitm.db")};Mode=ReadOnly");
+        connection.Open();
+        using SqliteCommand command = connection.CreateCommand();
+        command.CommandText = "SELECT count(*) FROM edges";
+        Assert.True((long)(command.ExecuteScalar() ?? 0L) > 0);
+    }
+
+    [Fact]
+    public void AFailingStepReportsFailureAndStopsTheRun()
+    {
+        // A dbPath whose directory cannot be created (a file sitting where a directory is needed)
+        // makes the very first step - opening the store - fail, the way init.mjs's own CLI-build
+        // failure (init.mjs:43-46) stops the run and reports it rather than pressing on.
+        string blocker = Path.Combine(_storeDir, "blocked");
+        File.WriteAllText(blocker, "not a directory");
+        InitFullOptions options = Options() with { DbPath = Path.Combine(blocker, "aitm.db") };
+
+        InitFullResult result = InitFull.RunFull(options);
+
+        Assert.False(result.Success);
     }
 }
