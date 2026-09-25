@@ -16,7 +16,7 @@ public class LaunchMcpTests : IDisposable
     {
         public List<(string FileName, IReadOnlyList<string> Args)> Calls { get; } = [];
 
-        public (string Stdout, string Stderr, int ExitCode) Run(string fileName, IReadOnlyList<string> args, string? workingDirectory = null)
+        public (string Stdout, string Stderr, int ExitCode) Run(string fileName, IReadOnlyList<string> args, string? workingDirectory = null, TimeSpan? timeout = null)
         {
             Calls.Add((fileName, args));
             return result;

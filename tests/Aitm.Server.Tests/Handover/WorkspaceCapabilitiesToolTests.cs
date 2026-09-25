@@ -17,10 +17,21 @@ public class WorkspaceCapabilitiesToolTests
         public string Stdout = "scripts/build-stamp.mjs — build watermarking\n";
         public int ExitCode = 0;
 
-        public (string Stdout, string Stderr, int ExitCode) Run(string fileName, IReadOnlyList<string> args, string? workingDirectory = null)
+        public (string Stdout, string Stderr, int ExitCode) Run(string fileName, IReadOnlyList<string> args, string? workingDirectory = null, TimeSpan? timeout = null)
         {
             ArgsSeen = [.. args];
             return (Stdout, "", ExitCode);
+        }
+    }
+
+    /// <summary>A fake that never returns, like a hung Python interpreter — proves the tool bounds the
+    /// wait itself rather than trusting the runner to honor a timeout it was given.</summary>
+    private sealed class HangingRunner : IProcessRunner
+    {
+        public (string Stdout, string Stderr, int ExitCode) Run(string fileName, IReadOnlyList<string> args, string? workingDirectory = null, TimeSpan? timeout = null)
+        {
+            Thread.Sleep(Timeout.Infinite);
+            return ("", "", 0);
         }
     }
 
@@ -67,5 +78,25 @@ public class WorkspaceCapabilitiesToolTests
         string result = new WorkspaceCapabilitiesTool().Execute(new string('x', 1001), "/does-not-matter", new FakeRunner());
 
         Assert.Contains("Provide a task description", result);
+    }
+
+    [Fact]
+    public void ATimedOutRunnerReturnsTheSameTimeoutMessageShapeMcpCsGives()
+    {
+        // mcp.cs's RunWorkspacePython (mcp.cs:356) returns "{operation} timed out; coverage is
+        // incomplete. Narrow the task and retry." on timeout. The runner here never returns; the
+        // small override keeps the test fast while proving the same bound applies.
+        string root = MakeRootWithScript();
+        try
+        {
+            string result = new WorkspaceCapabilitiesTool().Execute(
+                "build watermarking", root, new HangingRunner(), TimeSpan.FromMilliseconds(50));
+
+            Assert.Contains("Workspace lookup timed out; coverage is incomplete. Narrow the task and retry.", result);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
     }
 }

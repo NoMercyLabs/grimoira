@@ -19,7 +19,7 @@ public class BrainIndexOrgToolTests
         public string GhJson = "[]";
         public string GitRemoteUrl = "";
 
-        public (string Stdout, string Stderr, int ExitCode) Run(string fileName, IReadOnlyList<string> args, string? workingDirectory = null)
+        public (string Stdout, string Stderr, int ExitCode) Run(string fileName, IReadOnlyList<string> args, string? workingDirectory = null, TimeSpan? timeout = null)
         {
             if (fileName == "gh") return (GhJson, "", 0);
             if (fileName == "git" && args.Contains("remote")) return (GitRemoteUrl, "", GitRemoteUrl.Length > 0 ? 0 : 1);
