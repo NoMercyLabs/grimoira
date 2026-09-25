@@ -96,6 +96,57 @@ public class BackupToolTests
         }
     }
 
+    // Bug: BackupTool's automatic (default-named) backup was named to the second
+    // (aitm-yyyyMMdd-HHmmss.db), and always File.Move(overwrite: true) into place. Two automatic
+    // backups of the same store made back-to-back land in the same second: the second one silently
+    // replaced the first, and the rows the first backup captured were gone for good.
+    [Fact]
+    public void TwoAutomaticBackupsCalledBackToBackBothExistAndPassIntegrityCheck()
+    {
+        string instance = AitmCliRunner.NewTestInstance("backup-automatic-collision");
+        string root = AitmCliRunner.InstanceDir(instance);
+        try
+        {
+            AitmCliRunner.Run($"init --instance {instance}");
+            string dbPath = AitmCliRunner.InstanceDbPath(instance);
+            AitmCliRunner.Run($"add --instance {instance} --term backup-auto-one --value one --category manual");
+
+            string backupsDir = Path.Combine(root, "backups");
+            string firstPath;
+            string secondPath;
+            using (SqliteConnection connection = StoreConnection.Open(dbPath))
+            {
+                string firstMessage = new BackupTool().Execute(connection, root, null);
+                firstPath = ExtractBackupPath(firstMessage, backupsDir);
+            }
+            using (SqliteConnection connection = StoreConnection.Open(dbPath))
+            {
+                string secondMessage = new BackupTool().Execute(connection, root, null);
+                secondPath = ExtractBackupPath(secondMessage, backupsDir);
+            }
+
+            Assert.NotEqual(firstPath, secondPath);
+            Assert.True(File.Exists(firstPath), $"first automatic backup missing: {firstPath}");
+            Assert.True(File.Exists(secondPath), $"second automatic backup missing: {secondPath}");
+            AssertIntegrityOk(firstPath);
+            AssertIntegrityOk(secondPath);
+        }
+        finally
+        {
+            AitmCliRunner.DeleteInstance(instance);
+        }
+    }
+
+    private static string ExtractBackupPath(string message, string backupsDir)
+    {
+        const string marker = "backed up -> ";
+        int index = message.IndexOf(marker, StringComparison.Ordinal);
+        Assert.True(index >= 0, $"unexpected backup message: {message}");
+        string path = message[(index + marker.Length)..].Trim();
+        Assert.StartsWith(backupsDir, path);
+        return path;
+    }
+
     private static void AssertIntegrityOk(string dbPath)
     {
         using SqliteConnection connection = new($"Data Source={dbPath};Mode=ReadOnly");

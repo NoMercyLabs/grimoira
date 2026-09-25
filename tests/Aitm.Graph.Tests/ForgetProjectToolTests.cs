@@ -1,3 +1,4 @@
+using System.Linq;
 using Aitm.Graph.Tools;
 using Aitm.Store.Data;
 using Aitm.TestSupport;
@@ -159,6 +160,69 @@ public class ForgetProjectToolTests
             using SqliteCommand liveP = check.CreateCommand();
             liveP.CommandText = "SELECT count(*) FROM projects WHERE name='web'";
             Assert.Equal(0L, (long)(liveP.ExecuteScalar() ?? 0L));
+        }
+        finally
+        {
+            AitmCliRunner.DeleteInstance(instance);
+        }
+    }
+
+    [Fact]
+    public void TwoDeletesInARowThenRestoringFromTheFirstBackupBringsBackTheFirstDeletesRows()
+    {
+        // Bug: BackupTool's default (automatic) name only had second-resolution and always
+        // File.Move(overwrite: true) into place. Two forget-project calls back-to-back landed their
+        // automatic backups in the same second, so the second overwrote the first: the rows the first
+        // delete removed ("web"'s project row and edges) were unrecoverable. The fix must make each
+        // automatic backup a distinct file, so the pre-first-delete snapshot survives the second delete.
+        string instance = AitmCliRunner.NewTestInstance("forget-project-restore");
+        string root = AitmCliRunner.InstanceDir(instance);
+        try
+        {
+            AitmCliRunner.Run($"init --instance {instance}");
+            string dbPath = AitmCliRunner.InstanceDbPath(instance);
+            using (SqliteConnection setup = StoreConnection.Open(dbPath))
+            {
+                new ProjectTool().Execute(setup, "web", "/repo/web", "", "*.ts");
+                new ProjectTool().Execute(setup, "api", "/repo/api", "", "*.ts");
+            }
+            SeedEdges(dbPath, "web", 2);
+            SeedEdges(dbPath, "api", 3);
+
+            string backupsDir = Path.Combine(root, "backups");
+
+            // First delete: its automatic backup, taken before the delete, still holds "web".
+            using (SqliteConnection connection = StoreConnection.Open(dbPath))
+            {
+                new ForgetProjectTool().Execute(connection, root, "web");
+            }
+            string[] afterFirstDelete = Directory.EnumerateFiles(backupsDir).OrderBy(p => p, StringComparer.Ordinal).ToArray();
+            Assert.Single(afterFirstDelete);
+            string firstBackupPath = afterFirstDelete[0];
+
+            // Second delete, right after the first: its own automatic backup must not collide with (and
+            // so must not overwrite) the first one.
+            using (SqliteConnection connection = StoreConnection.Open(dbPath))
+            {
+                new ForgetProjectTool().Execute(connection, root, "api");
+            }
+            string[] afterSecondDelete = Directory.EnumerateFiles(backupsDir).OrderBy(p => p, StringComparer.Ordinal).ToArray();
+            Assert.Equal(2, afterSecondDelete.Length);
+            Assert.Contains(firstBackupPath, afterSecondDelete);
+
+            // Restoring from the first backup brings back "web"'s project row and both its edges.
+            using SqliteConnection restored = new($"Data Source={firstBackupPath};Mode=ReadOnly");
+            restored.Open();
+            using (SqliteCommand p = restored.CreateCommand())
+            {
+                p.CommandText = "SELECT count(*) FROM projects WHERE name='web'";
+                Assert.Equal(1L, (long)(p.ExecuteScalar() ?? 0L));
+            }
+            using (SqliteCommand e = restored.CreateCommand())
+            {
+                e.CommandText = "SELECT count(*) FROM edges WHERE project='web'";
+                Assert.Equal(2L, (long)(e.ExecuteScalar() ?? 0L));
+            }
         }
         finally
         {
