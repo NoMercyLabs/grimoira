@@ -7,13 +7,15 @@ namespace Aitm.Brain.Data;
 /// </summary>
 public interface IProcessRunner
 {
-    (string Stdout, string Stderr, int ExitCode) Run(string fileName, IReadOnlyList<string> args, string? workingDirectory = null);
+    /// <param name="timeout">When given, the runner waits at most this long and, for a real process,
+    /// kills the whole tree and throws <see cref="TimeoutException"/> if it has not exited by then.</param>
+    (string Stdout, string Stderr, int ExitCode) Run(string fileName, IReadOnlyList<string> args, string? workingDirectory = null, TimeSpan? timeout = null);
 }
 
 /// <summary>Real process runner — the default outside tests.</summary>
 public sealed class ProcessRunner : IProcessRunner
 {
-    public (string Stdout, string Stderr, int ExitCode) Run(string fileName, IReadOnlyList<string> args, string? workingDirectory = null)
+    public (string Stdout, string Stderr, int ExitCode) Run(string fileName, IReadOnlyList<string> args, string? workingDirectory = null, TimeSpan? timeout = null)
     {
         System.Diagnostics.ProcessStartInfo psi = new(fileName)
         {
@@ -25,9 +27,20 @@ public sealed class ProcessRunner : IProcessRunner
         foreach (string a in args) psi.ArgumentList.Add(a);
         using System.Diagnostics.Process process = System.Diagnostics.Process.Start(psi)
             ?? throw new InvalidOperationException($"could not start {fileName}");
-        string stdout = process.StandardOutput.ReadToEnd();
-        string stderr = process.StandardError.ReadToEnd();
-        process.WaitForExit();
-        return (stdout, stderr, process.ExitCode);
+        Task<string> stdoutTask = process.StandardOutput.ReadToEndAsync();
+        Task<string> stderrTask = process.StandardError.ReadToEndAsync();
+        if (timeout is TimeSpan t)
+        {
+            if (!process.WaitForExit((int)t.TotalMilliseconds))
+            {
+                try { process.Kill(entireProcessTree: true); } catch (Exception) { /* best effort */ }
+                throw new TimeoutException($"{fileName} did not exit within {t}.");
+            }
+        }
+        else
+        {
+            process.WaitForExit();
+        }
+        return (stdoutTask.Result, stderrTask.Result, process.ExitCode);
     }
 }

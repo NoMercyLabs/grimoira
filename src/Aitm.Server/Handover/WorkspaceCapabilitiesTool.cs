@@ -21,7 +21,11 @@ public sealed class WorkspaceCapabilitiesTool : ITool
         "workspace-capabilities <query>   find existing NoMercy tools by purpose; returns a few source " +
         "paths with reviewed prerequisites, never executes what it finds.";
 
-    public string Execute(string query, string projectRoot, IProcessRunner runner)
+    /// <summary>25 seconds, matching mcp.cs's <c>workspace_capabilities</c> call to
+    /// <c>RunWorkspacePython</c> (mcp.cs:317-320).</summary>
+    private static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(25);
+
+    public string Execute(string query, string projectRoot, IProcessRunner runner, TimeSpan? timeout = null)
     {
         if (string.IsNullOrWhiteSpace(query) || query.Length > 1000)
             return "Provide a task description between 1 and 1000 characters.";
@@ -30,6 +34,6 @@ public sealed class WorkspaceCapabilitiesTool : ITool
         if (!File.Exists(script)) return "Workspace lookup unavailable: set CLAUDE_PROJECT_DIR to the NoMercy workspace root.";
 
         List<string> args = ["--limit", "3", "--", query];
-        return HandoverProcess.RunPython(runner, script, args, projectRoot, "Workspace lookup");
+        return HandoverProcess.RunPython(runner, script, args, projectRoot, "Workspace lookup", timeout ?? DefaultTimeout);
     }
 }

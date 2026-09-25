@@ -20,7 +20,11 @@ public sealed class WorkspaceSearchTool : ITool
         "workspace-search --repo <repo> --pattern <text> [--path <dir>] [--names]   search fixed text or " +
         "filenames in one registered NoMercy repository; '.' means the root.";
 
-    public string Execute(string repository, string pattern, string path, bool names, string projectRoot, IProcessRunner runner)
+    /// <summary>20 seconds, matching mcp.cs's <c>workspace_search</c> call to <c>RunWorkspacePython</c>
+    /// (mcp.cs:327-333).</summary>
+    private static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(20);
+
+    public string Execute(string repository, string pattern, string path, bool names, string projectRoot, IProcessRunner runner, TimeSpan? timeout = null)
     {
         if (string.IsNullOrWhiteSpace(repository) || repository.Length > 200 ||
             string.IsNullOrWhiteSpace(pattern) || pattern.Length > 200 || path.Length > 500)
@@ -33,6 +37,6 @@ public sealed class WorkspaceSearchTool : ITool
         if (names) args.Add("--names");
         if (!string.IsNullOrWhiteSpace(path)) { args.Add("--path"); args.Add(path); }
 
-        return HandoverProcess.RunPython(runner, script, args, projectRoot, "Workspace search");
+        return HandoverProcess.RunPython(runner, script, args, projectRoot, "Workspace search", timeout ?? DefaultTimeout);
     }
 }
