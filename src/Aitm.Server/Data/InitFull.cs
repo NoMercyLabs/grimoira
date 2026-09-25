@@ -1,3 +1,4 @@
+using Aitm.Brain.Schema;
 using Aitm.Docs.Tools;
 using Aitm.Facts.Tools;
 using Aitm.Facts.Schema;
@@ -149,9 +150,12 @@ public static class InitFull
             // init.mjs builds/locates the CLI exe here (init.mjs:34-58); this code IS that CLI, already
             // running, so the equivalent step is opening/creating the instance (init.mjs's `init` call).
             Step(1, "CLI");
+            // Old `aitm init` runs Init() then InitBrain() (aitm.cs:48-52) before init.mjs ever registers
+            // a project, so a fresh `init --full` store needs BrainSchema (node/triple/slot/ref, ...) too
+            // — without it the brain_* tools have nothing to write to on a store this command created.
             SchemaRunResult schema = SchemaRunner.Run(
                 connection,
-                [new StoreSchema(), new FactsSchema(), new MemorySchema(), new DocsSchema(), new GraphSchema()],
+                [new StoreSchema(), new FactsSchema(), new MemorySchema(), new DocsSchema(), new GraphSchema(), new BrainSchema()],
                 backupDirectory);
             if (!schema.Success)
             {
