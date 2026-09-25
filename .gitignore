@@ -2,8 +2,13 @@
 bin/
 bin-cli/
 obj/
-*.csproj
 *.user
+
+# aitm.cs and mcp.cs were file-based apps with no .csproj on disk, so *.csproj was a blanket rule
+# against any stray generated project file. RESTRUCTURE.md slice 2 adds real, tracked .csproj files
+# under src/ and tests/ for the new solution; those are source, not build output.
+/aitm.csproj
+/mcp.csproj
 
 # Per-instance stores live in ~/.aitm, never in the repo.
 *.db
