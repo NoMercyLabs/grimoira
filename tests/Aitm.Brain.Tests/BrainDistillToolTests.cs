@@ -103,9 +103,9 @@ public class BrainDistillToolTests
                 mutationsAfterFirstRun = (long)count.ExecuteScalar()!;
             }
 
-            // BackupTool names its snapshot to the second (aitm-yyyyMMdd-HHmmss.db); back-to-back runs
-            // inside the same second would collide on "output file already exists".
-            Thread.Sleep(1100);
+            // BackupTool names an automatic snapshot to the millisecond plus an 8-hex-char random suffix
+            // (fix 9d417e1), so two back-to-back runs never collide on "output file already exists" —
+            // no sleep needed to dodge a same-second name.
             using (SqliteConnection connection = StoreConnection.Open(dbPath))
             {
                 new BrainDistillTool().Execute(connection, root);
