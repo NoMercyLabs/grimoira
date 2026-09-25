@@ -65,14 +65,28 @@ public sealed class GraphExplainTool : ITool
 
     private static string BuildExplanation(SqliteConnection connection, string resolved)
     {
+        bool hasFileRel = Schema.GraphFileRelSchema.HasColumn(connection, "edges", "file_rel");
+        Dictionary<string, string> roots = hasFileRel ? Schema.GraphFileRelSchema.LoadProjectRoots(connection) : new();
+        string ResolveFile(string project, string file, bool isDbNull, Func<string> getFileRel) =>
+            Schema.GraphFileRelSchema.ResolveFull(
+                roots.TryGetValue(project, out string? root) ? root : null,
+                hasFileRel && !isDbNull ? getFileRel() : null, file);
+
         List<string> lines = new();
         List<(string project, string file, int line, string usage)> declRows = new();
         using (SqliteCommand c = connection.CreateCommand())
         {
-            c.CommandText = "SELECT project, file, line, usage FROM edges WHERE symbol=$s AND contract='decl' ORDER BY project, file LIMIT 5";
+            c.CommandText = hasFileRel
+                ? "SELECT project, file, line, usage, file_rel FROM edges WHERE symbol=$s AND contract='decl' ORDER BY project, file LIMIT 5"
+                : "SELECT project, file, line, usage FROM edges WHERE symbol=$s AND contract='decl' ORDER BY project, file LIMIT 5";
             c.Parameters.AddWithValue("$s", resolved);
             using SqliteDataReader r = c.ExecuteReader();
-            while (r.Read()) declRows.Add((r.GetString(0), r.GetString(1), r.GetInt32(2), r.GetString(3)));
+            while (r.Read())
+            {
+                string project = r.GetString(0);
+                string file = ResolveFile(project, r.GetString(1), !hasFileRel || r.IsDBNull(4), () => r.GetString(4));
+                declRows.Add((project, file, r.GetInt32(2), r.GetString(3)));
+            }
         }
         string kind = declRows.Count > 0 ? declRows[0].usage : (Scalar(connection, "SELECT contract FROM edges WHERE symbol=$s AND contract != '' LIMIT 1", resolved) ?? "unknown");
         lines.Add($"{resolved}  [{kind}]");
@@ -99,8 +113,11 @@ public sealed class GraphExplainTool : ITool
         lines.Add("top sites:");
         using (SqliteCommand c = connection.CreateCommand())
         {
-            c.CommandText = @"SELECT project, file, line, usage, hardcoded FROM edges WHERE symbol=$s
-                ORDER BY hardcoded DESC, project, file LIMIT 10";
+            c.CommandText = hasFileRel
+                ? @"SELECT project, file, line, usage, hardcoded, file_rel FROM edges WHERE symbol=$s
+                    ORDER BY hardcoded DESC, project, file LIMIT 10"
+                : @"SELECT project, file, line, usage, hardcoded FROM edges WHERE symbol=$s
+                    ORDER BY hardcoded DESC, project, file LIMIT 10";
             c.Parameters.AddWithValue("$s", resolved);
             using SqliteDataReader r = c.ExecuteReader();
             int n = 0;
@@ -108,7 +125,9 @@ public sealed class GraphExplainTool : ITool
             {
                 n++;
                 bool hard = r.GetInt32(4) == 1;
-                lines.Add($"  {r.GetString(0),-10} {r.GetString(1)}:{r.GetInt32(2)}{(hard ? " [HARDCODED]" : "")}  {Clip(r.GetString(3), 60)}");
+                string project = r.GetString(0);
+                string file = ResolveFile(project, r.GetString(1), !hasFileRel || r.IsDBNull(5), () => r.GetString(5));
+                lines.Add($"  {project,-10} {file}:{r.GetInt32(2)}{(hard ? " [HARDCODED]" : "")}  {Clip(r.GetString(3), 60)}");
             }
             if (n == 0) lines.Add("  (none recorded)");
         }

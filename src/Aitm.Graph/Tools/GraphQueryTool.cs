@@ -62,6 +62,9 @@ public sealed class GraphQueryTool : ITool
 
     private static List<string> BuildLines(SqliteConnection connection, List<string> toks, string question, out bool matched)
     {
+        bool hasFileRel = Schema.GraphFileRelSchema.HasColumn(connection, "edges", "file_rel");
+        Dictionary<string, string> roots = hasFileRel ? Schema.GraphFileRelSchema.LoadProjectRoots(connection) : new();
+
         HashSet<string> candidates = new(StringComparer.OrdinalIgnoreCase);
         foreach (string t in toks)
         {
@@ -88,10 +91,19 @@ public sealed class GraphQueryTool : ITool
             string homeProject = "";
             using (SqliteCommand c = connection.CreateCommand())
             {
-                c.CommandText = "SELECT project, file, line FROM edges WHERE symbol=$s AND contract='decl' LIMIT 1";
+                c.CommandText = hasFileRel
+                    ? "SELECT project, file, line, file_rel FROM edges WHERE symbol=$s AND contract='decl' LIMIT 1"
+                    : "SELECT project, file, line FROM edges WHERE symbol=$s AND contract='decl' LIMIT 1";
                 c.Parameters.AddWithValue("$s", sym);
                 using SqliteDataReader r = c.ExecuteReader();
-                if (r.Read()) { homeProject = r.GetString(0); defLoc = $"{r.GetString(1)}:{r.GetInt32(2)}"; }
+                if (r.Read())
+                {
+                    homeProject = r.GetString(0);
+                    string? fileRel = hasFileRel && !r.IsDBNull(3) ? r.GetString(3) : null;
+                    string file = Schema.GraphFileRelSchema.ResolveFull(
+                        roots.TryGetValue(homeProject, out string? root) ? root : null, fileRel, r.GetString(1));
+                    defLoc = $"{file}:{r.GetInt32(2)}";
+                }
             }
             List<(string project, int files)> byProject = new();
             using (SqliteCommand c = connection.CreateCommand())

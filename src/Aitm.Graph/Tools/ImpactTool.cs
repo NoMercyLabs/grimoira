@@ -25,17 +25,26 @@ public sealed class ImpactTool : ITool
 
     public string ExecuteCli(SqliteConnection connection, string symbol)
     {
+        bool hasFileRel = Schema.GraphFileRelSchema.HasColumn(connection, "edges", "file_rel");
+        Dictionary<string, string> roots = hasFileRel ? Schema.GraphFileRelSchema.LoadProjectRoots(connection) : new();
+
         List<(string project, string file, int line, string usage)> edges = new();
         string contract = "";
         using (SqliteCommand c = connection.CreateCommand())
         {
-            c.CommandText = "SELECT project,file,line,usage,contract FROM edges WHERE symbol=$s COLLATE NOCASE ORDER BY project, file";
+            c.CommandText = hasFileRel
+                ? "SELECT project,file,line,usage,contract,file_rel FROM edges WHERE symbol=$s COLLATE NOCASE ORDER BY project, file"
+                : "SELECT project,file,line,usage,contract FROM edges WHERE symbol=$s COLLATE NOCASE ORDER BY project, file";
             c.Parameters.AddWithValue("$s", symbol);
             using SqliteDataReader r = c.ExecuteReader();
             while (r.Read())
             {
                 contract = r.GetString(4);
-                edges.Add((r.GetString(0), r.GetString(1), r.GetInt32(2), r.GetString(3)));
+                string project = r.GetString(0);
+                string? fileRel = hasFileRel && !r.IsDBNull(5) ? r.GetString(5) : null;
+                string file = Schema.GraphFileRelSchema.ResolveFull(
+                    roots.TryGetValue(project, out string? root) ? root : null, fileRel, r.GetString(1));
+                edges.Add((project, file, r.GetInt32(2), r.GetString(3)));
             }
         }
         if (edges.Count == 0)
@@ -57,8 +66,13 @@ public sealed class ImpactTool : ITool
 
     public string ExecuteMcp(SqliteConnection connection, string symbol)
     {
+        bool hasFileRel = Schema.GraphFileRelSchema.HasColumn(connection, "edges", "file_rel");
+        Dictionary<string, string> roots = hasFileRel ? Schema.GraphFileRelSchema.LoadProjectRoots(connection) : new();
+
         using SqliteCommand cmd = connection.CreateCommand();
-        cmd.CommandText = "SELECT project,file,line,usage,hardcoded,contract FROM edges WHERE symbol=$s COLLATE NOCASE ORDER BY hardcoded DESC, project, file";
+        cmd.CommandText = hasFileRel
+            ? "SELECT project,file,line,usage,hardcoded,contract,file_rel FROM edges WHERE symbol=$s COLLATE NOCASE ORDER BY hardcoded DESC, project, file"
+            : "SELECT project,file,line,usage,hardcoded,contract FROM edges WHERE symbol=$s COLLATE NOCASE ORDER BY hardcoded DESC, project, file";
         cmd.Parameters.AddWithValue("$s", symbol);
         using SqliteDataReader r = cmd.ExecuteReader();
         StringBuilder sb = new();
@@ -69,7 +83,11 @@ public sealed class ImpactTool : ITool
             bool h = r.GetInt32(4) == 1;
             if (h) hard++;
             contract = r.GetString(5);
-            sb.AppendLine($"  {r.GetString(0)} {r.GetString(1)}:{r.GetInt32(2)} {(h ? "[HARDCODED] " : "")}{r.GetString(3)}");
+            string project = r.GetString(0);
+            string? fileRel = hasFileRel && !r.IsDBNull(6) ? r.GetString(6) : null;
+            string file = Schema.GraphFileRelSchema.ResolveFull(
+                roots.TryGetValue(project, out string? root) ? root : null, fileRel, r.GetString(1));
+            sb.AppendLine($"  {project} {file}:{r.GetInt32(2)} {(h ? "[HARDCODED] " : "")}{r.GetString(3)}");
         }
         if (sb.Length == 0) return $"'{symbol}' has no recorded consumers (safe to change, or not yet indexed).";
         return $"Changing '{symbol}' ({contract}) impacts these consumers ({hard} hardcoded — break on rename; surface for lockstep, never break existing users):\n{sb}";

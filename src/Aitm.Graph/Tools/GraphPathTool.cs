@@ -37,22 +37,42 @@ public sealed class GraphPathTool : ITool
         if (hops == null) return $"no path found between \"{fromInput}\" and \"{toInput}\" within depth 6.";
         if (hops.Count == 0) return "same node.";
 
-        return FormatHops(from.Value, to.Value, hops);
+        return FormatHops(connection, from.Value, to.Value, hops);
     }
 
     public string ExecuteMcp(SqliteConnection connection, string a, string b) => ExecuteCli(connection, a, b);
 
-    private static string FormatHops((string kind, string value) from, (string kind, string value) to,
+    private static string FormatHops(SqliteConnection connection, (string kind, string value) from, (string kind, string value) to,
         List<(string toKind, string toVal, string file, int line, string rel)> hops)
     {
+        bool hasFileRel = Schema.GraphFileRelSchema.HasColumn(connection, "edges", "file_rel");
+        Dictionary<string, string> roots = hasFileRel ? Schema.GraphFileRelSchema.LoadProjectRoots(connection) : new();
+
+        // Slice 31: a hop's file (its own toVal, or the file that carries a usage hop's symbol) is
+        // resolved to a full path for THIS machine via file_rel, falling back to the stored file value.
+        string ResolveHopFile(string file)
+        {
+            if (!hasFileRel) return file;
+            using SqliteCommand c = connection.CreateCommand();
+            c.CommandText = "SELECT project, file_rel FROM edges WHERE file=$f AND file_rel IS NOT NULL LIMIT 1";
+            c.Parameters.AddWithValue("$f", file);
+            using SqliteDataReader r = c.ExecuteReader();
+            if (!r.Read()) return file;
+            string project = r.GetString(0);
+            string? fileRel = r.IsDBNull(1) ? null : r.GetString(1);
+            return Schema.GraphFileRelSchema.ResolveFull(roots.TryGetValue(project, out string? root) ? root : null, fileRel, file);
+        }
+
         List<string> lines = new()
         {
             $"[{from.kind}] {from.value}  ->  [{to.kind}] {to.value}   ({hops.Count} hop(s))"
         };
         foreach ((string toKind, string toVal, string file, int line, string rel) h in hops)
         {
-            string loc = h.toKind == "file" ? $"line {h.line}" : $"{h.file}:{h.line}";
-            lines.Add($"  {h.rel}  [{h.toKind}] {h.toVal}   {loc}");
+            string resolvedFile = ResolveHopFile(h.file);
+            string resolvedToVal = h.toKind == "file" ? ResolveHopFile(h.toVal) : h.toVal;
+            string loc = h.toKind == "file" ? $"line {h.line}" : $"{resolvedFile}:{h.line}";
+            lines.Add($"  {h.rel}  [{h.toKind}] {resolvedToVal}   {loc}");
         }
         return CapLines(lines);
     }

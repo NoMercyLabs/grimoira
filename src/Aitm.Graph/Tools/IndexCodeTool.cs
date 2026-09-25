@@ -110,9 +110,11 @@ public sealed class IndexCodeTool : ITool
     /// index-code.mjs reads.</param>
     public string Execute(SqliteConnection connection, string? onlyProject, string backupDirectory)
     {
-        SchemaRunResult schemaResult = SchemaRunner.Run(connection, [new Schema.GraphIndexSchema()], backupDirectory);
+        SchemaRunResult schemaResult = SchemaRunner.Run(
+            connection, [new Schema.GraphIndexSchema(), new Schema.GraphFileRelSchema(connection)], backupDirectory);
         if (!schemaResult.Success)
             return $"schema step failed: {schemaResult.Error}";
+        Schema.GraphFileRelSchema.Backfill(connection);
 
         HashSet<string> skip = new(
             (Environment.GetEnvironmentVariable("AITM_SKIP_PROJECTS") ?? "")
@@ -154,7 +156,9 @@ public sealed class IndexCodeTool : ITool
                     if (!LangByExt.TryGetValue(ext, out string? lang)) continue;
                     // index-code.mjs:175 stores the full path (its `rel` is misnamed — never made
                     // relative to the project root), not a root-relative one; matched here for parity.
+                    // `file_rel` (slice 31) carries the real project-relative path alongside it.
                     string rel = file.Replace('\\', '/');
+                    string? fileRel = Schema.GraphFileRelSchema.ToRelative(root, file);
                     files++;
                     foreach ((string symbol, int line) in DeclarationsIn(file, lang))
                     {
@@ -164,12 +168,13 @@ public sealed class IndexCodeTool : ITool
                         using SqliteCommand insert = connection.CreateCommand();
                         insert.Transaction = transaction;
                         insert.CommandText =
-                            "INSERT INTO edges(symbol, contract, project, file, line, usage, hardcoded) VALUES($sym, 'decl', $proj, $file, $line, $usage, 0)";
+                            "INSERT INTO edges(symbol, contract, project, file, line, usage, hardcoded, file_rel) VALUES($sym, 'decl', $proj, $file, $line, $usage, 0, $filerel)";
                         insert.Parameters.AddWithValue("$sym", symbol);
                         insert.Parameters.AddWithValue("$proj", name);
                         insert.Parameters.AddWithValue("$file", rel);
                         insert.Parameters.AddWithValue("$line", line);
                         insert.Parameters.AddWithValue("$usage", $"{lang} declaration");
+                        insert.Parameters.AddWithValue("$filerel", (object?)fileRel ?? DBNull.Value);
                         insert.ExecuteNonQuery();
                         added++;
                     }
