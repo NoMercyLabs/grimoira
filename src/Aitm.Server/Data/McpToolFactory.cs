@@ -58,6 +58,15 @@ public static class McpToolFactory
         {
             Name = tool.McpName,
             Description = tool.Help,
+            // Every ExecuteMcp method returns a plain string the client renders as text. Left at its
+            // default, AIFunctionFactory's MarshalResult always round-trips the return value through
+            // JsonElement (AIFunction.InvokeAsync never hands back the raw string), so the MCP SDK's
+            // AIFunctionMcpServerTool never takes its "obj is string" fast path and instead
+            // JSON-serialises the JsonElement into the text content — a quoted, escaped copy of the
+            // string mcp.dll (stdio) returns byte for byte (RESTRUCTURE.md "Slice 26b" parity finding).
+            // Passing the result through unchanged restores that fast path.
+            ExcludeResultSchema = true,
+            MarshalResult = (result, _, _) => new ValueTask<object?>(result),
             ConfigureParameterBinding = parameter => parameter.ParameterType == typeof(SqliteConnection)
                 ? new AIFunctionFactoryOptions.ParameterBindingOptions
                 {
