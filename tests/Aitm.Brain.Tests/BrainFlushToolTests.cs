@@ -170,14 +170,15 @@ public class BrainFlushToolTests
             string dbPath = AitmCliRunner.InstanceDbPath(instance);
             AitmCliRunner.Run($"init --instance {instance}");
 
-            using SqliteConnection connection = StoreConnection.Open(dbPath);
-            // Shorten only this connection's busy_timeout so the held lock below is hit in well under a
-            // second, instead of waiting out the real 30s pragma fix 668134a raised it to.
-            using (SqliteCommand shortTimeout = connection.CreateCommand())
-            {
-                shortTimeout.CommandText = "PRAGMA busy_timeout=200";
-                shortTimeout.ExecuteNonQuery();
-            }
+            // Shorten only this connection's retry wait so the held lock below is hit in well under a
+            // second, instead of waiting out the real 30s pragma fix 668134a raised it to. A `PRAGMA
+            // busy_timeout` run after Open has no effect on Microsoft.Data.Sqlite's own busy retry loop;
+            // that loop is driven by the connection string's `Default Timeout` keyword (seconds) — see
+            // src/Aitm.Hooks/Data/HookStore.cs, proven in slice 21. Skip StoreConnection.ApplyPragmas
+            // here: it re-runs `PRAGMA busy_timeout=30000`, which would put the native 30s wait straight
+            // back. The db file already carries WAL from the `init` above.
+            using SqliteConnection connection = new($"Data Source={dbPath};Foreign Keys=True;Default Timeout=1");
+            connection.Open();
 
             string ledger = BrainStageTool.LedgerPath(connection);
             Directory.CreateDirectory(Path.GetDirectoryName(ledger)!);
