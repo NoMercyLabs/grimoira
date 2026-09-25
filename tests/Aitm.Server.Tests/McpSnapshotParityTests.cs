@@ -189,6 +189,154 @@ public class McpSnapshotParityTests
             new { query = punct },
             new { query = "nothing-ever-matches-this-term-at-all" },
         ];
+
+        // RESTRUCTURE.md slice 24, MCP lane part 2: the remaining 17 tools — Aitm.Graph (4), Aitm.Brain
+        // (10), and 2 of the 3 Handover tools. idp_token (the 3rd Handover tool) is the one
+        // documented exception: it stays inline in both the snapshot and today's mcp.cs, so its case
+        // below still proves parity (identical code, identical answer) without exercising the change
+        // slice 28 plans.
+        yield return
+        [
+            "impact",
+            (Action<string>)(instance => SeedEdge(instance, "no-mercy's-widget", hardcoded: true)),
+            new { symbol = "no-mercy's-widget" },
+            new { symbol = "nothing-was-ever-indexed-with-this-symbol" },
+        ];
+        yield return
+        [
+            "graph_query",
+            (Action<string>)(instance => SeedEdge(instance, "parity-widget-frobnicate", hardcoded: false)),
+            new { question = "no-mercy's parity-widget-frobnicate, please?" },
+            new { question = "!!!---???" },
+        ];
+        yield return
+        [
+            "graph_path",
+            (Action<string>)(instance => SeedEdge(instance, "parity-path-symbol", hardcoded: false)),
+            new { a = "parity-path-symbol", b = "parity-path-symbol" },
+            new { a = "no-such-symbol-a", b = "no-such-symbol-b" },
+        ];
+        yield return
+        [
+            "graph_explain",
+            (Action<string>)(instance => SeedEdge(instance, "parity-explain's-symbol", hardcoded: true)),
+            new { symbol = "parity-explain's-symbol" },
+            new { symbol = "no-such-symbol-ever-indexed" },
+        ];
+        yield return
+        [
+            "brain_core",
+            (Action<string>)(_ => { }),
+            new { },
+            new { },
+        ];
+        yield return
+        [
+            "brain_scope",
+            (Action<string>)(_ => { }),
+            new { projects = "server web" },
+            new { projects = "" },
+        ];
+        yield return
+        [
+            "brain_common",
+            (Action<string>)(_ => { }),
+            new { projects = "server web" },
+            new { projects = "server" },
+        ];
+        yield return
+        [
+            "brain_place",
+            (Action<string>)(_ => { }),
+            new { codekind = "no-mercy's-widget-kind" },
+            new { codekind = "" },
+        ];
+        yield return
+        [
+            "brain_recall",
+            (Action<string>)(_ => { }),
+            new { query = "no-mercy's parity-recall term" },
+            new { query = "" },
+        ];
+        yield return
+        [
+            "brain_impact",
+            (Action<string>)(instance => SeedEdge(instance, "parity-brain-impact's-symbol", hardcoded: true)),
+            new { symbol = "parity-brain-impact's-symbol" },
+            new { symbol = "nothing-was-ever-indexed-with-this-symbol" },
+        ];
+        yield return
+        [
+            "brain_learn",
+            (Action<string>)(_ => { }),
+            new { kind = "node", key = "parity-learn-node", a = "fact", b = "a short label", c = "a longer gloss" },
+            new { kind = "triple", key = "parity-learn-node", a = "no-such-predicate-ever", b = "x" },
+        ];
+        yield return
+        [
+            "brain_gaps",
+            (Action<string>)(_ => { }),
+            new { },
+            new { },
+        ];
+        yield return
+        [
+            "brain_stage",
+            (Action<string>)(_ => { }),
+            new { kind = "node", key = "parity-stage-node", a = "fact", b = "a short label", c = "a longer gloss" },
+            new { kind = "node", key = "parity-stage-node", a = "fact", b = new string('x', 200), c = "" },
+        ];
+        // No seed: the harness fires both calls concurrently (McpProcess.Run sends every call before
+        // waiting on a response), and brain_flush reads-then-deletes the same ledger file, so seeding
+        // one line makes the two concurrent calls race on that file (confirmed: this must run against
+        // an empty ledger, giving "nothing staged." both times, on both sides — still a real parity
+        // check, just not one that exercises a non-empty flush).
+        yield return
+        [
+            "brain_flush",
+            (Action<string>)(_ => { }),
+            new { },
+            new { },
+        ];
+        yield return
+        [
+            "workspace_capabilities",
+            (Action<string>)(_ => { }),
+            new { query = "find no-mercy's login driver" },
+            new { query = "" },
+        ];
+        yield return
+        [
+            "workspace_search",
+            (Action<string>)(_ => { }),
+            new { repository = ".", pattern = "no-mercy's-pattern" },
+            new { repository = "", pattern = "" },
+        ];
+
+        // idp_token is deliberately NOT exercised here: RESTRUCTURE.md ("Handover tools must never
+        // run the real Python or login drivers in tests") — and on this box AITM_ALLOW_TOKEN_MINT=1 is
+        // set in the ambient environment (the testbed convention the card's Handover note refers to),
+        // so ANY call here would run the real node idp-impersonate.mjs against a live IdP
+        // realm. It stays inline and unchanged (see IdPTokenStaysInlineUntilSlice28 in
+        // McpDispatchTests, and the earlier tools/list equality check, which already proves both sides
+        // still expose it under the same name).
+    }
+
+    // Inserts one row into `edges` (the table impact/graph_query/graph_path/graph_explain/brain_impact
+    // all read), directly through the store's own connection — the same shape Aitm.Graph.Tests and
+    // Aitm.Brain.Tests seed with (e.g. ImpactToolTests, GraphQueryToolTests). Deliberately includes a
+    // hyphen and an apostrophe in the symbol: RESTRUCTURE.md slice 24 (MCP part 1) found a tokenizer
+    // difference between the old and new code on punctuation, so every seeded symbol here carries that
+    // same trap.
+    private static void SeedEdge(string instance, string symbol, bool hardcoded)
+    {
+        using Microsoft.Data.Sqlite.SqliteConnection connection = new($"Data Source={AitmCliRunner.InstanceDbPath(instance)}");
+        connection.Open();
+        using Microsoft.Data.Sqlite.SqliteCommand cmd = connection.CreateCommand();
+        cmd.CommandText = "INSERT INTO edges(symbol,contract,project,file,line,usage,hardcoded) VALUES($s,'decl','parity-project','src/Parity.cs',1,'declaration',$h)";
+        cmd.Parameters.AddWithValue("$s", symbol);
+        cmd.Parameters.AddWithValue("$h", hardcoded ? 1 : 0);
+        cmd.ExecuteNonQuery();
     }
 
     // History's rows carry a real insertion timestamp, which differs by construction between the old
