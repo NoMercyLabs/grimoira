@@ -9,6 +9,13 @@ param([switch]$Quick)
 $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
 
+Write-Host 'building Aitm.sln...' -ForegroundColor Cyan
+# RESTRUCTURE.md slice 24 bullet 4: every feature's actual logic now lives in the solution's source
+# projects; aitm.cs and mcp.cs (built below) are thin file-based hosts that reference them via
+# `#:project` and are NOT part of Aitm.sln (a file-based app cannot be an sln project), so this alone
+# would not produce bin-cli/aitm.exe or bin/mcp.dll — the two builds below still do that.
+dotnet build "$root/Aitm.sln" | Select-String -Pattern 'error|warning NU19|-> '
+
 Write-Host 'building CLI...' -ForegroundColor Cyan
 dotnet build "$root/aitm.cs" -c Release -o "$root/bin-cli" | Select-String -Pattern 'error|warning NU19|-> '
 
