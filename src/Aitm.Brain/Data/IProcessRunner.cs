@@ -21,12 +21,19 @@ public sealed class ProcessRunner : IProcessRunner
         {
             RedirectStandardOutput = true,
             RedirectStandardError = true,
+            RedirectStandardInput = true,
             UseShellExecute = false,
             WorkingDirectory = workingDirectory ?? "",
         };
         foreach (string a in args) psi.ArgumentList.Add(a);
         using System.Diagnostics.Process process = System.Diagnostics.Process.Start(psi)
             ?? throw new InvalidOperationException($"could not start {fileName}");
+        // Without an explicit redirect+close, the child inherits THIS process's own stdin. When the
+        // caller is an MCP stdio server (workspace_capabilities/workspace_search, ported from mcp.cs's
+        // RunWorkspacePython, which did the same close), that pipe never reaches EOF on its own — a
+        // child that reads stdin to completion (e.g. workspace-search.py) then hangs until the caller's
+        // timeout, instead of running and returning like the real script does.
+        process.StandardInput.Close();
         Task<string> stdoutTask = process.StandardOutput.ReadToEndAsync();
         Task<string> stderrTask = process.StandardError.ReadToEndAsync();
         if (timeout is TimeSpan t)

@@ -80,7 +80,13 @@ public sealed class BrainLearnTool : ITool
                 case "node":
                     string guardErr = NodeGuard.ValidateMcp(a, b.Length > 0 ? b : key);
                     if (guardErr.Length > 0) return guardErr;
-                    bool changed = BrainWriters.AddNode(connection, key, a, b.Length > 0 ? b : key, c, "", hard, "brain_learn");
+                    // mcp.cs's own pre-slice-24 LearnCore never touched scheme (its INSERT had no scheme
+                    // column, and its noop check never compared it), so a node whose scheme was already
+                    // backfilled by MaybeMaintain() must not read as "changed" here just because this call
+                    // passes no scheme of its own — read the live value forward instead of overwriting it
+                    // with an empty one, so an otherwise-identical relearn still reports noop.
+                    string currentScheme = CurrentScheme(connection, key);
+                    bool changed = BrainWriters.AddNode(connection, key, a, b.Length > 0 ? b : key, c, currentScheme, hard, "brain_learn");
                     return changed ? "node learned." : "noop (unchanged).";
                 case "triple":
                     BrainWriters.TripleWrite outcome = BrainWriters.AddTriple(connection, key, a, b, because, "mcp", hard, "brain_learn");
@@ -101,6 +107,14 @@ public sealed class BrainLearnTool : ITool
         {
             return "rejected: " + e.Message;
         }
+    }
+
+    private static string CurrentScheme(SqliteConnection connection, string key)
+    {
+        using SqliteCommand command = connection.CreateCommand();
+        command.CommandText = "SELECT scheme FROM node_now WHERE k=$k";
+        command.Parameters.AddWithValue("$k", key);
+        return command.ExecuteScalar() as string ?? "";
     }
 
     private static void BeginTransaction(SqliteConnection connection)
