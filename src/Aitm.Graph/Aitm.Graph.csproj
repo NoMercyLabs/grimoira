@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="../Aitm.Store/Aitm.Store.csproj" />
+  </ItemGroup>
+</Project>

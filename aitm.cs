@@ -1,5 +1,8 @@
 #:package Microsoft.Data.Sqlite@10.0.9
 #:package SQLitePCLRaw.bundle_e_sqlite3@3.0.3
+// RESTRUCTURE.md slice 2: proves a file-based app can reference a project. aitm.cs does not call
+// into Aitm.Store yet (section 0 rule 3: the old file keeps working unchanged until its own slice).
+#:project src/Aitm.Store/Aitm.Store.csproj
 // AITM foundation — core slice: a per-instance SQLite store with a CURRENT projection
 // (one row per entity, the only thing normal reads touch) plus an append-only MUTATIONS
 // log (cold; read only for trace/rollback). FTS5-ranked knowledge lookup. Generic: the

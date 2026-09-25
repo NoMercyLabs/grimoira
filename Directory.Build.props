@@ -1,0 +1,17 @@
+<Project>
+  <!-- aitm.cs and mcp.cs are file-based apps at the repo root (RESTRUCTURE.md section 0 rule 3: they
+       keep running, unchanged, until their own slice moves each feature out from under them). Their
+       generated virtual project sits in the same directory as this file, so without this guard it
+       would inherit every setting below and break a build that passed before slice 2: central package
+       management collides with their own inline #:package version directives, and warnings-as-errors
+       turns their existing (pre-slice-2) trim-safety warning into a build failure. Scoped by project
+       name, not by command line, so a real project reference such as Aitm.Store (proved by the
+       #:project line slice 2 adds to aitm.cs) still gets the strict settings. -->
+  <PropertyGroup Condition="'$(MSBuildProjectName)' != 'aitm' AND '$(MSBuildProjectName)' != 'mcp'">
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+</Project>

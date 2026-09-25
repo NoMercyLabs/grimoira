@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <PackageReference Include="ModelContextProtocol" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Aitm.Store/Aitm.Store.csproj" />
+    <ProjectReference Include="../Aitm.Facts/Aitm.Facts.csproj" />
+    <ProjectReference Include="../Aitm.Memory/Aitm.Memory.csproj" />
+    <ProjectReference Include="../Aitm.Docs/Aitm.Docs.csproj" />
+    <ProjectReference Include="../Aitm.Graph/Aitm.Graph.csproj" />
+    <ProjectReference Include="../Aitm.Brain/Aitm.Brain.csproj" />
+    <ProjectReference Include="../Aitm.Hooks/Aitm.Hooks.csproj" />
+  </ItemGroup>
+</Project>

@@ -22,6 +22,14 @@ if (-not $SkipBuild) {
     if ($buildExit -ne 0) { $failed += 'tool server build' }
 }
 
+Write-Host '-- dotnet test Aitm.sln' -ForegroundColor Cyan
+# From slice 2 on (RESTRUCTURE.md section 4, "Exit check for every slice"): the new solution's own
+# test projects, run alongside the Node suites below until phase 2 finishes moving every feature.
+$out = & dotnet test "$PSScriptRoot/Aitm.sln" 2>&1
+$dotnetTestExit = $LASTEXITCODE
+$out | Select-String 'Passed!|Failed!' | Select-Object -Last 30
+if ($dotnetTestExit -ne 0) { $failed += 'dotnet test Aitm.sln' }
+
 Write-Host '-- hook registration' -ForegroundColor Cyan
 $out = & node "$PSScriptRoot/hook-doctor.mjs" --project "$projectRoot" 2>&1
 $hookExit = $LASTEXITCODE
