@@ -151,6 +151,65 @@ public class BrainRecallToolTests
         }
     }
 
+    // RESTRUCTURE.md slice 24 bullet 1: ports the `selftest` checks that exercised the alias-expansion
+    // SQL pattern in BrainRecallTool's own CTE (aitm.cs's old SelfTest: "recall: hyphenated alias
+    // expansion is quoted (no FTS5 syntax crash)" / "recall: a synonym alias expands the query (hub ->
+    // signalr)") now that selftest itself is gone. Both go through the real tool call rather than a raw
+    // SQL fragment, so they exercise the exact code path a session hits.
+    [Fact]
+    public void HyphenatedAliasCanonicalExpandsWithoutAnFts5SyntaxCrash()
+    {
+        string instance = AitmCliRunner.NewTestInstance("brain-recall-hyphen-alias");
+        try
+        {
+            AitmCliRunner.Run($"init --instance {instance}");
+            string dbPath = AitmCliRunner.InstanceDbPath(instance);
+            using (SqliteConnection setup = StoreConnection.Open(dbPath))
+            {
+                using SqliteCommand insertAlias = setup.CreateCommand();
+                insertAlias.CommandText = "INSERT OR IGNORE INTO term_alias(term,canonical) VALUES('screen','compose-screen')";
+                insertAlias.ExecuteNonQuery();
+            }
+            BrainTestFixtures.InsertNode(dbPath, "kind:hyp-test", "codekind", "hyphen test", "compose-screen widget");
+
+            using SqliteConnection connection = StoreConnection.Open(dbPath);
+            string result = new BrainRecallTool().ExecuteCli(connection, "screen");
+
+            Assert.Contains("kind:hyp-test", result);
+        }
+        finally
+        {
+            AitmCliRunner.DeleteInstance(instance);
+        }
+    }
+
+    [Fact]
+    public void ASynonymAliasExpandsTheQuery()
+    {
+        string instance = AitmCliRunner.NewTestInstance("brain-recall-synonym-alias");
+        try
+        {
+            AitmCliRunner.Run($"init --instance {instance}");
+            string dbPath = AitmCliRunner.InstanceDbPath(instance);
+            using (SqliteConnection setup = StoreConnection.Open(dbPath))
+            {
+                using SqliteCommand insertAlias = setup.CreateCommand();
+                insertAlias.CommandText = "INSERT OR IGNORE INTO term_alias(term,canonical) VALUES('hub','signalr')";
+                insertAlias.ExecuteNonQuery();
+            }
+            BrainTestFixtures.InsertNode(dbPath, "seam:hubtest", "seam", "Realtime thing", "signalr realtime sync");
+
+            using SqliteConnection connection = StoreConnection.Open(dbPath);
+            string result = new BrainRecallTool().ExecuteCli(connection, "hub");
+
+            Assert.Contains("seam:hubtest", result);
+        }
+        finally
+        {
+            AitmCliRunner.DeleteInstance(instance);
+        }
+    }
+
     private static void SeedNode(string dbPath) =>
         BrainTestFixtures.InsertNode(dbPath, "contract:paginated", "contract", "Paginated Response", "cursor based paging shape");
 

@@ -123,6 +123,69 @@ public class GraphPathToolTests
         }
     }
 
+    // RESTRUCTURE.md slice 24 bullet 1: ports the 2 `selftest` checks GraphPathToolTests didn't yet cover
+    // (aitm.cs's old SelfTest: "graph-path: reports no path past depth 6" / "graph-path: same node
+    // short-circuits") now that selftest itself is gone.
+    [Fact]
+    public void ReportsNoPathPastDepthSix()
+    {
+        string instance = AitmCliRunner.NewTestInstance("graph-path-depth-cutoff");
+        try
+        {
+            AitmCliRunner.Run($"init --instance {instance}");
+            string dbPath = AitmCliRunner.InstanceDbPath(instance);
+            using (SqliteConnection connection = StoreConnection.Open(dbPath))
+            {
+                // A chain 8 hops long (sym0-f0-sym1-f1-sym2-f2-sym3-f3-sym4): past the depth-6 cutoff on purpose.
+                GraphQueryToolTests.InsertEdge(connection, "ChainSym0", "decl", "chain", "chain/f0.ts", 1, "ts declaration");
+                GraphQueryToolTests.InsertEdge(connection, "ChainSym1", "decl", "chain", "chain/f0.ts", 2, "ts declaration");
+                GraphQueryToolTests.InsertEdge(connection, "ChainSym1", "", "chain", "chain/f1.ts", 1, "uses");
+                GraphQueryToolTests.InsertEdge(connection, "ChainSym2", "decl", "chain", "chain/f1.ts", 2, "ts declaration");
+                GraphQueryToolTests.InsertEdge(connection, "ChainSym2", "", "chain", "chain/f2.ts", 1, "uses");
+                GraphQueryToolTests.InsertEdge(connection, "ChainSym3", "decl", "chain", "chain/f2.ts", 2, "ts declaration");
+                GraphQueryToolTests.InsertEdge(connection, "ChainSym3", "", "chain", "chain/f3.ts", 1, "uses");
+                GraphQueryToolTests.InsertEdge(connection, "ChainSym4", "decl", "chain", "chain/f3.ts", 2, "ts declaration");
+            }
+
+            using SqliteConnection readConnection = StoreConnection.Open(dbPath);
+            string result = new GraphPathTool().ExecuteCli(readConnection, "ChainSym0", "ChainSym4");
+
+            Assert.Contains("no path found", result);
+            Assert.Contains("depth 6", result);
+        }
+        finally
+        {
+            AitmCliRunner.DeleteInstance(instance);
+        }
+    }
+
+    [Fact]
+    public void SameNodeShortCircuitsWithoutSearching()
+    {
+        string instance = AitmCliRunner.NewTestInstance("graph-path-same-node");
+        try
+        {
+            AitmCliRunner.Run($"init --instance {instance}");
+            string dbPath = AitmCliRunner.InstanceDbPath(instance);
+            SeedFixtureForSameNode(dbPath);
+
+            using SqliteConnection connection = StoreConnection.Open(dbPath);
+            string result = new GraphPathTool().ExecuteCli(connection, "GraphFixtureWidget", "GraphFixtureWidget");
+
+            Assert.Equal("same node.", result);
+        }
+        finally
+        {
+            AitmCliRunner.DeleteInstance(instance);
+        }
+    }
+
+    private static void SeedFixtureForSameNode(string dbPath)
+    {
+        using SqliteConnection connection = StoreConnection.Open(dbPath);
+        GraphQueryToolTests.InsertEdge(connection, "GraphFixtureWidget", "decl", "alpha", "alpha/widget.ts", 10, "ts declaration");
+    }
+
     private static void SeedPathFixture(string dbPath)
     {
         using SqliteConnection connection = StoreConnection.Open(dbPath);

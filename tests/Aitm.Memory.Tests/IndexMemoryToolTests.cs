@@ -57,6 +57,41 @@ public class IndexMemoryToolTests
         }
     }
 
+    // RESTRUCTURE.md slice 24 bullet 1: ports the `selftest` check "memory: re-index of an unchanged rule
+    // logs no phantom mutation" now that selftest itself is gone.
+    [Fact]
+    public void ReindexingAnUnchangedDirectoryLogsNoPhantomMutation()
+    {
+        string instance = AitmCliRunner.NewTestInstance("index-memory-idempotent");
+        string memDir = MakeFixtureDir();
+        try
+        {
+            AitmCliRunner.Run($"init --instance {instance}");
+            string dbPath = AitmCliRunner.InstanceDbPath(instance);
+            using (SqliteConnection connection = StoreConnection.Open(dbPath))
+            {
+                new IndexMemoryTool().Execute(connection, memDir);
+            }
+
+            using SqliteConnection check = StoreConnection.Open(dbPath);
+            using SqliteCommand before = check.CreateCommand();
+            before.CommandText = "SELECT count(*) FROM mutations WHERE kind='memory' AND k='index-memory-hard-fixture'";
+            long beforeCount = (long)before.ExecuteScalar()!;
+            Assert.Equal(1L, beforeCount);
+
+            new IndexMemoryTool().Execute(check, memDir);
+
+            using SqliteCommand after = check.CreateCommand();
+            after.CommandText = "SELECT count(*) FROM mutations WHERE kind='memory' AND k='index-memory-hard-fixture'";
+            Assert.Equal(beforeCount, (long)after.ExecuteScalar()!);
+        }
+        finally
+        {
+            AitmCliRunner.DeleteInstance(instance);
+            Directory.Delete(memDir, recursive: true);
+        }
+    }
+
     [Fact]
     public void ReportsAMissingDirectoryTheSameWayTheCliOracleDoes()
     {

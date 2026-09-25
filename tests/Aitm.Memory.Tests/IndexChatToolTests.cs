@@ -49,6 +49,38 @@ public class IndexChatToolTests
         }
     }
 
+    // RESTRUCTURE.md slice 24 bullet 1: ports the `selftest` check "recall: indexed chat message is
+    // retrievable" now that selftest itself is gone. Message content over 40 characters clears
+    // IndexChatTool's own noise gate, so a message indexed through the real tool must be found by an
+    // FTS5 MATCH against the chat_fts mirror it maintains.
+    [Fact]
+    public void AnIndexedMessageIsRetrievableThroughTheChatFtsMirror()
+    {
+        string instance = AitmCliRunner.NewTestInstance("index-chat-fts-retrievable");
+        string transcript = MakeFixtureTranscriptWithMessage(
+            "index-chat-fts-session", "the operator said never use optionalDependencies in package json");
+        try
+        {
+            AitmCliRunner.Run($"init --instance {instance}");
+            string dbPath = AitmCliRunner.InstanceDbPath(instance);
+            using (SqliteConnection connection = StoreConnection.Open(dbPath))
+            {
+                new IndexChatTool().Execute(connection, transcript);
+            }
+
+            using SqliteConnection check = new($"Data Source={dbPath};Mode=ReadOnly");
+            check.Open();
+            using SqliteCommand count = check.CreateCommand();
+            count.CommandText = "SELECT count(*) FROM chat_fts WHERE chat_fts MATCH 'optionaldependencies'";
+            Assert.Equal(1L, (long)(count.ExecuteScalar() ?? 0L));
+        }
+        finally
+        {
+            AitmCliRunner.DeleteInstance(instance);
+            File.Delete(transcript);
+        }
+    }
+
     [Fact]
     public void RunningTwiceOnTheSameTranscriptIsIdempotent()
     {

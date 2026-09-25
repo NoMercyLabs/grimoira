@@ -49,6 +49,48 @@ public class IndexDocsToolTests
         }
     }
 
+    // RESTRUCTURE.md slice 24 bullet 1: ports the `selftest` checks that exercised PathTerms directly
+    // (aitm.cs's old SelfTest: "path terms: folder words become searchable" / "path terms: generic and
+    // numeric segments are dropped") now that selftest itself is gone. IndexDocsTool stores PathTerms'
+    // output in the `terms` column, so this reads it back rather than reimplementing PathTerms.
+    [Fact]
+    public void FolderPathWordsBecomeSearchableTermsWhileGenericAndNumericSegmentsAreDropped()
+    {
+        string instance = AitmCliRunner.NewTestInstance("index-docs-path-terms");
+        string root = Path.Combine(Path.GetTempPath(), $"aitm-path-terms-{Guid.NewGuid():N}");
+        string reportDir = Path.Combine(root, "docs", "reports", "the-effortless-encoder");
+        Directory.CreateDirectory(reportDir);
+        string file = Path.Combine(reportDir, "04-safety-net.md");
+        try
+        {
+            File.WriteAllText(file, "# Safety net\n\nSome body text about the safety net.\n");
+
+            AitmCliRunner.Run($"init --instance {instance}");
+            string dbPath = AitmCliRunner.InstanceDbPath(instance);
+            using (SqliteConnection connection = StoreConnection.Open(dbPath))
+            {
+                new IndexDocsTool().Execute(connection, file, "doc");
+            }
+
+            using SqliteConnection check = new($"Data Source={dbPath};Mode=ReadOnly");
+            check.Open();
+            using SqliteCommand select = check.CreateCommand();
+            select.CommandText = "SELECT terms FROM docs LIMIT 1";
+            string terms = (string)select.ExecuteScalar()!;
+
+            Assert.Contains("effortless", terms);
+            Assert.Contains("encoder", terms);
+            Assert.Contains("safety", terms);
+            Assert.DoesNotContain("docs", terms.Split(' '));
+            Assert.DoesNotContain("04", terms.Split(' '));
+        }
+        finally
+        {
+            AitmCliRunner.DeleteInstance(instance);
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
     [Fact]
     public void RunningTwiceOnTheSameDirIsIdempotent()
     {

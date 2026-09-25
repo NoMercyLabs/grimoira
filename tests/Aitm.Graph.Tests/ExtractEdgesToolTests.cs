@@ -77,6 +77,48 @@ public class ExtractEdgesToolTests
         }
     }
 
+    // RESTRUCTURE.md slice 24 bullet 1: ports the `selftest` check "extract: token match respects word
+    // boundaries" now that selftest itself is gone. "data" must not match inside "metadata" but must
+    // match the whole-token "data" in "row.data".
+    [Fact]
+    public void SymbolMatchRespectsWordBoundariesAndNeverMatchesInsideALongerIdentifier()
+    {
+        string instance = AitmCliRunner.NewTestInstance("extract-edges-word-boundary");
+        string root = Path.Combine(Path.GetTempPath(), $"aitm-extract-edges-boundary-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        try
+        {
+            File.WriteAllText(Path.Combine(root, "metadata-only.ts"), "const metadata = 1;\n");
+            File.WriteAllText(Path.Combine(root, "real-usage.ts"), "row.data = 1;\n");
+
+            AitmCliRunner.Run($"init --instance {instance}");
+            string dbPath = AitmCliRunner.InstanceDbPath(instance);
+            using (SqliteConnection setup = StoreConnection.Open(dbPath))
+            {
+                new ProjectTool().Execute(setup, "web", root, "", "*.ts");
+            }
+
+            string result;
+            using (SqliteConnection connection = StoreConnection.Open(dbPath))
+            {
+                result = new ExtractEdgesTool().Execute(connection, "data", "");
+            }
+
+            Assert.Equal("extracted 1 candidate consumer(s) of 'data'. Review: aitm candidates --symbol data   then: aitm promote <id>", result);
+
+            using SqliteConnection check = new($"Data Source={dbPath};Mode=ReadOnly");
+            check.Open();
+            using SqliteCommand count = check.CreateCommand();
+            count.CommandText = "SELECT count(*) FROM edge_candidates WHERE symbol='data' AND file LIKE '%real-usage.ts'";
+            Assert.Equal(1L, (long)(count.ExecuteScalar() ?? 0L));
+        }
+        finally
+        {
+            AitmCliRunner.DeleteInstance(instance);
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
     private static string MakeFixtureProject(string label)
     {
         string dir = Path.Combine(Path.GetTempPath(), $"aitm-{label}-{Guid.NewGuid():N}");
