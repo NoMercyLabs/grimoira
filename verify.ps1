@@ -35,24 +35,34 @@ $line = $out | Select-String 'selftest:' | Select-Object -Last 1
 Write-Host "   $line"
 if ($selftestExit -ne 0 -or "$line" -notmatch 'GREEN') { $failed += 'selftest' }
 
-foreach ($suite in @('brain-lib.test.mjs', 'ranking-agreement.test.mjs', 'deferral-shape.test.mjs',
-                     'continue-guard.test.mjs', 'pattern-watch.test.mjs', 'proof-guard.test.mjs',
-                     'synthesis-capture.test.mjs', 'mcp-stage.test.mjs', 'mcp-graph.test.mjs', 'build-stamp.test.mjs', 'workspace-repos.test.mjs', 'blast-radius.test.mjs',
-                     'population-guard.test.mjs', 'idp-impersonate.test.mjs', 'cli-exit.test.mjs')) {
-    Write-Host "-- $suite" -ForegroundColor Cyan
-    $out = & node "$PSScriptRoot/$suite" 2>&1
+# Every *.test.mjs in the repo root, found by pattern rather than typed into a list — a file dropped
+# here (or forgotten, as brain-gates.test.mjs and launch-mcp.test.mjs were) is run, not silently skipped.
+# A file that imports node:test needs the `node --test` runner; every other file is a plain script that
+# prints its own pass/fail line and exits non-zero on failure. Both groups are run below, and the total
+# discovered must equal the total actually run, or the gate stops instead of quietly covering less.
+$allTestFiles = Get-ChildItem "$PSScriptRoot/*.test.mjs" | Sort-Object Name
+$nodeTestFiles = @($allTestFiles | Where-Object { Select-String -Path $_.FullName -Pattern "from 'node:test'" -Quiet })
+$plainFiles = @($allTestFiles | Where-Object { $_.FullName -notin $nodeTestFiles.FullName })
+
+foreach ($suite in $plainFiles) {
+    Write-Host "-- $($suite.Name)" -ForegroundColor Cyan
+    $out = & node "$($suite.FullName)" 2>&1
     $testExit = $LASTEXITCODE
     $line = ($out | Select-String 'passed|agreed' | Select-Object -Last 1)
     Write-Host "   $line"
-    if ($testExit -ne 0 -or -not $line -or "$line" -match '[1-9]\d* (failed|diverged)') { $failed += $suite }
+    if ($testExit -ne 0 -or -not $line -or "$line" -match '[1-9]\d* (failed|diverged)') { $failed += $suite.Name }
 }
 
 Write-Host '-- ownership, edit-hook, registration, and workspace tool tests' -ForegroundColor Cyan
-$out = & node --test --test-concurrency=1 "$PSScriptRoot/process-owner.test.mjs" "$PSScriptRoot/index-on-edit.test.mjs" "$PSScriptRoot/hook-doctor.test.mjs" "$PSScriptRoot/workspace-tools.test.mjs" 2>&1
+$out = & node --test --test-concurrency=1 @($nodeTestFiles | ForEach-Object { $_.FullName }) 2>&1
 $testExit = $LASTEXITCODE
 $line = $out | Select-String '^# pass ' | Select-Object -Last 1
 Write-Host "   $line"
 if ($testExit -ne 0 -or -not $line) { $failed += 'ownership, edit-hook, registration, and workspace tool tests' }
+
+$ranCount = $plainFiles.Count + $nodeTestFiles.Count
+Write-Host "-- test file coverage: $ranCount of $($allTestFiles.Count) *.test.mjs files run" -ForegroundColor Cyan
+if ($ranCount -ne $allTestFiles.Count) { $failed += "test file coverage ($ranCount of $($allTestFiles.Count))" }
 
 if ($failed.Count -gt 0) {
     Write-Host "`nRED: $($failed -join ', ')" -ForegroundColor Red
