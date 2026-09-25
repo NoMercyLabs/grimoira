@@ -13,7 +13,13 @@ public class RecallToolTests
     public void CliShapeMatchesTodaysCliOutputForAConfidentMatch()
     {
         string instance = AitmCliRunner.NewTestInstance("recall-cli-hit");
-        string transcript = MakeFixtureTranscript("recallclihit");
+        // The fixture text must contain the exact query term below ("recallclitopic") for chat_fts to
+        // register a real hit — MakeFixtureTranscript builds its text as `session + "topic"`, so the
+        // session here has to be "recallcli", not "recallclihit" (that extra "hit" made the indexed
+        // token "recallclihittopic", which the query below never matched — the fixture stayed under a
+        // confident match and both assertions passed on the "no chat history matches" gap text instead,
+        // since that text also echoes the query term back verbatim).
+        string transcript = MakeFixtureTranscript("recallcli");
         try
         {
             AitmCliRunner.Run($"init --instance {instance}");
@@ -29,6 +35,7 @@ public class RecallToolTests
 
             Assert.Equal(expected, actual);
             Assert.Contains("recallclitopic", actual);
+            Assert.DoesNotContain("no chat history matches", actual);
         }
         finally
         {
