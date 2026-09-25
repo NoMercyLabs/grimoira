@@ -1,6 +1,14 @@
-<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <!-- Slice 25 (RESTRUCTURE.md): the Kestrel host. Sdk.Web brings the ASP.NET Core shared framework
+         reference needed for WebApplication/Kestrel; this project is not published standalone by any
+         other slice yet, so nothing else in the repo depends on this being Sdk vs Sdk.Web. -->
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <!-- Sdk.Web (added by slice 25 for the Kestrel host) brings Microsoft.Extensions.Hosting
+         transitively; an explicit reference here is pruned as redundant (NU1510) and fails the build
+         under TreatWarningsAsErrors. -->
     <PackageReference Include="ModelContextProtocol" />
   </ItemGroup>
   <ItemGroup>
