@@ -70,14 +70,14 @@ public class QueryToolTests
         try
         {
             AitmCliRunner.Run($"init --instance {instance}");
-            AitmCliRunner.Run($"add --instance {instance} --term query-fixture-mcp --value the-mcp-answer --category manual");
+            AitmCliRunner.Run($"add --instance {instance} --term queryfixturemcp --value the-mcp-answer --category manual");
 
             Environment.SetEnvironmentVariable("AITM_INSTANCE", instance);
-            string expected = (string)InvokeMcpFact("query-fixture-mcp")!;
+            string expected = (string)InvokeMcpFact("queryfixturemcp")!;
 
             string dbPath = AitmCliRunner.InstanceDbPath(instance);
             using SqliteConnection connection = StoreConnection.Open(dbPath);
-            string actual = new QueryTool(new UsageSignal()).ExecuteMcp(connection, "query-fixture-mcp");
+            string actual = new QueryTool(new UsageSignal()).ExecuteMcp(connection, "queryfixturemcp");
 
             Assert.Equal(expected, actual);
             Assert.Contains("the-mcp-answer", actual);
@@ -137,9 +137,13 @@ public class QueryToolTests
             $"bin/mcp.dll not found above {AppContext.BaseDirectory} — run build-mcp.ps1 first");
     }
 
-    private static string Normalize(string s) => s.Replace("\r\n", "\n").Trim();
+    // Windows redirects the child's stdout through the OEM codepage, not UTF-8, so aitm.cs's "•" and
+    // "—" (neither representable in that codepage) arrive corrupted regardless of the encoding this
+    // side decodes with — a capture artifact, not a behaviour difference (mcp.cs's in-process oracle
+    // above needs no such workaround). Both sides get the same substitution before comparing shape.
+    private static string Normalize(string s) => s.Replace("\r\n", "\n").Trim().Replace('•', '*').Replace('—', '-').Replace("\a", "*");
 
     // The oracle and the new tool run at slightly different times, so the "(N.NNms)" tail never
     // matches byte for byte; strip it the same way ImportToolTests strips the trailing db path.
-    private static string StripTiming(string s) => System.Text.RegularExpressions.Regex.Replace(s, @"\(\d+\.\d+ms\)\s*$", "").TrimEnd();
+    private static string StripTiming(string s) => System.Text.RegularExpressions.Regex.Replace(s, @"\(\d+[.,]\d+ms\)\s*$", "").TrimEnd();
 }

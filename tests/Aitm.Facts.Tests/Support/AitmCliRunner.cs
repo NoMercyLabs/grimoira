@@ -36,6 +36,10 @@ internal static class AitmCliRunner
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,
+            // The CLI prints "•" and "—" (query's fixture hits). Without this the redirected pipe
+            // is read back with the OS codepage, mangling both into control characters.
+            StandardOutputEncoding = System.Text.Encoding.UTF8,
+            StandardErrorEncoding = System.Text.Encoding.UTF8,
         };
         using Process process = Process.Start(psi) ?? throw new InvalidOperationException($"could not start dotnet {dll}");
         string stdout = process.StandardOutput.ReadToEnd();
