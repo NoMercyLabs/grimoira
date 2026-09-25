@@ -4,7 +4,7 @@ namespace Aitm.Store.Tests.Support;
 
 /// <summary>
 /// Builds a real-shaped v3 store the same way a user's does: by running the actual
-/// <c>bin-cli/aitm.exe</c> — today's compiled aitm.cs — against a fresh <c>test-*</c> instance. This is
+/// <c>bin-cli/aitm.dll</c> — today's compiled aitm.cs — against a fresh <c>test-*</c> instance. This is
 /// the oracle for slice 3c's "a copy of a real-shaped v3 store ... create it with today's aitm.cs
 /// `init`" — the real CLI, not a reimplementation of what it creates.
 ///
@@ -32,11 +32,11 @@ internal sealed class V3StoreFixture : IDisposable
     public static V3StoreFixture Create()
     {
         string instance = $"test-schemarunner-{Guid.NewGuid():N}";
-        string exe = FindAitmExe();
+        string dll = FindAitmDll();
 
-        RunAitm(exe, $"init --instance {instance}");
-        RunAitm(exe, $"add --instance {instance} --term fixture-fact-one --value one --category manual");
-        RunAitm(exe, $"add --instance {instance} --term fixture-fact-two --value two --category manual");
+        RunAitm(dll, $"init --instance {instance}");
+        RunAitm(dll, $"add --instance {instance} --term fixture-fact-one --value one --category manual");
+        RunAitm(dll, $"add --instance {instance} --term fixture-fact-two --value two --category manual");
 
         string instanceDir = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".aitm", instance);
@@ -55,35 +55,36 @@ internal sealed class V3StoreFixture : IDisposable
         if (Directory.Exists(_instanceDir)) Directory.Delete(_instanceDir, recursive: true);
     }
 
-    private static void RunAitm(string exe, string arguments)
+    // Through `dotnet <dll>`, so it runs the same on Windows and on the Linux CI runner.
+    private static void RunAitm(string dll, string arguments)
     {
-        ProcessStartInfo psi = new(exe, arguments)
+        ProcessStartInfo psi = new("dotnet", $"\"{dll}\" {arguments}")
         {
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,
         };
 
-        using Process process = Process.Start(psi) ?? throw new InvalidOperationException($"could not start {exe}");
+        using Process process = Process.Start(psi) ?? throw new InvalidOperationException($"could not start dotnet {dll}");
         string stdout = process.StandardOutput.ReadToEnd();
         string stderr = process.StandardError.ReadToEnd();
         process.WaitForExit();
         if (process.ExitCode != 0)
-            throw new InvalidOperationException($"'{exe} {arguments}' exited {process.ExitCode}\nSTDOUT:\n{stdout}\nSTDERR:\n{stderr}");
+            throw new InvalidOperationException($"'dotnet {dll} {arguments}' exited {process.ExitCode}\nSTDOUT:\n{stdout}\nSTDERR:\n{stderr}");
     }
 
     /// <summary>Walks up from the test assembly's output directory to find the repo-root
-    /// <c>bin-cli/aitm.exe</c> that build-cli.ps1 (and verify.ps1) already produce.</summary>
-    private static string FindAitmExe()
+    /// <c>bin-cli/aitm.dll</c> that build-cli.ps1, verify.ps1 and CI already produce.</summary>
+    private static string FindAitmDll()
     {
         DirectoryInfo? dir = new(AppContext.BaseDirectory);
         while (dir is not null)
         {
-            string candidate = Path.Combine(dir.FullName, "bin-cli", "aitm.exe");
+            string candidate = Path.Combine(dir.FullName, "bin-cli", "aitm.dll");
             if (File.Exists(candidate)) return candidate;
             dir = dir.Parent;
         }
         throw new InvalidOperationException(
-            $"bin-cli/aitm.exe not found above {AppContext.BaseDirectory} — run build-cli.ps1 first");
+            $"bin-cli/aitm.dll not found above {AppContext.BaseDirectory} — run build-cli.ps1 first");
     }
 }

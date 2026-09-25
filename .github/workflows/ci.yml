@@ -35,6 +35,9 @@ jobs:
       - name: Build MCP server
         run: dotnet build mcp.cs -c Release -o bin
 
+      - name: Solution tests
+        run: dotnet test Aitm.sln -c Release
+
       # A hook with a syntax error fails silently at runtime: the harness swallows it and the
       # enforcement it provides just stops happening. Parse every one on the way in.
       - name: Parse hooks
