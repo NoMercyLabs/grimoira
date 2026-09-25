@@ -62,6 +62,40 @@ public class DocToolTests
         }
     }
 
+    // CliTokens (the shared Tokens() used by ExecuteCli) splits on hyphens the same way aitm.cs's own
+    // Tokens does, unlike the MCP path's tokenizer — pins that the CLI shape stays untouched by the
+    // MCP-side tokenizer fix.
+    [Fact]
+    public void CliShapeMatchesTodaysCliOutputForAHyphenatedQuery()
+    {
+        string instance = AitmCliRunner.NewTestInstance("doc-cli-hyphen");
+        string dir = Path.Combine(Path.GetTempPath(), $"aitm-doc-cli-hyphen-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(dir);
+        File.WriteAllText(Path.Combine(dir, "notes.md"),
+            "# doc-cli-hyphentopic\n\nThis section carries the durable knowledge worth absorbing here, long enough to pass the length gate.\n");
+        try
+        {
+            AitmCliRunner.Run($"init --instance {instance}");
+            AitmCliRunner.Run($"index-docs --instance {instance} --from \"{dir}\"");
+
+            (string stdout, int exitCode) = AitmCliRunner.Run($"doc --instance {instance} \"doc-cli-hyphentopic\"");
+            Assert.Equal(0, exitCode);
+            string expected = Normalize(stdout);
+
+            string dbPath = AitmCliRunner.InstanceDbPath(instance);
+            using SqliteConnection connection = StoreConnection.Open(dbPath);
+            string actual = Normalize(new DocTool().ExecuteCli(connection, "doc-cli-hyphentopic"));
+
+            Assert.Equal(expected, actual);
+            Assert.Contains("hyphentopic", actual);
+        }
+        finally
+        {
+            AitmCliRunner.DeleteInstance(instance);
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
     [Fact]
     public void McpShapeMatchesTodaysMcpOutputForAConfidentMatch()
     {

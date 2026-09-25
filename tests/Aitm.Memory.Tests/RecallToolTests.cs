@@ -62,6 +62,38 @@ public class RecallToolTests
         }
     }
 
+    // CliTokens (the shared Tokens() used by ExecuteCli) splits on hyphens the same way aitm.cs's own
+    // Tokens does, unlike the MCP path's tokenizer — pins that the CLI shape stays untouched by the
+    // MCP-side tokenizer fix. Compared directly against ExecuteCli rather than through the external CLI
+    // process: a real confident match's header always carries a literal "…" (the session-id ellipsis,
+    // unrelated to this fix), which this machine's console best-fits down to "." only on the redirected
+    // external-process path — a pre-existing gap in Normalize()'s mangling compensation (it only
+    // compensates "•"), never exercised before because CliShapeMatchesTodaysCliOutputForAConfidentMatch's
+    // fixture text is under the 40-char indexing gate and so never actually confidently matches.
+    [Fact]
+    public void CliShapeFindsAConfidentMatchForAHyphenatedQuery()
+    {
+        string instance = AitmCliRunner.NewTestInstance("recall-cli-hyphen");
+        string transcript = MakeFixtureTranscript("recall-hyphen");
+        try
+        {
+            AitmCliRunner.Run($"init --instance {instance}");
+            AitmCliRunner.Run($"index-chat --instance {instance} --from \"{transcript}\"");
+
+            string dbPath = AitmCliRunner.InstanceDbPath(instance);
+            using SqliteConnection connection = StoreConnection.Open(dbPath);
+            string actual = new RecallTool().ExecuteCli(connection, "recall-hyphentopic");
+
+            Assert.Contains("recall-hyphentopic", actual);
+            Assert.DoesNotContain("no chat history matches", actual);
+        }
+        finally
+        {
+            AitmCliRunner.DeleteInstance(instance);
+            File.Delete(transcript);
+        }
+    }
+
     [Fact]
     public void McpShapeMatchesTodaysMcpOutputForAConfidentMatch()
     {

@@ -62,6 +62,37 @@ public class MemToolTests
         }
     }
 
+    // CliTokens (the shared Tokens() used by ExecuteCli) splits on hyphens the same way aitm.cs's own
+    // Tokens does, unlike the MCP path's tokenizer — pins that the CLI shape stays untouched by the
+    // MCP-side tokenizer fix.
+    [Fact]
+    public void CliShapeMatchesTodaysCliOutputForAHyphenatedQuery()
+    {
+        string instance = AitmCliRunner.NewTestInstance("mem-cli-hyphen");
+        string memDir = MakeMemoryDir("mem-cli-hyphen", ("mem-hyphen-fixture", "feedback", "Mem Hyphen Fixture", "a memory about the mem-hyphen-topic subject"));
+        try
+        {
+            AitmCliRunner.Run($"init --instance {instance}");
+            AitmCliRunner.Run($"index-memory --instance {instance} --from \"{memDir}\"");
+
+            (string stdout, int exitCode) = AitmCliRunner.Run($"mem --instance {instance} mem-hyphen-topic");
+            Assert.Equal(0, exitCode);
+            string expected = Normalize(stdout);
+
+            string dbPath = AitmCliRunner.InstanceDbPath(instance);
+            using SqliteConnection connection = StoreConnection.Open(dbPath);
+            string actual = Normalize(new MemTool(new UsageSignal()).ExecuteCli(connection, "mem-hyphen-topic", hard: false));
+
+            Assert.Equal(expected, actual);
+            Assert.Contains("mem-hyphen-topic", actual);
+        }
+        finally
+        {
+            AitmCliRunner.DeleteInstance(instance);
+            Directory.Delete(memDir, recursive: true);
+        }
+    }
+
     [Fact]
     public void CliShapeListsOnlyHardRulesWhenHardIsSet()
     {
