@@ -1,0 +1,32 @@
+using Aitm.Store.Tools;
+using Microsoft.Data.Sqlite;
+
+namespace Aitm.Graph.Tools;
+
+/// <summary>
+/// Lists every registered project root. Copied verbatim from aitm.cs's <c>ListProjects</c>
+/// (aitm.cs:2817-2825).
+/// </summary>
+public sealed class ProjectsTool : ITool
+{
+    public string Name => "projects";
+    public string CliVerb => "projects";
+    public string? McpName => null;
+    public string Help => "projects                            list registered projects";
+
+    public string Execute(SqliteConnection connection)
+    {
+        using SqliteCommand command = connection.CreateCommand();
+        command.CommandText = "SELECT name,root,lang,globs FROM projects ORDER BY name";
+        using SqliteDataReader reader = command.ExecuteReader();
+        List<string> lines = new();
+        int n = 0;
+        while (reader.Read())
+        {
+            lines.Add($"  {reader.GetString(0),-10} [{reader.GetString(2)}]  {reader.GetString(1)}  ({reader.GetString(3)})");
+            n++;
+        }
+        lines.Add($"({n} project(s) registered)");
+        return string.Join(Environment.NewLine, lines);
+    }
+}
