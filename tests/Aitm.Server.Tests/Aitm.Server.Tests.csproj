@@ -11,5 +11,6 @@
   <ItemGroup>
     <ProjectReference Include="../../src/Aitm.Server/Aitm.Server.csproj" />
     <ProjectReference Include="../Aitm.Layout.Tests/Aitm.Layout.Tests.csproj" />
+    <ProjectReference Include="../Aitm.TestSupport/Aitm.TestSupport.csproj" />
   </ItemGroup>
 </Project>
