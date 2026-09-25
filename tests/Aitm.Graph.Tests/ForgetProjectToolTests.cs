@@ -1,0 +1,128 @@
+using Aitm.Graph.Tools;
+using Aitm.Store.Data;
+using Aitm.TestSupport;
+using Microsoft.Data.Sqlite;
+using Xunit;
+
+namespace Aitm.Graph.Tests;
+
+public class ForgetProjectToolTests
+{
+    [Fact]
+    public void MatchesTodaysCliOutputAndDropsOnlyTheNamedProjectsRows()
+    {
+        string oldInstance = AitmCliRunner.NewTestInstance("forget-project-old");
+        string newInstance = AitmCliRunner.NewTestInstance("forget-project-new");
+        try
+        {
+            // Oracle: today's aitm.cs case "forget-project" (aitm.cs:172-180).
+            AitmCliRunner.Run($"init --instance {oldInstance}");
+            AitmCliRunner.Run($"project --instance {oldInstance} --name web --root /repo/web");
+            AitmCliRunner.Run($"project --instance {oldInstance} --name api --root /repo/api");
+            SeedEdges(AitmCliRunner.InstanceDbPath(oldInstance), "web", 2);
+            SeedEdges(AitmCliRunner.InstanceDbPath(oldInstance), "api", 3);
+            (string stdout, int exitCode) = AitmCliRunner.Run($"forget-project --instance {oldInstance} --name web");
+            Assert.Equal(0, exitCode);
+            string expected = stdout.Trim();
+
+            // New: ForgetProjectTool.
+            AitmCliRunner.Run($"init --instance {newInstance}");
+            string dbPath = AitmCliRunner.InstanceDbPath(newInstance);
+            using (SqliteConnection setup = StoreConnection.Open(dbPath))
+            {
+                new ProjectTool().Execute(setup, "web", "/repo/web", "", "*.ts,*.tsx,*.vue,*.kt,*.cs");
+                new ProjectTool().Execute(setup, "api", "/repo/api", "", "*.ts,*.tsx,*.vue,*.kt,*.cs");
+            }
+            SeedEdges(dbPath, "web", 2);
+            SeedEdges(dbPath, "api", 3);
+
+            string actual;
+            using (SqliteConnection connection = StoreConnection.Open(dbPath))
+            {
+                actual = new ForgetProjectTool().Execute(connection, "web").Trim();
+            }
+
+            Assert.Equal(expected, actual);
+            Assert.Equal("project 'web' forgotten (2 edge(s) dropped).", actual);
+
+            using SqliteConnection check = new($"Data Source={dbPath};Mode=ReadOnly");
+            check.Open();
+
+            // Only "web" is gone: its project row and its edges.
+            using (SqliteCommand p = check.CreateCommand())
+            {
+                p.CommandText = "SELECT count(*) FROM projects WHERE name='web'";
+                Assert.Equal(0L, (long)(p.ExecuteScalar() ?? 0L));
+            }
+            using (SqliteCommand e = check.CreateCommand())
+            {
+                e.CommandText = "SELECT count(*) FROM edges WHERE project='web'";
+                Assert.Equal(0L, (long)(e.ExecuteScalar() ?? 0L));
+            }
+
+            // "api" is untouched: its project row and all 3 of its edges survive.
+            using (SqliteCommand p = check.CreateCommand())
+            {
+                p.CommandText = "SELECT count(*) FROM projects WHERE name='api'";
+                Assert.Equal(1L, (long)(p.ExecuteScalar() ?? 0L));
+            }
+            using (SqliteCommand e = check.CreateCommand())
+            {
+                e.CommandText = "SELECT count(*) FROM edges WHERE project='api'";
+                Assert.Equal(3L, (long)(e.ExecuteScalar() ?? 0L));
+            }
+        }
+        finally
+        {
+            AitmCliRunner.DeleteInstance(oldInstance);
+            AitmCliRunner.DeleteInstance(newInstance);
+        }
+    }
+
+    [Fact]
+    public void ForgettingAnUnknownProjectReportsZeroEdgesDropped()
+    {
+        string instance = AitmCliRunner.NewTestInstance("forget-project-missing");
+        try
+        {
+            AitmCliRunner.Run($"init --instance {instance}");
+
+            (string stdout, int exitCode) = AitmCliRunner.Run($"forget-project --instance {instance} --name ghost");
+            Assert.Equal(0, exitCode);
+            string expected = stdout.Trim();
+
+            string dbPath = AitmCliRunner.InstanceDbPath(instance);
+            using SqliteConnection connection = StoreConnection.Open(dbPath);
+            string actual = new ForgetProjectTool().Execute(connection, "ghost").Trim();
+
+            Assert.Equal(expected, actual);
+            Assert.Equal("project 'ghost' forgotten (0 edge(s) dropped).", actual);
+        }
+        finally
+        {
+            AitmCliRunner.DeleteInstance(instance);
+        }
+    }
+
+    /// <summary>Inserts <paramref name="count"/> raw edge rows for a project. There is no standalone
+    /// "add one edge" CLI verb today — edges only arrive through extract-edges/promote (candidate review)
+    /// or seed-edges (the curated seed) — so the fixture writes the row shape directly, matching
+    /// GraphSchema's <c>edges</c> table (src/Aitm.Graph/Schema/GraphSchema.cs).</summary>
+    private static void SeedEdges(string dbPath, string project, int count)
+    {
+        using SqliteConnection connection = StoreConnection.Open(dbPath);
+        for (int i = 0; i < count; i++)
+        {
+            using SqliteCommand insert = connection.CreateCommand();
+            insert.CommandText = "INSERT INTO edges(symbol,contract,project,file,line,usage,hardcoded) " +
+                "VALUES($s,$c,$p,$f,$l,$u,0)";
+            insert.Parameters.AddWithValue("$s", $"symbol{i}");
+            insert.Parameters.AddWithValue("$c", "SomeContract");
+            insert.Parameters.AddWithValue("$p", project);
+            insert.Parameters.AddWithValue("$f", $"src/file{i}.ts");
+            insert.Parameters.AddWithValue("$l", i + 1);
+            insert.Parameters.AddWithValue("$u", $"usage{i}");
+            insert.ExecuteNonQuery();
+        }
+    }
+}
