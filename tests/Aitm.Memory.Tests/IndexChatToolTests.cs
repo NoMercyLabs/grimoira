@@ -103,6 +103,134 @@ public class IndexChatToolTests
     }
 
     [Fact]
+    public void ScrubsTokenShapedStringsFromStoredChatRowsInBothTheOldAndNewCode()
+    {
+        // RESTRUCTURE.md design checklist "Secrets in outputs": index-chat removes token-shaped
+        // strings (JWTs, Bearer headers, common key prefixes, PEM private keys) before it stores chat.
+        // Checked against BOTH today's aitm.cs IndexChat (the oracle, the one allowed aitm.cs change
+        // for this step) and the new IndexChatTool.
+        string jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c";
+        string bearer = "Bearer abcDEF123456.ghIJKL7890-secretvalue";
+        string ghp = "ghp_1234567890abcdefghijklmnopqrstuvwx";
+        string awsKey = "AKIAIOSFODNN7EXAMPLE";
+        string pem = "-----BEGIN RSA PRIVATE KEY-----\nMIIBOgIBAAJBAK8example\n-----END RSA PRIVATE KEY-----";
+
+        string oldInstance = AitmCliRunner.NewTestInstance("index-chat-secrets-old");
+        string newInstance = AitmCliRunner.NewTestInstance("index-chat-secrets-new");
+        string transcript = MakeSecretsFixtureTranscript("index-chat-secrets-session", jwt, bearer, ghp, awsKey, pem);
+        try
+        {
+            AitmCliRunner.Run($"init --instance {oldInstance}");
+            AitmCliRunner.Run($"index-chat --instance {oldInstance} --from \"{transcript}\"");
+            string oldDbPath = AitmCliRunner.InstanceDbPath(oldInstance);
+            string oldStoredText = ReadAllChatText(oldDbPath);
+
+            AitmCliRunner.Run($"init --instance {newInstance}");
+            string newDbPath = AitmCliRunner.InstanceDbPath(newInstance);
+            using (SqliteConnection connection = StoreConnection.Open(newDbPath))
+            {
+                new IndexChatTool().Execute(connection, transcript);
+            }
+            string newStoredText = ReadAllChatText(newDbPath);
+
+            foreach (string secret in new[] { jwt, bearer, ghp, awsKey, "MIIBOgIBAAJBAK8example" })
+            {
+                Assert.DoesNotContain(secret, oldStoredText);
+                Assert.DoesNotContain(secret, newStoredText);
+            }
+            Assert.Contains("[redacted:jwt]", oldStoredText);
+            Assert.Contains("[redacted:jwt]", newStoredText);
+            Assert.Contains("[redacted:bearer]", oldStoredText);
+            Assert.Contains("[redacted:bearer]", newStoredText);
+            Assert.Contains("[redacted:github]", oldStoredText);
+            Assert.Contains("[redacted:github]", newStoredText);
+            Assert.Contains("[redacted:aws]", oldStoredText);
+            Assert.Contains("[redacted:aws]", newStoredText);
+            Assert.Contains("[redacted:private-key]", oldStoredText);
+            Assert.Contains("[redacted:private-key]", newStoredText);
+        }
+        finally
+        {
+            AitmCliRunner.DeleteInstance(oldInstance);
+            AitmCliRunner.DeleteInstance(newInstance);
+            File.Delete(transcript);
+        }
+    }
+
+    [Fact]
+    public void DoesNotRedactOrdinaryTextCodeOrHashesInStoredChatRows()
+    {
+        // The false-positive companion to the redaction test above: ordinary text, code and hashes
+        // (a git SHA, a sha256 digest) must reach the chat table unchanged.
+        string plainMessage = "this fixture message talks about commit 4cdd17b3d43f2a1b5c6d7e8f9a0b1c2d3e4f5061 "
+            + "and sha256 e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855, plus normal code.";
+        string instance = AitmCliRunner.NewTestInstance("index-chat-no-false-positive");
+        string transcript = MakeFixtureTranscriptWithMessage("index-chat-no-fp-session", plainMessage);
+        try
+        {
+            AitmCliRunner.Run($"init --instance {instance}");
+            string dbPath = AitmCliRunner.InstanceDbPath(instance);
+            using (SqliteConnection connection = StoreConnection.Open(dbPath))
+            {
+                new IndexChatTool().Execute(connection, transcript);
+            }
+            string storedText = ReadAllChatText(dbPath);
+
+            Assert.Contains(plainMessage, storedText);
+            Assert.DoesNotContain("[redacted:", storedText);
+        }
+        finally
+        {
+            AitmCliRunner.DeleteInstance(instance);
+            File.Delete(transcript);
+        }
+    }
+
+    private static string ReadAllChatText(string dbPath)
+    {
+        using SqliteConnection connection = new($"Data Source={dbPath};Mode=ReadOnly");
+        connection.Open();
+        using SqliteCommand select = connection.CreateCommand();
+        select.CommandText = "SELECT group_concat(text, char(10)) FROM chat";
+        return (string?)select.ExecuteScalar() ?? "";
+    }
+
+    private static string MakeSecretsFixtureTranscript(string session, string jwt, string bearer, string ghp, string awsKey, string pem)
+    {
+        string path = Path.Combine(Path.GetTempPath(), $"aitm-{session}-{Guid.NewGuid():N}.jsonl");
+        (string uuid, string content)[] messages =
+        [
+            ("66666666-6666-6666-6666-666666666666", $"here is a token {jwt} sent by mistake, well over the forty character gate"),
+            ("77777777-7777-7777-7777-777777777777", $"the header was {bearer} in the failing request, also well over the gate"),
+            ("88888888-8888-8888-8888-888888888888", $"leaked github token {ghp} and aws key {awsKey} in the same paste"),
+            ("99999999-9999-9999-9999-999999999999", $"pasted a pem block by accident: {pem} that should never land here"),
+        ];
+        string[] lines = messages.Select((m, i) => System.Text.Json.JsonSerializer.Serialize(new
+        {
+            type = "user",
+            uuid = m.uuid,
+            timestamp = $"2026-09-25T11:0{i}:00.000Z",
+            message = new { content = m.content },
+        })).ToArray();
+        File.WriteAllLines(path, lines);
+        return path;
+    }
+
+    private static string MakeFixtureTranscriptWithMessage(string session, string message)
+    {
+        string path = Path.Combine(Path.GetTempPath(), $"aitm-{session}-{Guid.NewGuid():N}.jsonl");
+        string json = System.Text.Json.JsonSerializer.Serialize(new
+        {
+            type = "user",
+            uuid = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+            timestamp = "2026-09-25T12:00:00.000Z",
+            message = new { content = message },
+        });
+        File.WriteAllLines(path, [json]);
+        return path;
+    }
+
+    [Fact]
     public void ReportsAMissingFileTheSameWayTheCliOracleDoes()
     {
         string instance = AitmCliRunner.NewTestInstance("index-chat-missing");

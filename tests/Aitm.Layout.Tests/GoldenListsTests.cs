@@ -11,17 +11,22 @@ namespace Aitm.Layout.Tests;
 // Slice 2 does not move any tool yet (aitm.cs and mcp.cs are still the working host, section 0 rule
 // 3), so this test pins the golden lists against the source that exists today. Later slices assert
 // the same lists against the registry as tools move.
+//
+// Deliberate exception, after slice 8 (design checklist "Secrets in outputs"): `redact-chat` is a new
+// Aitm.Memory verb, added by the standalone secrets/redaction step, not moved from aitm.cs (aitm.cs
+// never had this verb — the CLI list is 71, one more than the 70 RESTRUCTURE.md counted at slice 2).
 public class GoldenListsTests
 {
     // Section 2.1: 5 + 9 + 5 + 6 + 13 + 32 = 70 mapped, 4 dropped (loop, start, tick, selftest).
+    // Plus 1: "redact-chat" (new, see the class comment above) = 71.
     public static readonly string[] GoldenCliVerbs =
     [
         // Aitm.Store (5)
         "init", "import", "backup", "stats", "history",
         // Aitm.Facts (9)
         "query", "add", "shed-fact", "todo", "todos", "done", "finding", "findings", "resolve",
-        // Aitm.Memory (5)
-        "mem", "index-memory", "shed-memory", "index-chat", "recall",
+        // Aitm.Memory (6, including the new redact-chat)
+        "mem", "index-memory", "shed-memory", "index-chat", "recall", "redact-chat",
         // Aitm.Docs (6)
         "doc", "index-docs", "recompact-docs", "shed-doc", "add-synthesis", "shed-synthesis",
         // Aitm.Graph (13)
@@ -48,10 +53,10 @@ public class GoldenListsTests
     ];
 
     [Fact]
-    public void GoldenCliListHas70UniqueVerbs()
+    public void GoldenCliListHas71UniqueVerbs()
     {
-        Assert.Equal(70, GoldenCliVerbs.Length);
-        Assert.Equal(70, GoldenCliVerbs.Distinct(StringComparer.Ordinal).Count());
+        Assert.Equal(71, GoldenCliVerbs.Length);
+        Assert.Equal(71, GoldenCliVerbs.Distinct(StringComparer.Ordinal).Count());
     }
 
     [Fact]
