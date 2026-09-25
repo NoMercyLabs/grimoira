@@ -1,0 +1,34 @@
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.AI;
+
+namespace Aitm.Server.Data;
+
+/// <summary>
+/// Wraps a store-backed tool's <see cref="AIFunction"/> so every call — read or write, from any
+/// session — acquires the calling project's single <see cref="ProjectHandle.Gate"/> before the real
+/// tool method runs and always releases it afterwards, even when the call throws. This is the "one
+/// writer" half of RESTRUCTURE.md "Slice 26"; <see cref="ProjectStore"/> is the "one open store" half.
+/// </summary>
+internal sealed class LockingAIFunction(AIFunction inner, ProjectStore store, IHttpContextAccessor httpContextAccessor) : AIFunction
+{
+    public override string Name => inner.Name;
+    public override string Description => inner.Description;
+    public override System.Text.Json.JsonElement JsonSchema => inner.JsonSchema;
+    public override System.Text.Json.JsonElement? ReturnJsonSchema => inner.ReturnJsonSchema;
+    public override System.Reflection.MethodInfo? UnderlyingMethod => inner.UnderlyingMethod;
+
+    protected override async ValueTask<object?> InvokeCoreAsync(AIFunctionArguments arguments, CancellationToken cancellationToken)
+    {
+        string instance = McpInstanceContext.Resolve(httpContextAccessor.HttpContext);
+        ProjectHandle handle = store.Acquire(instance);
+        await handle.Gate.WaitAsync(cancellationToken);
+        try
+        {
+            return await inner.InvokeAsync(arguments, cancellationToken);
+        }
+        finally
+        {
+            handle.Gate.Release();
+        }
+    }
+}

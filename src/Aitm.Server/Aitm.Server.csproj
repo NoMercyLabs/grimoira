@@ -10,6 +10,7 @@
          transitively; an explicit reference here is pruned as redundant (NU1510) and fails the build
          under TreatWarningsAsErrors. -->
     <PackageReference Include="ModelContextProtocol" />
+    <PackageReference Include="ModelContextProtocol.AspNetCore" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../Aitm.Store/Aitm.Store.csproj" />
