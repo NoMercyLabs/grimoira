@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { mkdtempSync, mkdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
 test('workspace search is registered and closes the helper input stream', async () => {
@@ -15,7 +15,7 @@ test('workspace search is registered and closes the helper input stream', async 
     'import sys\nsys.stdin.read()\nprint("src/one.py:1")\n');
   const child = spawn('dotnet', [join(import.meta.dirname, 'bin', 'mcp.dll')], {
     cwd: root,
-    env: { ...process.env, CLAUDE_PROJECT_DIR: root, AITM_INSTANCE: 'workspace-tool-test' },
+    env: { ...process.env, CLAUDE_PROJECT_DIR: root, AITM_INSTANCE: `workspace-tool-test-${process.pid}` },
     stdio: ['pipe', 'pipe', 'ignore'],
   });
   const pending = new Map();
@@ -71,5 +71,6 @@ test('workspace search is registered and closes the helper input stream', async 
       clearTimeout(waitTimer);
     }
     if (dirname(realpathSync(root)) === realpathSync(tmpdir())) rmSync(root, { recursive: true, force: true });
+    rmSync(join(homedir(), '.aitm', `workspace-tool-test-${process.pid}`), { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
   }
 });

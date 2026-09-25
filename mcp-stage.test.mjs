@@ -12,7 +12,7 @@ import { join } from 'node:path';
 // A dedicated instance, so this never touches real pending work and never depends on which directory
 // the server happens to resolve its instance from — the first run wrote to C:/Users/dev/.aitm/aitm/ because the
 // spawned process took its instance from its own cwd, and the reply still said it had staged.
-const INSTANCE = 'stagetest';
+const INSTANCE = `stagetest-${process.pid}`; // per run: parallel verify runs (worktrees) must not share a store
 const LEDGER = join(homedir(), '.aitm', INSTANCE, 'pending-learn.jsonl');
 
 function rpc(calls) {
@@ -43,7 +43,7 @@ const ledger = existsSync(LEDGER) ? readFileSync(LEDGER, 'utf8') : '';
 const row = ledger.split('\n').filter(Boolean).map((l) => { try { return JSON.parse(l); } catch { return null; } })
   .filter(Boolean).find((r) => r.key === KEY);
 
-try { if (existsSync(LEDGER)) rmSync(LEDGER); } catch { /* fine */ }
+try { rmSync(join(homedir(), '.aitm', INSTANCE), { recursive: true, force: true, maxRetries: 20, retryDelay: 250 }); } catch { /* fine */ }
 
 const checks = [
   ['was not rejected', !/rejected:/.test(out)],

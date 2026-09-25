@@ -19,7 +19,7 @@ import { fileURLToPath } from 'node:url';
 import { openRead, tokenize, search } from './brain-lib.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const INSTANCE = 'agreement-test';
+const INSTANCE = `agreement-test-${process.pid}`; // per run: parallel verify runs (worktrees) must not share a store
 const STORE = join(homedir(), '.aitm', INSTANCE);
 
 const exe = join(HERE, 'bin-cli', 'aitm.exe');
@@ -85,7 +85,7 @@ for (const q of QUERIES) {
 }
 
 db.close();
-rmSync(STORE, { recursive: true, force: true });
+rmSync(STORE, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
 
 console.log(`\n${passed} agreed, ${failures.length} diverged`);
 if (failures.length > 0) process.exit(1);

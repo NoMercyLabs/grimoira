@@ -9,7 +9,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { openWrite } from './brain-lib.mjs';
 
-const INSTANCE = 'graphtest';
+const INSTANCE = `graphtest-${process.pid}`; // per run: parallel verify runs (worktrees) must not share a store
 const STORE_DIR = join(homedir(), '.aitm', INSTANCE);
 
 function rpc(calls) {
@@ -72,7 +72,7 @@ const pOk = textOf(out, 2);
 const pMiss = textOf(out, 3);
 const e = textOf(out, 4);
 
-try { rmSync(STORE_DIR, { recursive: true, force: true }); } catch { /* best effort cleanup */ }
+try { rmSync(STORE_DIR, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 }); } catch { /* best effort cleanup */ }
 
 const checks = [
   ['graph_query: finds the fixture symbol', q.includes('McpFixtureWidget')],
