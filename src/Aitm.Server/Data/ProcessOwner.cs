@@ -39,6 +39,9 @@ public sealed class OwnedProcess
     public required string Id { get; init; }
     public required string FileName { get; init; }
 
+    /// <summary>Completes once the final state (exited or failed) is saved to <see cref="FileName"/>.</summary>
+    public required Task Recorded { get; init; }
+
     /// <summary>No PID lookup, tree walk, or persisted record is used as kill authority.</summary>
     public bool Cancel()
     {
@@ -135,6 +138,7 @@ public static class ProcessOwner
         };
         foreach (string a in args) process.StartInfo.ArgumentList.Add(a);
 
+        TaskCompletionSource recorded = new(TaskCreationOptions.RunContinuationsAsynchronously);
         DateTime startedAt = DateTime.UtcNow;
         OwnerRecord record = new()
         {
@@ -160,13 +164,36 @@ public static class ProcessOwner
             }
         }
 
+        // Attached before Start: a child that exits before the handler is attached never raises it.
+        // The lock keeps the "running" write after Start from overwriting an "exited" that won the race.
+        object gate = new();
+        process.Exited += (_, _) =>
+        {
+            lock (gate)
+            {
+                record.ChildPid ??= process.Id;
+                record.State = "exited";
+                record.ExitCode = process.ExitCode;
+                record.EndedAt = DateTime.UtcNow.ToString("o");
+                Save();
+            }
+            TrimCompleted(root);
+            recorded.TrySetResult();
+        };
+
         Save();
         try
         {
             process.Start();
-            record.ChildPid = process.Id;
-            record.State = "running";
-            Save();
+            lock (gate)
+            {
+                record.ChildPid = process.Id;
+                if (record.State != "exited")
+                {
+                    record.State = "running";
+                    Save();
+                }
+            }
         }
         catch
         {
@@ -174,19 +201,11 @@ public static class ProcessOwner
             record.EndedAt = DateTime.UtcNow.ToString("o");
             Save();
             TrimCompleted(root);
-            return new OwnedProcess { Process = process, Id = id, FileName = filename };
+            recorded.TrySetResult();
+            return new OwnedProcess { Process = process, Id = id, FileName = filename, Recorded = recorded.Task };
         }
 
-        process.Exited += (_, _) =>
-        {
-            record.State = "exited";
-            record.ExitCode = process.ExitCode;
-            record.EndedAt = DateTime.UtcNow.ToString("o");
-            Save();
-            TrimCompleted(root);
-        };
-
-        return new OwnedProcess { Process = process, Id = id, FileName = filename };
+        return new OwnedProcess { Process = process, Id = id, FileName = filename, Recorded = recorded.Task };
     }
 
     /// <summary>Inspection only. A running record after a crash is not proof of a live owner.</summary>

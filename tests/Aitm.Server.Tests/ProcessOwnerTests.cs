@@ -46,7 +46,7 @@ public class ProcessOwnerTests
             (string cmd, string[] args) = ExitImmediately();
             OwnedProcess run = ProcessOwner.LaunchOwned(cmd, args, root, root);
             await run.Process.WaitForExitAsync();
-            await Task.Delay(200); // let the Exited handler flush the record
+            await run.Recorded.WaitAsync(TimeSpan.FromSeconds(10));
 
             OwnerRecord record = JsonSerializer.Deserialize<OwnerRecord>(await File.ReadAllTextAsync(run.FileName))!;
             Assert.Equal("exited", record.State);
@@ -72,7 +72,7 @@ public class ProcessOwnerTests
             run = ProcessOwner.LaunchOwned(cmd, args, root, root);
             Assert.True(run.Cancel());
             await run.Process.WaitForExitAsync();
-            await Task.Delay(200);
+            await run.Recorded.WaitAsync(TimeSpan.FromSeconds(10));
 
             OwnerRecord record = JsonSerializer.Deserialize<OwnerRecord>(await File.ReadAllTextAsync(run.FileName))!;
             Assert.Equal("exited", record.State);
@@ -95,7 +95,7 @@ public class ProcessOwnerTests
         {
             Assert.True(first.Cancel());
             await first.Process.WaitForExitAsync();
-            await Task.Delay(200);
+            await first.Recorded.WaitAsync(TimeSpan.FromSeconds(10));
 
             Assert.False(second.Process.HasExited);
             OwnerRecord secondRecord = JsonSerializer.Deserialize<OwnerRecord>(await File.ReadAllTextAsync(second.FileName))!;
@@ -103,7 +103,7 @@ public class ProcessOwnerTests
 
             Assert.True(second.Cancel());
             await second.Process.WaitForExitAsync();
-            await Task.Delay(200);
+            await second.Recorded.WaitAsync(TimeSpan.FromSeconds(10));
 
             secondRecord = JsonSerializer.Deserialize<OwnerRecord>(await File.ReadAllTextAsync(second.FileName))!;
             Assert.Equal("exited", secondRecord.State);
@@ -112,6 +112,32 @@ public class ProcessOwnerTests
         {
             first.Cancel();
             second.Cancel();
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task AChildThatExitsAtOnceIsStillRecordedAsExited()
+    {
+        // The Exited handler must be attached before Start: a child that exits before the handler
+        // is attached never raises it, and its record says "running" forever (CI run 36170373543).
+        string root = TempRoot();
+        try
+        {
+            (string cmd, string[] args) = ExitImmediately();
+            List<OwnedProcess> runs = [];
+            for (int i = 0; i < 40; i++) runs.Add(ProcessOwner.LaunchOwned(cmd, args, root, root));
+            int missed = 0;
+            foreach (OwnedProcess run in runs)
+            {
+                await run.Process.WaitForExitAsync();
+                try { await run.Recorded.WaitAsync(TimeSpan.FromSeconds(10)); }
+                catch (TimeoutException) { missed++; }
+            }
+            Assert.Equal(0, missed);
+        }
+        finally
+        {
             Directory.Delete(root, recursive: true);
         }
     }
