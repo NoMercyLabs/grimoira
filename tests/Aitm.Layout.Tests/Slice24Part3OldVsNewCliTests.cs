@@ -1,4 +1,8 @@
+using Aitm.Graph.Schema;
+using Aitm.Store.Data;
+using Aitm.Store.Schema;
 using Aitm.TestSupport;
+using Microsoft.Data.Sqlite;
 using Xunit;
 
 namespace Aitm.Layout.Tests;
@@ -314,6 +318,104 @@ public class Slice24Part3OldVsNewCliTests
             AitmCliRunner.DeleteInstance(newInstance);
         }
     }
+
+    // RESTRUCTURE.md slice 31/31b: edges.file_rel and the reader-side fallback in ImpactTool,
+    // GraphQueryTool, GraphPathTool and GraphExplainTool must give the same answer whether the store
+    // has never seen file_rel (the oracle, frozen before slice 24, never will) or has already been
+    // migrated by IndexCodeTool with the project root unmoved (the absolute path is identical either
+    // way). Each case: seed identical data on both binaries, migrate ONLY the new instance's store in
+    // place (mirroring what IndexCodeTool does, without going through a CLI verb — index-code has none),
+    // then diff the read verb's stdout/stderr/exit code same as every other parity case in this file.
+    private static string CreateMigratedRootFixture(out string root)
+    {
+        root = Path.Combine(Path.GetTempPath(), "aitm-slice31-mig-root-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        string widget = Path.Combine(root, "widget.ts").Replace('\\', '/');
+        string controller = Path.Combine(root, "src", "api", "widget-controller.cs").Replace('\\', '/');
+        string service = Path.Combine(root, "src", "api", "widget-service.cs").Replace('\\', '/');
+        string path = Path.Combine(Path.GetTempPath(), "aitm-slice31-mig-spine-" + Guid.NewGuid().ToString("N") + ".json");
+        File.WriteAllText(path, $$"""
+        {
+          "edges": [
+            { "symbol": "FixtureWidget", "contract": "decl", "project": "web", "file": "{{widget}}", "line": 10, "usage": "", "hardcoded": 0 },
+            { "symbol": "FixtureWidget", "contract": "", "project": "web", "file": "{{controller}}", "line": 42, "usage": "new FixtureWidget()", "hardcoded": 1 },
+            { "symbol": "FixtureWidget", "contract": "", "project": "web", "file": "{{service}}", "line": 7, "usage": "FixtureWidget.Create()", "hardcoded": 0 }
+          ]
+        }
+        """);
+        return path;
+    }
+
+    // Applies GraphFileRelSchema and its backfill directly to the new instance's own db file — the same
+    // migration IndexCodeTool runs — leaving the old instance's store untouched (no file_rel, ever).
+    private static void MigrateNewInstanceInPlace(string newInstance)
+    {
+        string dbPath = AitmCliRunner.InstanceDbPath(newInstance);
+        string backupDir = Path.Combine(AitmCliRunner.InstanceDir(newInstance), "backups");
+        using SqliteConnection connection = StoreConnection.Open(dbPath);
+        SchemaRunResultOrThrow(SchemaRunner.Run(connection, [new GraphFileRelSchema(connection)], backupDir));
+        GraphFileRelSchema.Backfill(connection);
+    }
+
+    private static void SchemaRunResultOrThrow(SchemaRunResult result)
+    {
+        if (!result.Success) throw new InvalidOperationException(result.Error);
+    }
+
+    private static void AssertParityOnAMigratedStore(string command)
+    {
+        string spine = CreateMigratedRootFixture(out string root);
+        string oldInstance = AitmCliRunner.NewTestInstance("p3o-mig");
+        string newInstance = AitmCliRunner.NewTestInstance("p3n-mig");
+        try
+        {
+            string oldDll = OldVsNewCli.OracleDll();
+            string newDll = OldVsNewCli.BinCliDll();
+            string[] setup =
+            [
+                "init",
+                $"project --name web --root \"{root}\" --lang ts",
+                $"seed-edges --from \"{spine}\"",
+            ];
+            foreach (string s in setup)
+            {
+                OldVsNewCli.Run(oldDll, oldInstance, s);
+                OldVsNewCli.Run(newDll, newInstance, s);
+            }
+
+            MigrateNewInstanceInPlace(newInstance);
+
+            OldVsNewCli.Result oldResult = OldVsNewCli.Run(oldDll, oldInstance, command);
+            OldVsNewCli.Result newResult = OldVsNewCli.Run(newDll, newInstance, command);
+
+            Assert.Equal(oldResult.Stdout, newResult.Stdout);
+            Assert.Equal(oldResult.Stderr, newResult.Stderr);
+            Assert.Equal(oldResult.ExitCode, newResult.ExitCode);
+        }
+        finally
+        {
+            AitmCliRunner.DeleteInstance(oldInstance);
+            AitmCliRunner.DeleteInstance(newInstance);
+            File.Delete(spine);
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void ImpactMatchesOldBehaviourOnAMigratedStoreWithRootUnmoved() =>
+        AssertParityOnAMigratedStore("impact FixtureWidget");
+
+    [Fact]
+    public void GraphQueryMatchesOldBehaviourOnAMigratedStoreWithRootUnmoved() =>
+        AssertParityOnAMigratedStore("graph-query widget");
+
+    [Fact]
+    public void GraphPathMatchesOldBehaviourOnAMigratedStoreWithRootUnmoved() =>
+        AssertParityOnAMigratedStore("graph-path FixtureWidget widget-controller.cs");
+
+    [Fact]
+    public void GraphExplainMatchesOldBehaviourOnAMigratedStoreWithRootUnmoved() =>
+        AssertParityOnAMigratedStore("graph-explain FixtureWidget");
 
     [Fact]
     public void PromoteAllBacksUpFirstOnTheNewBinaryUnlikeTheOldOne()

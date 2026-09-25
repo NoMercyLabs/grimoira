@@ -252,6 +252,18 @@ public class InitFullBrainSchemaParityTests : IDisposable
     private static readonly HashSet<string> IndexCodeOwnedIndexNames =
         new(StringComparer.Ordinal) { "edges_symbol_idx", "edges_ident_idx", "edges_file_idx" };
 
+    // RESTRUCTURE.md slice 31 ("Graph paths become project-relative"): IndexCodeTool's own schema step
+    // (run by InitFull's step 3, "code surface", even against an empty workspace) now also applies
+    // GraphFileRelSchema, so InitFull's edges table carries one additional column — file_rel — that bare
+    // `aitm init` never adds. Same category as IndexCodeOwnedIndexNames above (an addition IndexCodeTool
+    // makes that init/InitBrain do not); proven additive, not a stray schema drift, by asserting the new
+    // SQL is exactly the old SQL with ", file_rel TEXT" appended before the closing paren.
+    private static (string type, string name, string tblName, string sql) WithFileRelColumn(
+        (string type, string name, string tblName, string sql) row) =>
+        row.name == "edges" && row.sql.EndsWith(')')
+            ? (row.type, row.name, row.tblName, row.sql[..^1] + ", file_rel TEXT)")
+            : row;
+
     [Fact]
     public void RunFullCreatesTheSameSchemaAsOldAitmInit()
     {
@@ -267,7 +279,9 @@ public class InitFullBrainSchemaParityTests : IDisposable
         InitFullResult result = InitFull.RunFull(options);
         Assert.True(result.Success);
 
-        List<(string type, string name, string tblName, string sql)> oldRows = SqliteMasterRows(oldDbPath);
+        List<(string type, string name, string tblName, string sql)> oldRows = SqliteMasterRows(oldDbPath)
+            .Select(WithFileRelColumn)
+            .ToList();
         List<(string type, string name, string tblName, string sql)> newRows = SqliteMasterRows(options.DbPath)
             .Where(r => !IndexCodeOwnedIndexNames.Contains(r.name))
             .ToList();

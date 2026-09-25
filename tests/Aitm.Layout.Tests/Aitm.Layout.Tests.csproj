@@ -9,5 +9,11 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Aitm.TestSupport\Aitm.TestSupport.csproj" />
+    <!-- RESTRUCTURE.md slice 31/31b: the migrated-store parity cases below open a new instance's db
+         directly to apply GraphFileRelSchema (the same migration IndexCodeTool runs), so they need the
+         schema and graph tool assemblies — the other OldVsNewCli tests in this project never touch a
+         store directly and stay on Aitm.TestSupport alone. -->
+    <ProjectReference Include="..\..\src\Aitm.Store\Aitm.Store.csproj" />
+    <ProjectReference Include="..\..\src\Aitm.Graph\Aitm.Graph.csproj" />
   </ItemGroup>
 </Project>
