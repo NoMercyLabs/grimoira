@@ -1,0 +1,154 @@
+using System.Reflection;
+using Aitm.Memory.Tools;
+using Aitm.Store.Data;
+using Aitm.TestSupport;
+using Microsoft.Data.Sqlite;
+using Xunit;
+
+namespace Aitm.Memory.Tests;
+
+public class RecallToolTests
+{
+    [Fact]
+    public void CliShapeMatchesTodaysCliOutputForAConfidentMatch()
+    {
+        string instance = AitmCliRunner.NewTestInstance("recall-cli-hit");
+        string transcript = MakeFixtureTranscript("recallclihit");
+        try
+        {
+            AitmCliRunner.Run($"init --instance {instance}");
+            AitmCliRunner.Run($"index-chat --instance {instance} --from \"{transcript}\"");
+
+            (string stdout, int exitCode) = AitmCliRunner.Run($"recall --instance {instance} recallclitopic");
+            Assert.Equal(0, exitCode);
+            string expected = Normalize(stdout);
+
+            string dbPath = AitmCliRunner.InstanceDbPath(instance);
+            using SqliteConnection connection = StoreConnection.Open(dbPath);
+            string actual = Normalize(new RecallTool().ExecuteCli(connection, "recallclitopic"));
+
+            Assert.Equal(expected, actual);
+            Assert.Contains("recallclitopic", actual);
+        }
+        finally
+        {
+            AitmCliRunner.DeleteInstance(instance);
+            File.Delete(transcript);
+        }
+    }
+
+    [Fact]
+    public void CliShapeReportsNoChatHistoryMatchesForAGapQuery()
+    {
+        string instance = AitmCliRunner.NewTestInstance("recall-cli-gap");
+        try
+        {
+            AitmCliRunner.Run($"init --instance {instance}");
+
+            (string stdout, int exitCode) = AitmCliRunner.Run($"recall --instance {instance} nothing-ever-matches-this-term");
+            Assert.Equal(0, exitCode);
+            string expected = Normalize(stdout);
+
+            string dbPath = AitmCliRunner.InstanceDbPath(instance);
+            using SqliteConnection connection = StoreConnection.Open(dbPath);
+            string actual = Normalize(new RecallTool().ExecuteCli(connection, "nothing-ever-matches-this-term"));
+
+            Assert.Equal(expected, actual);
+            Assert.Contains("no chat history matches", actual);
+        }
+        finally
+        {
+            AitmCliRunner.DeleteInstance(instance);
+        }
+    }
+
+    [Fact]
+    public void McpShapeMatchesTodaysMcpOutputForAConfidentMatch()
+    {
+        string instance = AitmCliRunner.NewTestInstance("recall-mcp-hit");
+        string transcript = MakeFixtureTranscript("recallmcphit");
+        string? previousInstanceEnv = Environment.GetEnvironmentVariable("AITM_INSTANCE");
+        try
+        {
+            AitmCliRunner.Run($"init --instance {instance}");
+            AitmCliRunner.Run($"index-chat --instance {instance} --from \"{transcript}\"");
+
+            Environment.SetEnvironmentVariable("AITM_INSTANCE", instance);
+            string expected = (string)InvokeMcpRecall("recallmcptopic")!;
+
+            string dbPath = AitmCliRunner.InstanceDbPath(instance);
+            using SqliteConnection connection = StoreConnection.Open(dbPath);
+            string actual = new RecallTool().ExecuteMcp(connection, "recallmcptopic");
+
+            Assert.Equal(expected, actual);
+            Assert.Contains("recallmcptopic", actual);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("AITM_INSTANCE", previousInstanceEnv);
+            AitmCliRunner.DeleteInstance(instance);
+            File.Delete(transcript);
+        }
+    }
+
+    [Fact]
+    public void McpShapeReportsGapSuffixWhenNoMatch()
+    {
+        string instance = AitmCliRunner.NewTestInstance("recall-mcp-gap");
+        string? previousInstanceEnv = Environment.GetEnvironmentVariable("AITM_INSTANCE");
+        try
+        {
+            AitmCliRunner.Run($"init --instance {instance}");
+
+            Environment.SetEnvironmentVariable("AITM_INSTANCE", instance);
+            string expected = (string)InvokeMcpRecall("nothing-ever-matches-this-mcp-term")!;
+
+            string dbPath = AitmCliRunner.InstanceDbPath(instance);
+            using SqliteConnection connection = StoreConnection.Open(dbPath);
+            string actual = new RecallTool().ExecuteMcp(connection, "nothing-ever-matches-this-mcp-term");
+
+            Assert.Equal(expected, actual);
+            Assert.Contains("gap logged", actual);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("AITM_INSTANCE", previousInstanceEnv);
+            AitmCliRunner.DeleteInstance(instance);
+        }
+    }
+
+    private static string MakeFixtureTranscript(string session)
+    {
+        string path = Path.Combine(Path.GetTempPath(), $"aitm-{session}-{Guid.NewGuid():N}.jsonl");
+        string[] lines =
+        [
+            "{\"type\":\"user\",\"uuid\":\"11111111-1111-1111-1111-111111111111\",\"timestamp\":\"2026-09-25T10:00:00.000Z\",\"message\":{\"content\":\"a fixture message mentioning " + session + "topic, long enough to pass the length gate\"}}",
+        ];
+        File.WriteAllLines(path, lines);
+        return path;
+    }
+
+    private static object? InvokeMcpRecall(string query)
+    {
+        Assembly mcp = Assembly.LoadFrom(FindMcpDll());
+        Type tools = mcp.GetType("AitmTools") ?? throw new InvalidOperationException("AitmTools type not found in mcp.dll");
+        MethodInfo method = tools.GetMethod("recall", BindingFlags.Public | BindingFlags.Static)
+            ?? throw new InvalidOperationException("AitmTools.recall not found in mcp.dll");
+        return method.Invoke(null, [query]);
+    }
+
+    private static string FindMcpDll()
+    {
+        DirectoryInfo? dir = new(AppContext.BaseDirectory);
+        while (dir is not null)
+        {
+            string candidate = Path.Combine(dir.FullName, "bin", "mcp.dll");
+            if (File.Exists(candidate)) return candidate;
+            dir = dir.Parent;
+        }
+        throw new InvalidOperationException(
+            $"bin/mcp.dll not found above {AppContext.BaseDirectory} — run build-mcp.ps1 first");
+    }
+
+    private static string Normalize(string s) => s.Replace("\r\n", "\n").Trim().Replace('•', '*').Replace('—', '-').Replace("\a", "*");
+}
