@@ -9,5 +9,13 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/Aitm.Store/Aitm.Store.csproj" />
+    <!-- Not a src-project dependency (ReferenceDirectionTests only checks src/*.csproj): this test
+         project alone needs every owning project's schema to pin the whole-store DDL parity oracle
+         (RESTRUCTURE.md slice 3b). -->
+    <ProjectReference Include="../../src/Aitm.Facts/Aitm.Facts.csproj" />
+    <ProjectReference Include="../../src/Aitm.Memory/Aitm.Memory.csproj" />
+    <ProjectReference Include="../../src/Aitm.Docs/Aitm.Docs.csproj" />
+    <ProjectReference Include="../../src/Aitm.Graph/Aitm.Graph.csproj" />
+    <ProjectReference Include="../../src/Aitm.Brain/Aitm.Brain.csproj" />
   </ItemGroup>
 </Project>
