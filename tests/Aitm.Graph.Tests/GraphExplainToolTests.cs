@@ -125,6 +125,35 @@ public class GraphExplainToolTests
         }
     }
 
+    // Known-issue fix (RESTRUCTURE.md slice 13): "used by" must count only usage sites, not a symbol's
+    // own declaration row. GraphOnlyDeclaredWidget is declared once in "alpha" and never used anywhere
+    // else — "alpha" must not be reported as a "used by" project at all, and the total site count must
+    // be 0, not 1 for the phantom declaration-as-use.
+    [Fact]
+    public void UsedByExcludesTheSymbolsOwnDeclarationSite()
+    {
+        string instance = AitmCliRunner.NewTestInstance("graph-explain-known-issue");
+        try
+        {
+            string dbPath = AitmCliRunner.InstanceDbPath(instance);
+            AitmCliRunner.Run($"init --instance {instance}");
+            using (SqliteConnection connection = StoreConnection.Open(dbPath))
+            {
+                GraphQueryToolTests.InsertEdge(connection, "GraphOnlyDeclaredWidget", "decl", "alpha", "alpha/widget.ts", 10, "ts declaration");
+            }
+
+            using SqliteConnection readConnection = StoreConnection.Open(dbPath);
+            string actual = new GraphExplainTool().ExecuteCli(readConnection, "GraphOnlyDeclaredWidget");
+
+            Assert.Contains("used by (0 site(s) across 0 project(s)):", actual);
+            Assert.DoesNotContain("alpha", actual.Substring(actual.IndexOf("used by", StringComparison.Ordinal)));
+        }
+        finally
+        {
+            AitmCliRunner.DeleteInstance(instance);
+        }
+    }
+
     private static void SeedFixture(string dbPath)
     {
         using SqliteConnection connection = StoreConnection.Open(dbPath);
