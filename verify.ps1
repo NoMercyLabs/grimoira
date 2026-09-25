@@ -20,6 +20,12 @@ if (-not $SkipBuild) {
     $buildExit = $LASTEXITCODE
     $out | Select-Object -Last 1
     if ($buildExit -ne 0) { $failed += 'tool server build' }
+
+    Write-Host '-- build Aitm.Server' -ForegroundColor Cyan
+    $out = & "$PSScriptRoot/build-server.ps1" 2>&1
+    $buildExit = $LASTEXITCODE
+    $out | Select-Object -Last 1
+    if ($buildExit -ne 0) { $failed += 'Aitm.Server build' }
 }
 
 Write-Host '-- dotnet test Aitm.sln' -ForegroundColor Cyan

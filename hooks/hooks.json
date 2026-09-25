@@ -5,8 +5,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/bin-cli/aitm.exe",
-            "args": ["hook", "SessionStart"],
+            "command": "dotnet",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/bin-cli/aitm.dll", "hook", "SessionStart"],
             "timeout": 15
           }
         ]
