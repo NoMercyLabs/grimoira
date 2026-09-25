@@ -26,4 +26,13 @@ public static class HookPaths
         string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         return Path.Combine(home, ".aitm", instance, "compact", $"{sid}.md");
     }
+
+    /// <summary>Where an instance's own directory lives, same layout as aitm.cs and the other hooks
+    /// (RESTRUCTURE.md slice 21): <c>~/.aitm/&lt;instance&gt;</c>.</summary>
+    public static string InstanceDir(string instance) =>
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".aitm", instance);
+
+    /// <summary>Where an instance's store lives. The SessionEnd/PostToolUse hooks check this exists
+    /// before opening a connection, same as the .mjs files' <c>existsSync(... 'aitm.db')</c> guard.</summary>
+    public static string DbPath(string instance) => Path.Combine(InstanceDir(instance), "aitm.db");
 }
