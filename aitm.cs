@@ -152,7 +152,7 @@ switch (cmd)
         Console.WriteLine(new RedactChatTool().Execute(db, root, a.Contains("--dry-run")));
         break;
     case "eval":
-        Eval();
+        Console.WriteLine(new EvalTool().ExecuteCli(db));
         break;
     case "add":
     {
@@ -175,7 +175,8 @@ switch (cmd)
         break;
     }
     case "spine-export":
-        SpineExport(GetFlag("--to") ?? Path.Combine(AppContext.BaseDirectory, "..", "seeds", "spine.json"));
+        Console.WriteLine(new SpineExportTool().ExecuteCli(db,
+            GetFlag("--to") ?? Path.Combine(AppContext.BaseDirectory, "..", "seeds", "spine.json")));
         break;
     // Same gap forget-project had: the graph could gain a node but never lose one, so anything indexed
     // by mistake or moved out of scope stayed live forever. Retires on the timeline rather than
@@ -187,8 +188,15 @@ switch (cmd)
         break;
     }
     case "spine-import":
-        SpineImport(GetFlag("--from") ?? throw new ArgumentException("spine-import needs --from <spine.json>"));
+    {
+        string spineImportFrom = GetFlag("--from") ?? throw new ArgumentException("spine-import needs --from <spine.json>");
+        // SpineImportTool.ExecuteCli returns the same "no spine file at ..." text the old inline
+        // SpineImport wrote to stderr, so the missing-file case has to be checked here to keep it on
+        // stderr (same trap as seed-edges above).
+        if (!File.Exists(spineImportFrom)) { Console.Error.WriteLine($"no spine file at {spineImportFrom}"); break; }
+        Console.WriteLine(new SpineImportTool().ExecuteCli(db, spineImportFrom));
         break;
+    }
     case "project":
         Console.WriteLine(new ProjectTool().Execute(db,
             GetFlag("--name") ?? throw new ArgumentException("project needs --name"),
@@ -267,10 +275,12 @@ switch (cmd)
         Environment.Exit(2);
         break;
     case "stage":
-        StageCmd(Positionals().Skip(1).ToList());
+        Console.WriteLine(new BrainStageTool().ExecuteCli(db, Positionals().Skip(1).ToList(),
+            GetFlag("--gloss") ?? "", GetFlag("--scheme") ?? "", GetFlag("--facet") ?? "text",
+            GetFlag("--because") ?? "", a.Contains("--hard"), a.Contains("--multi")));
         break;
     case "flush":
-        FlushCmd();
+        Console.WriteLine(new BrainFlushTool().ExecuteCli(db));
         break;
     case "selftest":
         SelfTest();
@@ -902,7 +912,20 @@ void BrainCmd(List<string> rest)
             break;
         case "stale": Console.WriteLine(new BrainStaleTool().Execute(db, int.TryParse(GetFlag("--days"), out int sd) ? sd : 30)); break;
         case "distill": Console.WriteLine(new BrainDistillTool().Execute(db, root)); break;
-        case "seed": BrainSeed(); break;
+        case "seed":
+        {
+            string brainSeedFrom = GetFlag("--from") ?? Path.Combine(AppContext.BaseDirectory, "..", "seeds", "spine.json");
+            // BrainSeedTool.ExecuteCli returns the same "no spine file at ..." text the old inline
+            // BrainSeed wrote to stderr, so the missing-file case has to be checked here to keep it on
+            // stderr (same trap as seed-edges/spine-import above).
+            if (!File.Exists(brainSeedFrom))
+            {
+                Console.Error.WriteLine($"no spine file at {Path.GetFullPath(brainSeedFrom)} — run `aitm spine-export` on an instance that already has one, or write the file by hand (see README).");
+                break;
+            }
+            Console.WriteLine(new BrainSeedTool().ExecuteCli(db, brainSeedFrom));
+            break;
+        }
         case "stats": BrainStats(); break;
         case "gaps": Console.WriteLine(new BrainGapsTool().ExecuteCli(db)); break;
         default:

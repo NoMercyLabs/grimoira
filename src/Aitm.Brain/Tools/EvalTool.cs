@@ -79,7 +79,11 @@ public sealed class EvalTool : ITool
             if (ok) hits++;
             sb.AppendLine($"{(ok ? "PASS" : "FAIL")}  {ms,5:F2}ms  \"{q}\"  {(answerable ? "expect '" + expect + "'" : "expect REFUSE")}  ->  {shown}");
         }
-        sb.AppendLine();
+        // A literal LF, not AppendLine's platform newline — aitm.cs's old Eval() built this same blank
+        // line via Console.WriteLine($"\naccuracy...") (a bare "\n" ahead of the WriteLine's own
+        // trailing CRLF), so an AppendLine() here would double the line ending once the CLI case wraps
+        // this whole string in its own Console.WriteLine.
+        sb.Append('\n');
         sb.Append($"accuracy {hits}/{DefaultQuestions.Length} ({100.0 * hits / DefaultQuestions.Length:F0}%)   avg {totalMs / DefaultQuestions.Length:F2}ms");
         return sb.ToString();
     }
