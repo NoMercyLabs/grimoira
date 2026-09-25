@@ -17,13 +17,9 @@ The conversation channel is a primary asset, not noise around the facts. It carr
 | `aitm.cs` | The CLI. File-based C# app, builds to `bin-cli/`. |
 | `mcp.cs` | MCP server exposing the store as tools. Builds to `bin/`. |
 | `brain-lib.mjs` | Shared lookup: tokenise, scan every channel, score, format. |
-| `brain-gate.mjs` | PreToolUse `Grep\|Glob`. Answers from the store and denies the blind search. |
-| `brain-harvest.mjs` | PostToolUse `Grep\|Glob`. Writes search results back as code edges. |
-| `brain-capture.mjs` | Stop. Blocks once when a session leaves gaps unfilled. |
 | `index-code.mjs` | Bulk indexer for the public declaration surface of registered projects. |
-| `prompt-recall.mjs` | UserPromptSubmit auto-recall. |
 | `session-*.mjs` | Session lifecycle indexers. |
-| `*-guard.mjs` | Stop-hook behaviour guards. |
+| `pattern-watch.mjs` | Record-only command-shape counter (no longer nudges the session). |
 
 ## Build
 
@@ -107,13 +103,14 @@ answers:
 
 Everything that used to judge the quality of Claude's own answer by pattern-matching
 text (`hedge-guard`, `goal-guard`, `proof-guard`, `continue-guard`, `population-guard`,
-`loop-guard`, `blast-radius`, `pattern-watch`) and everything that force-fed the store
-onto every Grep/Glob/Read/prompt (`brain-gate`, `brain-read-gate`, `brain-harvest`,
+`loop-guard`, `blast-radius`) and everything that force-fed the store onto every
+Grep/Glob/Read/prompt (`brain-gate`, `brain-read-gate`, `brain-harvest`,
 `brain-history`, `prompt-recall`, `context-watch`, `subagent-context`, `brain-capture`,
-`synthesis-capture`, `brain-context`, `session-continue`) is deliberately left out of
-the plugin. Those scripts still exist in the repo for the direct global-hook setup
-during migration, but the plugin does not carry them: the skill and the two agents
-reach the same tools with judgment instead of a blind script on every turn.
+`synthesis-capture`, `brain-context`, `session-continue`) never belonged in the plugin
+and has been deleted from the repo entirely (`docs/RESTRUCTURE.md` section 2.4): the
+skill and the two agents reach the same tools with judgment instead of a blind script
+on every turn. `pattern-watch.mjs` is the one exception — it only counts, never judges
+or blocks — and stays, unregistered, until it gets an `http` hook slot.
 
 If you previously wired AITM hooks by hand in `settings.json`, do not enable this
 plugin until those direct entries are removed in the same sitting — running both at
@@ -122,11 +119,11 @@ once double-executes a hook that appears in both places. Run
 running hooks or showing command arguments; `verify.ps1 -Project C:/Projects/NoMercy`
 includes this check.
 
-## The enforcement loop
+## The enforcement loop (retired)
 
-The hooks form a closed loop. `brain-gate` refuses a filesystem search the store can already answer and hands back the hits. When the store genuinely misses, the search runs and the miss is recorded as a gap. `brain-harvest` folds whatever that search found back into the code graph and closes the gap. `brain-capture` blocks the end of the turn if gaps were opened and nothing was taught back. Coverage therefore grows from ordinary work rather than from anyone remembering to record things.
+`brain-gate`, `brain-harvest` and `brain-capture` used to form a closed loop: `brain-gate` refused a filesystem search the store could already answer and handed back the hits; when the store genuinely missed, the search ran and the miss was recorded as a gap; `brain-harvest` folded whatever that search found back into the code graph and closed the gap; `brain-capture` blocked the end of the turn if gaps were opened and nothing was taught back. All three force-fed recall into ordinary tool calls and are deleted (`docs/RESTRUCTURE.md` section 2.4). Gaps stay visible through the `brain_gaps` / `gaps` tool instead of being enforced by a hook.
 
-The gate fires at most once per search signature per session, so re-issuing an identical search always reaches the filesystem. Every hook fails open: a guard error never blocks a real tool call.
+Every hook still in the plugin fails open: a guard error never blocks a real tool call.
 
 ## Store notes
 
