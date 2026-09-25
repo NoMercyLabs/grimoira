@@ -54,5 +54,16 @@ internal static class BrainTestFixtures
         insert.ExecuteNonQuery();
     }
 
+    public static void InsertRef(string dbPath, string nodeK, string channel, string payloadK)
+    {
+        using SqliteConnection connection = Open(dbPath);
+        using SqliteCommand insert = connection.CreateCommand();
+        insert.CommandText = "INSERT INTO ref(node_k,channel,payload_k) VALUES($n,$c,$p)";
+        insert.Parameters.AddWithValue("$n", nodeK);
+        insert.Parameters.AddWithValue("$c", channel);
+        insert.Parameters.AddWithValue("$p", payloadK);
+        insert.ExecuteNonQuery();
+    }
+
     private static SqliteConnection Open(string dbPath) => StoreConnection.Open(dbPath);
 }
