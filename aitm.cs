@@ -261,7 +261,9 @@ switch (cmd)
         Console.WriteLine(new ResolveTool().Execute(db, int.Parse(Pos1(), CultureInfo.InvariantCulture)));
         break;
     case "stats":
-        Console.WriteLine(new StatsTool().Execute(db, instance, dbPath));
+        Console.WriteLine(a.Contains("--tokens")
+            ? new StatsTool().ExecuteTokens(db, instance)
+            : new StatsTool().Execute(db, instance, dbPath));
         break;
     case "backup":
         Console.WriteLine(new BackupTool().Execute(db, root, GetFlag("--to")));
