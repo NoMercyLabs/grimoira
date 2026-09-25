@@ -20,9 +20,13 @@ public class McpJsonTests
         JsonElement headers = aitm.GetProperty("headers");
         Assert.Equal("${CLAUDE_PROJECT_DIR}", headers.GetProperty("Claude-Project-Dir").GetString());
         Assert.False(headers.TryGetProperty("Authorization", out _), "the token comes from headersHelper, never the file");
+        // headersHelper has no `args` field, so Claude Code always runs it in a shell
+        // (code.claude.com/docs/en/mcp.md: "Claude Code runs the command in a shell and gives up on it
+        // after 10 seconds"). A shell splits an unquoted ${CLAUDE_PLUGIN_ROOT} on a space, so the path
+        // must be quoted the same way the docs quote their own shell-form examples. `aitm.exe` also does
+        // not exist off Windows, so the portable, quote-safe form is `dotnet "<dll>" server headers`.
         string helper = aitm.GetProperty("headersHelper").GetString()!;
-        Assert.StartsWith("${CLAUDE_PLUGIN_ROOT}/bin-cli/", helper.Trim('"'));
-        Assert.EndsWith("server headers", helper);
+        Assert.Equal("dotnet \"${CLAUDE_PLUGIN_ROOT}/bin-cli/aitm.dll\" server headers", helper);
         Assert.False(aitm.TryGetProperty("command", out _));
     }
 
@@ -33,8 +37,15 @@ public class McpJsonTests
         JsonElement groups = doc.RootElement.GetProperty("hooks").GetProperty("SessionStart");
         JsonElement hook = Assert.Single(Assert.Single(groups.EnumerateArray()).GetProperty("hooks").EnumerateArray());
 
-        Assert.Equal("${CLAUDE_PLUGIN_ROOT}/bin-cli/aitm.exe", hook.GetProperty("command").GetString());
-        Assert.Equal(["hook", "SessionStart"], hook.GetProperty("args").EnumerateArray().Select(a => a.GetString()!).ToArray());
+        // `args` is set, so this is exec form (code.claude.com/docs/en/hooks.md: "A command hook runs
+        // as exec form when args is set... Set args whenever the hook references a path placeholder");
+        // exec form spawns the executable directly with no shell, so ${CLAUDE_PLUGIN_ROOT} substitutes
+        // as one argument even with a space in it and needs no quoting. `dotnet` plus the dll path is
+        // also the portable form: `aitm.exe` does not exist off Windows, but `aitm.dll` and `dotnet` do.
+        Assert.Equal("dotnet", hook.GetProperty("command").GetString());
+        Assert.Equal(
+            ["${CLAUDE_PLUGIN_ROOT}/bin-cli/aitm.dll", "hook", "SessionStart"],
+            hook.GetProperty("args").EnumerateArray().Select(a => a.GetString()!).ToArray());
         Assert.True(hook.GetProperty("timeout").GetInt32() <= 20);
     }
 }
