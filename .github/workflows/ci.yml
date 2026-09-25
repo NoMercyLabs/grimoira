@@ -15,6 +15,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The old-vs-new parity tests build aitm.cs and mcp.cs from a fixed older commit
+          # (tests/Aitm.TestSupport: OldVsNewCli, McpSnapshotHarness); a shallow clone lacks it.
+          fetch-depth: 0
 
       - uses: actions/setup-dotnet@v4
         with:
