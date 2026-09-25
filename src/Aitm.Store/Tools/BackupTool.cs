@@ -20,10 +20,27 @@ public sealed class BackupTool : ITool
         string dir = Path.Combine(root, "backups");
         Directory.CreateDirectory(dir);
         string dest = to ?? Path.Combine(dir, $"aitm-{DateTime.UtcNow:yyyyMMdd-HHmmss}.db");
-        using SqliteCommand command = connection.CreateCommand();
-        command.CommandText = "VACUUM INTO $path";
-        command.Parameters.AddWithValue("$path", dest);
-        command.ExecuteNonQuery();
+
+        // VACUUM INTO refuses to write over an existing file, but the old wal-checkpoint-then-File.Copy
+        // this replaces always overwrote --to (aitm.cs:1983-1991, File.Copy(..., overwrite: true)).
+        // Build into a temp file next to the destination, then swap it in, to keep that behaviour.
+        string destDir = Path.GetDirectoryName(Path.GetFullPath(dest)) is { Length: > 0 } d ? d : ".";
+        Directory.CreateDirectory(destDir);
+        string temp = Path.Combine(destDir, $".{Path.GetFileName(dest)}.tmp-{Guid.NewGuid():N}");
+        try
+        {
+            using (SqliteCommand command = connection.CreateCommand())
+            {
+                command.CommandText = "VACUUM INTO $path";
+                command.Parameters.AddWithValue("$path", temp);
+                command.ExecuteNonQuery();
+            }
+            File.Move(temp, dest, overwrite: true);
+        }
+        finally
+        {
+            if (File.Exists(temp)) File.Delete(temp);
+        }
         return $"backed up -> {dest}";
     }
 }

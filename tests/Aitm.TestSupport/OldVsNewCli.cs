@@ -35,13 +35,13 @@ public static class OldVsNewCli
     public static string OracleDll()
     {
         string dll = Path.Combine(SnapshotDir, "aitm.dll");
-        if (File.Exists(dll)) return dll;
+        string stamp = Path.Combine(SnapshotDir, ".built-ok");
+        if (File.Exists(dll) && File.Exists(stamp)) return dll;
         lock (BuildLock)
         {
-            if (File.Exists(dll)) return dll;
-            BuildOracle(dll);
+            if (File.Exists(dll) && File.Exists(stamp)) return dll;
+            return BuildOracle();
         }
-        return dll;
     }
 
     /// <summary>Today's compiled CLI — the "after" binary, rebuilt by build-cli.ps1 after each part's
@@ -85,21 +85,59 @@ public static class OldVsNewCli
         return new Result(stdout, stderr, process.ExitCode);
     }
 
-    private static void BuildOracle(string dll)
+    // Another test run (a parallel agent in another worktree) may build the same oracle at the same
+    // time. Build in a private folder of our own and move it into place in one step, so no run ever
+    // reads a half-built snapshot — the loser of the race uses the winner's copy instead. Same fix as
+    // McpSnapshotHarness.EnsureBuilt.
+    private static string BuildOracle()
     {
+        string buildDir = $"{SnapshotDir}.building-{Environment.ProcessId}-{Guid.NewGuid():N}";
         string worktree = Path.Combine(Path.GetTempPath(), "aitm-oracle-src-" + Guid.NewGuid().ToString("N"));
         RunOrThrow("git", $"-C \"{RepoRoot}\" worktree add \"{worktree}\" {OracleCommit} --detach");
         try
         {
-            Directory.CreateDirectory(SnapshotDir);
-            RunOrThrow("dotnet", $"build \"{Path.Combine(worktree, "aitm.cs")}\" -c Release -o \"{SnapshotDir}\"");
+            Directory.CreateDirectory(buildDir);
+            RunOrThrow("dotnet", $"build \"{Path.Combine(worktree, "aitm.cs")}\" -c Release -o \"{buildDir}\"");
         }
         finally
         {
-            RunOrThrow("git", $"-C \"{RepoRoot}\" worktree remove \"{worktree}\" --force");
+            // Always release the worktree, even if the build failed — an orphaned entry would block a
+            // later build that reuses the same OracleCommit checkout path.
+            try { RunOrThrow("git", $"-C \"{RepoRoot}\" worktree remove \"{worktree}\" --force"); }
+            catch (InvalidOperationException) { /* best effort */ }
+            try { RunOrThrow("git", $"-C \"{RepoRoot}\" worktree prune"); }
+            catch (InvalidOperationException) { /* best effort */ }
         }
-        if (!File.Exists(dll))
-            throw new InvalidOperationException($"oracle build did not produce {dll}");
+
+        string builtDll = Path.Combine(buildDir, "aitm.dll");
+        if (!File.Exists(builtDll))
+            throw new InvalidOperationException($"oracle build did not produce {builtDll}");
+        File.WriteAllText(Path.Combine(buildDir, ".built-ok"), DateTime.UtcNow.ToString("o"));
+
+        return MoveIntoPlace(buildDir);
+    }
+
+    private static string MoveIntoPlace(string builtDir)
+    {
+        string finalDll = Path.Combine(SnapshotDir, "aitm.dll");
+        string finalStamp = Path.Combine(SnapshotDir, ".built-ok");
+        // A final folder without the stamp is a leftover of an old in-place build; builds now happen
+        // only in private folders, so nobody else is writing it.
+        if (Directory.Exists(SnapshotDir) && !File.Exists(finalStamp)) TryDelete(SnapshotDir);
+        try
+        {
+            Directory.Move(builtDir, SnapshotDir);
+        }
+        catch (IOException) when (File.Exists(finalStamp))
+        {
+            TryDelete(builtDir); // another run won the race; its copy is complete
+        }
+        return finalDll;
+    }
+
+    private static void TryDelete(string dir)
+    {
+        try { Directory.Delete(dir, recursive: true); } catch (IOException) { } catch (UnauthorizedAccessException) { }
     }
 
     private static void RunOrThrow(string exe, string args)

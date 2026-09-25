@@ -20,14 +20,14 @@ public sealed class AddTool : ITool
         "[--provenance stated|extracted|inferred|unverified]   record or update a verified fact";
 
     public string Execute(SqliteConnection connection, string term, string aliases, string category,
-        string value, string source, string notes, string provenance)
+        string value, string source, string notes, string provenance, string why = "manual")
     {
         string prov = provenance.ToLowerInvariant();
         if (prov is not ("stated" or "extracted" or "inferred" or "unverified"))
             throw new ArgumentException("--provenance must be stated, extracted, inferred, or unverified");
 
         using (SqliteCommand begin = connection.CreateCommand()) { begin.CommandText = "BEGIN"; begin.ExecuteNonQuery(); }
-        UpsertFact(connection, term, term, aliases, category, value, source, notes, "manual");
+        UpsertFact(connection, term, term, aliases, category, value, source, notes, why);
         using (SqliteCommand update = connection.CreateCommand())
         {
             update.CommandText = "UPDATE facts SET provenance=$p WHERE k=$k";

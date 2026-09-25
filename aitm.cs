@@ -137,7 +137,7 @@ switch (cmd)
         string term = GetFlag("--term") ?? throw new ArgumentException("add needs --term");
         string prov = (GetFlag("--provenance") ?? "unverified").ToLowerInvariant();
         Console.WriteLine(new AddTool().Execute(db, term, GetFlag("--aliases") ?? "[]", GetFlag("--category") ?? "manual",
-            GetFlag("--value") ?? "", GetFlag("--source") ?? "", GetFlag("--notes") ?? "", prov));
+            GetFlag("--value") ?? "", GetFlag("--source") ?? "", GetFlag("--notes") ?? "", prov, GetFlag("--why") ?? "manual"));
         break;
     }
     case "history":
