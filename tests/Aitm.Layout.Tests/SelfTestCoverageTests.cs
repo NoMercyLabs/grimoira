@@ -248,7 +248,7 @@ public class SelfTestCoverageTests
     [Fact]
     public void SelftestVerbIsGoneFromAitmCs()
     {
-        string source = File.ReadAllText(Path.Combine(RepoPaths.Root, "aitm.cs"));
+        string source = File.ReadAllText(Path.Combine(RepoPaths.Root, "src", "Aitm.Server", "Data", "CliDispatch.cs"));
         Assert.DoesNotMatch(new Regex(@"void\s+SelfTest\s*\("), source);
         Assert.Matches(new Regex("case \"selftest\":"), source); // still a case, but as a removed-verb message
         Assert.Contains("removed in 0.4: aitm selftest is gone", source);

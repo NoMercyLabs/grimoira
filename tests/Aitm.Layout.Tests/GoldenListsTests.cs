@@ -69,7 +69,7 @@ public class GoldenListsTests
     [Fact]
     public void EveryTopLevelCliVerbStillExistsInAitmCs()
     {
-        string source = File.ReadAllText(Path.Combine(RepoPaths.Root, "aitm.cs"));
+        string source = File.ReadAllText(Path.Combine(RepoPaths.Root, "src", "Aitm.Server", "Data", "CliDispatch.cs"));
         // These are the golden verbs reachable as a top-level `case "<verb>":` in aitm.cs today.
         // The Brain sub-verbs (core, scope, ... eval) live in the nested `brain`/`stage` switches
         // and are checked separately below.
@@ -92,7 +92,7 @@ public class GoldenListsTests
     [Fact]
     public void EveryBrainSubVerbStillExistsInAitmCs()
     {
-        string source = File.ReadAllText(Path.Combine(RepoPaths.Root, "aitm.cs"));
+        string source = File.ReadAllText(Path.Combine(RepoPaths.Root, "src", "Aitm.Server", "Data", "CliDispatch.cs"));
         string[] brainSubVerbs =
         [
             "core", "scope", "common", "place", "recall", "impact", "learn", "learn-batch",

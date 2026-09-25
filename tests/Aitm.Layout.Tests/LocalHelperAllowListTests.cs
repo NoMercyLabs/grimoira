@@ -28,33 +28,11 @@ public class LocalHelperAllowListTests
         @"(?m)^ {4}private static (?:async\s+)?[\w<>\?\[\],\s]+?\s+([A-Za-z_]\w*)\s*\(",
         RegexOptions.Compiled);
 
-    // aitm.cs: argument parsing + instance resolution feed dispatch; the DB/schema plumbing runs once
-    // before dispatch; the BRAIN sub-verb bodies (recall/impact/stats) and their shared helpers have not
-    // moved into Aitm.Brain tool classes yet — that split is a later slice's job, not this one's.
-    private static readonly Dictionary<string, string> AitmAllowList = new(StringComparer.Ordinal)
-    {
-        ["GetFlag"] = "argument parsing: reads a --flag value for dispatch",
-        ["ResolveInstance"] = "instance resolution: picks the store instance before any verb dispatches",
-        ["Slug"] = "instance resolution: normalizes ResolveInstance's raw text into a safe slug",
-        ["Positionals"] = "argument parsing: drops flags, leaves the positional args dispatch passes on",
-        ["Pos1"] = "argument parsing: first positional argument, the common single-arg dispatch case",
-        ["Exec"] = "DB plumbing: runs schema DDL before dispatch and backs Run/TryExec below",
-        ["TryExec"] = "DB plumbing: tolerates idempotent migrations before dispatch",
-        ["Run"] = "DB plumbing: parameterized write used by schema bootstrap and the BRAIN helpers below",
-        ["Init"] = "schema bootstrap: creates the base tables before any verb dispatches",
-        ["InitBrain"] = "schema bootstrap: creates the BRAIN v2 tables before any verb dispatches",
-        ["LogGap"] = "BRAIN engine: records a refused lookup; used by BrainRecall below",
-        ["Now"] = "DB plumbing: UTC timestamp used by schema bootstrap and LogGap",
-        ["ScalarLong"] = "DB plumbing: scalar read used by the schema-version check and BrainStats",
-        ["ScalarText"] = "DB plumbing: scalar read used by BrainStats",
-        ["Tokens"] = "BRAIN engine: tokenizes free text for LogGap and BrainRecall",
-        ["BrainCmd"] = "dispatch: the nested `brain <sub>` switch that routes to the Brain tool classes",
-        ["RunReader"] = "BRAIN engine: prints + collects a brain read's first column, shared by recall/impact",
-        ["Reinforce"] = "BRAIN engine: bumps node usage after a brain read surfaces it",
-        ["BrainRecall"] = "BRAIN engine: the `brain recall` sub-verb's own logic, not yet a tool class",
-        ["BrainImpact"] = "BRAIN engine: the `brain impact` sub-verb's own logic, not yet a tool class",
-        ["BrainStats"] = "BRAIN engine: the `brain stats` sub-verb's own logic, not yet a tool class",
-    };
+    // aitm.cs: empty since slice 29b. aitm.cs is a shim that calls Aitm.Server's CliDispatch.Run; all 21
+    // local functions it had (argument parsing, instance resolution, DB/schema plumbing, BrainCmd and the
+    // BRAIN recall/impact/stats engine) moved with the dispatch body into CliDispatch as private methods,
+    // unchanged. The list stays so a local function that creeps back into the shim fails this test.
+    private static readonly Dictionary<string, string> AitmAllowList = new(StringComparer.Ordinal);
 
     // mcp.cs: every [McpServerTool] method opens its own connection then delegates to a tool class: Open
     // (+ its MaybeMaintain piggyback) and instance resolution are the plumbing that has to run first.

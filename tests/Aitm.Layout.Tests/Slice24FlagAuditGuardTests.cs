@@ -29,7 +29,7 @@ public class Slice24FlagAuditGuardTests
     [Fact]
     public void NoTopLevelOrBrainVerbLosesAFlagTheOracleRead()
     {
-        string currentSource = File.ReadAllText(Path.Combine(RepoPaths.Root, "aitm.cs"));
+        string currentSource = File.ReadAllText(Path.Combine(RepoPaths.Root, "src", "Aitm.Server", "Data", "CliDispatch.cs"));
         string oracleSource = ReadOracleSource();
 
         Dictionary<string, HashSet<string>> oldTopLevel = ExtractVerbFlags(oracleSource, FindTopLevelSwitchBody(oracleSource));

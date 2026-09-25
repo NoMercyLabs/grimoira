@@ -41,7 +41,7 @@ public class Slice24Part4aWiringTests
     [MemberData(nameof(WiredVerbCases))]
     public void EveryWiredVerbsCaseCallsItsToolClass(string verb, string toolType)
     {
-        string source = File.ReadAllText(Path.Combine(RepoPaths.Root, "aitm.cs"));
+        string source = File.ReadAllText(Path.Combine(RepoPaths.Root, "src", "Aitm.Server", "Data", "CliDispatch.cs"));
         Match caseMatch = Regex.Match(source, $"case \"{Regex.Escape(verb)}\":");
         Assert.True(caseMatch.Success, $"aitm.cs has no case for '{verb}'");
 
@@ -59,7 +59,7 @@ public class Slice24Part4aWiringTests
     [Fact]
     public void TopLevelBrainCaseStillDispatchesThroughBrainCmd()
     {
-        string source = File.ReadAllText(Path.Combine(RepoPaths.Root, "aitm.cs"));
+        string source = File.ReadAllText(Path.Combine(RepoPaths.Root, "src", "Aitm.Server", "Data", "CliDispatch.cs"));
         Match caseMatch = Regex.Match(source, "case \"brain\":");
         Assert.True(caseMatch.Success, "aitm.cs has no case for 'brain'");
         int blockEnd = source.IndexOf("break;", caseMatch.Index, StringComparison.Ordinal);
