@@ -221,4 +221,28 @@ public static class ProcessOwner
         }
         return (files.Length > limit, records);
     }
+
+    /// <summary>
+    /// Single-instance guard for the server itself (RESTRUCTURE.md slice 25: "Single instance: reuse
+    /// process-owner (slice 23a); a second copy exits non-zero with a clear message."). This is a
+    /// different job from <see cref="LaunchOwned"/> above (which tracks children this process spawns):
+    /// here the server is guarding itself, by holding an exclusive OS-level lock on one file per data
+    /// directory for as long as it runs. A second process pointed at the same data directory gets a
+    /// sharing violation and <c>null</c> back; it never adopts or inspects the first process's PID.
+    /// Returns the open handle on success — the caller keeps it open for the process lifetime and lets
+    /// the OS release it on exit; returns <c>null</c> when another instance already holds it.
+    /// </summary>
+    public static FileStream? TryAcquireSingleInstanceLock(string dataDir)
+    {
+        Directory.CreateDirectory(dataDir);
+        string lockPath = Path.Combine(dataDir, "server.lock");
+        try
+        {
+            return new FileStream(lockPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+        }
+        catch (IOException)
+        {
+            return null;
+        }
+    }
 }
