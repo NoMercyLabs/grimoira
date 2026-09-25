@@ -1,4 +1,5 @@
 using Aitm.Server.Data;
+using Aitm.TestSupport;
 using Microsoft.Data.Sqlite;
 using Xunit;
 
@@ -220,4 +221,78 @@ public class InitFullRunFullTests : IDisposable
 
         Assert.False(result.Success);
     }
+}
+
+// A fresh store made by `aitm init --full` must carry the same tables/views/indexes/triggers as one made
+// by old `aitm init` (aitm.cs's top-of-script SchemaVersion check, which runs Init() then InitBrain() —
+// aitm.cs:48-52) followed by init.mjs's own `init` CLI call (init.mjs:57) — init.mjs relies on that
+// schema existing before it registers/indexes anything. Compared against the frozen oracle binary
+// (OldVsNewCli.OracleCommit) rather than reimplemented, so this fails if InitFull ever again drops a
+// schema provider the old host applied.
+public class InitFullBrainSchemaParityTests : IDisposable
+{
+    private readonly string _workspace = Directory.CreateTempSubdirectory("aitm-initfull-brain-ws-").FullName;
+    private readonly string _home = Directory.CreateTempSubdirectory("aitm-initfull-brain-home-").FullName;
+    private readonly string _storeDir = Directory.CreateTempSubdirectory("aitm-initfull-brain-store-").FullName;
+    private readonly string _oldInstance = AitmCliRunner.NewTestInstance("initfull-brain-oracle");
+
+    public void Dispose()
+    {
+        SqliteConnection.ClearAllPools();
+        Directory.Delete(_workspace, recursive: true);
+        Directory.Delete(_home, recursive: true);
+        Directory.Delete(_storeDir, recursive: true);
+        AitmCliRunner.DeleteInstance(_oldInstance);
+    }
+
+    // Indexes InitFull's own step 3 ("code surface") creates via IndexCodeTool -> GraphIndexSchema on
+    // every run, even against an empty workspace — that step does not exist in bare `aitm init`, only in
+    // index-code.mjs, so they are not part of what init/InitBrain create and are excluded here the same
+    // way WholeStoreSchemaDdlParityTests excludes edges_file_idx.
+    private static readonly HashSet<string> IndexCodeOwnedIndexNames =
+        new(StringComparer.Ordinal) { "edges_symbol_idx", "edges_ident_idx", "edges_file_idx" };
+
+    [Fact]
+    public void RunFullCreatesTheSameSchemaAsOldAitmInit()
+    {
+        OldVsNewCli.Run(OldVsNewCli.OracleDll(), _oldInstance, "init");
+        string oldDbPath = AitmCliRunner.InstanceDbPath(_oldInstance);
+
+        InitFullOptions options = new(
+            Root: _workspace,
+            Instance: "initfull-brain-test",
+            DbPath: Path.Combine(_storeDir, "aitm.db"),
+            HomeDir: _home,
+            SkipChat: true);
+        InitFullResult result = InitFull.RunFull(options);
+        Assert.True(result.Success);
+
+        List<(string type, string name, string tblName, string sql)> oldRows = SqliteMasterRows(oldDbPath);
+        List<(string type, string name, string tblName, string sql)> newRows = SqliteMasterRows(options.DbPath)
+            .Where(r => !IndexCodeOwnedIndexNames.Contains(r.name))
+            .ToList();
+
+        Assert.NotEmpty(oldRows);
+        Assert.Equal(oldRows, newRows);
+    }
+
+    private static List<(string type, string name, string tblName, string sql)> SqliteMasterRows(string dbPath)
+    {
+        using SqliteConnection connection = new($"Data Source={dbPath};Mode=ReadOnly");
+        connection.Open();
+        using SqliteCommand command = connection.CreateCommand();
+        command.CommandText =
+            "SELECT type, name, tbl_name, sql FROM sqlite_master WHERE type != 'table' OR name NOT LIKE 'sqlite_%' ORDER BY type, name";
+        using SqliteDataReader reader = command.ExecuteReader();
+        List<(string, string, string, string)> rows = new();
+        while (reader.Read())
+        {
+            string? sql = reader.IsDBNull(3) ? null : reader.GetString(3);
+            rows.Add((reader.GetString(0), reader.GetString(1), reader.GetString(2), Normalize(sql)));
+        }
+        return rows;
+    }
+
+    private static string Normalize(string? sql) =>
+        sql is null ? "" : string.Join(' ', sql.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
 }
