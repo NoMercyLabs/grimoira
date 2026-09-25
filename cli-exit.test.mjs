@@ -4,8 +4,6 @@
 import { spawnSync } from 'node:child_process';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { rmSync } from 'node:fs';
-import { homedir } from 'node:os';
 
 const exe = join(dirname(fileURLToPath(import.meta.url)), 'bin-cli', 'aitm.exe');
 let passed = 0, failed = 0;
@@ -42,12 +40,12 @@ const loopTick = run('loop', 'tick', '--instance', 'test');
 check('loop tick exits 2', loopTick.status, 2);
 check('loop tick says removed in 0.4', /removed in 0\.4/.test(loopTick.stderr), true);
 
-// selftest resets tables, so it refuses any instance not named test*. That refusal exited 0, and CI ran
-// `selftest --instance ci-selftest` green for weeks without one check ever running.
-const refusedInstance = 'fixture-selftest-refusal';
-const refused = run('selftest', '--instance', refusedInstance);
-check('selftest on a non-test instance exits 2', refused.status, 2);
-rmSync(join(homedir(), '.aitm', refusedInstance), { recursive: true, force: true });
+// Dropped in phase 2 (RESTRUCTURE.md section 2.1, drop 3 of 4): its 63 checks now have a C# test-project
+// equivalent (Aitm.Layout.Tests.SelfTestCoverageTests), so the inline TDD harness itself is gone. Same
+// "removed in 0.4" pattern as `loop` above.
+const selftest = run('selftest', '--instance', 'test');
+check('selftest exits 2', selftest.status, 2);
+check('selftest says removed in 0.4', /removed in 0\.4/.test(selftest.stderr), true);
 
 console.log(`${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

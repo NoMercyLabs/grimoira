@@ -71,6 +71,14 @@ public class Slice24FlagAuditGuardTests
             int blockEnd = i + 1 < caseMatches.Count ? caseMatches[i + 1].Index : switchBody.Length;
             string block = switchBody[blockStart..blockEnd];
             string verb = m.Groups[1].Value;
+            // A verb whose case now only prints the dropped-verb message (section 2.1's rule: "for one
+            // minor version, a dropped verb prints 'removed in 0.4: <reason>' and exits 2") is a full
+            // removal, same as a verb missing from the switch entirely (`loop`, already handled below) —
+            // not a flag silently lost while the verb's logic stayed put. `selftest` took this path in
+            // this slice: its case still exists (so the golden-list style "still exists" checks are
+            // unaffected) but the 63 checks that used to read these flags via BrainLearn/StageCmd moved
+            // into the test projects, so the flags themselves have nowhere left to be read from.
+            if (block.Contains("removed in 0.4:", StringComparison.Ordinal)) continue;
             HashSet<string> flags = FlagsIn(block, fullSource, new HashSet<string>(StringComparer.Ordinal), 0);
             if (result.TryGetValue(verb, out HashSet<string>? existing)) existing.UnionWith(flags);
             else result[verb] = flags;
