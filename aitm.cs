@@ -867,7 +867,7 @@ void BrainCmd(List<string> rest)
         case "learn":
         {
             string learnResult = new BrainLearnTool().ExecuteCli(db, rargs, GetFlag("--gloss") ?? "",
-                GetFlag("--scheme") ?? "", "text", GetFlag("--because") ?? "", a.Contains("--hard"), a.Contains("--multi"));
+                GetFlag("--scheme") ?? "", GetFlag("--facet") ?? "text", GetFlag("--because") ?? "", a.Contains("--hard"), a.Contains("--multi"));
             if (learnResult.Length > 0) Console.WriteLine(learnResult);
             break;
         }
