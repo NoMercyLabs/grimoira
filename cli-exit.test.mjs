@@ -24,5 +24,21 @@ const help = run('help', '--instance', 'test');
 check('help still exits 0', help.status, 0);
 check('help still prints the usage', /aitm <command>/.test(help.stdout), true);
 
+// Dropped in phase 2 (RESTRUCTURE.md section 2.1): loop-guard.mjs and session-continue.mjs, its only
+// readers, are gone, and the NoMercy task record does this job now. start/tick only ever existed as
+// loop's own sub-verbs, so retiring loop retires them too. One minor version prints "removed in 0.4"
+// before becoming a plain unknown command.
+const loopBare = run('loop', '--instance', 'test');
+check('loop exits 2', loopBare.status, 2);
+check('loop says removed in 0.4', /removed in 0\.4/.test(loopBare.stderr), true);
+
+const loopStart = run('loop', 'start', '3', 'sometask', '--instance', 'test');
+check('loop start exits 2', loopStart.status, 2);
+check('loop start says removed in 0.4', /removed in 0\.4/.test(loopStart.stderr), true);
+
+const loopTick = run('loop', 'tick', '--instance', 'test');
+check('loop tick exits 2', loopTick.status, 2);
+check('loop tick says removed in 0.4', /removed in 0\.4/.test(loopTick.stderr), true);
+
 console.log(`${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

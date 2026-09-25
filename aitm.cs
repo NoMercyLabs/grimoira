@@ -228,7 +228,12 @@ switch (cmd)
         Backup(GetFlag("--to"));
         break;
     case "loop":
-        LoopCmd(Positionals().Skip(1).ToList());
+        // Removed in phase 2 (RESTRUCTURE.md section 2.1, drop 4 of 4): loop only ever wrote
+        // loop-state.json for loop-guard.mjs and session-continue.mjs, both dropped in the same
+        // pass; the NoMercy task record's stop-check does this job now. start/tick/clear existed
+        // only as loop's own sub-verbs, so this one message covers all three call shapes.
+        Console.Error.WriteLine("error: removed in 0.4: aitm loop is gone; the NoMercy task record replaces it.\n");
+        Environment.Exit(2);
         break;
     case "stage":
         StageCmd(Positionals().Skip(1).ToList());
@@ -1895,43 +1900,6 @@ void BrainTidy()
     Run("UPDATE node SET scheme=kind WHERE valid_to IS NULL AND (scheme IS NULL OR scheme='')");
     Exec("COMMIT");
     Console.WriteLine($"tidy: backfilled scheme=kind on {n} node(s).");
-}
-
-// Count-directive enforcement state. When the operator gives an explicit count ("do this N times"), `loop start N`
-// records it; each cycle calls `loop tick`; the Stop hook (loop-guard.mjs) refuses to let the turn end while
-// done < total. This is the brake passive memory could never be — I can't rationalize past a blocked stop.
-void LoopCmd(List<string> rest)
-{
-    string sub = rest.Count > 0 ? rest[0] : "status";
-    string statePath = Path.Combine(root, "loop-state.json");
-    string Esc(string s) => s.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\n", " ").Replace("\r", " ");
-    switch (sub)
-    {
-        case "start":
-            int total = rest.Count > 1 && int.TryParse(rest[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out int tv) ? tv : 0;
-            string task = string.Join(' ', rest.Skip(2));
-            File.WriteAllText(statePath, $"{{\"task\":\"{Esc(task)}\",\"total\":{total},\"done\":0}}");
-            Console.WriteLine($"loop started: 0/{total} — {task}");
-            break;
-        case "tick":
-            if (!File.Exists(statePath)) { Console.WriteLine("no active loop."); break; }
-            using (JsonDocument d = JsonDocument.Parse(File.ReadAllText(statePath)))
-            {
-                string tk = d.RootElement.GetProperty("task").GetString() ?? "";
-                int tot = d.RootElement.GetProperty("total").GetInt32();
-                int dn = d.RootElement.GetProperty("done").GetInt32() + 1;
-                if (dn >= tot) { File.Delete(statePath); Console.WriteLine($"loop complete: {dn}/{tot} — cleared."); }
-                else { File.WriteAllText(statePath, $"{{\"task\":\"{Esc(tk)}\",\"total\":{tot},\"done\":{dn}}}"); Console.WriteLine($"loop: {dn}/{tot} — {tk}"); }
-            }
-            break;
-        case "clear":
-            if (File.Exists(statePath)) File.Delete(statePath);
-            Console.WriteLine("loop cleared.");
-            break;
-        default:
-            Console.WriteLine(File.Exists(statePath) ? File.ReadAllText(statePath) : "no active loop.");
-            break;
-    }
 }
 
 // Write-side brake. "Get smarter over time" needs NEW knowledge to actually land, and brain_learn is
