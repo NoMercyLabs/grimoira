@@ -4,6 +4,10 @@
 // Pinned to the safe floor: Microsoft.Data.Sqlite otherwise resolves SQLitePCLRaw 2.1.10, which
 // carries GHSA-2m69-gcr7-jv3q. Keep in lockstep with aitm.cs.
 #:package SQLitePCLRaw.bundle_e_sqlite3@3.0.3
+#:project src/Aitm.Store/Aitm.Store.csproj
+#:project src/Aitm.Facts/Aitm.Facts.csproj
+#:project src/Aitm.Memory/Aitm.Memory.csproj
+#:project src/Aitm.Docs/Aitm.Docs.csproj
 // AITM MCP server: exposes the per-instance store (knowledge, the cross-project impact graph,
 // history, findings) as tools the agent calls every session. stdio transport; all host logging
 // disabled so only tool output reaches the client.
@@ -21,6 +25,11 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using ModelContextProtocol.Server;
+using Aitm.Store.Data;
+using Aitm.Store.Tools;
+using Aitm.Facts.Tools;
+using Aitm.Memory.Tools;
+using Aitm.Docs.Tools;
 
 HostApplicationBuilder builder = Host.CreateApplicationBuilder(args);
 builder.Logging.ClearProviders();
@@ -77,16 +86,10 @@ public static partial class AitmTools
             ? Usage($"you passed \"{kind}\" as kind, but that is a NODE kind. Use kind=\"node\" and move \"{kind}\" into a.")
             : Usage($"\"{Trim(kind)}\" is not a row type.");
 
-    // bm25 lower = better; matches weaker than this are low-IDF noise, refused once the corpus is large
-    // enough for IDF to discriminate. Mirrors the CLI's calibrated floor.
-    private const double RelevanceFloor = -3.0;
-    private const int FloorMinCorpus = 20;
-
     // Output discipline: every tool answer is context the caller pays for. Cells clip, payloads clip,
     // and the whole answer stays under OutCap (brain_core gets CoreCap — it is the once-per-session
     // always-on set and must not lose hard rules to trimming).
     private const int CellCap = 160;
-    private const int BodyCap = 240;
     private const int OutCap = 1800;
     private const int CoreCap = 6000;
 
@@ -185,22 +188,6 @@ public static partial class AitmTools
         }
     }
 
-    // Channel hits feed the same usage signal as graph reads: surfacing a fact/rule reinforces the
-    // brain nodes ref-bridged to it, so channel use also makes recall ranking sharper.
-    private static void ReinforceChannel(SqliteConnection con, string channel, IEnumerable<string> payloadKeys)
-    {
-        foreach (string payloadKey in payloadKeys.Where(s => s.Length > 0).Distinct())
-        {
-            using SqliteCommand u = con.CreateCommand();
-            u.CommandText = @"INSERT INTO usage(node_k,hits,last_used)
-                SELECT node_k,1,strftime('%Y-%m-%dT%H:%M:%fZ','now') FROM ref WHERE channel=$c AND payload_k=$p
-                ON CONFLICT(node_k) DO UPDATE SET hits=hits+1, last_used=strftime('%Y-%m-%dT%H:%M:%fZ','now')";
-            u.Parameters.AddWithValue("$c", channel);
-            u.Parameters.AddWithValue("$p", payloadKey);
-            try { u.ExecuteNonQuery(); } catch (SqliteException) { }
-        }
-    }
-
     // Self-maintenance, time-gated to every 3+ days, piggybacked on a normal open: backfill missing
     // schemes, prune stale/overflow gaps, keep the FTS index tight. Failure never breaks the read.
     private static void MaybeMaintain(SqliteConnection con)
@@ -260,33 +247,7 @@ public static partial class AitmTools
     public static string fact(string query)
     {
         using SqliteConnection con = Open();
-        List<string> qToks = Tokens(query);
-        if (qToks.Count == 0) return "no usable query terms.";
-        string match = string.Join(" OR ", qToks.Select(t => $"\"{t}\""));
-        bool gate = Count(con, "SELECT count(*) FROM facts") >= FloorMinCorpus;
-        using SqliteCommand cmd = con.CreateCommand();
-        cmd.CommandText = @"SELECT f.term,f.category,f.value,f.source,x.s,f.aliases,f.notes,f.k
-            FROM (SELECT k, bm25(facts_fts) AS s FROM facts_fts WHERE facts_fts MATCH $m ORDER BY s LIMIT 3) x
-            JOIN facts f ON f.k=x.k ORDER BY x.s";
-        cmd.Parameters.AddWithValue("$m", match);
-        StringBuilder sb = new();
-        List<string> hitKeys = new();
-        using (SqliteDataReader r = cmd.ExecuteReader())
-        {
-            while (r.Read())
-            {
-                if (gate && r.GetDouble(4) > RelevanceFloor) continue; // weak/low-IDF match — refuse rather than surface noise
-                string hay = $"{r.GetString(0)} {r.GetString(5)} {r.GetString(1)} {r.GetString(2)} {r.GetString(6)}".ToLowerInvariant();
-                int present = qToks.Count(t => hay.Contains(t, StringComparison.Ordinal));
-                if (qToks.Count >= 3 && present <= 1) continue; // 3+ token question matching one tangential word — not an answer
-                hitKeys.Add(r.GetString(7));
-                sb.AppendLine($"• {r.GetString(0)} [{r.GetString(1)}]\n  {r.GetString(2)}\n  source: {Clip(r.GetString(3), CellCap)}");
-            }
-        }
-        if (sb.Length == 0)
-            return $"no confident answer for \"{query}\" — not in the knowledge base (refusing rather than guessing).{LogGap(con, "fact", query)}";
-        ReinforceChannel(con, "facts", hitKeys);
-        return Budget(sb.ToString());
+        return new QueryTool(new UsageSignal()).ExecuteMcp(con, query);
     }
 
     [McpServerTool]
@@ -454,26 +415,7 @@ public static partial class AitmTools
     public static string recall(string query)
     {
         using SqliteConnection con = Open();
-        string match = Match(query);
-        if (match.Length == 0) return "no usable query terms.";
-        try
-        {
-            using SqliteCommand cmd = con.CreateCommand();
-            cmd.CommandText = @"SELECT ch.ts,ch.text
-                FROM (SELECT k, bm25(chat_fts) AS s FROM chat_fts WHERE chat_fts MATCH $m ORDER BY s LIMIT 4) x
-                JOIN chat ch ON ch.k=x.k ORDER BY x.s";
-            cmd.Parameters.AddWithValue("$m", match);
-            StringBuilder sb = new();
-            using (SqliteDataReader r = cmd.ExecuteReader())
-            {
-                while (r.Read()) sb.AppendLine($"• [{r.GetString(0)}] {Clip(r.GetString(1), BodyCap)}");
-            }
-            return sb.Length == 0 ? $"no chat history matches \"{query}\".{LogGap(con, "recall", query)}" : Budget(sb.ToString());
-        }
-        catch (SqliteException)
-        {
-            return "chat history not indexed yet for this instance (run: aitm index-chat --from <transcript dir>).";
-        }
+        return new RecallTool().ExecuteMcp(con, query);
     }
 
     [McpServerTool]
@@ -481,27 +423,7 @@ public static partial class AitmTools
     public static string doc(string query)
     {
         using SqliteConnection con = Open();
-        string match = Match(query);
-        if (match.Length == 0) return "no usable query terms.";
-        try
-        {
-            using SqliteCommand cmd = con.CreateCommand();
-            cmd.CommandText = @"SELECT d.category,d.title,d.path,d.content
-                FROM (SELECT k, bm25(docs_fts) AS s FROM docs_fts WHERE docs_fts MATCH $m ORDER BY s LIMIT 3) x
-                JOIN docs d ON d.k=x.k ORDER BY x.s";
-            cmd.Parameters.AddWithValue("$m", match);
-            StringBuilder sb = new();
-            using (SqliteDataReader r = cmd.ExecuteReader())
-            {
-                while (r.Read())
-                    sb.AppendLine($"• [{r.GetString(0)}] {r.GetString(1)} ({Clip(r.GetString(2), CellCap)})\n  {Clip(r.GetString(3), 280)}");
-            }
-            return sb.Length == 0 ? $"no docs match \"{query}\".{LogGap(con, "doc", query)}" : Budget(sb.ToString());
-        }
-        catch (SqliteException)
-        {
-            return "no docs indexed yet for this instance.";
-        }
+        return new DocTool().ExecuteMcp(con, query);
     }
 
     [McpServerTool]
@@ -509,34 +431,7 @@ public static partial class AitmTools
     public static string rule(string query)
     {
         using SqliteConnection con = Open();
-        string match = Match(query);
-        if (match.Length == 0) return "no usable query terms.";
-        try
-        {
-            using SqliteCommand cmd = con.CreateCommand();
-            cmd.CommandText = @"SELECT mem.type,mem.hook,mem.body,mem.hard,mem.k
-                FROM (SELECT k, bm25(memory_fts) AS s FROM memory_fts WHERE memory_fts MATCH $m ORDER BY s LIMIT 4) x
-                JOIN memory mem ON mem.k=x.k ORDER BY x.s";
-            cmd.Parameters.AddWithValue("$m", match);
-            StringBuilder sb = new();
-            List<string> hitKeys = new();
-            using (SqliteDataReader r = cmd.ExecuteReader())
-            {
-                while (r.Read())
-                {
-                    string tag = r.GetInt32(3) == 1 ? "HARD " : "";
-                    hitKeys.Add(r.GetString(4));
-                    sb.AppendLine($"• [{tag}{r.GetString(0)}] {r.GetString(1)}\n  {Clip(r.GetString(2), BodyCap)}");
-                }
-            }
-            if (sb.Length == 0) return $"no rule matches \"{query}\".{LogGap(con, "rule", query)}";
-            ReinforceChannel(con, "memory", hitKeys);
-            return Budget(sb.ToString());
-        }
-        catch (SqliteException)
-        {
-            return "memory not indexed yet for this instance (run: aitm index-memory --from <memory dir>).";
-        }
+        return new MemTool(new UsageSignal()).ExecuteMcp(con, query);
     }
 
     [McpServerTool]
@@ -544,19 +439,7 @@ public static partial class AitmTools
     public static string shed_memory(string key)
     {
         using SqliteConnection con = Open();
-        using SqliteCommand snap = con.CreateCommand();
-        snap.CommandText = "SELECT type||'|'||title||'|'||hook||'|'||body FROM memory WHERE k=$k";
-        snap.Parameters.AddWithValue("$k", key);
-        if (snap.ExecuteScalar() is not string before) return $"no memory '{key}'.";
-        using SqliteCommand del = con.CreateCommand();
-        del.CommandText = @"DELETE FROM memory_fts WHERE k=$k;
-            DELETE FROM memory WHERE k=$k;
-            INSERT INTO mutations(ts,op,kind,k,before,after,why)
-              VALUES(strftime('%Y-%m-%dT%H:%M:%fZ','now'),'delete','memory',$k,$b,NULL,'shed_memory');";
-        del.Parameters.AddWithValue("$k", key);
-        del.Parameters.AddWithValue("$b", before);
-        del.ExecuteNonQuery();
-        return $"shed memory '{key}'.";
+        return new ShedMemoryTool().ExecuteMcp(con, key);
     }
 
     // --- BRAIN graph: a structured copy of the operator's mental model. Each read is one self-contained
@@ -873,13 +756,7 @@ public static partial class AitmTools
     public static string history(string term)
     {
         using SqliteConnection con = Open();
-        using SqliteCommand cmd = con.CreateCommand();
-        cmd.CommandText = "SELECT ts,op,k FROM mutations WHERE k LIKE $t ORDER BY id DESC LIMIT 30";
-        cmd.Parameters.AddWithValue("$t", "%" + term + "%");
-        using SqliteDataReader r = cmd.ExecuteReader();
-        StringBuilder sb = new();
-        while (r.Read()) sb.AppendLine($"  {r.GetString(0)} {r.GetString(1)} {r.GetString(2)}");
-        return sb.Length == 0 ? $"no history for '{term}'." : Budget(sb.ToString());
+        return new HistoryTool().ExecuteMcp(con, term);
     }
 
     [McpServerTool]
@@ -887,14 +764,7 @@ public static partial class AitmTools
     public static string log_finding(string title, string detail = "", string source = "")
     {
         using SqliteConnection con = Open();
-        using SqliteCommand cmd = con.CreateCommand();
-        cmd.CommandText = "INSERT INTO findings(ts,title,detail,source,status) VALUES($t,$ti,$d,$s,'open')";
-        cmd.Parameters.AddWithValue("$t", DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture));
-        cmd.Parameters.AddWithValue("$ti", title);
-        cmd.Parameters.AddWithValue("$d", detail);
-        cmd.Parameters.AddWithValue("$s", source);
-        cmd.ExecuteNonQuery();
-        return $"finding logged: {title}";
+        return new FindingTool().ExecuteMcp(con, title, detail, source);
     }
 
     [McpServerTool]
@@ -902,12 +772,7 @@ public static partial class AitmTools
     public static string open_findings()
     {
         using SqliteConnection con = Open();
-        using SqliteCommand cmd = con.CreateCommand();
-        cmd.CommandText = "SELECT id,title,source FROM findings WHERE status='open' ORDER BY id DESC LIMIT 30";
-        using SqliteDataReader r = cmd.ExecuteReader();
-        StringBuilder sb = new();
-        while (r.Read()) sb.AppendLine($"#{r.GetInt32(0)} {Clip(r.GetString(1), CellCap)} ({(r.IsDBNull(2) ? "" : Clip(r.GetString(2), 60))})");
-        return sb.Length == 0 ? "no open findings." : Budget(sb.ToString());
+        return new FindingsTool().ExecuteMcp(con);
     }
 
     private static string LedgerPath() =>
