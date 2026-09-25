@@ -36,17 +36,10 @@ $hookExit = $LASTEXITCODE
 $out | Select-Object -Last 1
 if ($hookExit -ne 0) { $failed += 'hook registration' }
 
-Write-Host '-- selftest' -ForegroundColor Cyan
-# A fresh, uniquely named store every run. The selftest reset never clears term_alias, so a reused
-# "test" store kept an alias the product stopped seeding and read GREEN while a fresh one was RED.
-$selftestInstance = "test-verify-$(Get-Date -Format 'yyyyMMddHHmmss')-$PID"
-$selftestStore = Join-Path ([Environment]::GetFolderPath('UserProfile')) ".aitm/$selftestInstance"
-$out = & "$PSScriptRoot/bin-cli/aitm.exe" selftest --instance $selftestInstance 2>&1
-$selftestExit = $LASTEXITCODE
-if (Test-Path $selftestStore) { Remove-Item -Recurse -Force $selftestStore }
-$line = $out | Select-String 'selftest:' | Select-Object -Last 1
-Write-Host "   $line"
-if ($selftestExit -ne 0 -or "$line" -notmatch 'GREEN') { $failed += 'selftest' }
+# `aitm selftest` is gone (RESTRUCTURE.md slice 24 bullet 1): its 63 checks now live in the C# test
+# projects, verified by Aitm.Layout.Tests.SelfTestCoverageTests, which `dotnet test Aitm.sln` above
+# already ran. `aitm selftest` itself now just prints "removed in 0.4" and exits 2 (cli-exit.test.mjs
+# below covers that exit-code contract, the same way it covers every other dropped verb).
 
 # Every *.test.mjs in the repo root, found by pattern rather than typed into a list — a file dropped
 # here (or forgotten, as brain-gates.test.mjs and launch-mcp.test.mjs were) is run, not silently skipped.
