@@ -1,8 +1,9 @@
 #:package Microsoft.Data.Sqlite@10.0.9
 #:package SQLitePCLRaw.bundle_e_sqlite3@3.0.3
-// RESTRUCTURE.md slice 2: proves a file-based app can reference a project. aitm.cs does not call
-// into Aitm.Store yet (section 0 rule 3: the old file keeps working unchanged until its own slice).
+// RESTRUCTURE.md slice 24, CLI lane part 1: aitm.cs's Store and Facts verbs now dispatch to their
+// tool classes instead of carrying the logic inline.
 #:project src/Aitm.Store/Aitm.Store.csproj
+#:project src/Aitm.Facts/Aitm.Facts.csproj
 // AITM foundation — core slice: a per-instance SQLite store with a CURRENT projection
 // (one row per entity, the only thing normal reads touch) plus an append-only MUTATIONS
 // log (cold; read only for trace/rollback). FTS5-ranked knowledge lookup. Generic: the
@@ -12,6 +13,9 @@ using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using Aitm.Facts.Tools;
+using Aitm.Store.Data;
+using Aitm.Store.Tools;
 using Microsoft.Data.Sqlite;
 
 string[] a = args;
@@ -68,13 +72,14 @@ try
 switch (cmd)
 {
     case "init":
-        Console.WriteLine($"instance '{instance}' ready at {dbPath}");
+        Console.WriteLine(new InitTool().Execute(instance, dbPath));
         break;
     case "import":
-        Import(GetFlag("--from") ?? throw new ArgumentException("import needs --from <sqlite path>"));
+        Console.WriteLine(new ImportTool().Execute(db,
+            GetFlag("--from") ?? throw new ArgumentException("import needs --from <sqlite path>"), dbPath));
         break;
     case "query":
-        QueryCmd(string.Join(' ', Positionals().Skip(1)));
+        Console.WriteLine(new QueryTool(new UsageSignal()).ExecuteCli(db, string.Join(' ', Positionals().Skip(1))));
         break;
     case "index-chat":
         IndexChat(GetFlag("--from") ?? throw new ArgumentException("index-chat needs --from <session.jsonl | transcript dir>"));
@@ -82,7 +87,7 @@ switch (cmd)
     case "index-packages":
         // --from is what every other index-* command takes; accepting only --root here silently
         // indexed the current directory instead of the one that was asked for.
-        IndexPackages(GetFlag("--root") ?? GetFlag("--from") ?? Directory.GetCurrentDirectory());
+        Console.WriteLine(new IndexPackagesTool().Execute(db, GetFlag("--root") ?? GetFlag("--from") ?? Directory.GetCurrentDirectory()));
         break;
     case "index-docs":
         IndexDocs(GetFlag("--from") ?? throw new ArgumentException("index-docs needs --from <dir|file.md>"), GetFlag("--category") ?? "doc");
@@ -116,7 +121,7 @@ switch (cmd)
         ShedMemory(GetFlag("--key") ?? throw new ArgumentException("shed-memory needs --key <slug>"));
         break;
     case "shed-fact":
-        ShedFact(GetFlag("--key") ?? throw new ArgumentException("shed-fact needs --key <term>"));
+        Console.WriteLine(new ShedFactTool().Execute(db, GetFlag("--key") ?? throw new ArgumentException("shed-fact needs --key <term>")));
         break;
     case "recompact-docs":
         RecompactDocs();
@@ -128,10 +133,15 @@ switch (cmd)
         Eval();
         break;
     case "add":
-        AddCmd();
+    {
+        string term = GetFlag("--term") ?? throw new ArgumentException("add needs --term");
+        string prov = (GetFlag("--provenance") ?? "unverified").ToLowerInvariant();
+        Console.WriteLine(new AddTool().Execute(db, term, GetFlag("--aliases") ?? "[]", GetFlag("--category") ?? "manual",
+            GetFlag("--value") ?? "", GetFlag("--source") ?? "", GetFlag("--notes") ?? "", prov));
         break;
+    }
     case "history":
-        HistoryCmd(string.Join(' ', Positionals().Skip(1)));
+        Console.WriteLine(new HistoryTool().ExecuteCli(db, string.Join(' ', Positionals().Skip(1))));
         break;
     case "seed-edges":
         SeedEdges();
@@ -207,28 +217,28 @@ switch (cmd)
         GraphExplainCmd(Pos1());
         break;
     case "todo":
-        AddTodo();
+        Console.WriteLine(new TodoTool().Execute(db, GetFlag("--title") ?? Pos1(), GetFlag("--why") ?? ""));
         break;
     case "todos":
-        ListRows("SELECT id,title FROM todos WHERE status='open' ORDER BY id", "open todo(s)");
+        Console.WriteLine(new TodosTool().Execute(db));
         break;
     case "done":
-        CloseTodo(int.Parse(Pos1(), CultureInfo.InvariantCulture));
+        Console.WriteLine(new DoneTool().Execute(db, int.Parse(Pos1(), CultureInfo.InvariantCulture)));
         break;
     case "finding":
-        AddFinding();
+        Console.WriteLine(new FindingTool().ExecuteCli(db, GetFlag("--title") ?? Pos1(), GetFlag("--detail") ?? "", GetFlag("--source") ?? ""));
         break;
     case "findings":
-        ListRows("SELECT id,title FROM findings WHERE status='open' ORDER BY id", "open finding(s)");
+        Console.WriteLine(new FindingsTool().ExecuteCli(db));
         break;
     case "resolve":
-        ResolveFinding(int.Parse(Pos1(), CultureInfo.InvariantCulture));
+        Console.WriteLine(new ResolveTool().Execute(db, int.Parse(Pos1(), CultureInfo.InvariantCulture)));
         break;
     case "stats":
-        Stats();
+        Console.WriteLine(new StatsTool().Execute(db, instance, dbPath));
         break;
     case "backup":
-        Backup(GetFlag("--to"));
+        Console.WriteLine(new BackupTool().Execute(db, root, GetFlag("--to")));
         break;
     case "loop":
         // Removed in phase 2 (RESTRUCTURE.md section 2.1, drop 4 of 4): loop only ever wrote
@@ -589,16 +599,6 @@ void InitBrain()
 
 string Now() => DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture);
 string Pos1() => Positionals().Skip(1).FirstOrDefault() ?? "";
-void ListRows(string sql, string label)
-{
-    using SqliteCommand c = db.CreateCommand();
-    c.CommandText = sql;
-    using SqliteDataReader r = c.ExecuteReader();
-    int n = 0;
-    while (r.Read()) { Console.WriteLine($"  #{r.GetInt32(0)}  {r.GetString(1)}"); n++; }
-    Console.WriteLine($"({n} {label})");
-}
-
 string? ReadFactJson(string k)
 {
     using SqliteCommand c = db.CreateCommand();
@@ -636,17 +636,6 @@ void LogMutation(string kind, string key, string op, string? before, string? aft
         ("$ts", Now()), ("$op", op), ("$kind", kind), ("$k", key), ("$b", before), ("$af", after), ("$why", why));
 }
 
-void AddTodo()
-{
-    string title = GetFlag("--title") ?? Pos1();
-    string why = GetFlag("--why") ?? "";
-    Exec("BEGIN");
-    Run("INSERT INTO todos(ts,title,status,why) VALUES($t,$ti,'open',$w)", ("$t", Now()), ("$ti", title), ("$w", why));
-    LogMutation("todo", title, "insert", null, "open", why);
-    Exec("COMMIT");
-    Console.WriteLine("todo added.");
-}
-
 void CloseTodo(int id)
 {
     // Guard: only an OPEN todo can be closed — never report success or log a phantom mutation for a no-op.
@@ -657,28 +646,6 @@ void CloseTodo(int id)
     LogMutation("todo", title, "update", "open", "done", "");
     Exec("COMMIT");
     Console.WriteLine($"todo #{id} closed.");
-}
-
-void ResolveFinding(int id)
-{
-    string? title = ScalarStr("SELECT title FROM findings WHERE id=$i AND status='open'", ("$i", id));
-    if (title is null) { Console.WriteLine($"no open finding #{id}."); return; }
-    Exec("BEGIN");
-    Run("UPDATE findings SET status='resolved' WHERE id=$i", ("$i", id));
-    LogMutation("finding", title, "update", "open", "resolved", "");
-    Exec("COMMIT");
-    Console.WriteLine($"finding #{id} resolved.");
-}
-
-void AddFinding()
-{
-    string title = GetFlag("--title") ?? Pos1();
-    Exec("BEGIN");
-    Run("INSERT INTO findings(ts,title,detail,source,status) VALUES($t,$ti,$d,$s,'open')",
-        ("$t", Now()), ("$ti", title), ("$d", GetFlag("--detail") ?? ""), ("$s", GetFlag("--source") ?? ""));
-    LogMutation("finding", title, "insert", null, "open", GetFlag("--source") ?? "");
-    Exec("COMMIT");
-    Console.WriteLine("finding logged.");
 }
 
 string? ScalarStr(string sql, params (string name, object? val)[] ps)
@@ -705,35 +672,6 @@ string? ScalarText(string sql, params (string name, object? val)[] ps)
     foreach ((string name, object? val) in ps) c.Parameters.AddWithValue(name, val ?? DBNull.Value);
     object? result = c.ExecuteScalar();
     return result is null or DBNull ? null : (string)result;
-}
-
-void Import(string fromDb)
-{
-    using SqliteConnection src = new($"Data Source={fromDb};Mode=ReadOnly");
-    src.Open();
-    using SqliteCommand c = src.CreateCommand();
-    c.CommandText = "SELECT term,aliases,category,value,source,notes FROM facts";
-    using SqliteDataReader r = c.ExecuteReader();
-    int n = 0;
-    Exec("BEGIN");
-    while (r.Read())
-    {
-        string term = r.GetString(0);
-        UpsertFact(
-            k: term,
-            term: term,
-            aliases: r.IsDBNull(1) ? "[]" : r.GetString(1),
-            category: r.GetString(2),
-            value: r.GetString(3),
-            source: r.IsDBNull(4) ? "" : r.GetString(4),
-            notes: r.IsDBNull(5) ? "" : r.GetString(5),
-            why: "import:" + Path.GetFileName(fromDb));
-        n++;
-    }
-    Exec("COMMIT");
-    long facts = (long)(new SqliteCommand("SELECT count(*) FROM facts", db).ExecuteScalar() ?? 0L);
-    long muts = (long)(new SqliteCommand("SELECT count(*) FROM mutations", db).ExecuteScalar() ?? 0L);
-    Console.WriteLine($"imported {n} rows -> {facts} current facts, {muts} mutations logged. ({dbPath})");
 }
 
 // Split on every non-alphanumeric, not just space. Stripping the punctuation out of a whole word glued
@@ -779,51 +717,6 @@ string BuildMatch(string terms) => string.Join(" OR ", Tokens(terms).Select(t =>
     }
     sw.Stop();
     return (rows, sw.Elapsed.TotalMilliseconds);
-}
-
-void QueryCmd(string terms)
-{
-    (List<(string term, string category, string value, string source, double score)> rows, double ms) = Search(terms, 5);
-    if (rows.Count == 0)
-    {
-        LogGap("query", terms);
-        Console.WriteLine($"no confident answer for \"{terms}\" — not in the knowledge base (refusing rather than guessing; gap logged). ({ms:F2}ms)");
-        return;
-    }
-    foreach ((string term, string category, string value, string source, double score) in rows)
-        Console.WriteLine($"• {term}  [{category}]  (score {score:F2})\n  {value}\n  source: {source}");
-    Console.WriteLine($"({ms:F2}ms)");
-}
-
-// Commit one fact per package.json under root (node_modules/build pruned by EnumerateSource).
-// Idempotent: UpsertFact skips no-op rewrites, so re-running only logs real version/description changes.
-void IndexPackages(string root)
-{
-    if (!Directory.Exists(root)) { Console.WriteLine($"root not found: {root}"); return; }
-    int n = 0;
-    Exec("BEGIN");
-    foreach (string file in EnumerateSource(root, new[] { "package.json" }))
-    {
-        JsonDocument doc;
-        try { doc = JsonDocument.Parse(File.ReadAllText(file)); }
-        catch { continue; }
-        using (doc)
-        {
-            JsonElement r = doc.RootElement;
-            if (r.ValueKind != JsonValueKind.Object || !r.TryGetProperty("name", out JsonElement nameEl)) continue;
-            string? name = nameEl.GetString();
-            if (string.IsNullOrEmpty(name)) continue;
-            string version = r.TryGetProperty("version", out JsonElement v) ? v.GetString() ?? "" : "";
-            string desc = r.TryGetProperty("description", out JsonElement d) ? d.GetString() ?? "" : "";
-            string rel = Path.GetRelativePath(root, file).Replace('\\', '/');
-            string dir = Path.GetDirectoryName(rel)?.Replace('\\', '/') ?? ".";
-            string value = $"{name} v{version}" + (desc.Length > 0 ? $" — {desc}" : "") + $". Package at {dir}/.";
-            UpsertFact(name, name, "[]", "package", value, rel, "", "index-packages");
-            n++;
-        }
-    }
-    Exec("COMMIT");
-    Console.WriteLine($"indexed {n} package(s) from {root}.");
 }
 
 // Absorb AI-meta docs into the docs channel, chunked by markdown heading so recall returns the relevant
@@ -1978,18 +1871,6 @@ void FlushCmd()
     Console.WriteLine($"flushed {n} learning(s) into the brain.");
 }
 
-// Lossless safety net: checkpoint the WAL and copy the whole DB to a timestamped backup. The store is the
-// only copy of the absorbed PRDs (deleted from the repo), so this is the real recovery path.
-void Backup(string? to)
-{
-    using (SqliteCommand chk = db.CreateCommand()) { chk.CommandText = "PRAGMA wal_checkpoint(FULL)"; chk.ExecuteNonQuery(); }
-    string dir = Path.Combine(root, "backups");
-    Directory.CreateDirectory(dir);
-    string dest = to ?? Path.Combine(dir, $"aitm-{DateTime.UtcNow:yyyyMMdd-HHmmss}.db");
-    File.Copy(dbPath, dest, true);
-    Console.WriteLine($"backed up -> {dest}");
-}
-
 // Diffable, re-importable snapshot of the live graph in the learn-batch format (nodes, then triples, then
 // slots — the order learn-batch needs). '|' inside a value is sanitized so a round-trip never corrupts.
 void BrainExport(string to)
@@ -2414,39 +2295,6 @@ void Eval()
         Console.WriteLine($"{(ok ? "PASS" : "FAIL")}  {ms,5:F2}ms  \"{q}\"  {(answerable ? "expect '" + expect + "'" : "expect REFUSE")}  ->  {shown}");
     }
     Console.WriteLine($"\naccuracy {hits}/{questions.Length} ({100.0 * hits / questions.Length:F0}%)   avg {totalMs / questions.Length:F2}ms");
-}
-
-void AddCmd()
-{
-    string term = GetFlag("--term") ?? throw new ArgumentException("add needs --term");
-    string prov = (GetFlag("--provenance") ?? "unverified").ToLowerInvariant();
-    // stated  = the operator said it, and it outranks everything
-    // extracted = read straight out of source or a manifest, true until the code changes
-    // inferred = the agent's own conclusion, overturnable by evidence
-    if (prov is not ("stated" or "extracted" or "inferred" or "unverified"))
-        throw new ArgumentException("--provenance must be stated, extracted, inferred, or unverified");
-    Exec("BEGIN");
-    UpsertFact(term, term, GetFlag("--aliases") ?? "[]", GetFlag("--category") ?? "manual",
-        GetFlag("--value") ?? "", GetFlag("--source") ?? "", GetFlag("--notes") ?? "", GetFlag("--why") ?? "manual");
-    Run("UPDATE facts SET provenance=$p WHERE k=$k", ("$p", prov), ("$k", term));
-    Exec("COMMIT");
-    Console.WriteLine($"added/updated '{term}' [{prov}] (logged to mutations).");
-}
-
-// Time-travel: the cold append-only log for one entity. Normal reads NEVER touch this.
-void HistoryCmd(string term)
-{
-    using SqliteCommand c = db.CreateCommand();
-    c.CommandText = "SELECT ts,op,k FROM mutations WHERE k LIKE $t ORDER BY id";
-    c.Parameters.AddWithValue("$t", "%" + term + "%");
-    using SqliteDataReader r = c.ExecuteReader();
-    int n = 0;
-    while (r.Read())
-    {
-        Console.WriteLine($"  {r.GetString(0)}  {r.GetString(1),-6}  {r.GetString(2)}");
-        n++;
-    }
-    Console.WriteLine(n == 0 ? $"no history for '{term}'." : $"({n} mutation(s) in the cold log)");
 }
 
 // Seed the real cross-project consumption edges mapped from the monorepo (the AITM graph).
@@ -3024,20 +2872,6 @@ void PromoteAll(string symbol)
     Exec("COMMIT");
     foreach (int id in ids) PromoteCandidate(id);
     Console.WriteLine($"promoted {ids.Count} candidate(s) for '{symbol}' (replaced {old.Count} prior edge(s)).");
-}
-
-void Stats()
-{
-    Console.WriteLine($"instance '{instance}'  ({dbPath})");
-    Console.WriteLine($"  facts      {ScalarLong("SELECT count(*) FROM facts")}");
-    Console.WriteLine($"  edges      {ScalarLong("SELECT count(*) FROM edges")}  ({ScalarLong("SELECT count(DISTINCT symbol) FROM edges")} symbols)");
-    Console.WriteLine($"  chat       {ScalarLong("SELECT count(*) FROM chat")}");
-    Console.WriteLine($"  docs       {ScalarLong("SELECT count(*) FROM docs")} sections ({ScalarLong("SELECT count(DISTINCT path) FROM docs")} docs)");
-    Console.WriteLine($"  memory     {ScalarLong("SELECT count(*) FROM memory")}  ({ScalarLong("SELECT count(*) FROM memory WHERE hard=1")} hard)");
-    Console.WriteLine($"  mutations  {ScalarLong("SELECT count(*) FROM mutations")}");
-    Console.WriteLine($"  todos      {ScalarLong("SELECT count(*) FROM todos WHERE status='open'")} open");
-    Console.WriteLine($"  findings   {ScalarLong("SELECT count(*) FROM findings WHERE status='open'")} open / {ScalarLong("SELECT count(*) FROM findings")} total");
-    Console.WriteLine($"  projects   {ScalarLong("SELECT count(*) FROM projects")}");
 }
 
 // TDD harness: assertions over the foundation's invariants. It resets tables, so it refuses any
