@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using System.Text.Json;
 using Aitm.Server.Data;
 using Xunit;
@@ -9,6 +10,14 @@ namespace Aitm.Server.Tests;
 public class ProcessOwnerTests
 {
     private static string TempRoot() => Directory.CreateTempSubdirectory("aitm-owner-").FullName;
+
+    private static readonly bool IsWindows = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
+    private static (string Command, string[] Args) ExitImmediately() =>
+        IsWindows ? ("cmd.exe", ["/c", "exit 0"]) : ("/bin/sh", ["-c", "exit 0"]);
+    private static (string Command, string[] Args) SleepLong() =>
+        IsWindows
+            ? ("powershell.exe", ["-NoProfile", "-Command", "Start-Sleep -Seconds 30"])
+            : ("/bin/sh", ["-c", "sleep 30"]);
 
     [Fact]
     public void PilotExcludesSiblingWorkspaces()
@@ -34,7 +43,8 @@ public class ProcessOwnerTests
         string root = TempRoot();
         try
         {
-            OwnedProcess run = ProcessOwner.LaunchOwned("cmd.exe", ["/c", "exit 0"], root, root);
+            (string cmd, string[] args) = ExitImmediately();
+            OwnedProcess run = ProcessOwner.LaunchOwned(cmd, args, root, root);
             await run.Process.WaitForExitAsync();
             await Task.Delay(200); // let the Exited handler flush the record
 
@@ -58,7 +68,8 @@ public class ProcessOwnerTests
         OwnedProcess? run = null;
         try
         {
-            run = ProcessOwner.LaunchOwned("powershell.exe", ["-NoProfile", "-Command", "Start-Sleep -Seconds 30"], root, root);
+            (string cmd, string[] args) = SleepLong();
+            run = ProcessOwner.LaunchOwned(cmd, args, root, root);
             Assert.True(run.Cancel());
             await run.Process.WaitForExitAsync();
             await Task.Delay(200);
@@ -77,8 +88,9 @@ public class ProcessOwnerTests
     public async Task CancelingOneOwnerLeavesAnotherLiveChildAlone()
     {
         string root = TempRoot();
-        OwnedProcess first = ProcessOwner.LaunchOwned("powershell.exe", ["-NoProfile", "-Command", "Start-Sleep -Seconds 30"], root, root);
-        OwnedProcess second = ProcessOwner.LaunchOwned("powershell.exe", ["-NoProfile", "-Command", "Start-Sleep -Seconds 30"], root, root);
+        (string cmd, string[] args) = SleepLong();
+        OwnedProcess first = ProcessOwner.LaunchOwned(cmd, args, root, root);
+        OwnedProcess second = ProcessOwner.LaunchOwned(cmd, args, root, root);
         try
         {
             Assert.True(first.Cancel());

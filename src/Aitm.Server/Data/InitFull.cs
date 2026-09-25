@@ -66,7 +66,7 @@ public static class InitFull
     public static bool IsInside(string child, string parent)
     {
         if (string.Equals(child, parent, StringComparison.OrdinalIgnoreCase)) return false;
-        string normalizedParent = parent.TrimEnd('\\', '/').ToLowerInvariant() + "\\";
+        string normalizedParent = parent.TrimEnd('\\', '/').ToLowerInvariant() + Path.DirectorySeparatorChar;
         return child.ToLowerInvariant().StartsWith(normalizedParent, StringComparison.Ordinal);
     }
 
