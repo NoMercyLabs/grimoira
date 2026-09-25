@@ -7,4 +7,7 @@
     <PackageReference Include="xunit" />
     <PackageReference Include="xunit.runner.visualstudio" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Aitm.TestSupport\Aitm.TestSupport.csproj" />
+  </ItemGroup>
 </Project>
