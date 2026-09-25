@@ -9,5 +9,6 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/Aitm.Memory/Aitm.Memory.csproj" />
+    <ProjectReference Include="../Aitm.TestSupport/Aitm.TestSupport.csproj" />
   </ItemGroup>
 </Project>
