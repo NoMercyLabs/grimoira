@@ -96,23 +96,23 @@ public sealed class HttpSnapshotParityTests
 
             if (checkShape && toolName == "brain_flush")
             {
-                // Finding: brain_flush is not byte-stable on this machine for either oracle when the
-                // instance was just created and staged (this test's own two-call setup). mcp.dll's own
-                // brain_flush re-runs brain_learn per staged line inside one transaction right after
-                // this same process's `aitm init` finished a VACUUM-heavy schema apply on the very same
-                // file; a transient "database is locked"/busy reject there is reported as "flushed 0
-                // learning(s) ... rejected" rather than a hard error (RESTRUCTURE.md's own documented
-                // "kept for retry" behaviour), and mcp.dll's ledger-delete-then-immediate-reread over the
-                // very next stdio call (no network round trip in between, unlike the HTTP path) can also
-                // still see the just-deleted file. Both are pre-existing timing behaviour of the shared,
-                // unmodified brain_learn/staging pipeline (mcp.cs and BrainLearnTool alike) — not a
-                // difference the HTTP wiring in this slice introduces — so each side is checked against
-                // its own valid shape (a real flush, or a legitimate no-op) instead of pinning one call's
-                // text to the other's.
+                // Finding (brain-flush-timing investigation): the pre-slice-24 oracle (McpSnapshotHarness's
+                // pinned mcp.dll@bbb9b4d) is driven over stdio by McpProcess.Run, which sends every
+                // tools/call before any reply arrives — a client pipelining brain_flush right behind
+                // brain_stage, or a second brain_flush right behind the first. That old snapshot has no
+                // synchronization at all around pending-learn.jsonl, so two such calls can race its
+                // read-modify-write: one flush's read can land between another's delete and re-create (or
+                // between brain_stage's own append landing on disk), reporting "nothing staged." for a
+                // learning that either was already staged or is about to be — a real, pre-existing timing
+                // hole in that immutable snapshot, not something this test can fix. The new (HTTP) side
+                // fixed the equivalent hole in BrainStageTool/BrainFlushTool.ExecuteMcp with a per-ledger
+                // async gate (BrainStageTool.cs's LedgerGate) and is additionally called here with real,
+                // sequentially-awaited McpClient calls (no pipelining), so its shape is pinned exactly:
+                // the seeded learning is flushed on the first call, and the second is a clean no-op.
                 Assert.Matches(@"^(nothing staged\.|flushed [01] learning\(s\))", StripTimestamps(oldResults[0]));
-                Assert.Matches(@"^(nothing staged\.|flushed [01] learning\(s\))", StripTimestamps(normalText));
                 Assert.Matches(@"^(nothing staged\.|flushed [01] learning\(s\))", StripTimestamps(oldResults[1]));
-                Assert.Matches(@"^(nothing staged\.|flushed [01] learning\(s\))", StripTimestamps(errorText));
+                Assert.Equal("flushed 1 learning(s) into the brain.", StripTimestamps(normalText));
+                Assert.Equal("nothing staged.", StripTimestamps(errorText));
             }
             else if (checkShape)
             {

@@ -58,40 +58,51 @@ public sealed class BrainFlushTool : ITool
     public string ExecuteMcp(SqliteConnection connection)
     {
         string ledger = BrainStageTool.LedgerPath(connection);
-        if (!File.Exists(ledger)) return "nothing staged.";
-        string[] lines = File.ReadAllLines(ledger).Where(l => l.Trim().Length > 0).ToArray();
-        if (lines.Length == 0) { File.Delete(ledger); return "nothing staged."; }
-        int n = 0;
-        StringBuilder rejects = new();
-        // Lines that failed on a TRANSIENT lock are kept in the ledger so the next flush retries them —
-        // a locked DB under concurrent MCP writers must never silently drop a staged learning (fix
-        // 668134a: two learnings lost when the whole ledger was deleted on a "database is locked" reject).
-        List<string> keepForRetry = new();
-        foreach (string line in lines)
+        // See LedgerGate's own comment: a pipelined brain_stage/brain_flush (or a second concurrent
+        // brain_flush) targeting this same ledger must not interleave with this read-modify-write.
+        SemaphoreSlim gate = LedgerGate.For(ledger);
+        gate.Wait();
+        try
         {
-            using JsonDocument d = JsonDocument.Parse(line);
-            JsonElement e = d.RootElement;
-            string res = JStr(e, "k") switch
+            if (!File.Exists(ledger)) return "nothing staged.";
+            string[] lines = File.ReadAllLines(ledger).Where(l => l.Trim().Length > 0).ToArray();
+            if (lines.Length == 0) { File.Delete(ledger); return "nothing staged."; }
+            int n = 0;
+            StringBuilder rejects = new();
+            // Lines that failed on a TRANSIENT lock are kept in the ledger so the next flush retries them —
+            // a locked DB under concurrent MCP writers must never silently drop a staged learning (fix
+            // 668134a: two learnings lost when the whole ledger was deleted on a "database is locked" reject).
+            List<string> keepForRetry = new();
+            foreach (string line in lines)
             {
-                "node" => _learn.ExecuteMcp(connection, "node", JStr(e, "key"), JStr(e, "kind"), JStr(e, "label"), JStr(e, "gloss"), "", JBool(e, "hard")),
-                "triple" => _learn.ExecuteMcp(connection, "triple", JStr(e, "s"), JStr(e, "p"), JStr(e, "o"), "", JStr(e, "because"), JBool(e, "hard")),
-                "slot" => _learn.ExecuteMcp(connection, "slot", JStr(e, "frame"), JStr(e, "name"), JStr(e, "value"), "", JStr(e, "because"), false),
-                _ => "skip (unknown kind).",
-            };
-            bool rejected = res.StartsWith("rejected", StringComparison.Ordinal) || res.StartsWith("unknown", StringComparison.Ordinal) || res.StartsWith("skip", StringComparison.Ordinal);
-            if (rejected)
-            {
-                rejects.AppendLine($"  ! {line} -> {res}");
-                if (res.Contains("locked", StringComparison.OrdinalIgnoreCase) || res.Contains("busy", StringComparison.OrdinalIgnoreCase))
-                    keepForRetry.Add(line);
+                using JsonDocument d = JsonDocument.Parse(line);
+                JsonElement e = d.RootElement;
+                string res = JStr(e, "k") switch
+                {
+                    "node" => _learn.ExecuteMcp(connection, "node", JStr(e, "key"), JStr(e, "kind"), JStr(e, "label"), JStr(e, "gloss"), "", JBool(e, "hard")),
+                    "triple" => _learn.ExecuteMcp(connection, "triple", JStr(e, "s"), JStr(e, "p"), JStr(e, "o"), "", JStr(e, "because"), JBool(e, "hard")),
+                    "slot" => _learn.ExecuteMcp(connection, "slot", JStr(e, "frame"), JStr(e, "name"), JStr(e, "value"), "", JStr(e, "because"), false),
+                    _ => "skip (unknown kind).",
+                };
+                bool rejected = res.StartsWith("rejected", StringComparison.Ordinal) || res.StartsWith("unknown", StringComparison.Ordinal) || res.StartsWith("skip", StringComparison.Ordinal);
+                if (rejected)
+                {
+                    rejects.AppendLine($"  ! {line} -> {res}");
+                    if (res.Contains("locked", StringComparison.OrdinalIgnoreCase) || res.Contains("busy", StringComparison.OrdinalIgnoreCase))
+                        keepForRetry.Add(line);
+                }
+                else
+                    n++;
             }
-            else
-                n++;
+            if (keepForRetry.Count > 0) File.WriteAllLines(ledger, keepForRetry);
+            else File.Delete(ledger);
+            string retryNote = keepForRetry.Count > 0 ? $" {keepForRetry.Count} kept for retry (DB was locked — flush again)." : "";
+            return $"flushed {n} learning(s) into the brain.{retryNote}" + (rejects.Length > 0 ? "\n" + rejects : "");
         }
-        if (keepForRetry.Count > 0) File.WriteAllLines(ledger, keepForRetry);
-        else File.Delete(ledger);
-        string retryNote = keepForRetry.Count > 0 ? $" {keepForRetry.Count} kept for retry (DB was locked — flush again)." : "";
-        return $"flushed {n} learning(s) into the brain.{retryNote}" + (rejects.Length > 0 ? "\n" + rejects : "");
+        finally
+        {
+            gate.Release();
+        }
     }
 
     private static string JStr(JsonElement e, string name) =>

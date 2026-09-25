@@ -1,8 +1,31 @@
+using System.Collections.Concurrent;
 using Aitm.Brain.Data;
 using Aitm.Store.Tools;
 using Microsoft.Data.Sqlite;
 
 namespace Aitm.Brain.Tools;
+
+/// <summary>
+/// Per-ledger-path async gate. Over MCP stdio, a client is free to pipeline requests — send
+/// <c>brain_stage</c> then <c>brain_flush</c> (then a second <c>brain_flush</c>) without waiting for
+/// each reply — and the MCP host dispatches each <c>tools/call</c> concurrently rather than one at a
+/// time. Two concurrent calls hitting the SAME <c>pending-learn.jsonl</c> would otherwise race its
+/// read-modify-write (<see cref="BrainStageTool.ExecuteMcp"/>'s append, <see cref="BrainFlushTool.ExecuteMcp"/>'s
+/// read-then-delete-or-rewrite): observed as a flush reading the file mid-write ("nothing staged." when a
+/// learning was in fact staged), two flushes applying the same staged line twice (a
+/// <c>UNIQUE constraint failed</c> reject), or a flush's read racing another flush's delete (an unhandled
+/// <see cref="IOException"/>, surfaced to the MCP client as "An error occurred invoking 'brain_flush'").
+/// Keyed by the ledger's full path so unrelated instances never block each other; the HTTP path needs no
+/// equivalent because <see cref="Aitm.Server.Data.LockingAIFunction"/> already serializes every tool call
+/// per project instance before it reaches here.
+/// </summary>
+internal static class LedgerGate
+{
+    private static readonly ConcurrentDictionary<string, SemaphoreSlim> Gates = new(StringComparer.OrdinalIgnoreCase);
+
+    public static SemaphoreSlim For(string ledgerPath) =>
+        Gates.GetOrAdd(Path.GetFullPath(ledgerPath), static _ => new SemaphoreSlim(1, 1));
+}
 
 /// <summary>
 /// BRAIN/write-side brake, "stage" half: append a durable learning to the per-instance
@@ -103,8 +126,17 @@ public sealed class BrainStageTool : ITool
         if (line.Length == 0) return WrongRowKind(kind);
         // A brand-new instance has no directory yet, and AppendAllText does not make one.
         string ledger = LedgerPath(connection);
-        Directory.CreateDirectory(Path.GetDirectoryName(ledger)!);
-        File.AppendAllText(ledger, line + "\n");
+        SemaphoreSlim gate = LedgerGate.For(ledger);
+        gate.Wait();
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(ledger)!);
+            File.AppendAllText(ledger, line + "\n");
+        }
+        finally
+        {
+            gate.Release();
+        }
         return coerced
             ? $"staged node {key} as kind \"{a}\" (owe brain_flush). Note: the first argument is the ROW type — node / triple / slot — and \"{a}\" is the node's own kind, so it was moved for you."
             : $"staged {kind} {key} (owe brain_flush).";
