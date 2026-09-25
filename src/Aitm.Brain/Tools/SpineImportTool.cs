@@ -20,8 +20,12 @@ public sealed class SpineImportTool : ITool
     public string? McpName => null;
     public string Help => "spine-import --from <spine.json>   replay a spine export into this store.";
 
-    public string ExecuteCli(SqliteConnection connection, string fromPath)
+    /// <param name="stderr">Where the "missing node" skip messages go. Defaults to
+    /// <see cref="Console.Error"/> (RESTRUCTURE.md slice 29a) so its callers (aitm.cs, BrainSeedTool)
+    /// see today's output unchanged.</param>
+    public string ExecuteCli(SqliteConnection connection, string fromPath, TextWriter? stderr = null)
     {
+        TextWriter target = stderr ?? Console.Error;
         if (!File.Exists(fromPath)) return $"no spine file at {fromPath}";
         using JsonDocument doc = JsonDocument.Parse(File.ReadAllText(fromPath));
         JsonElement root = doc.RootElement;
@@ -50,8 +54,8 @@ public sealed class SpineImportTool : ITool
             foreach (JsonElement e in links.EnumerateArray())
             {
                 string sj = Str(e, "s"), o = Str(e, "o");
-                if (!NodeExists(sj) || !NodeExists(o)) { Console.Error.WriteLine($"spine: skip {sj} -> {o} (missing node)"); continue; }
-                BrainWriters.AddTriple(connection, sj, Str(e, "p"), o, Str(e, "because"), "seed", false, "seed");
+                if (!NodeExists(sj) || !NodeExists(o)) { target.WriteLine($"spine: skip {sj} -> {o} (missing node)"); continue; }
+                BrainWriters.AddTriple(connection, sj, Str(e, "p"), o, Str(e, "because"), "seed", false, "seed", target);
                 l++;
             }
 

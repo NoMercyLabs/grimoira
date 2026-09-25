@@ -22,6 +22,13 @@ public class Slice29aConsoleWriterGuardTests
         ["Aitm.Server/Data/Program.cs"] = "single-instance-lock startup failure, before Kestrel builds and " +
             "before any request can be handled; tied to the Environment.Exit(1) two lines below, which " +
             "slice 29b (not this one) replaces.",
+        ["Aitm.Brain/Data/BrainWriters.cs"] = "AddTriple's stderr parameter defaults to Console.Error so " +
+            "callers not yet threaded to a writer (brain learn/flush/distill) keep printing exactly as " +
+            "before; BrainLearnBatchTool and SpineImportTool now pass their own writer explicitly.",
+        ["Aitm.Brain/Tools/BrainLearnBatchTool.cs"] = "ExecuteCli's new stderr parameter defaults to " +
+            "Console.Error so its one direct caller (aitm.cs) keeps today's behaviour unchanged.",
+        ["Aitm.Brain/Tools/SpineImportTool.cs"] = "ExecuteCli's new stderr parameter defaults to " +
+            "Console.Error so its callers (aitm.cs, BrainSeedTool) keep today's behaviour unchanged.",
         // The following files never call Console at runtime — each match below is inside an XML doc
         // comment or a // comment explaining how the *old* aitm.cs printed a row, kept for the reader
         // tracing behaviour back to its oracle. Slice 29 part 1's grep does not distinguish code from

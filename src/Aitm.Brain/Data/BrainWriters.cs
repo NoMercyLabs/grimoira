@@ -44,11 +44,16 @@ public static class BrainWriters
 
     /// <summary>Insert a triple idempotently. Reasserting a known relation strengthens its confidence
     /// instead of duplicating it. <c>o_is_literal</c> is derived from <c>pred_vocab.is_link</c>.</summary>
-    public static TripleWrite AddTriple(SqliteConnection connection, string s, string p, string o, string because, string src, bool hard, string why)
+    /// <param name="stderr">Where the unknown-predicate/contradiction warnings go. Defaults to
+    /// <see cref="Console.Error"/> (RESTRUCTURE.md slice 29a) so callers that have not yet been threaded
+    /// to a request-scoped writer — brain learn, flush and distill today — keep today's console output;
+    /// a caller that owns one (brain learn-batch, spine-import) passes it explicitly.</param>
+    public static TripleWrite AddTriple(SqliteConnection connection, string s, string p, string o, string because, string src, bool hard, string why, TextWriter? stderr = null)
     {
+        TextWriter target = stderr ?? Console.Error;
         if (ScalarLong(connection, "SELECT count(*) FROM pred_vocab WHERE p=$p", ("$p", p)) == 0)
         {
-            Console.Error.WriteLine($"unknown predicate '{p}' — add it to pred_vocab first.");
+            target.WriteLine($"unknown predicate '{p}' — add it to pred_vocab first.");
             return TripleWrite.UnknownPredicate;
         }
 
@@ -62,7 +67,7 @@ public static class BrainWriters
                 SELECT count(*) FROM triple_now t JOIN pred_vocab v ON v.p=t.p
                 WHERE t.s=$s AND t.o=$o AND (v.conflicts=$p OR t.p=(SELECT conflicts FROM pred_vocab WHERE p=$p))
                 """, ("$s", s), ("$o", o), ("$p", p)) > 0)
-            Console.Error.WriteLine($"warning: '{s} {p} {o}' contradicts an existing edge on the same pair — review.");
+            target.WriteLine($"warning: '{s} {p} {o}' contradicts an existing edge on the same pair — review.");
 
         long isLink = ScalarLong(connection, "SELECT is_link FROM pred_vocab WHERE p=$p", ("$p", p));
         Exec(connection, "INSERT INTO triple(s,p,o,o_is_literal,because,src,hard) VALUES($s,$p,$o,$lit,$b,$src,$h)",

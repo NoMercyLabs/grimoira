@@ -20,10 +20,13 @@ public sealed class BrainLearnBatchTool : ITool
         "brain learn-batch --from <file>        load a pipe-delimited file of nodes/triples/slots in one " +
         "transaction: node|k|kind|label|gloss|hard|scheme, triple|s|p|o|because, slot|frame|name|value|facet|multi.";
 
-    public string ExecuteCli(SqliteConnection connection, string file)
+    /// <param name="stderr">Where skipped-line messages go. Defaults to <see cref="Console.Error"/>
+    /// (RESTRUCTURE.md slice 29a) so its one caller, aitm.cs, sees today's output unchanged.</param>
+    public string ExecuteCli(SqliteConnection connection, string file, TextWriter? stderr = null)
     {
         if (!File.Exists(file)) return $"file not found: {file}";
 
+        TextWriter target = stderr ?? Console.Error;
         int nodes = 0, triples = 0, slots = 0, bad = 0;
         BeginTransaction(connection);
         foreach (string raw in File.ReadAllLines(file))
@@ -40,7 +43,7 @@ public sealed class BrainLearnBatchTool : ITool
                         nodes++;
                         break;
                     case "triple" when f.Length >= 4:
-                        BrainWriters.AddTriple(connection, f[1], f[2], f[3], f.Length > 4 ? f[4] : "", "learn-batch", false, "learn-batch");
+                        BrainWriters.AddTriple(connection, f[1], f[2], f[3], f.Length > 4 ? f[4] : "", "learn-batch", false, "learn-batch", target);
                         triples++;
                         break;
                     case "slot" when f.Length >= 4:
@@ -48,14 +51,14 @@ public sealed class BrainLearnBatchTool : ITool
                         slots++;
                         break;
                     default:
-                        Console.Error.WriteLine($"skip (malformed): {line}");
+                        target.WriteLine($"skip (malformed): {line}");
                         bad++;
                         break;
                 }
             }
             catch (SqliteException e)
             {
-                Console.Error.WriteLine($"skip ({e.Message}): {line}");
+                target.WriteLine($"skip ({e.Message}): {line}");
                 bad++;
             }
         }
