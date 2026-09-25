@@ -39,7 +39,7 @@ public class ForgetProjectToolTests
             string actual;
             using (SqliteConnection connection = StoreConnection.Open(dbPath))
             {
-                actual = new ForgetProjectTool().Execute(connection, "web").Trim();
+                actual = new ForgetProjectTool().Execute(connection, AitmCliRunner.InstanceDir(newInstance), "web").Trim();
             }
 
             Assert.Equal(expected, actual);
@@ -93,10 +93,64 @@ public class ForgetProjectToolTests
 
             string dbPath = AitmCliRunner.InstanceDbPath(instance);
             using SqliteConnection connection = StoreConnection.Open(dbPath);
-            string actual = new ForgetProjectTool().Execute(connection, "ghost").Trim();
+            string actual = new ForgetProjectTool().Execute(connection, AitmCliRunner.InstanceDir(instance), "ghost").Trim();
 
             Assert.Equal(expected, actual);
             Assert.Equal("project 'ghost' forgotten (0 edge(s) dropped).", actual);
+        }
+        finally
+        {
+            AitmCliRunner.DeleteInstance(instance);
+        }
+    }
+
+    [Fact]
+    public void MakesABackupBeforeDeletingAndTheBackupHoldsTheProjectsRows()
+    {
+        // Design checklist (RESTRUCTURE.md section 5): "The CLI admin verbs that delete or bulk-change
+        // ... make an automatic backup first." forget-project is the first delete verb that moved, so
+        // slice 11b gives it the rule.
+        string instance = AitmCliRunner.NewTestInstance("forget-project-backup");
+        string root = AitmCliRunner.InstanceDir(instance);
+        try
+        {
+            AitmCliRunner.Run($"init --instance {instance}");
+            string dbPath = AitmCliRunner.InstanceDbPath(instance);
+            using (SqliteConnection setup = StoreConnection.Open(dbPath))
+            {
+                new ProjectTool().Execute(setup, "web", "/repo/web", "", "*.ts");
+            }
+            SeedEdges(dbPath, "web", 2);
+
+            string backupsDir = Path.Combine(root, "backups");
+            Assert.False(Directory.Exists(backupsDir) && Directory.EnumerateFiles(backupsDir).Any());
+
+            using (SqliteConnection connection = StoreConnection.Open(dbPath))
+            {
+                new ForgetProjectTool().Execute(connection, root, "web");
+            }
+
+            Assert.True(Directory.Exists(backupsDir));
+            string backupPath = Directory.EnumerateFiles(backupsDir).Single();
+
+            // The backup holds "web"'s rows ...
+            using (SqliteConnection backup = new($"Data Source={backupPath};Mode=ReadOnly"))
+            {
+                backup.Open();
+                using SqliteCommand p = backup.CreateCommand();
+                p.CommandText = "SELECT count(*) FROM projects WHERE name='web'";
+                Assert.Equal(1L, (long)(p.ExecuteScalar() ?? 0L));
+                using SqliteCommand e = backup.CreateCommand();
+                e.CommandText = "SELECT count(*) FROM edges WHERE project='web'";
+                Assert.Equal(2L, (long)(e.ExecuteScalar() ?? 0L));
+            }
+
+            // ... while the live store no longer does.
+            using SqliteConnection check = new($"Data Source={dbPath};Mode=ReadOnly");
+            check.Open();
+            using SqliteCommand liveP = check.CreateCommand();
+            liveP.CommandText = "SELECT count(*) FROM projects WHERE name='web'";
+            Assert.Equal(0L, (long)(liveP.ExecuteScalar() ?? 0L));
         }
         finally
         {
