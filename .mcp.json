@@ -1,11 +1,12 @@
 {
   "mcpServers": {
     "aitm": {
-      "command": "node",
-      "args": ["${CLAUDE_PLUGIN_ROOT}/launch-mcp.mjs"],
-      "env": {
-        "AITM_HOME": "${CLAUDE_PLUGIN_ROOT}"
-      }
+      "type": "http",
+      "url": "http://127.0.0.1:7635/mcp",
+      "headers": {
+        "Claude-Project-Dir": "${CLAUDE_PROJECT_DIR}"
+      },
+      "headersHelper": "${CLAUDE_PLUGIN_ROOT}/bin-cli/aitm.exe server headers"
     }
   }
 }
