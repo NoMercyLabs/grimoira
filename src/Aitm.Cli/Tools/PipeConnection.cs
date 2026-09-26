@@ -6,7 +6,7 @@ namespace Aitm.Cli.Tools;
 /// <summary>
 /// RESTRUCTURE.md Slice P1: the one shared connection helper every client site (ThinClient, HookForwarder,
 /// ServerAutoStart, ServerHandover) uses to reach Aitm.Server over its local pipe / Unix domain socket
-/// instead of <c>127.0.0.1:7635</c>. <see cref="CreateClient"/> hands back a plain <see cref="HttpClient"/>
+/// instead of <c>127.0.0.1:7635</c>. <see cref="CreateClient(string, TimeSpan)"/> hands back a plain <see cref="HttpClient"/>
 /// with a <see cref="SocketsHttpHandler.ConnectCallback"/> that opens the transport for the data
 /// directory's derived address (<see cref="ServerAddress"/>); every route stays exactly as it is (relative
 /// paths against <see cref="BaseAddress"/>), only the transport underneath changes.
