@@ -69,4 +69,20 @@ public class SecretScrubberTests
         Assert.Equal(plain, text);
         Assert.Empty(counts);
     }
+
+    // A hostile chat line: many PEM headers and no footer make the private-key pattern rescan the rest of
+    // the text from every header (quadratic), which outruns the shared match timeout.
+    private static string ManyPemHeadersWithoutAFooter() => string.Concat(Enumerable.Repeat("-----BEGIN PRIVATE KEY-----", 100_000));
+
+    [Fact]
+    public void ATimedOutScrubPatternRedactsTheWholeTextInsteadOfLeakingIt()
+    {
+        string hostile = ManyPemHeadersWithoutAFooter() + " Bearer abcDEF123456.ghIJKL7890-secretvalue";
+
+        (string text, IReadOnlyDictionary<string, int> counts) = SecretScrubber.Redact(hostile);
+
+        // Fail closed: never the unscrubbed text, never an exception; the whole text becomes one marker.
+        Assert.Equal("[redacted: scrub timed out]", text);
+        Assert.Equal(1, counts["scrub-timeout"]);
+    }
 }
