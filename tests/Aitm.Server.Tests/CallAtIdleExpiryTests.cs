@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using Aitm.Server.Data;
 using Xunit;
 
 namespace Aitm.Server.Tests;
