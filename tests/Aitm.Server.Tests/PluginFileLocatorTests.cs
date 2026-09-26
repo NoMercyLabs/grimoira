@@ -54,6 +54,59 @@ public class PluginFileLocatorTests : IDisposable
             PluginFileLocator.FindEngine("idp-impersonate.mjs", home: null, pluginRoot: null, serverDir));
     }
 
+    // A server started by the logon task or a thin client has no AITM_PLUGIN_ROOT. SessionStart records the
+    // plugin root in <data>/plugin-root.txt, two folders above the server's own (builds/<id>/bin-server, or
+    // current/bin-server through the junction).
+    [Theory]
+    [InlineData("builds", "380d3d1ab3e7")]
+    [InlineData("current", null)]
+    public void AServerWithoutThePluginRootVariableFindsTheEngineThroughTheDataFolderFile(string first, string? second)
+    {
+        string pluginRoot = Folder("plugin");
+        File.WriteAllText(Path.Combine(pluginRoot, "idp-impersonate.mjs"), "");
+        string data = Folder("data");
+        File.WriteAllText(Path.Combine(data, "plugin-root.txt"), pluginRoot);
+        string serverDir = second is null ? Folder("data", first, "bin-server") : Folder("data", first, second, "bin-server");
+
+        Assert.Equal(Path.Combine(pluginRoot, "idp-impersonate.mjs"),
+            PluginFileLocator.FindEngine("idp-impersonate.mjs", home: null, pluginRoot: null, serverDir));
+    }
+
+    [Fact]
+    public void AStaleDataFolderFileFallsThroughToTheWalkUp()
+    {
+        string data = Folder("data");
+        File.WriteAllText(Path.Combine(data, "plugin-root.txt"), Path.Combine(_dir, "removed-plugin-version"));
+        File.WriteAllText(Path.Combine(data, "idp-impersonate.mjs"), "");
+        string serverDir = Folder("data", "builds", "380d3d1ab3e7", "bin-server");
+
+        Assert.Equal(Path.Combine(data, "idp-impersonate.mjs"),
+            PluginFileLocator.FindEngine("idp-impersonate.mjs", home: null, pluginRoot: null, serverDir));
+    }
+
+    [Fact]
+    public void APluginRootVariableThatNoLongerExistsFallsThroughToTheDataFolderFile()
+    {
+        string pluginRoot = Folder("plugin");
+        string data = Folder("data");
+        File.WriteAllText(Path.Combine(data, "plugin-root.txt"), pluginRoot);
+        string serverDir = Folder("data", "builds", "380d3d1ab3e7", "bin-server");
+
+        Assert.Equal(Path.Combine(pluginRoot, "seeds", "spine.json"),
+            PluginFileLocator.SeedPath(Path.Combine(_dir, "removed-plugin-version"), serverDir));
+    }
+
+    [Fact]
+    public void TheSeedFileIsFoundThroughTheDataFolderFileWithoutTheVariable()
+    {
+        string pluginRoot = Folder("plugin");
+        string data = Folder("data");
+        File.WriteAllText(Path.Combine(data, "plugin-root.txt"), pluginRoot);
+
+        Assert.Equal(Path.Combine(pluginRoot, "seeds", "spine.json"),
+            PluginFileLocator.SeedPath(pluginRoot: null, Folder("data", "current", "bin-server")));
+    }
+
     [Fact]
     public void TheSeedFileIsInThePluginRootWhenOneIsGiven()
     {

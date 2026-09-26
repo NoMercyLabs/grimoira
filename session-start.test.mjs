@@ -126,6 +126,31 @@ test('the hook gets the plugin root, so a server it starts can find the plugin f
   } finally { f.clean(); }
 });
 
+// A server started without the hook (the logon task, a thin client of another slot) has no AITM_PLUGIN_ROOT,
+// so every SessionStart also records the plugin root in the data folder, where the server finds it.
+test('every SessionStart records the plugin root in the data folder, building or not', () => {
+  const f = fixture();
+  try {
+    const rootFile = join(f.dataDir, 'plugin-root.txt');
+    run(f);
+    assert.equal(readFileSync(rootFile, 'utf8'), f.root);
+    build(f);
+    writeFileSync(rootFile, 'an old plugin version folder');
+    run(f);
+    assert.equal(readFileSync(rootFile, 'utf8'), f.root);
+    assert.deepEqual(readdirSync(f.dataDir).filter(name => name.startsWith('plugin-root') && name !== 'plugin-root.txt'), [],
+      'the temp file of the atomic write is left behind');
+  } finally { f.clean(); }
+});
+
+test('a checkout run writes no plugin-root file', () => {
+  const f = fixture();
+  try {
+    run({ ...f, dataDir: f.root }, { deps: { pluginData: false } });
+    assert.ok(!existsSync(join(f.root, 'plugin-root.txt')));
+  } finally { f.clean(); }
+});
+
 test('a changed source makes the build stale, so SessionStart starts a rebuild', () => {
   const f = fixture();
   try {
