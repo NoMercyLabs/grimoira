@@ -16,7 +16,7 @@ namespace Aitm.Layout.Tests;
 // OldVsNewCli.OracleCommit (before slice 24 moved any verb into a tool class). Every flag the oracle
 // read for a verb must still be read for that verb today — a verb losing a flag fails this test, even
 // if no other test happens to exercise that flag's value.
-public class Slice24FlagAuditGuardTests
+public class CliFlagCoverageGuardTests
 {
     private static readonly Regex FlagRegex = new(
         @"(?:GetFlag|HasFlag)\(\s*""(--[\w-]+)""\s*\)|\ba\.Contains\(\s*""(--[\w-]+)""\s*\)",

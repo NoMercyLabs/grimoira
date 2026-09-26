@@ -20,7 +20,7 @@ namespace Aitm.Layout.Tests;
 // Every fixture used here (memory/docs/chat) lives under the OS temp dir, created and torn down by the
 // test — never a real repo or ~/.claude — and any chat/redact-chat fixture text is an obviously fake
 // token shape, never real data.
-public class Slice24Part2OldVsNewCliTests
+public class MemoryDocsCliParityTests
 {
     private static string StripVolatile(string s) =>
         Regex.Replace(Regex.Replace(s, @"\(\d+[.,]\d+ms\)", "(<ms>)"),
@@ -204,7 +204,7 @@ public class Slice24Part2OldVsNewCliTests
     }
 
     // add-synthesis and shed-synthesis need a source dir + a body file to distill (mirrors
-    // Slice24Part1OldVsNewCliTests' backup/import fixtures: each binary needs its own instance, but the
+    // StoreFactsCliParityTests' backup/import fixtures: each binary needs its own instance, but the
     // filesystem fixture is read-only, so both binaries can safely share it).
     [Fact]
     public void AddSynthesisAndShedSynthesisMatchOldBehaviourOnARealFixture()
@@ -257,7 +257,7 @@ public class Slice24Part2OldVsNewCliTests
 // see the class comment above), so these run only the new dll and prove the wiring: --dry-run is parsed,
 // the instance root threads through to the VACUUM INTO backup, and a fake token-shaped row gets scrubbed.
 // Never real chat data, per the same rule index-chat's fixture follows.
-public class Slice24Part2RedactChatCliTests
+public class RedactChatCliTests
 {
     [Fact]
     public void BareRunOnAnEmptyStoreBacksUpAndReportsZeroRows()

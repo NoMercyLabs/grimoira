@@ -10,7 +10,7 @@ namespace Aitm.Layout.Tests;
 // (section 5, caller 5) runs bin-cli/aitm.exe today and must keep working. These tests pin that the
 // build publishes there, and that the published exe answers exactly as `dotnet bin-cli/aitm.dll` does
 // (stdout, stderr and exit code) for a no-arg run, `help`, an unknown verb and one read verb.
-public class Slice29PublishedCliTests
+public class PublishedCliMatchesBinCliTests
 {
     private static readonly string ExeName = OperatingSystem.IsWindows() ? "aitm.exe" : "aitm";
 

@@ -10,7 +10,7 @@ namespace Aitm.Layout.Tests;
 // commit slice 24 started at) and against today's bin-cli/aitm.dll, and diffing stdout, stderr and exit
 // code. Every wired sub-verb gets at least a bare/error run; the read verbs that need real graph data
 // (scope, common, place, why, verify, audit) get a shared fixture seeded through `brain learn` — the old
-// binary's own verb, run identically on both instances, exactly as Slice24Part2OldVsNewCliTests seeds
+// binary's own verb, run identically on both instances, exactly as MemoryDocsCliParityTests seeds
 // through index-memory/index-chat/index-docs rather than writing to either store directly.
 //
 // None of these 10 verbs take a free-text FTS query the way mem/recall/doc do (part 2's hyphen/slash/
@@ -19,7 +19,7 @@ namespace Aitm.Layout.Tests;
 // ("fixture-service-a") already carries a hyphen, which is the only punctuation this verb's key shape
 // can carry; slash/dot/underscore have no meaning in a node key here (a `:` schema separator is what the
 // key format actually uses), so this file does not force artificial coverage of the other three.
-public class Slice24Part4aOldVsNewCliTests
+public class BrainReadCliParityTests
 {
     private static string StripVolatile(string s) =>
         Regex.Replace(Regex.Replace(s, @"\(\d+[.,]\d+ms\)", "(<ms>)"),

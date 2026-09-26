@@ -75,7 +75,7 @@ public class StatsToolTests
     // tok.cs is deleted in the same slice that adds `stats --tokens` (RESTRUCTURE.md: "tok.cs: moves
     // into Store as `stats --tokens`"), so the oracle can't run the live file the way other pinned tests
     // do — it reads the last commit that still had it, the same git-show pattern
-    // Slice24FlagAuditGuardTests.ReadOracleSource already uses, but written to a temp file so `dotnet
+    // CliFlagCoverageGuardTests.ReadOracleSource already uses, but written to a temp file so `dotnet
     // run` can execute it (not just read its text).
     private const string TokCsOracleCommit = "07a021d722108d838d364ac854fa28ae6b8a116a";
 

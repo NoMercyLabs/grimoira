@@ -9,7 +9,7 @@ namespace Aitm.Layout.Tests;
 // case used to carry. `shed-node` lives as a top-level `case "shed-node":` (not under `brain`); the other
 // eight are `brain <sub>` cases inside the nested BrainCmd switch.
 // This is red before the wiring lands (no case yet calls a tool class) and green after.
-public class Slice24Part4bWiringTests
+public class BrainWriteVerbDispatchTests
 {
     // verb -> the tool type its aitm.cs case has to call.
     public static readonly (string Verb, string ToolType)[] WiredVerbs =

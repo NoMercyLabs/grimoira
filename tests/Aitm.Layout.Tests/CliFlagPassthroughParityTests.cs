@@ -11,9 +11,9 @@ namespace Aitm.Layout.Tests;
 // OldVsNewCli.OracleCommit) reads GetFlag("--facet") ?? "text" and threads it into AddSlot. Today's
 // dispatch (aitm.cs's BrainCmd "learn" case) hardcodes the literal "text" instead of GetFlag("--facet"),
 // so a non-default --facet value is silently dropped. `--facet text` (the default) never exercises this,
-// which is why the earlier parity test for this verb (Slice24Part4bOldVsNewCliTests) missed it — this
+// which is why the earlier parity test for this verb (BrainWriteCliParityTests) missed it — this
 // fixture deliberately uses a non-default facet.
-public class Slice24FlagParityTests
+public class CliFlagPassthroughParityTests
 {
     private static (string oldInstance, string newInstance) RunParity(string[] setup, string command)
     {

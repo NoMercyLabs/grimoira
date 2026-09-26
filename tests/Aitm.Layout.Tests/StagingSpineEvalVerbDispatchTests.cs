@@ -10,7 +10,7 @@ namespace Aitm.Layout.Tests;
 // `spine-export` and `spine-import` are also top-level cases (`eval`/`spine-export`/`spine-import` sit
 // beside `stage`/`flush` in the outer switch; `seed` is a `brain <sub>` case inside the nested BrainCmd
 // switch). This is red before the wiring lands (no case yet calls a tool class) and green after.
-public class Slice24Part4cWiringTests
+public class StagingSpineEvalVerbDispatchTests
 {
     // verb -> the tool type its aitm.cs case has to call.
     public static readonly (string Verb, string ToolType)[] WiredVerbs =

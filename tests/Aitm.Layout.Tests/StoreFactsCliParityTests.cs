@@ -9,7 +9,7 @@ namespace Aitm.Layout.Tests;
 // binary (OldVsNewCli.OracleDll, built from the commit slice 24 started at) and against today's
 // bin-cli/aitm.dll, and diffing stdout, stderr and exit code. Every wired verb gets at least a
 // no-arg/help or normal run, and most also get a deliberate error case.
-public class Slice24Part1OldVsNewCliTests
+public class StoreFactsCliParityTests
 {
     // Stats/init/import/backup echo the instance name and/or db path in their own output, which is
     // necessarily different between the two fresh instances this test uses (one per binary, so neither

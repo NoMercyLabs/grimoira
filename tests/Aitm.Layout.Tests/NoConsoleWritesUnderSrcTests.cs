@@ -9,7 +9,7 @@ namespace Aitm.Layout.Tests;
 // to get the bytes back some other way. This guard freezes that grep as a test: a file under src/ that
 // newly starts calling Console fails here, and every name already on the allow-list below carries the
 // one-line reason it is still there instead of being fixed by this slice.
-public class Slice29aConsoleWriterGuardTests
+public class NoConsoleWritesUnderSrcTests
 {
     private static readonly Regex ConsoleUsage = new(@"Console\.(Write\w*|Out|Error)\b", RegexOptions.Compiled);
 
@@ -61,7 +61,7 @@ public class Slice29aConsoleWriterGuardTests
 
         Assert.True(offenders.Count == 0,
             "file(s) under src/ name Console.Write/Console.Out/Console.Error and are not on the allow-list "
-            + "(take a TextWriter instead, or add the name to Slice29aConsoleWriterGuardTests.AllowList with a reason):\n"
+            + "(take a TextWriter instead, or add the name to NoConsoleWritesUnderSrcTests.AllowList with a reason):\n"
             + string.Join("\n", offenders));
     }
 
@@ -77,7 +77,7 @@ public class Slice29aConsoleWriterGuardTests
         }
 
         Assert.True(stale.Count == 0,
-            "Slice29aConsoleWriterGuardTests.AllowList names a file that no longer exists or no longer names "
+            "NoConsoleWritesUnderSrcTests.AllowList names a file that no longer exists or no longer names "
             + "Console — shrink the list:\n" + string.Join("\n", stale));
     }
 }

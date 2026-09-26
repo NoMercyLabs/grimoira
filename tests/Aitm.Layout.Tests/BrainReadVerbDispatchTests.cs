@@ -17,7 +17,7 @@ namespace Aitm.Layout.Tests;
 // (e.g. `new BrainTool()`) would silently drop those unwired sub-verbs' behaviour, so this part leaves
 // BrainCmd in place and only rewires the bodies of the 10 sub-verb cases it owns. This is red before the
 // wiring lands (no case yet calls a tool class) and green after.
-public class Slice24Part4aWiringTests
+public class BrainReadVerbDispatchTests
 {
     // sub-verb -> the tool type its nested case (inside BrainCmd) has to call.
     public static readonly (string Verb, string ToolType)[] WiredVerbs =

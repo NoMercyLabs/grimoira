@@ -18,7 +18,7 @@ namespace Aitm.Layout.Tests;
 //
 // Every fixture used here is a fake key/label/predicate under a throwaway temp instance — never a real
 // repo or ~/.claude, and never real content.
-public class Slice24Part4cOldVsNewCliTests
+public class StagingSpineEvalCliParityTests
 {
     // eval prints its own elapsed time per question via "{ms,5:F2}ms" — a 5-char right-aligned field, so
     // a single-digit value ("1.23ms") carries one more leading pad space than a double-digit one

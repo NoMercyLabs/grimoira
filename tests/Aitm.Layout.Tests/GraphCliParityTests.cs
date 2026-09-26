@@ -12,7 +12,7 @@ namespace Aitm.Layout.Tests;
 // (OldVsNewCli.OracleDll, built from the commit slice 24 started at) and against today's bin-cli/aitm.dll,
 // and diffing stdout, stderr and exit code. None of these 12 verbs print a timestamp or an elapsed time,
 // so — unlike part 1's query/history/stats — no output needs normalizing before the comparison.
-public class Slice24Part3OldVsNewCliTests
+public class GraphCliParityTests
 {
     private static void AssertParity(string[] setup, string command)
     {

@@ -23,7 +23,7 @@ namespace Aitm.Layout.Tests;
 //
 // Every fixture used here is a fake key/label/predicate under a throwaway temp instance — never a real
 // repo or ~/.claude, and never real content.
-public class Slice24Part4bOldVsNewCliTests
+public class BrainWriteCliParityTests
 {
     private static string StripVolatile(string s) =>
         Regex.Replace(Regex.Replace(s, @"\(\d+[.,]\d+ms\)", "(<ms>)"),

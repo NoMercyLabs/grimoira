@@ -8,7 +8,7 @@ namespace Aitm.Layout.Tests;
 // rewired to call that tool class, in place of the inline logic (or the inline helper function) the
 // case used to carry. This is red before the wiring lands (no case yet calls a tool class) and green
 // after.
-public class Slice24Part3WiringTests
+public class GraphVerbDispatchTests
 {
     // verb -> the tool type its aitm.cs case has to call.
     public static readonly (string Verb, string ToolType)[] WiredVerbs =
