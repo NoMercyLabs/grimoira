@@ -34,9 +34,28 @@ namespace Aitm.Server.Tests;
 /// </summary>
 public sealed class HttpSnapshotParityTests
 {
-    private const string Port = "17638";
-    private readonly string _allowedHost = $"127.0.0.1:{Port}";
+    // Program.cs binds a real Kestrel listener at this port (UseUrls), not the in-memory TestServer, so a
+    // literal port shared with another class (HeadersHelperMcpTests used to hardcode the same "17638")
+    // races the OS's own asynchronous socket teardown between one WebApplicationFactory's Dispose and the
+    // next bind — invisible on a quiet machine, but under full-suite load the previous listener is not
+    // always gone yet, and the next bind throws inside the MCP call ("An error occurred invoking
+    // '<tool>'."). A fresh ephemeral port per test, the same FreePort() convention already used by
+    // ThinClientAgainstTheRunningServerTests, HookVerbAgainstTheRunningServerTests and
+    // BinCliThinClientMatchesBinCliOldTests, removes the collision instead of widening a timeout around it.
+    private readonly string Port = FreePort().ToString();
+    private readonly string _allowedHost;
     private static readonly string RepoRoot = FindRoot();
+
+    public HttpSnapshotParityTests() => _allowedHost = $"127.0.0.1:{Port}";
+
+    private static int FreePort()
+    {
+        System.Net.Sockets.TcpListener l = new(System.Net.IPAddress.Loopback, 0);
+        l.Start();
+        int port = ((System.Net.IPEndPoint)l.LocalEndpoint).Port;
+        l.Stop();
+        return port == 7635 ? FreePort() : port;
+    }
 
     [Theory]
     [MemberData(nameof(ToolCases))]
