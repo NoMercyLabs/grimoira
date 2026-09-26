@@ -45,10 +45,10 @@ public class SessionEndIndexTests
         {
             AitmCliRunner.Run($"init --instance {instance}");
             string transcriptPath = Path.Combine(projectDir, "t.jsonl");
-            File.WriteAllLines(transcriptPath, new[]
-            {
+            File.WriteAllLines(transcriptPath,
+            [
                 JsonSerializer.Serialize(new { type = "user", uuid = "u1", timestamp = "t1", message = new { content = "This is a real user message long enough to index." } }),
-            });
+            ]);
             string payload = JsonSerializer.Serialize(new { transcript_path = transcriptPath, cwd = projectDir, session_id = "s1" });
 
             string result = SessionIndexChatTool.Execute(payload);
@@ -83,10 +83,10 @@ public class SessionEndIndexTests
         {
             AitmCliRunner.Run($"init --instance {instance}");
             string transcriptPath = Path.Combine(projectDir, "t.jsonl");
-            File.WriteAllLines(transcriptPath, new[]
-            {
+            File.WriteAllLines(transcriptPath,
+            [
                 JsonSerializer.Serialize(new { type = "user", uuid = "u1", timestamp = "t1", message = new { content = "This is a real user message long enough to index." } }),
-            });
+            ]);
             string payload = JsonSerializer.Serialize(new { transcript_path = transcriptPath, cwd = projectDir, session_id = "s1" });
 
             ShortenBusyTimeoutAndHoldLock(HookPaths.DbPath(instance), out SqliteConnection locker, out SqliteTransaction lockTx);
@@ -304,7 +304,7 @@ public class SessionEndIndexTests
         try
         {
             string transcriptPath = Path.Combine(projectDir, "t.jsonl");
-            File.WriteAllLines(transcriptPath, new[] { JsonSerializer.Serialize(new { type = "user", message = new { content = "irrelevant" } }) });
+            File.WriteAllLines(transcriptPath, [JsonSerializer.Serialize(new { type = "user", message = new { content = "irrelevant" } })]);
             string chatPayload = JsonSerializer.Serialize(new { transcript_path = transcriptPath, cwd = projectDir, session_id = "s1" });
             string genericPayload = JsonSerializer.Serialize(new { cwd = projectDir, session_id = "s1" });
 

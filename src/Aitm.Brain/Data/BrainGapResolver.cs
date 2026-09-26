@@ -14,7 +14,7 @@ public static class BrainGapResolver
     public static void Resolve(SqliteConnection connection, string learnedText)
     {
         string hay = learnedText.ToLowerInvariant();
-        List<long> filled = new();
+        List<long> filled = [];
         using (SqliteCommand select = connection.CreateCommand())
         {
             select.CommandText = "SELECT id, query FROM gaps WHERE status='open' LIMIT 200";

@@ -38,7 +38,7 @@ public sealed class BrainFlushTool : ITool
         // read/commit/delete so a stage landing between the read and the delete is never wiped by it.
         using IDisposable ledgerLock = LedgerFileLock.Acquire(ledger);
         if (!File.Exists(ledger)) return "nothing staged.";
-        string[] lines = File.ReadAllLines(ledger).Where(l => l.Trim().Length > 0).ToArray();
+        string[] lines = [.. File.ReadAllLines(ledger).Where(l => l.Trim().Length > 0)];
         if (lines.Length == 0) { File.Delete(ledger); return "nothing staged."; }
         int n = 0;
         BeginTransaction(connection);
@@ -68,14 +68,14 @@ public sealed class BrainFlushTool : ITool
         using (LedgerFileLock.Acquire(ledger))
         {
             if (!File.Exists(ledger)) return "nothing staged.";
-            string[] lines = File.ReadAllLines(ledger).Where(l => l.Trim().Length > 0).ToArray();
+            string[] lines = [.. File.ReadAllLines(ledger).Where(l => l.Trim().Length > 0)];
             if (lines.Length == 0) { File.Delete(ledger); return "nothing staged."; }
             int n = 0;
             StringBuilder rejects = new();
             // Lines that failed on a TRANSIENT lock are kept in the ledger so the next flush retries them —
             // a locked DB under concurrent MCP writers must never silently drop a staged learning (fix
             // 668134a: two learnings lost when the whole ledger was deleted on a "database is locked" reject).
-            List<string> keepForRetry = new();
+            List<string> keepForRetry = [];
             foreach (string line in lines)
             {
                 using JsonDocument d = JsonDocument.Parse(line);

@@ -51,7 +51,7 @@ public partial class NoConsoleWritesUnderSrcTests
     public void NoNewFileUnderSrcNamesConsoleOutsideTheAllowList()
     {
         string srcRoot = Path.Combine(RepoPaths.Root, "src");
-        List<string> offenders = new();
+        List<string> offenders = [];
         foreach (string path in Directory.EnumerateFiles(srcRoot, "*.cs", SearchOption.AllDirectories))
         {
             string relative = Path.GetRelativePath(srcRoot, path).Replace('\\', '/');
@@ -69,7 +69,7 @@ public partial class NoConsoleWritesUnderSrcTests
     public void EveryAllowListEntryStillExistsAndStillMatches()
     {
         string srcRoot = Path.Combine(RepoPaths.Root, "src");
-        List<string> stale = new();
+        List<string> stale = [];
         foreach (string relative in AllowList.Keys)
         {
             string full = Path.Combine(srcRoot, relative.Replace('/', Path.DirectorySeparatorChar));

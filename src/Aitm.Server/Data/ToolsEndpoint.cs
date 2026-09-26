@@ -1,5 +1,4 @@
 using System.Text.Json;
-using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.AI;
 
 namespace Aitm.Server.Data;
@@ -59,7 +58,7 @@ public static class ToolsEndpoint
 
     private static bool TryBind(AIFunction tool, JsonElement body, out AIFunctionArguments arguments, out string error)
     {
-        arguments = new AIFunctionArguments();
+        arguments = [];
         error = "";
         Dictionary<string, JsonElement> byName = body.ValueKind == JsonValueKind.Object
             ? body.EnumerateObject().ToDictionary(p => p.Name, p => p.Value, StringComparer.Ordinal)

@@ -24,7 +24,7 @@ public sealed class McpFlushLedgerRaceTests
     public void PipelinedStageThenTwoFlushesNeverCorruptOrCrash()
     {
         string mcpDll = FindBinMcpDll();
-        List<string> violations = new();
+        List<string> violations = [];
 
         for (int i = 0; i < Repetitions; i++)
         {

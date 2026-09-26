@@ -24,7 +24,7 @@ public sealed class PromoteAllTool : ITool
 
     public string Execute(SqliteConnection connection, string root, string symbol)
     {
-        List<int> ids = new();
+        List<int> ids = [];
         using (SqliteCommand c = connection.CreateCommand())
         {
             c.CommandText = "SELECT id FROM edge_candidates WHERE symbol=$s AND status='pending' ORDER BY id";
@@ -36,7 +36,7 @@ public sealed class PromoteAllTool : ITool
 
         new BackupTool().Execute(connection, root, null);
 
-        List<(string project, string file, int line, string usage, string contract)> old = new();
+        List<(string project, string file, int line, string usage, string contract)> old = [];
         using (SqliteCommand c = connection.CreateCommand())
         {
             c.CommandText = "SELECT project,file,line,usage,contract FROM edges WHERE symbol=$s";

@@ -61,7 +61,7 @@ public sealed class ShedDocTool : ITool
         try
         {
             string needle = pathFragment.Replace('\\', '/').ToLowerInvariant();
-            List<(string key, string json)> keep = new();
+            List<(string key, string json)> keep = [];
             bool dropped = false;
             using (JsonDocument doc = JsonDocument.Parse(File.ReadAllText(idx)))
             {

@@ -4,7 +4,6 @@ using Aitm.Cli.Tools;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Server.Kestrel.Transport.NamedPipes;
 using Xunit;
 
 namespace Aitm.Cli.Tests;

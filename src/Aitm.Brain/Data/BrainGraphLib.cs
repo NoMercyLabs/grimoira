@@ -47,11 +47,11 @@ public static class BrainGraphLib
         ResolvedNode? a = ResolveNode(connection, fromName);
         ResolvedNode? b = ResolveNode(connection, toName);
         if (a is null || b is null) return new PathResult(a, b, null);
-        if (a.K == b.K) return new PathResult(a, b, new List<Hop>());
+        if (a.K == b.K) return new PathResult(a, b, []);
 
         List<(string P, string Other, string Because, string Dir)> Neighbours(string k)
         {
-            List<(string, string, string, string)> rows = new();
+            List<(string, string, string, string)> rows = [];
             using SqliteCommand cmd = connection.CreateCommand();
             cmd.CommandText = """
                 SELECT p, o AS other, because, 'out' AS dir FROM triple WHERE valid_to IS NULL AND o_is_literal = 0 AND s = $k
@@ -65,18 +65,18 @@ public static class BrainGraphLib
             return rows;
         }
 
-        HashSet<string> seen = new() { a.K };
-        List<(string K, List<Hop> Hops)> frontier = new() { (a.K, new List<Hop>()) };
+        HashSet<string> seen = [a.K];
+        List<(string K, List<Hop> Hops)> frontier = [(a.K, new List<Hop>())];
         for (int depth = 0; depth < maxDepth; depth++)
         {
-            List<(string K, List<Hop> Hops)> next = new();
+            List<(string K, List<Hop> Hops)> next = [];
             foreach ((string k, List<Hop> hops) in frontier)
             {
                 foreach ((string p, string other, string because, string dir) in Neighbours(k))
                 {
                     if (seen.Contains(other)) continue;
                     seen.Add(other);
-                    List<Hop> newHops = new(hops) { new Hop(k, p, other, dir, because) };
+                    List<Hop> newHops = [.. hops, new Hop(k, p, other, dir, because)];
                     if (other == b.K) return new PathResult(a, b, newHops);
                     next.Add((other, newHops));
                 }
@@ -93,7 +93,7 @@ public static class BrainGraphLib
     public static List<BlastRow> BlastRadius(SqliteConnection connection, string filePath, int limit = 5)
     {
         string norm = filePath.Replace('\\', '/');
-        List<BlastRow> rows = new();
+        List<BlastRow> rows = [];
         try
         {
             using SqliteCommand cmd = connection.CreateCommand();
@@ -117,7 +117,7 @@ public static class BrainGraphLib
         }
         catch (SqliteException)
         {
-            return new List<BlastRow>();
+            return [];
         }
         return rows;
     }
@@ -129,7 +129,7 @@ public static class BrainGraphLib
     /// <summary>Label-propagation communities over the triple graph — brain-lib.mjs:295-365.</summary>
     public static List<Community> Communities(SqliteConnection connection, int rounds = 8)
     {
-        List<(string S, string P, string O)> rows = new();
+        List<(string S, string P, string O)> rows = [];
         try
         {
             using SqliteCommand cmd = connection.CreateCommand();
@@ -139,32 +139,32 @@ public static class BrainGraphLib
         }
         catch (SqliteException)
         {
-            return new List<Community>();
+            return [];
         }
-        if (rows.Count == 0) return new List<Community>();
+        if (rows.Count == 0) return [];
 
-        Dictionary<string, int> freq = new();
+        Dictionary<string, int> freq = [];
         foreach ((string _, string p, string _) in rows) freq[p] = freq.GetValueOrDefault(p) + 1;
         double WeightOf(string p) => 1.0 / (1.0 + Math.Log(1 + freq.GetValueOrDefault(p, 1)));
 
-        Dictionary<string, List<(string Other, double W)>> adj = new();
+        Dictionary<string, List<(string Other, double W)>> adj = [];
         void Link(string a, string b, string p)
         {
-            if (!adj.TryGetValue(a, out List<(string, double)>? list)) { list = new(); adj[a] = list; }
+            if (!adj.TryGetValue(a, out List<(string, double)>? list)) { list = []; adj[a] = list; }
             list.Add((b, WeightOf(p)));
         }
         foreach ((string s, string p, string o) in rows) { Link(s, o, p); Link(o, s, p); }
 
-        Dictionary<string, string> label = new();
+        Dictionary<string, string> label = [];
         foreach (string k in adj.Keys) label[k] = k;
-        List<string> keys = adj.Keys.OrderBy(k => k, StringComparer.Ordinal).ToList();
+        List<string> keys = [.. adj.Keys.OrderBy(k => k, StringComparer.Ordinal)];
 
         for (int i = 0; i < rounds; i++)
         {
             int moved = 0;
             foreach (string k in keys)
             {
-                Dictionary<string, double> tally = new();
+                Dictionary<string, double> tally = [];
                 foreach ((string other, double w) in adj[k])
                 {
                     string nl = label[other];
@@ -180,14 +180,14 @@ public static class BrainGraphLib
             if (moved == 0) break;
         }
 
-        Dictionary<string, List<string>> groups = new();
+        Dictionary<string, List<string>> groups = [];
         foreach ((string node, string lab) in label)
         {
-            if (!groups.TryGetValue(lab, out List<string>? list)) { list = new(); groups[lab] = list; }
+            if (!groups.TryGetValue(lab, out List<string>? list)) { list = []; groups[lab] = list; }
             list.Add(node);
         }
 
-        Dictionary<string, (string Label, string Kind)> named = new();
+        Dictionary<string, (string Label, string Kind)> named = [];
         try
         {
             using SqliteCommand cmd = connection.CreateCommand();
@@ -197,25 +197,22 @@ public static class BrainGraphLib
         }
         catch (SqliteException) { /* node table absent */ }
 
-        return groups.Values
+        return [.. groups.Values
             .Where(members => members.Count > 1)
             .Select(members =>
             {
-                List<string> sorted = members
-                    .OrderByDescending(m => adj.TryGetValue(m, out List<(string, double)>? l) ? l.Count : 0)
-                    .ToList();
+                List<string> sorted = [.. members.OrderByDescending(m => adj.TryGetValue(m, out List<(string, double)>? l) ? l.Count : 0)];
                 string hub = sorted[0];
                 return new Community(
                     named.TryGetValue(hub, out (string Label, string Kind) hn) ? hn.Label : hub,
                     hub,
                     members.Count,
-                    sorted.Select(m => new CommunityMember(
+                    [.. sorted.Select(m => new CommunityMember(
                         m,
                         named.TryGetValue(m, out (string Label, string Kind) mn) ? mn.Label : m,
-                        named.TryGetValue(m, out (string Label, string Kind) mk) ? mk.Kind : "")).ToList());
+                        named.TryGetValue(m, out (string Label, string Kind) mk) ? mk.Kind : ""))]);
             })
-            .OrderByDescending(c => c.Size)
-            .ToList();
+            .OrderByDescending(c => c.Size)];
     }
 
     /// <summary>The cluster a given node belongs to — brain-lib.mjs:368-370.</summary>

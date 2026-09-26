@@ -52,7 +52,7 @@ public class StoreSchemaDdlParityTests
 
     private static Dictionary<string, string> SqliteMasterRows(SqliteConnection connection, IEnumerable<string> tableNames)
     {
-        Dictionary<string, string> rows = new();
+        Dictionary<string, string> rows = [];
         using SqliteCommand command = connection.CreateCommand();
         command.CommandText = "SELECT name, sql FROM sqlite_master WHERE type='table' AND name IN (" +
             string.Join(",", tableNames.Select((_, i) => $"$n{i}")) + ")";

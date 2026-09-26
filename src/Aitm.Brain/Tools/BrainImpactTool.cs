@@ -49,7 +49,7 @@ public sealed class BrainImpactTool : ITool
         // fallback-to-file rule the graph_* tools and impact use — before printing, rather than the
         // legacy_consumes view's own (possibly stale, from a moved root) file column.
         Dictionary<string, string> roots = GraphFileRelSchema.LoadProjectRoots(connection);
-        List<string> keys2 = new();
+        List<string> keys2 = [];
         StringBuilder sb = new();
         int n = 0;
         using (SqliteCommand c = connection.CreateCommand())
@@ -103,7 +103,7 @@ public sealed class BrainImpactTool : ITool
             LIMIT 40
             """;
         mcmd.Parameters.AddWithValue("$like", "%" + symbol + "%");
-        List<string> keys = new();
+        List<string> keys = [];
         StringBuilder sb = new();
         using (SqliteDataReader r = mcmd.ExecuteReader())
         {
@@ -115,7 +115,7 @@ public sealed class BrainImpactTool : ITool
                 string resolvedFile = ResolveRowFile(r, roots, fileOrdinal: 2, projectOrdinal: 5, fileRelOrdinal: 6);
                 string line = r.IsDBNull(3) ? "" : r.GetInt32(3).ToString();
                 string hardcoded = r.IsDBNull(4) ? "" : r.GetInt32(4).ToString();
-                List<string> cells = new();
+                List<string> cells = [];
                 foreach (string v in new[] { s, o, resolvedFile, line, hardcoded })
                     if (v.Length > 0) cells.Add(v);
                 if (cells.Count > 0) sb.AppendLine("• " + string.Join("  |  ", cells));

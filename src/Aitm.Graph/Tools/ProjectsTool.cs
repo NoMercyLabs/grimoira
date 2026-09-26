@@ -19,7 +19,7 @@ public sealed class ProjectsTool : ITool
         using SqliteCommand command = connection.CreateCommand();
         command.CommandText = "SELECT name,root,lang,globs FROM projects ORDER BY name";
         using SqliteDataReader reader = command.ExecuteReader();
-        List<string> lines = new();
+        List<string> lines = [];
         int n = 0;
         while (reader.Read())
         {

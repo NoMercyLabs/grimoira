@@ -272,7 +272,7 @@ public sealed partial class HttpSnapshotParityTests
     private static object[] CaseNoShape(string name, Action<SqliteConnection> seed, object normalArgs, object errorArgs) =>
         [name, seed, normalArgs, errorArgs, false];
 
-    private static void WaitForNonEmptyFile(string path)
+    internal static void WaitForNonEmptyFile(string path)
     {
         for (int i = 0; i < 40; i++)
         {
@@ -282,7 +282,7 @@ public sealed partial class HttpSnapshotParityTests
         throw new InvalidOperationException($"expected {path} to exist with content after seeding, but it did not appear within 1s.");
     }
 
-    private static void Seed(string dbPath, Action<SqliteConnection> body)
+    internal static void Seed(string dbPath, Action<SqliteConnection> body)
     {
         using SqliteConnection connection = StoreConnection.Open(dbPath);
         body(connection);
@@ -349,7 +349,7 @@ public sealed partial class HttpSnapshotParityTests
     // History's rows carry a real insertion timestamp, which differs by construction between the old
     // and new store (two separate seed calls, milliseconds apart) even though the rest of the row is
     // identical; blank it out before comparing shape (same rule as McpSnapshotParityTests).
-    private static string StripTimestamps(string text) =>
+    internal static string StripTimestamps(string text) =>
         IsoTimestamp().Replace(text, "<ts>");
 
     private static string FindRoot([System.Runtime.CompilerServices.CallerFilePath] string here = "")

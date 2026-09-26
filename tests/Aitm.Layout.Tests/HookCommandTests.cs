@@ -19,7 +19,7 @@ public class HookCommandTests
         {
             string command = hook.TryGetProperty("command", out JsonElement c) ? c.GetString() ?? "" : "";
             List<string> args = hook.TryGetProperty("args", out JsonElement a)
-                ? a.EnumerateArray().Select(x => x.GetString() ?? "").ToList()
+                ? [.. a.EnumerateArray().Select(x => x.GetString() ?? "")]
                 : [];
             bool builds = (command == "dotnet" && args.FirstOrDefault() is "run" or "build")
                 || command.StartsWith("dotnet run", StringComparison.Ordinal);
@@ -65,7 +65,7 @@ public class HookCommandTests
         JsonElement hook = doc.RootElement.GetProperty("hooks").GetProperty("SessionStart")[0].GetProperty("hooks")[0];
 
         Assert.Equal("node", hook.GetProperty("command").GetString());
-        string[] args = hook.GetProperty("args").EnumerateArray().Select(a => a.GetString()!).ToArray();
+        string[] args = [.. hook.GetProperty("args").EnumerateArray().Select(a => a.GetString()!)];
         Assert.Equal(["${CLAUDE_PLUGIN_ROOT}/session-start.mjs"], args);
         Assert.True(File.Exists(Path.Combine(RepoPaths.Root, "session-start.mjs")));
     }
@@ -105,7 +105,7 @@ public class HookCommandTests
         // `dotnet <missing dll>` printed dotnet's error block and exited 1 on every prompt), and otherwise runs
         // `hook <event>` from ${CLAUDE_PLUGIN_DATA}/current/bin-cli.
         Assert.Equal("node", hook.GetProperty("command").GetString());
-        string[] args = hook.GetProperty("args").EnumerateArray().Select(a => a.GetString()!).ToArray();
+        string[] args = [.. hook.GetProperty("args").EnumerateArray().Select(a => a.GetString()!)];
         Assert.Equal(["${CLAUDE_PLUGIN_ROOT}/run-hook.mjs", eventName], args);
         Assert.True(File.Exists(Path.Combine(RepoPaths.Root, "run-hook.mjs")));
     }
@@ -143,7 +143,7 @@ public class HookCommandTests
     }
 
     private static string[] ArgsOf(JsonElement hook) =>
-        hook.TryGetProperty("args", out JsonElement a) ? a.EnumerateArray().Select(x => x.GetString() ?? "").ToArray() : [];
+        hook.TryGetProperty("args", out JsonElement a) ? [.. a.EnumerateArray().Select(x => x.GetString() ?? "")] : [];
 
     private static bool RunsHookVerb(JsonElement hook, string eventName) =>
         (ArgsOf(hook) is [.., "hook", string last] && last == eventName)

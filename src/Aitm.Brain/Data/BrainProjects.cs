@@ -23,5 +23,5 @@ public static class BrainProjects
     /// <summary>Splits a space/comma/semicolon-separated project list. Copied verbatim from mcp.cs's
     /// <c>SplitArgs</c> (mcp.cs:565).</summary>
     public static List<string> SplitArgs(string s) =>
-        s.Split([' ', ',', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+        [.. s.Split([' ', ',', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)];
 }

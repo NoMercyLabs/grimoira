@@ -26,9 +26,9 @@ public sealed class ImpactTool : ITool
     public string ExecuteCli(SqliteConnection connection, string symbol)
     {
         bool hasFileRel = Schema.GraphFileRelSchema.HasColumn(connection, "edges", "file_rel");
-        Dictionary<string, string> roots = hasFileRel ? Schema.GraphFileRelSchema.LoadProjectRoots(connection) : new();
+        Dictionary<string, string> roots = hasFileRel ? Schema.GraphFileRelSchema.LoadProjectRoots(connection) : [];
 
-        List<(string project, string file, int line, string usage)> edges = new();
+        List<(string project, string file, int line, string usage)> edges = [];
         string contract = "";
         using (SqliteCommand c = connection.CreateCommand())
         {
@@ -50,8 +50,8 @@ public sealed class ImpactTool : ITool
         if (edges.Count == 0)
             return $"'{symbol}' has no recorded consumers (safe to change, or not yet indexed).";
 
-        List<(string project, string file, int line, string usage)> consumers = edges.Where(e => e.usage.Length > 0).ToList();
-        List<(string project, string file, int line, string usage)> contractSites = edges.Where(e => e.usage.Length == 0).ToList();
+        List<(string project, string file, int line, string usage)> consumers = [.. edges.Where(e => e.usage.Length > 0)];
+        List<(string project, string file, int line, string usage)> contractSites = [.. edges.Where(e => e.usage.Length == 0)];
         int projects = edges.Select(e => e.project).Distinct().Count();
 
         StringBuilder sb = new();
@@ -67,7 +67,7 @@ public sealed class ImpactTool : ITool
     public string ExecuteMcp(SqliteConnection connection, string symbol)
     {
         bool hasFileRel = Schema.GraphFileRelSchema.HasColumn(connection, "edges", "file_rel");
-        Dictionary<string, string> roots = hasFileRel ? Schema.GraphFileRelSchema.LoadProjectRoots(connection) : new();
+        Dictionary<string, string> roots = hasFileRel ? Schema.GraphFileRelSchema.LoadProjectRoots(connection) : [];
 
         using SqliteCommand cmd = connection.CreateCommand();
         cmd.CommandText = hasFileRel

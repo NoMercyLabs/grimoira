@@ -1,8 +1,4 @@
-using System.Diagnostics;
 using System.Globalization;
-using System.Text;
-using System.Text.Json;
-using System.Text.RegularExpressions;
 using Aitm.Brain.Tools;
 using Aitm.Docs.Tools;
 using Aitm.Facts.Tools;
@@ -137,7 +133,7 @@ public static class CliDispatch
                     stdout.WriteLine(new MemTool(new UsageSignal()).ExecuteCli(db, string.Join(' ', Positionals().Skip(1)), a.Contains("--hard")));
                     break;
                 case "brain":
-                    BrainCmd(Positionals().Skip(1).ToList());
+                    BrainCmd([.. Positionals().Skip(1)]);
                     break;
                 case "shed-doc":
                     stdout.WriteLine(new ShedDocTool().Execute(db, GetFlag("--path") ?? throw new ArgumentException("shed-doc needs --path <substring>")));
@@ -250,7 +246,7 @@ public static class CliDispatch
                     break;
                 case "graph-path":
                 {
-                    List<string> gp = Positionals().Skip(1).ToList();
+                    List<string> gp = [.. Positionals().Skip(1)];
                     if (gp.Count < 2) { stdout.WriteLine("usage: aitm graph-path <A> <B>"); break; }
                     stdout.WriteLine(new GraphPathTool().ExecuteCli(db, gp[0], gp[1]));
                     break;
@@ -307,7 +303,7 @@ public static class CliDispatch
                 default:
                     // One command per line so adding/removing a command is a one-line diff, not a rewrite of the whole string.
                     string[] usage =
-                    {
+                    [
                         "init                                create/open the instance",
                         "import --from <db>                  merge another aitm.db into this one",
                         "add [--provenance stated|inferred]  add a fact (provenance: who established it)",
@@ -343,7 +339,7 @@ public static class CliDispatch
                         "todo | todos | done <id>            manage todos",
                         "finding | findings | resolve <id>   manage findings",
                         "stats                               channel counts for the instance",
-                    };
+                    ];
                     string usageText = "aitm <command> [--instance <name>]\n\n" + string.Join("\n", usage);
                     if (cmd is "help" or "--help" or "-h")
                     {
@@ -387,12 +383,12 @@ public static class CliDispatch
             return string.IsNullOrWhiteSpace(name) ? "default" : Slug(name);
         }
 
-        private string Slug(string text) => new(text.ToLowerInvariant().Where(ch => char.IsLetterOrDigit(ch) || ch is '-' or '_').ToArray());
+        private string Slug(string text) => new([.. text.ToLowerInvariant().Where(ch => char.IsLetterOrDigit(ch) || ch is '-' or '_')]);
 
         // Positional args only — drops every "--flag" AND the value following it (so a flag value never leaks into query terms).
         private List<string> Positionals()
         {
-            List<string> p = new();
+            List<string> p = [];
             for (int i = 0; i < a.Length; i++)
             {
                 // A flag only consumes the next token as its value when that token isn't itself a flag — so a boolean
@@ -641,11 +637,10 @@ public static class CliDispatch
         // of which exists in the index — FTS5's own tokenizer breaks on those same characters, so any query
         // written the way a repo, package, or folder is actually named matched nothing at all.
         private List<string> Tokens(string terms) =>
-            terms.ToLowerInvariant()
+            [.. terms.ToLowerInvariant()
                 .Split(" \t\r\n-_./\\,;:()[]{}<>\"'`|!?*+=&#@~%$^".ToCharArray(), StringSplitOptions.RemoveEmptyEntries)
                 .Where(t => t.All(char.IsLetterOrDigit) && t.Length > 1 && !stop.Contains(t))
-                .Distinct()
-                .ToList();
+                .Distinct()];
 
         // Store an answer that was distilled from a set of source files.
         //
@@ -662,7 +657,7 @@ public static class CliDispatch
         private void BrainCmd(List<string> rest)
         {
             string sub = rest.Count > 0 ? rest[0] : "help";
-            List<string> rargs = rest.Skip(1).ToList();
+            List<string> rargs = [.. rest.Skip(1)];
             switch (sub)
             {
                 case "core": stdout.WriteLine(new BrainCoreTool().ExecuteCli(db)); break;
@@ -735,13 +730,13 @@ public static class CliDispatch
         // before the caller reinforces, so the follow-up write never races an open reader on the single connection.
         private List<string> RunReader(SqliteCommand c, bool announceEmpty = true)
         {
-            List<string> keys = new();
+            List<string> keys = [];
             int n = 0;
             using (SqliteDataReader r = c.ExecuteReader())
             {
                 while (r.Read())
                 {
-                    List<string> cols = new();
+                    List<string> cols = [];
                     for (int i = 0; i < r.FieldCount; i++)
                         cols.Add(r.IsDBNull(i) ? "" : Convert.ToString(r.GetValue(i), CultureInfo.InvariantCulture) ?? "");
                     if (cols.Count > 0) keys.Add(cols[0]);

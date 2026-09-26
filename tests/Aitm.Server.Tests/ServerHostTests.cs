@@ -1,6 +1,5 @@
 using System.Net;
 using System.Net.Http.Json;
-using Aitm.Server.Data;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Xunit;
 

@@ -17,7 +17,7 @@ public sealed class RecompactDocsTool : ITool
 
     public string Execute(SqliteConnection connection)
     {
-        List<(string k, string title, string content)> rows = new();
+        List<(string k, string title, string content)> rows = [];
         using (SqliteCommand select = connection.CreateCommand())
         {
             select.CommandText = "SELECT k, title, content FROM docs";

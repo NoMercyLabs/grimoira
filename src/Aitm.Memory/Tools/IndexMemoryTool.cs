@@ -142,14 +142,14 @@ public sealed partial class IndexMemoryTool : ITool
     private static string StripFiller(string text)
     {
         (string from, string to)[] phrases =
-        {
+        [
             ("in order to", "to"), ("due to the fact that", "because"), ("in the event that", "if"),
             ("for the purpose of", "for"), ("a large number of", "many"), ("in close proximity to", "near"),
             ("at this point in time", "now"), ("it is important to note that", "note:"),
             ("with the exception of", "except"), ("in spite of the fact that", "although"),
             ("on account of the fact that", "because"), ("has the ability to", "can"),
             ("is able to", "can"), ("a number of", "several"), ("the majority of", "most"),
-        };
+        ];
         foreach ((string from, string to) in phrases)
             text = RegexTimeout.ReplaceLiteralIgnoreCase(text, from, to);
         text = FillerWords().ReplaceOrKeep(text, "");

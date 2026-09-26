@@ -42,5 +42,5 @@ public class InstanceResolutionParityTests
     }
 
     private static string AitmCsSlug(string text) =>
-        new(text.ToLowerInvariant().Where(ch => char.IsLetterOrDigit(ch) || ch is '-' or '_').ToArray());
+        new([.. text.ToLowerInvariant().Where(ch => char.IsLetterOrDigit(ch) || ch is '-' or '_')]);
 }

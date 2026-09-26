@@ -26,7 +26,7 @@ public sealed class LedgerCrossProcessCliRaceTests
     public async Task TwoRealCliProcessesRacingStageAndFlushApplyEveryLineExactlyOnce()
     {
         string instance = AitmCliRunner.NewTestInstance("cli-cross-process-race");
-        List<string> violations = new();
+        List<string> violations = [];
         int expectedApplied = 0;
         try
         {

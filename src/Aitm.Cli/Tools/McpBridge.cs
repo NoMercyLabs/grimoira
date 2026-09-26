@@ -104,12 +104,12 @@ public static class McpBridge
         }
 
         using JsonDocument doc = JsonDocument.Parse(body!);
-        return doc.RootElement.EnumerateArray().Select(t => new Tool
+        return [.. doc.RootElement.EnumerateArray().Select(t => new Tool
         {
             Name = t.GetProperty("name").GetString()!,
             Description = t.GetProperty("description").GetString(),
             InputSchema = t.GetProperty("inputSchema").Clone(),
-        }).ToList();
+        })];
     }
 
     private static async Task<CallToolResult> CallAsync(HttpClient client, Func<bool> ensureServer, string name,

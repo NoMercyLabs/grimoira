@@ -119,10 +119,13 @@ public partial class McpDispatchTests
     [Fact]
     public void AllTwentyFiveToolsAreAccountedFor()
     {
-        HashSet<string> wired = StoreFactsMemoryDocsTools.Select(t => t.McpName)
-            .Concat(GraphAndBrainTools.Select(t => t.McpName))
-            .Concat(HandoverExecuteTools.Select(t => t.McpName))
-            .ToHashSet();
+        HashSet<string> wired =
+        [
+            .. StoreFactsMemoryDocsTools.Select(t => t.McpName)
+,
+            .. GraphAndBrainTools.Select(t => t.McpName),
+            .. HandoverExecuteTools.Select(t => t.McpName),
+        ];
         wired.Add("idp_token");
         Assert.Equal(25, wired.Count);
     }

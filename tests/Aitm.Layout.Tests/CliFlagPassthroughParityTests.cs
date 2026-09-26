@@ -39,7 +39,7 @@ public class CliFlagPassthroughParityTests
 
     private static List<string> SelectRows(string dbPath, string sql)
     {
-        List<string> rows = new();
+        List<string> rows = [];
         using SqliteConnection connection = new($"Data Source={dbPath};Mode=ReadOnly");
         connection.Open();
         using SqliteCommand command = connection.CreateCommand();
@@ -47,7 +47,7 @@ public class CliFlagPassthroughParityTests
         using SqliteDataReader reader = command.ExecuteReader();
         while (reader.Read())
         {
-            List<string> cols = new();
+            List<string> cols = [];
             for (int i = 0; i < reader.FieldCount; i++)
                 cols.Add(reader.IsDBNull(i) ? "\x1f" : Convert.ToString(reader.GetValue(i), CultureInfo.InvariantCulture) ?? "");
             rows.Add(string.Join("|", cols));

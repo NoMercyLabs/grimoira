@@ -55,7 +55,7 @@ public sealed class BrainTool : ITool
     public string ExecuteCli(SqliteConnection connection, IReadOnlyList<string> args, string instance, int days, string gloss, string scheme, string facet, string because, bool hard, bool multi, string learnBatchFile)
     {
         string sub = args.Count > 0 ? args[0] : "help";
-        List<string> rest = args.Skip(1).ToList();
+        List<string> rest = [.. args.Skip(1)];
         return sub switch
         {
             "core" => _core.ExecuteCli(connection),

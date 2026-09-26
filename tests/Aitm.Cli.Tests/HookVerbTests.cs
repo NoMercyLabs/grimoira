@@ -28,10 +28,10 @@ public class HookVerbTests
         try
         {
             string transcriptPath = Path.Combine(projectDir, "t.jsonl");
-            File.WriteAllLines(transcriptPath, new[]
-            {
+            File.WriteAllLines(transcriptPath,
+            [
                 JsonSerializer.Serialize(new { type = "user", message = new { content = "Ship the hook verb, end to end." } }),
-            });
+            ]);
             string payload = JsonSerializer.Serialize(new { transcript_path = transcriptPath, cwd = projectDir, session_id = "s1" });
 
             (string stdout, int exitCode) = RunHookVerb("PreCompact", payload);

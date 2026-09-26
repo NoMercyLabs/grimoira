@@ -21,7 +21,7 @@ public sealed partial class ExtractEdgesTool : ITool
 
     public string Execute(SqliteConnection connection, string symbol, string contract)
     {
-        List<(string name, string root, string globs)> projects = new();
+        List<(string name, string root, string globs)> projects = [];
         using (SqliteCommand c = connection.CreateCommand())
         {
             c.CommandText = "SELECT name,root,globs FROM projects ORDER BY name";
@@ -86,10 +86,10 @@ public sealed partial class ExtractEdgesTool : ITool
     private static IEnumerable<string> EnumerateSource(string root, string[] patterns)
     {
         string[] skip =
-        {
+        [
             "node_modules", "dist", "build", "bin", "obj", ".git", ".nuxt", ".gradle", "vendor", ".idea", ".vs",
             ".scratch", ".turbo", ".next", ".output", ".svelte-kit", "coverage", "out", "target", "__pycache__",
-        };
+        ];
         Stack<string> stack = new();
         stack.Push(root);
         while (stack.Count > 0)
@@ -97,14 +97,14 @@ public sealed partial class ExtractEdgesTool : ITool
             string dir = stack.Pop();
             string[] subs;
             try { subs = Directory.GetDirectories(dir); }
-            catch { subs = Array.Empty<string>(); }
+            catch { subs = []; }
             foreach (string sub in subs)
                 if (!skip.Contains(Path.GetFileName(sub), StringComparer.OrdinalIgnoreCase)) stack.Push(sub);
             foreach (string pattern in patterns)
             {
                 string[] files;
                 try { files = Directory.GetFiles(dir, pattern); }
-                catch { files = Array.Empty<string>(); }
+                catch { files = []; }
                 foreach (string file in files) yield return file;
             }
         }

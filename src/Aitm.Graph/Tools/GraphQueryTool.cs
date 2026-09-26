@@ -1,4 +1,3 @@
-using System.Text;
 using Aitm.Store.Data;
 using Aitm.Store.Tools;
 using Microsoft.Data.Sqlite;
@@ -64,7 +63,7 @@ public sealed partial class GraphQueryTool : ITool
     private static List<string> BuildLines(SqliteConnection connection, List<string> toks, string question, out bool matched)
     {
         bool hasFileRel = Schema.GraphFileRelSchema.HasColumn(connection, "edges", "file_rel");
-        Dictionary<string, string> roots = hasFileRel ? Schema.GraphFileRelSchema.LoadProjectRoots(connection) : new();
+        Dictionary<string, string> roots = hasFileRel ? Schema.GraphFileRelSchema.LoadProjectRoots(connection) : [];
 
         HashSet<string> candidates = new(StringComparer.OrdinalIgnoreCase);
         foreach (string t in toks)
@@ -75,9 +74,9 @@ public sealed partial class GraphQueryTool : ITool
             using SqliteDataReader r = c.ExecuteReader();
             while (r.Read()) candidates.Add(r.GetString(0));
         }
-        List<string> matchedSymbols = candidates.Where(s => SymbolMatchesTokens(s, toks)).OrderBy(s => s, StringComparer.OrdinalIgnoreCase).Take(20).ToList();
+        List<string> matchedSymbols = [.. candidates.Where(s => SymbolMatchesTokens(s, toks)).OrderBy(s => s, StringComparer.OrdinalIgnoreCase).Take(20)];
 
-        List<string> lines = new();
+        List<string> lines = [];
         matched = matchedSymbols.Count > 0;
         if (matchedSymbols.Count == 0)
         {
@@ -85,7 +84,7 @@ public sealed partial class GraphQueryTool : ITool
             return lines;
         }
 
-        List<(string symbol, string project, string defLoc, List<(string project, int files)> byProject)> rows = new();
+        List<(string symbol, string project, string defLoc, List<(string project, int files)> byProject)> rows = [];
         foreach (string sym in matchedSymbols)
         {
             string? defLoc = null;
@@ -106,7 +105,7 @@ public sealed partial class GraphQueryTool : ITool
                     defLoc = $"{file}:{r.GetInt32(2)}";
                 }
             }
-            List<(string project, int files)> byProject = new();
+            List<(string project, int files)> byProject = [];
             using (SqliteCommand c = connection.CreateCommand())
             {
                 c.CommandText = @"SELECT project, COUNT(DISTINCT file) FROM edges

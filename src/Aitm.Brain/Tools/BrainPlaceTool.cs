@@ -99,11 +99,10 @@ public sealed class BrainPlaceTool : ITool
     }
 
     private static List<string> McpTokens(string terms) =>
-        terms.ToLowerInvariant()
+        [.. terms.ToLowerInvariant()
             .Split(' ', StringSplitOptions.RemoveEmptyEntries)
-            .Select(t => new string(t.Where(char.IsLetterOrDigit).ToArray()))
-            .Where(t => t.Length > 1 && !McpStop.Contains(t))
-            .ToList();
+            .Select(t => new string([.. t.Where(char.IsLetterOrDigit)]))
+            .Where(t => t.Length > 1 && !McpStop.Contains(t))];
 
     // Copied verbatim from mcp.cs's LogGap (mcp.cs:139): every refused/empty lookup is recorded so the
     // store knows what it does NOT know, and the caller is told the gap was logged.

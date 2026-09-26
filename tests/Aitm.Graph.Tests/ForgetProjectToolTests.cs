@@ -1,4 +1,3 @@
-using System.Linq;
 using Aitm.Graph.Tools;
 using Aitm.Store.Data;
 using Aitm.TestSupport;
@@ -196,7 +195,7 @@ public class ForgetProjectToolTests
             {
                 new ForgetProjectTool().Execute(connection, root, "web");
             }
-            string[] afterFirstDelete = Directory.EnumerateFiles(backupsDir).OrderBy(p => p, StringComparer.Ordinal).ToArray();
+            string[] afterFirstDelete = [.. Directory.EnumerateFiles(backupsDir).OrderBy(p => p, StringComparer.Ordinal)];
             Assert.Single(afterFirstDelete);
             string firstBackupPath = afterFirstDelete[0];
 
@@ -206,7 +205,7 @@ public class ForgetProjectToolTests
             {
                 new ForgetProjectTool().Execute(connection, root, "api");
             }
-            string[] afterSecondDelete = Directory.EnumerateFiles(backupsDir).OrderBy(p => p, StringComparer.Ordinal).ToArray();
+            string[] afterSecondDelete = [.. Directory.EnumerateFiles(backupsDir).OrderBy(p => p, StringComparer.Ordinal)];
             Assert.Equal(2, afterSecondDelete.Length);
             Assert.Contains(firstBackupPath, afterSecondDelete);
 

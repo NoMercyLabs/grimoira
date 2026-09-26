@@ -30,7 +30,7 @@ public sealed class EvalTool : ITool
     };
 
     private static readonly (string q, string expect, bool answerable)[] DefaultQuestions =
-    {
+    [
         ("media base url", "raw.githubusercontent.com", true),
         ("is unauthorized response 401 or 403", "403", true),
         ("how many database contexts are there", "THREE", true),
@@ -45,7 +45,7 @@ public sealed class EvalTool : ITool
         ("weather forecast lovely saturday", "", false),
         ("server", "", false),
         ("list my favorite colors today", "", false),
-    };
+    ];
 
     public string Name => "eval";
     public string CliVerb => "eval";
@@ -123,11 +123,10 @@ public sealed class EvalTool : ITool
     // Split on every non-alphanumeric, not just space, so a kebab-case or path-shaped term stays
     // searchable by the words it is actually made of.
     private static List<string> Tokens(string terms) =>
-        terms.ToLowerInvariant()
+        [.. terms.ToLowerInvariant()
             .Split(" \t\r\n-_./\\,;:()[]{}<>\"'`|!?*+=&#@~%$^".ToCharArray(), StringSplitOptions.RemoveEmptyEntries)
             .Where(t => t.All(char.IsLetterOrDigit) && t.Length > 1 && !Stop.Contains(t))
-            .Distinct()
-            .ToList();
+            .Distinct()];
 
     private static string BuildMatch(string terms) => string.Join(" OR ", Tokens(terms).Select(t => $"\"{t}\""));
 

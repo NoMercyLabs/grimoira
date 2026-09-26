@@ -26,7 +26,7 @@ public sealed class BrainCommonTool : ITool
     public string ExecuteCli(SqliteConnection connection, IReadOnlyList<string> projects)
     {
         if (projects.Count < 2) return "usage: brain common <projA> <projB> [projC ...]";
-        List<string> keys = projects.Select(p => BrainProjects.Normalize(connection, p)).ToList();
+        List<string> keys = [.. projects.Select(p => BrainProjects.Normalize(connection, p))];
         string values = string.Join(",", keys.Select((_, i) => $"($p{i})"));
         using SqliteCommand c = connection.CreateCommand();
         c.CommandText = $@"WITH req(name) AS (VALUES {values}),
@@ -56,7 +56,7 @@ public sealed class BrainCommonTool : ITool
 
     public string ExecuteMcp(SqliteConnection connection, string projects)
     {
-        List<string> keys = BrainProjects.SplitArgs(projects).Select(p => BrainProjects.Normalize(connection, p)).ToList();
+        List<string> keys = [.. BrainProjects.SplitArgs(projects).Select(p => BrainProjects.Normalize(connection, p))];
         if (keys.Count < 2) return "give 2+ projects (e.g. 'web android ios').";
         string values = string.Join(",", keys.Select((_, i) => $"($p{i})"));
         using SqliteCommand cmd = connection.CreateCommand();

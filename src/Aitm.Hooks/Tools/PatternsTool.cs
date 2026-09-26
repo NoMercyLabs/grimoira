@@ -21,7 +21,7 @@ public sealed class PatternsTool : ITool
 
     public string ExecuteCli(SqliteConnection connection)
     {
-        List<(string Sig, long Count, bool Promoted, string Kind)> rows = new();
+        List<(string Sig, long Count, bool Promoted, string Kind)> rows = [];
         try
         {
             using SqliteCommand cmd = connection.CreateCommand();
@@ -33,14 +33,14 @@ public sealed class PatternsTool : ITool
         }
         catch (SqliteException)
         {
-            rows = new();
+            rows = [];
         }
         if (rows.Count == 0) return "nothing recorded yet.";
 
-        List<string> lines = new();
+        List<string> lines = [];
         foreach (string group in new[] { "sequence", "command" })
         {
-            List<(string Sig, long Count, bool Promoted, string Kind)> of = rows.Where(r => r.Kind == group).ToList();
+            List<(string Sig, long Count, bool Promoted, string Kind)> of = [.. rows.Where(r => r.Kind == group)];
             if (of.Count == 0) continue;
             lines.Add("");
             lines.Add(group == "sequence" ? "procedures:" : "single commands:");

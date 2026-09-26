@@ -28,7 +28,7 @@ public sealed class McpFlushLedgerCrossProcessRaceTests
     {
         string mcpDll = FindBinMcpDll();
         string instance = AitmCliRunner.NewTestInstance("cross-process-race");
-        List<string> violations = new();
+        List<string> violations = [];
         int expectedApplied = 0;
         try
         {

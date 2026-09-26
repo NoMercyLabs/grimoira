@@ -29,7 +29,7 @@ public sealed class BrainLearnTool : ITool
     public string ExecuteCli(SqliteConnection connection, IReadOnlyList<string> args, string gloss = "", string scheme = "", string facet = "text", string because = "", bool hard = false, bool multi = false)
     {
         string what = args.Count > 0 ? args[0] : "";
-        List<string> p = args.Skip(1).ToList();
+        List<string> p = [.. args.Skip(1)];
         string result = "";
 
         BeginTransaction(connection);

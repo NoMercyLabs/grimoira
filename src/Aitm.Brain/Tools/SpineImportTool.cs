@@ -70,7 +70,7 @@ public sealed class SpineImportTool : ITool
         // file_rel (RESTRUCTURE.md slice 31b): same column-exists guard GraphFileRelSchema.HasColumn
         // already gives every reader, so a v3 store (no column yet) inserts exactly as before.
         bool hasFileRel = GraphFileRelSchema.HasColumn(connection, "edges", "file_rel");
-        Dictionary<string, string> roots = hasFileRel ? GraphFileRelSchema.LoadProjectRoots(connection) : new();
+        Dictionary<string, string> roots = hasFileRel ? GraphFileRelSchema.LoadProjectRoots(connection) : [];
 
         int g = 0;
         if (root.TryGetProperty("edges", out JsonElement edges))

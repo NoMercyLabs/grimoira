@@ -13,10 +13,10 @@ namespace Aitm.Brain.Data;
 public static partial class NodeGuard
 {
     private static readonly string[] NodeKinds =
-    {
+    [
         "rule", "fact", "concept", "symbol", "finding", "contract",
         "seam", "codekind", "project", "reference", "platform", "layer",
-    };
+    ];
 
     /// <summary>Copied verbatim from aitm.cs's <c>NodeGuard</c> (aitm.cs:418).</summary>
     public static string ValidateCli(string kind, string label)

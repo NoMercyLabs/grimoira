@@ -17,7 +17,7 @@ public class McpJsonTests
         Assert.Equal("node", aitm.GetProperty("command").GetString());
         Assert.Equal(
             ["${CLAUDE_PLUGIN_ROOT}/run-mcp.mjs"],
-            aitm.GetProperty("args").EnumerateArray().Select(a => a.GetString()!).ToArray());
+            [.. aitm.GetProperty("args").EnumerateArray().Select(a => a.GetString()!)]);
         Assert.True(File.Exists(Path.Combine(RepoPaths.Root, "run-mcp.mjs")));
         Assert.False(aitm.TryGetProperty("url", out _));
         Assert.False(aitm.TryGetProperty("headers", out _));
@@ -37,7 +37,7 @@ public class McpJsonTests
         Assert.Equal("node", hook.GetProperty("command").GetString());
         Assert.Equal(
             ["${CLAUDE_PLUGIN_ROOT}/session-start.mjs"],
-            hook.GetProperty("args").EnumerateArray().Select(a => a.GetString()!).ToArray());
+            [.. hook.GetProperty("args").EnumerateArray().Select(a => a.GetString()!)]);
         Assert.True(hook.GetProperty("timeout").GetInt32() <= 20);
     }
 }

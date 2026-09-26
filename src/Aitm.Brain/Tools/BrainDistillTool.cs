@@ -28,7 +28,7 @@ public sealed class BrainDistillTool : ITool
     {
         new BackupTool().Execute(connection, root, null);
 
-        List<(string k, string title, string hook, string body, string links, long hard)> mems = new();
+        List<(string k, string title, string hook, string body, string links, long hard)> mems = [];
         using (SqliteCommand c = connection.CreateCommand())
         {
             c.CommandText = "SELECT k,title,hook,body,links,hard FROM memory";
@@ -37,14 +37,14 @@ public sealed class BrainDistillTool : ITool
                 mems.Add((r.GetString(0), r.IsDBNull(1) ? "" : r.GetString(1), r.IsDBNull(2) ? "" : r.GetString(2),
                     r.IsDBNull(3) ? "" : r.GetString(3), r.IsDBNull(4) ? "" : r.GetString(4), r.GetInt64(5)));
         }
-        List<(string k, string cat, string val)> facts = new();
+        List<(string k, string cat, string val)> facts = [];
         using (SqliteCommand c = connection.CreateCommand())
         {
             c.CommandText = "SELECT k,category,value FROM facts";
             using SqliteDataReader r = c.ExecuteReader();
             while (r.Read()) facts.Add((r.GetString(0), r.IsDBNull(1) ? "" : r.GetString(1), r.IsDBNull(2) ? "" : r.GetString(2)));
         }
-        List<(long id, string project, string contract, string symbol)> edges = new();
+        List<(long id, string project, string contract, string symbol)> edges = [];
         using (SqliteCommand c = connection.CreateCommand())
         {
             c.CommandText = "SELECT id,project,contract,symbol FROM edges";
@@ -52,7 +52,7 @@ public sealed class BrainDistillTool : ITool
             while (r.Read()) edges.Add((r.GetInt64(0), r.GetString(1), r.IsDBNull(2) ? "" : r.GetString(2), r.GetString(3)));
         }
 
-        HashSet<string> memKeys = mems.Select(m => m.k).ToHashSet();
+        HashSet<string> memKeys = [.. mems.Select(m => m.k)];
         int memN = 0, factN = 0, symN = 0, relN = 0, unresolved = 0;
 
         foreach ((string k, string title, string hook, string body, string links, long hard) in mems)

@@ -24,13 +24,13 @@ public sealed class SpineExportTool : ITool
     {
         List<Dictionary<string, object?>> Rows(string sql)
         {
-            List<Dictionary<string, object?>> rows = new();
+            List<Dictionary<string, object?>> rows = [];
             using SqliteCommand c = connection.CreateCommand();
             c.CommandText = sql;
             using SqliteDataReader r = c.ExecuteReader();
             while (r.Read())
             {
-                Dictionary<string, object?> row = new();
+                Dictionary<string, object?> row = [];
                 for (int i = 0; i < r.FieldCount; i++) row[r.GetName(i)] = r.IsDBNull(i) ? null : r.GetValue(i);
                 rows.Add(row);
             }
@@ -38,14 +38,14 @@ public sealed class SpineExportTool : ITool
         }
 
         (string name, List<Dictionary<string, object?>> rows)[] sections =
-        {
+        [
             ("nodes", Rows("SELECT k,kind,label,gloss,COALESCE(scheme,'') AS scheme,hard FROM node WHERE valid_to IS NULL ORDER BY k")),
             ("slots", Rows("SELECT frame_k,name,value,COALESCE(facet,'text') AS facet,multi FROM slot WHERE valid_to IS NULL ORDER BY frame_k,name")),
             ("links", Rows("SELECT s,p,o,COALESCE(because,'') AS because FROM triple WHERE valid_to IS NULL AND o_is_literal=0 AND src='seed' ORDER BY s,p,o")),
             ("aliases", Rows("SELECT short,k FROM proj_alias ORDER BY short")),
             ("terms", Rows("SELECT term,canonical FROM term_alias ORDER BY term,canonical")),
             ("edges", Rows("SELECT symbol,COALESCE(contract,'') AS contract,COALESCE(project,'') AS project,file,line,COALESCE(usage,'') AS usage,COALESCE(hardcoded,0) AS hardcoded FROM edges WHERE contract <> 'decl' ORDER BY symbol,file")),
-        };
+        ];
 
         // Written field by field rather than via reflection-based serialization: the shape is small and fixed.
         string full = Path.GetFullPath(toPath);

@@ -37,13 +37,13 @@ public sealed partial class BrainIndexOrgTool : ITool
         bool dry,
         IProcessRunner runner)
     {
-        List<string> lines = new() { $"indexing {orgs.Count} org(s)" };
+        List<string> lines = [$"indexing {orgs.Count} org(s)"];
 
         Dictionary<string, string> clones = LocalClones(searchRoots, runner);
         lines.Add($"  found {clones.Count} local clone(s) under {string.Join(", ", searchRoots)}");
 
-        List<object> nodes = new();
-        List<object> links = new();
+        List<object> nodes = [];
+        List<object> links = [];
         int total = 0, archived = 0, forks = 0, cloned = 0;
 
         foreach (string org in orgs)
@@ -64,7 +64,7 @@ public sealed partial class BrainIndexOrgTool : ITool
                 string key = $"repo:{org}/{name}";
                 string lang = r.TryGetProperty("primaryLanguage", out JsonElement pl) && pl.ValueKind == JsonValueKind.Object
                     ? Str(pl, "name") : "";
-                List<string> topics = new();
+                List<string> topics = [];
                 if (r.TryGetProperty("repositoryTopics", out JsonElement topEl) && topEl.ValueKind == JsonValueKind.Array)
                     foreach (JsonElement t in topEl.EnumerateArray())
                     {
@@ -77,8 +77,8 @@ public sealed partial class BrainIndexOrgTool : ITool
                 if (local is not null) cloned++;
                 string? pkg = local is not null ? PackageName(local) : null;
 
-                List<string> facts = new()
-                {
+                List<string> facts =
+                [
                     Str(r, "description") is { Length: > 0 } d ? d : "no description",
                     lang.Length > 0 ? $"language {lang}" : "",
                     Bool(r, "isPrivate") ? "private" : "public",
@@ -90,7 +90,7 @@ public sealed partial class BrainIndexOrgTool : ITool
                     pkg is not null ? $"publishes npm package {pkg}" : "",
                     topics.Count > 0 ? $"topics: {string.Join(", ", topics)}" : "",
                     url,
-                };
+                ];
                 string gloss = string.Join(". ", facts.Where(f => f.Length > 0));
 
                 nodes.Add(new { k = key, kind = "project", label = $"{org}/{name}", gloss, scheme = "repo", hard = 0 });
@@ -118,29 +118,29 @@ public sealed partial class BrainIndexOrgTool : ITool
     private static List<JsonElement> ReposOf(string org, IProcessRunner runner)
     {
         (string stdout, string stderr, int exitCode) = runner.Run("gh", ["repo", "list", org, "--limit", "500", "--json", Fields]);
-        if (exitCode != 0) return new List<JsonElement>();
+        if (exitCode != 0) return [];
         try
         {
             using JsonDocument doc = JsonDocument.Parse(stdout);
-            return doc.RootElement.EnumerateArray().Select(e => e.Clone()).ToList();
+            return [.. doc.RootElement.EnumerateArray().Select(e => e.Clone())];
         }
         catch (JsonException)
         {
-            return new List<JsonElement>();
+            return [];
         }
     }
 
     // Matched by remote URL rather than folder name — index-org.mjs:38-58.
     private static Dictionary<string, string> LocalClones(IReadOnlyList<string> searchRoots, IProcessRunner runner)
     {
-        Dictionary<string, string> byRemote = new();
+        Dictionary<string, string> byRemote = [];
         void Visit(string dir, int depth)
         {
             if (depth > 3) return;
             IEnumerable<string> entries;
             try { entries = Directory.EnumerateFileSystemEntries(dir); }
             catch { return; }
-            List<string> entryList = entries.ToList();
+            List<string> entryList = [.. entries];
             if (entryList.Any(e => Path.GetFileName(e) == ".git"))
             {
                 (string stdout, string _, int exitCode) = runner.Run("git", ["-C", dir, "remote", "get-url", "origin"]);

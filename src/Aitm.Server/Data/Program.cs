@@ -1,6 +1,5 @@
 using System.Reflection;
 using Aitm.Server.Data;
-using Microsoft.AspNetCore.Server.Kestrel.Transport.NamedPipes;
 using ModelContextProtocol.Server;
 
 // The service is reached only through a local pipe (Windows) or Unix socket, current user only: no TCP, no

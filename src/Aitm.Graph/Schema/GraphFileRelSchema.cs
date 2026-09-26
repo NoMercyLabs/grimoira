@@ -88,7 +88,7 @@ public sealed class GraphFileRelSchema : ISchemaProvider
     public static BackfillResult Backfill(SqliteConnection connection)
     {
         Dictionary<string, string> roots = LoadProjectRoots(connection);
-        List<(long id, string? project, string file)> rows = new();
+        List<(long id, string? project, string file)> rows = [];
         using (SqliteCommand cmd = connection.CreateCommand())
         {
             cmd.CommandText = "SELECT id, project, file FROM edges WHERE file_rel IS NULL";

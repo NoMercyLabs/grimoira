@@ -1,4 +1,3 @@
-using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.AI;
 
 namespace Aitm.Server.Data;

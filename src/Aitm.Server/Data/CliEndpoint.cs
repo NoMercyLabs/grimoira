@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using System.Text.Json;
-using Microsoft.AspNetCore.Http;
 using Microsoft.Data.Sqlite;
 
 namespace Aitm.Server.Data;

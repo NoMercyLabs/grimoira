@@ -1,4 +1,3 @@
-using Aitm.Brain.Data;
 using Aitm.Brain.Tools;
 using Aitm.Store.Data;
 using Aitm.TestSupport;

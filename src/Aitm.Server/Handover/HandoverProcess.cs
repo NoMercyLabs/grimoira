@@ -18,8 +18,7 @@ internal static class HandoverProcess
     {
         string python = Environment.GetEnvironmentVariable("AITM_PYTHON")
             ?? (OperatingSystem.IsWindows() ? "python" : "python3");
-        List<string> args = new(scriptArguments.Count + 1) { script };
-        args.AddRange(scriptArguments);
+        List<string> args = [script, .. scriptArguments];
         try
         {
             (string stdout, string stderr, int exitCode) = RunWithTimeout(runner, python, args, workingDirectory, timeout);

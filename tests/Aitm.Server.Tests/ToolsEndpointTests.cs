@@ -33,7 +33,7 @@ public sealed class ToolsEndpointTests : IDisposable
         using JsonDocument doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        JsonElement[] tools = doc.RootElement.EnumerateArray().ToArray();
+        JsonElement[] tools = [.. doc.RootElement.EnumerateArray()];
         Assert.Equal(25, tools.Length);
         Assert.Equal(GoldenListsTests.GoldenMcpTools.OrderBy(n => n), tools.Select(t => t.GetProperty("name").GetString()!).OrderBy(n => n));
         Assert.All(tools, t =>

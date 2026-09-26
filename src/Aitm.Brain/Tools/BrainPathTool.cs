@@ -51,7 +51,7 @@ public sealed partial class BrainPathTool : ITool
         List<BrainGraphLib.BlastRow> rows = BrainGraphLib.BlastRadius(connection, file, 12);
         if (rows.Count == 0)
             return $"no shared symbols found for {file} — nothing else in the graph carries its declarations.";
-        List<string> lines = new() { $"blast radius for {file}:" };
+        List<string> lines = [$"blast radius for {file}:"];
         foreach (BrainGraphLib.BlastRow r in rows)
             lines.Add($"  {r.Symbol.PadRight(34)} {r.Files} file(s), {r.Projects} project(s): {r.Names}");
         return string.Join("\n", lines);
@@ -60,7 +60,7 @@ public sealed partial class BrainPathTool : ITool
     private static string Org(SqliteConnection connection, string? rawFilter)
     {
         string? filter = string.IsNullOrEmpty(rawFilter) ? null : rawFilter.ToLowerInvariant();
-        List<(string K, string Label, string Gloss)> orgs = new();
+        List<(string K, string Label, string Gloss)> orgs = [];
         using (SqliteCommand cmd = connection.CreateCommand())
         {
             cmd.CommandText = "SELECT k, label, gloss FROM node WHERE valid_to IS NULL AND scheme='org' ORDER BY label";
@@ -69,10 +69,10 @@ public sealed partial class BrainPathTool : ITool
         }
         if (orgs.Count == 0) return "no organisations indexed — run index-org.mjs";
 
-        List<string> lines = new();
+        List<string> lines = [];
         foreach ((string _, string label, string _) in orgs)
         {
-            List<(string Label, string Gloss)> repos = new();
+            List<(string Label, string Gloss)> repos = [];
             using (SqliteCommand cmd = connection.CreateCommand())
             {
                 cmd.CommandText = "SELECT label, gloss FROM node WHERE valid_to IS NULL AND scheme='repo' AND label LIKE $p ORDER BY label";
@@ -82,7 +82,7 @@ public sealed partial class BrainPathTool : ITool
             }
             List<(string Label, string Gloss)> shown = filter is null
                 ? repos
-                : repos.Where(r => $"{r.Label} {r.Gloss}".ToLowerInvariant().Contains(filter)).ToList();
+                : [.. repos.Where(r => $"{r.Label} {r.Gloss}".ToLowerInvariant().Contains(filter))];
             if (shown.Count == 0) continue;
 
             lines.Add("");
@@ -108,7 +108,7 @@ public sealed partial class BrainPathTool : ITool
 
     private static string Patterns(SqliteConnection connection)
     {
-        List<(string Sig, long Count, bool Promoted, string Kind)> rows = new();
+        List<(string Sig, long Count, bool Promoted, string Kind)> rows = [];
         try
         {
             using SqliteCommand cmd = connection.CreateCommand();
@@ -120,14 +120,14 @@ public sealed partial class BrainPathTool : ITool
         }
         catch (SqliteException)
         {
-            rows = new();
+            rows = [];
         }
         if (rows.Count == 0) return "nothing recorded yet.";
 
-        List<string> lines = new();
+        List<string> lines = [];
         foreach (string group in new[] { "sequence", "command" })
         {
-            List<(string Sig, long Count, bool Promoted, string Kind)> of = rows.Where(r => r.Kind == group).ToList();
+            List<(string Sig, long Count, bool Promoted, string Kind)> of = [.. rows.Where(r => r.Kind == group)];
             if (of.Count == 0) continue;
             lines.Add("");
             lines.Add(group == "sequence" ? "procedures:" : "single commands:");
@@ -144,7 +144,7 @@ public sealed partial class BrainPathTool : ITool
     {
         List<BrainGraphLib.Community> found = BrainGraphLib.Communities(connection);
         if (found.Count == 0) return "no clusters — the triple graph has no connected nodes yet.";
-        List<string> lines = new() { $"{found.Count} cluster(s):", "" };
+        List<string> lines = [$"{found.Count} cluster(s):", ""];
         foreach (BrainGraphLib.Community c in found.Take(12))
         {
             lines.Add($"  {c.Hub}  ({c.Size} nodes)");
@@ -163,7 +163,7 @@ public sealed partial class BrainPathTool : ITool
         if (node is null) return $"no node matches \"{name}\"";
         BrainGraphLib.Community? c = BrainGraphLib.CommunityOf(connection, node.K);
         if (c is null) return $"\"{node.Label}\" is not connected to anything else yet.";
-        List<string> lines = new() { $"{node.Label} sits in the \"{c.Hub}\" cluster ({c.Size} nodes):", "" };
+        List<string> lines = [$"{node.Label} sits in the \"{c.Hub}\" cluster ({c.Size} nodes):", ""];
         foreach (BrainGraphLib.CommunityMember m in c.Members)
             lines.Add($"  {(m.Kind.Length > 0 ? $"[{m.Kind}] " : "")}{m.Label}");
         return string.Join("\n", lines);
@@ -182,10 +182,10 @@ public sealed partial class BrainPathTool : ITool
             return $"no recorded connection between \"{result.From.Label}\" and \"{result.To.Label}\".";
         if (result.Hops.Count == 0) return "same node.";
 
-        List<string> lines = new()
-        {
+        List<string> lines =
+        [
             $"{result.From.Label}  ->  {result.To.Label}   ({result.Hops.Count} hop(s))"
-        };
+        ];
         foreach (BrainGraphLib.Hop h in result.Hops)
         {
             string arrow = h.Dir == "out" ? "->" : "<-";

@@ -91,7 +91,7 @@ public class InitFullTests : IDisposable
     public void ReturnsNullWhenEvenTheQualifiedNameIsTaken()
     {
         string dir = Path.Combine(_dir, "clients", "shared");
-        HashSet<string> taken = new() { "shared", "clients-shared" };
+        HashSet<string> taken = ["shared", "clients-shared"];
         Assert.Null(InitFull.DeriveUniqueName(dir, taken));
     }
 }
@@ -161,9 +161,7 @@ public class InitFullRunFullTests : IDisposable
 
         Assert.True(result.Success);
         string[] markers = ["[1] ", "[2] ", "[3] ", "[4] ", "[5] ", "[6] ", "[7] ", "[8] "];
-        int[] positions = markers
-            .Select(marker => result.Log.IndexOf(marker, StringComparison.Ordinal))
-            .ToArray();
+        int[] positions = [.. markers.Select(marker => result.Log.IndexOf(marker, StringComparison.Ordinal))];
         Assert.All(positions, p => Assert.True(p >= 0));
         for (int i = 1; i < positions.Length; i++) Assert.True(positions[i] > positions[i - 1]);
     }
@@ -279,12 +277,8 @@ public class InitFullBrainSchemaParityTests : IDisposable
         InitFullResult result = InitFull.RunFull(options);
         Assert.True(result.Success);
 
-        List<(string type, string name, string tblName, string sql)> oldRows = SqliteMasterRows(oldDbPath)
-            .Select(WithFileRelColumn)
-            .ToList();
-        List<(string type, string name, string tblName, string sql)> newRows = SqliteMasterRows(options.DbPath)
-            .Where(r => !IndexCodeOwnedIndexNames.Contains(r.name))
-            .ToList();
+        List<(string type, string name, string tblName, string sql)> oldRows = [.. SqliteMasterRows(oldDbPath).Select(WithFileRelColumn)];
+        List<(string type, string name, string tblName, string sql)> newRows = [.. SqliteMasterRows(options.DbPath).Where(r => !IndexCodeOwnedIndexNames.Contains(r.name))];
 
         Assert.NotEmpty(oldRows);
         Assert.Equal(oldRows, newRows);
@@ -298,7 +292,7 @@ public class InitFullBrainSchemaParityTests : IDisposable
         command.CommandText =
             "SELECT type, name, tbl_name, sql FROM sqlite_master WHERE type != 'table' OR name NOT LIKE 'sqlite_%' ORDER BY type, name";
         using SqliteDataReader reader = command.ExecuteReader();
-        List<(string, string, string, string)> rows = new();
+        List<(string, string, string, string)> rows = [];
         while (reader.Read())
         {
             string? sql = reader.IsDBNull(3) ? null : reader.GetString(3);

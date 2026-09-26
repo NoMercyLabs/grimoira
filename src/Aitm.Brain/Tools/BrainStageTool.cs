@@ -82,11 +82,11 @@ public sealed class BrainStageTool : ITool
     // Disjoint by construction (RESTRUCTURE.md/mcp.cs comment), which is what makes the MCP-side
     // coercion below safe: a value can only ever match one of the two lists.
     private static readonly string[] NodeKinds =
-    {
+    [
         "rule", "fact", "concept", "symbol", "finding", "contract",
         "seam", "codekind", "project", "reference", "platform", "layer",
-    };
-    private static readonly string[] RowKinds = { "node", "triple", "slot" };
+    ];
+    private static readonly string[] RowKinds = ["node", "triple", "slot"];
 
     public string Name => "stage";
     public string CliVerb => "stage";

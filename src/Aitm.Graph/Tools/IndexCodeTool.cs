@@ -117,7 +117,7 @@ public sealed partial class IndexCodeTool : ITool
                 .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries),
             StringComparer.Ordinal);
 
-        List<(string name, string root)> projects = new();
+        List<(string name, string root)> projects = [];
         using (SqliteCommand c = connection.CreateCommand())
         {
             c.CommandText = "SELECT name, root FROM projects";
@@ -139,7 +139,7 @@ public sealed partial class IndexCodeTool : ITool
         }
 
         int grandTotal = 0;
-        List<string> log = new();
+        List<string> log = [];
         foreach ((string name, string root) in projects)
         {
             int files = 0, added = 0;

@@ -66,14 +66,14 @@ public sealed class GraphExplainTool : ITool
     private static string BuildExplanation(SqliteConnection connection, string resolved)
     {
         bool hasFileRel = Schema.GraphFileRelSchema.HasColumn(connection, "edges", "file_rel");
-        Dictionary<string, string> roots = hasFileRel ? Schema.GraphFileRelSchema.LoadProjectRoots(connection) : new();
+        Dictionary<string, string> roots = hasFileRel ? Schema.GraphFileRelSchema.LoadProjectRoots(connection) : [];
         string ResolveFile(string project, string file, bool isDbNull, Func<string> getFileRel) =>
             Schema.GraphFileRelSchema.ResolveFull(
                 roots.TryGetValue(project, out string? root) ? root : null,
                 hasFileRel && !isDbNull ? getFileRel() : null, file);
 
-        List<string> lines = new();
-        List<(string project, string file, int line, string usage)> declRows = new();
+        List<string> lines = [];
+        List<(string project, string file, int line, string usage)> declRows = [];
         using (SqliteCommand c = connection.CreateCommand())
         {
             c.CommandText = hasFileRel
@@ -96,7 +96,7 @@ public sealed class GraphExplainTool : ITool
 
         // Known-issue fix: contract != 'decl' excludes a symbol's own declaration row from its "used by"
         // count — a declaration is not a use, and is already reported above as "defined:".
-        List<(string project, int sites, int files)> byProject = new();
+        List<(string project, int sites, int files)> byProject = [];
         using (SqliteCommand c = connection.CreateCommand())
         {
             c.CommandText = @"SELECT project, COUNT(*), COUNT(DISTINCT file) FROM edges

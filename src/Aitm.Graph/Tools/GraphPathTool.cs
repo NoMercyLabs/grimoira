@@ -46,7 +46,7 @@ public sealed class GraphPathTool : ITool
         List<(string toKind, string toVal, string file, int line, string rel)> hops)
     {
         bool hasFileRel = Schema.GraphFileRelSchema.HasColumn(connection, "edges", "file_rel");
-        Dictionary<string, string> roots = hasFileRel ? Schema.GraphFileRelSchema.LoadProjectRoots(connection) : new();
+        Dictionary<string, string> roots = hasFileRel ? Schema.GraphFileRelSchema.LoadProjectRoots(connection) : [];
 
         // Slice 31: a hop's file (its own toVal, or the file that carries a usage hop's symbol) is
         // resolved to a full path for THIS machine via file_rel, falling back to the stored file value.
@@ -63,10 +63,10 @@ public sealed class GraphPathTool : ITool
             return Schema.GraphFileRelSchema.ResolveFull(roots.TryGetValue(project, out string? root) ? root : null, fileRel, file);
         }
 
-        List<string> lines = new()
-        {
+        List<string> lines =
+        [
             $"[{from.kind}] {from.value}  ->  [{to.kind}] {to.value}   ({hops.Count} hop(s))"
-        };
+        ];
         foreach ((string toKind, string toVal, string file, int line, string rel) h in hops)
         {
             string resolvedFile = ResolveHopFile(h.file);
@@ -115,18 +115,18 @@ public sealed class GraphPathTool : ITool
             idx.CommandText = "CREATE INDEX IF NOT EXISTS edges_file_idx ON edges(file, symbol, line)";
             idx.ExecuteNonQuery();
         }
-        if (from.kind == to.kind && string.Equals(from.value, to.value, StringComparison.OrdinalIgnoreCase)) return new();
+        if (from.kind == to.kind && string.Equals(from.value, to.value, StringComparison.OrdinalIgnoreCase)) return [];
 
         HashSet<string> seen = new(StringComparer.OrdinalIgnoreCase) { $"{from.kind}:{from.value}" };
-        List<(string kind, string value, List<(string toKind, string toVal, string file, int line, string rel)> hops)> frontier = new()
-        {
+        List<(string kind, string value, List<(string toKind, string toVal, string file, int line, string rel)> hops)> frontier =
+        [
             (from.kind, from.value, new List<(string, string, string, int, string)>())
-        };
+        ];
 
         int expansions = 2000;
         for (int depth = 0; depth < maxDepth; depth++)
         {
-            List<(string kind, string value, List<(string toKind, string toVal, string file, int line, string rel)> hops)> next = new();
+            List<(string kind, string value, List<(string toKind, string toVal, string file, int line, string rel)> hops)> next = [];
             foreach ((string kind, string value, List<(string toKind, string toVal, string file, int line, string rel)> hops) cur in frontier)
             {
                 if (expansions-- <= 0) return null;
@@ -145,10 +145,7 @@ public sealed class GraphPathTool : ITool
                     string key = $"{neighborKind}:{neighborVal}";
                     if (!seen.Add(key)) continue;
                     string hopFile = cur.kind == "symbol" ? neighborVal : cur.value;
-                    List<(string toKind, string toVal, string file, int line, string rel)> hops = new(cur.hops)
-                    {
-                        (neighborKind, neighborVal, hopFile, line, rel)
-                    };
+                    List<(string toKind, string toVal, string file, int line, string rel)> hops = [.. cur.hops, (neighborKind, neighborVal, hopFile, line, rel)];
                     if (neighborKind == to.kind && string.Equals(neighborVal, to.value, StringComparison.OrdinalIgnoreCase)) return hops;
                     next.Add((neighborKind, neighborVal, hops));
                 }

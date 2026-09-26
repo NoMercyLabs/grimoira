@@ -1,5 +1,4 @@
 using Aitm.Server.Data;
-using Aitm.Store.Data;
 using Aitm.TestSupport;
 using Microsoft.Data.Sqlite;
 using ModelContextProtocol.Client;

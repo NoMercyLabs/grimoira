@@ -1,8 +1,6 @@
-using System.Net;
 using Aitm.Facts.Tools;
 using Aitm.Layout.Tests;
 using Aitm.Server.Data;
-using Aitm.Store.Data;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Data.Sqlite;
 using ModelContextProtocol.Client;

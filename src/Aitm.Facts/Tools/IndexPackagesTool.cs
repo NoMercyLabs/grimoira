@@ -26,7 +26,7 @@ public sealed class IndexPackagesTool : ITool
         if (!Directory.Exists(root)) return $"root not found: {root}";
         int n = 0;
         using (SqliteCommand begin = connection.CreateCommand()) { begin.CommandText = "BEGIN"; begin.ExecuteNonQuery(); }
-        foreach (string file in EnumerateSource(root, new[] { "package.json" }))
+        foreach (string file in EnumerateSource(root, ["package.json"]))
         {
             JsonDocument doc;
             try { doc = JsonDocument.Parse(File.ReadAllText(file)); }
@@ -80,10 +80,10 @@ public sealed class IndexPackagesTool : ITool
         // upsert and the store then reports a package's home as the scratch directory it was last built
         // into.
         string[] skip =
-        {
+        [
             "node_modules", "dist", "build", "bin", "obj", ".git", ".nuxt", ".gradle", "vendor", ".idea", ".vs",
             ".scratch", ".turbo", ".next", ".output", ".svelte-kit", "coverage", "out", "target", "__pycache__",
-        };
+        ];
         Stack<string> stack = new();
         stack.Push(root);
         while (stack.Count > 0)
@@ -91,14 +91,14 @@ public sealed class IndexPackagesTool : ITool
             string dir = stack.Pop();
             string[] subs;
             try { subs = Directory.GetDirectories(dir); }
-            catch { subs = Array.Empty<string>(); }
+            catch { subs = []; }
             foreach (string sub in subs)
                 if (!skip.Contains(Path.GetFileName(sub), StringComparer.OrdinalIgnoreCase)) stack.Push(sub);
             foreach (string pattern in patterns)
             {
                 string[] files;
                 try { files = Directory.GetFiles(dir, pattern); }
-                catch { files = Array.Empty<string>(); }
+                catch { files = []; }
                 foreach (string file in files) yield return file;
             }
         }

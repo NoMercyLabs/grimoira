@@ -33,7 +33,7 @@ public sealed class BrainLearnBatchTool : ITool
         {
             string line = raw.Trim();
             if (line.Length == 0 || line.StartsWith('#')) continue;
-            string[] f = line.Split('|').Select(x => x.Trim()).ToArray();
+            string[] f = [.. line.Split('|').Select(x => x.Trim())];
             try
             {
                 switch (f[0])

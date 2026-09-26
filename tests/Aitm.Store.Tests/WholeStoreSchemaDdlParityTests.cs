@@ -246,7 +246,7 @@ public class WholeStoreSchemaDdlParityTests
 
     private static List<(string type, string name, string tblName, string sql)> SqliteMasterRows(SqliteConnection connection)
     {
-        List<(string, string, string, string)> rows = new();
+        List<(string, string, string, string)> rows = [];
         using SqliteCommand command = connection.CreateCommand();
         command.CommandText = "SELECT type, name, tbl_name, sql FROM sqlite_master ORDER BY type, name";
         using SqliteDataReader reader = command.ExecuteReader();

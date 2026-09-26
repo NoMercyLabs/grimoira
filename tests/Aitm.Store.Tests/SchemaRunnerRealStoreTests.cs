@@ -6,7 +6,6 @@ using Aitm.Memory.Schema;
 using Aitm.Store.Data;
 using Aitm.Store.Schema;
 using Aitm.Store.Tests.Support;
-using Aitm.TestSupport;
 using Microsoft.Data.Sqlite;
 using Xunit;
 
@@ -177,9 +176,7 @@ public class SchemaRunnerRealStoreTests
         while (reader.Read())
         {
             string key = Convert.ToString(reader.GetValue(keyOrdinal)) ?? "";
-            string[] values = Enumerable.Range(0, reader.FieldCount)
-                .Select(i => reader.IsDBNull(i) ? "<null>" : Convert.ToString(reader.GetValue(i)) ?? "")
-                .ToArray();
+            string[] values = [.. Enumerable.Range(0, reader.FieldCount).Select(i => reader.IsDBNull(i) ? "<null>" : Convert.ToString(reader.GetValue(i)) ?? "")];
             rows[key] = string.Join('\u0001', values);
         }
         return rows;

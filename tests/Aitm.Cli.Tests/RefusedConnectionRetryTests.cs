@@ -1,4 +1,3 @@
-using System.Net.Http;
 using Aitm.Cli.Tools;
 using Xunit;
 

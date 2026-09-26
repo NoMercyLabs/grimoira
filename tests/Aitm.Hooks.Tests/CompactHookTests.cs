@@ -28,8 +28,8 @@ public class CompactHookTests
     {
         string path = Path.Combine(projectDir, "transcript.jsonl");
         string editedFile = Path.Combine(projectDir, "src", "Widget.cs");
-        var lines = new[]
-        {
+        string[] lines =
+        [
             JsonSerializer.Serialize(new
             {
                 type = "user",
@@ -69,7 +69,7 @@ public class CompactHookTests
                     },
                 },
             }),
-        };
+        ];
         File.WriteAllLines(path, lines);
         return path;
     }

@@ -15,13 +15,13 @@ namespace Aitm.Brain.Tools;
 public sealed class BrainIndexInfraTool : ITool
 {
     private static readonly (string Section, string Kind, string Scheme)[] Sections =
-    {
+    [
         ("hosts", "platform", "host"),
         ("services", "seam", "service"),
         ("environments", "contract", "environment"),
         ("registries", "reference", "registry"),
         ("domains", "reference", "domain"),
-    };
+    ];
 
     public string Name => "index-infra";
     public string CliVerb => "index-infra";
@@ -39,8 +39,8 @@ public sealed class BrainIndexInfraTool : ITool
         using JsonDocument doc = JsonDocument.Parse(File.ReadAllText(fromPath));
         JsonElement spec = doc.RootElement;
 
-        List<object> nodes = new();
-        List<object> links = new();
+        List<object> nodes = [];
+        List<object> links = [];
 
         foreach ((string section, string kind, string scheme) in Sections)
         {
@@ -71,7 +71,7 @@ public sealed class BrainIndexInfraTool : ITool
         object fragment = new { nodes, slots = Array.Empty<object>(), links, aliases = Array.Empty<object>(), terms = Array.Empty<object>(), edges = Array.Empty<object>() };
         File.WriteAllText(outPath, JsonSerializer.Serialize(fragment, new JsonSerializerOptions { WriteIndented = true }));
 
-        List<string> lines = new() { $"{nodes.Count} node(s), {links.Count} link(s) from {fromPath}" };
+        List<string> lines = [$"{nodes.Count} node(s), {links.Count} link(s) from {fromPath}"];
         string imported = new SpineImportTool().ExecuteCli(connection, outPath);
         lines.Add(imported.Trim().Split('\n').Last());
         return string.Join("\n", lines);

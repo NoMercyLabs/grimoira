@@ -237,13 +237,13 @@ public class IndexChatToolTests
             ("88888888-8888-8888-8888-888888888888", $"leaked github token {ghp} and aws key {awsKey} in the same paste"),
             ("99999999-9999-9999-9999-999999999999", $"pasted a pem block by accident: {pem} that should never land here"),
         ];
-        string[] lines = messages.Select((m, i) => System.Text.Json.JsonSerializer.Serialize(new
+        string[] lines = [.. messages.Select((m, i) => System.Text.Json.JsonSerializer.Serialize(new
         {
             type = "user",
             uuid = m.uuid,
             timestamp = $"2026-09-25T11:0{i}:00.000Z",
             message = new { content = m.content },
-        })).ToArray();
+        }))];
         File.WriteAllLines(path, lines);
         return path;
     }

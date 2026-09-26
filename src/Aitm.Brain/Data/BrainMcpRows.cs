@@ -21,13 +21,13 @@ public static class BrainMcpRows
     /// Prefix-dedupe only kicks in past 3 chars so short numeric cells (flags, counts) survive.</summary>
     public static string RowLine(SqliteDataReader r)
     {
-        List<string> raw = new();
+        List<string> raw = [];
         for (int i = 0; i < r.FieldCount; i++)
         {
             string v = r.IsDBNull(i) ? "" : Convert.ToString(r.GetValue(i), CultureInfo.InvariantCulture) ?? "";
             if (v.Length > 0) raw.Add(v);
         }
-        List<string> kept = new();
+        List<string> kept = [];
         for (int i = 0; i < raw.Count; i++)
         {
             string v = raw[i];
@@ -59,7 +59,7 @@ public static class BrainMcpRows
     public static string RowsK(SqliteConnection connection, SqliteCommand cmd)
     {
         StringBuilder sb = new();
-        List<string> keys = new();
+        List<string> keys = [];
         using (SqliteDataReader r = cmd.ExecuteReader())
         {
             while (r.Read())

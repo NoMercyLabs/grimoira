@@ -33,7 +33,7 @@ public partial class CliFlagCoverageGuardTests
         Dictionary<string, HashSet<string>> oldBrain = ExtractVerbFlags(oracleSource, FindNestedSwitchBody(oracleSource, "BrainCmd"));
         Dictionary<string, HashSet<string>> newBrain = ExtractVerbFlags(currentSource, FindNestedSwitchBody(currentSource, "BrainCmd"));
 
-        List<string> missing = new();
+        List<string> missing = [];
         CollectMissing(oldTopLevel, newTopLevel, "", missing);
         CollectMissing(oldBrain, newBrain, "brain ", missing);
 

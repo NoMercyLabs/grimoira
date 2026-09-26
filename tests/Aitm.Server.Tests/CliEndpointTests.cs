@@ -180,7 +180,7 @@ public sealed partial class CliEndpointTests : IDisposable
             Assert.Contains("project a value", queryA.Stdout);
             Assert.DoesNotContain("project a value", queryB.Stdout);
             Assert.Contains("project a value", queryByCwd.Stdout);
-            string[] stores = Directory.GetDirectories(_dataDir).Select(d => Path.GetFileName(d)!).ToArray();
+            string[] stores = [.. Directory.GetDirectories(_dataDir).Select(d => Path.GetFileName(d)!)];
             Assert.Contains(Path.GetFileName(projectA), stores);
             Assert.Contains(Path.GetFileName(projectB), stores);
             Assert.DoesNotContain(stores, s => s.Contains("server-env"));
@@ -210,10 +210,8 @@ public sealed partial class CliEndpointTests : IDisposable
         };
         await using McpClient mcp = await McpClient.CreateAsync(new HttpClientTransport(options, client));
 
-        Task<CliAnswer>[] cliWrites = Enumerable.Range(0, 10)
-            .Select(i => PostCli(client, ["add", "--term", $"concurrentterm{i}", "--value", $"value {i}"], instanceHeader: instance))
-            .ToArray();
-        Task<ModelContextProtocol.Protocol.CallToolResult>[] mcpWrites = Enumerable.Range(0, 10)
+        Task<CliAnswer>[] cliWrites = [.. Enumerable.Range(0, 10).Select(i => PostCli(client, ["add", "--term", $"concurrentterm{i}", "--value", $"value {i}"], instanceHeader: instance))];
+        Task<ModelContextProtocol.Protocol.CallToolResult>[] mcpWrites = [.. Enumerable.Range(0, 10)
             .Select(i => mcp.CallToolAsync("brain_learn", new Dictionary<string, object?>
             {
                 ["kind"] = "node",
@@ -221,8 +219,7 @@ public sealed partial class CliEndpointTests : IDisposable
                 ["a"] = "fact",
                 ["b"] = "cli and mcp concurrency fixture",
                 ["c"] = "seeded by CliEndpointTests",
-            }).AsTask())
-            .ToArray();
+            }).AsTask())];
         await Task.WhenAll(cliWrites);
         await Task.WhenAll(mcpWrites);
 

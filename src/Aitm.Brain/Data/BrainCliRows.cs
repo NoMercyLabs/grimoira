@@ -13,7 +13,7 @@ public static class BrainCliRows
 {
     private static string Cols(SqliteDataReader r)
     {
-        List<string> cols = new();
+        List<string> cols = [];
         for (int i = 0; i < r.FieldCount; i++)
             cols.Add(r.IsDBNull(i) ? "" : Convert.ToString(r.GetValue(i), CultureInfo.InvariantCulture) ?? "");
         return string.Join("  |  ", cols);
@@ -38,14 +38,14 @@ public static class BrainCliRows
     /// the caller can reinforce after the reader is disposed.</summary>
     public static (string output, List<string> keys) RunReader(SqliteCommand c, bool announceEmpty = true)
     {
-        List<string> keys = new();
+        List<string> keys = [];
         StringBuilder sb = new();
         int n = 0;
         using (SqliteDataReader r = c.ExecuteReader())
         {
             while (r.Read())
             {
-                List<string> cols = new();
+                List<string> cols = [];
                 for (int i = 0; i < r.FieldCount; i++)
                     cols.Add(r.IsDBNull(i) ? "" : Convert.ToString(r.GetValue(i), CultureInfo.InvariantCulture) ?? "");
                 if (cols.Count > 0) keys.Add(cols[0]);
