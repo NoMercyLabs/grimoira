@@ -198,6 +198,63 @@ public sealed class HooksEndpointTests : IDisposable
         Assert.True(Scalar(HookDbPath, "SELECT count(*) FROM chat") > 0, "SessionEnd did not index the transcript");
     }
 
+    // The server is one process for every session. Started from a session hook, it inherits that session's
+    // CLAUDE_PROJECT_DIR; a handler that preferred the process env would read and write the files of that
+    // one project for every request. The project a request names (its Claude-Project-Dir header) wins.
+    private async Task WithServerEnvPointingElsewhere(Func<Task> body)
+    {
+        string elsewhere = Path.Combine(Path.GetTempPath(), $"test-hooks-elsewhere-{Guid.NewGuid():N}");
+        string? before = Environment.GetEnvironmentVariable("CLAUDE_PROJECT_DIR");
+        Environment.SetEnvironmentVariable("CLAUDE_PROJECT_DIR", elsewhere);
+        try
+        {
+            await body();
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("CLAUDE_PROJECT_DIR", before);
+            AitmCliRunner.DeleteInstance(Path.GetFileName(elsewhere).ToLowerInvariant());
+        }
+    }
+
+    [Fact]
+    public async Task UserPromptSubmitRestoresTheBriefOfTheRequestProjectNotTheServerEnvProject()
+    {
+        using WebApplicationFactory<Program> factory = Factory();
+        string token = ServerToken.EnsureToken(_dataDir);
+        using HttpClient client = Client(factory);
+        string briefPath = Path.Combine(Path.GetDirectoryName(HookDbPath)!, "compact", "s7.md");
+        Directory.CreateDirectory(Path.GetDirectoryName(briefPath)!);
+        File.WriteAllText(briefPath, "# Carried across compaction\n\n- \"a directive long enough to be kept\"\n");
+        string payload = JsonSerializer.Serialize(new { cwd = _projectDir, session_id = "s7", prompt = "go on" });
+
+        await WithServerEnvPointingElsewhere(async () =>
+        {
+            (HttpStatusCode status, string body) = await PostHook(client, token, "UserPromptSubmit", payload);
+
+            Assert.Equal(HttpStatusCode.OK, status);
+            Assert.Contains("a directive long enough to be kept", body);
+        });
+    }
+
+    [Fact]
+    public async Task PreCompactWritesTheBriefUnderTheRequestProjectNotTheServerEnvProject()
+    {
+        using WebApplicationFactory<Program> factory = Factory();
+        string token = ServerToken.EnsureToken(_dataDir);
+        using HttpClient client = Client(factory);
+        string payload = JsonSerializer.Serialize(new { transcript_path = WriteTranscript(), cwd = _projectDir, session_id = "s8" });
+
+        await WithServerEnvPointingElsewhere(async () =>
+        {
+            (HttpStatusCode status, _) = await PostHook(client, token, "PreCompact", payload);
+
+            Assert.Equal(HttpStatusCode.OK, status);
+            Assert.True(File.Exists(Path.Combine(Path.GetDirectoryName(HookDbPath)!, "compact", "s8.md")),
+                "the PreCompact brief was not written under the request's project");
+        });
+    }
+
     [Fact]
     public async Task UnknownEventIs200AndEmpty()
     {
