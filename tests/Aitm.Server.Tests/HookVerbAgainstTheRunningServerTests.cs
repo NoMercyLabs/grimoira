@@ -1,6 +1,4 @@
 using System.Diagnostics;
-using System.Net;
-using System.Net.Sockets;
 using System.Text.Json;
 using Aitm.Layout.Tests;
 using Aitm.TestSupport;
@@ -10,13 +8,14 @@ using Xunit.Abstractions;
 
 namespace Aitm.Server.Tests;
 
-// RESTRUCTURE.md slice 30: hooks.json runs `aitm hook <event>` from the published CLI. The two compact handlers
-// run inside the CLI; the SessionEnd and PostToolUse handlers need Memory, Docs, Graph and Store, so the CLI
-// sends those events to the server's POST /hooks/{event} and exits 0 on any failure. A real Aitm.Server
-// process (this build's output) runs on a free port with a temp data dir; the CLI (Aitm.Cli's build output,
-// the same project build-cli.ps1 publishes to bin-cli) runs as its own process with that port and data dir.
-// The handlers keep their own ~/.aitm/<instance> layout (HookPaths), so each test uses a unique test-*
-// instance there and deletes it afterwards, the same way Aitm.Hooks.Tests does.
+// RESTRUCTURE.md slice 30, transport updated by Slice P1: hooks.json runs `aitm hook <event>` from the
+// published CLI. The two compact handlers run inside the CLI; the SessionEnd and PostToolUse handlers need
+// Memory, Docs, Graph and Store, so the CLI sends those events to the server's POST /hooks/{event} over the
+// local pipe / Unix socket and exits 0 on any failure. A real Aitm.Server process (this build's output)
+// runs against a temp data dir; the CLI (Aitm.Cli's build output, the same project build-cli.ps1 publishes
+// to bin-cli) runs as its own process with that same data dir. The handlers keep their own
+// ~/.aitm/<instance> layout (HookPaths), so each test uses a unique test-* instance there and deletes it
+// afterwards, the same way Aitm.Hooks.Tests does.
 public sealed class HookVerbAgainstTheRunningServerTests : IDisposable
 {
     private static readonly string Configuration = new DirectoryInfo(AppContext.BaseDirectory.TrimEnd('/', '\\')).Parent!.Name;
@@ -27,7 +26,6 @@ public sealed class HookVerbAgainstTheRunningServerTests : IDisposable
     private readonly string _dataDir = Directory.CreateTempSubdirectory("aitm-hook-verb-").FullName;
     private readonly string _projectDir;
     private readonly string _instance;
-    private readonly int _port = FreePort();
     private readonly List<Process> _servers = [];
 
     public HookVerbAgainstTheRunningServerTests(ITestOutputHelper output)
@@ -173,18 +171,17 @@ public sealed class HookVerbAgainstTheRunningServerTests : IDisposable
         ProcessStartInfo psi = new("dotnet") { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true };
         psi.ArgumentList.Add(ServerDll);
         psi.Environment["AITM_DATA_DIR"] = _dataDir;
-        psi.Environment["AITM_SERVER_PORT"] = _port.ToString();
         psi.Environment.Remove("CLAUDE_PROJECT_DIR");
         psi.Environment.Remove("AITM_INSTANCE");
         Process process = Process.Start(psi)!;
         _servers.Add(process);
         Stopwatch sw = Stopwatch.StartNew();
-        using HttpClient client = new() { Timeout = TimeSpan.FromSeconds(1) };
         while (sw.Elapsed < TimeSpan.FromSeconds(20))
         {
             try
             {
-                if (client.GetAsync($"http://127.0.0.1:{_port}/health").Result.IsSuccessStatusCode) return;
+                using HttpClient client = PipeTestClient.CreateClient(_dataDir, TimeSpan.FromSeconds(1));
+                if (client.GetAsync("/health").Result.IsSuccessStatusCode) return;
             }
             catch (Exception) when (!process.HasExited) { }
             Thread.Sleep(100);
@@ -193,7 +190,7 @@ public sealed class HookVerbAgainstTheRunningServerTests : IDisposable
     }
 
     // `aitm hook <event>` as a command hook runs it: payload on stdin, CLAUDE_PROJECT_DIR set the way Claude
-    // Code sets it, and the port and data dir of this test's server (no server listens when none was started).
+    // Code sets it, and the data dir of this test's server (no server listens when none was started).
     private (int Exit, string Stdout, long ElapsedMs) RunHook(string eventName, string payload)
     {
         Assert.True(File.Exists(CliDll), $"aitm not built at {CliDll}");
@@ -202,7 +199,6 @@ public sealed class HookVerbAgainstTheRunningServerTests : IDisposable
         psi.ArgumentList.Add("hook");
         psi.ArgumentList.Add(eventName);
         psi.Environment["AITM_DATA_DIR"] = _dataDir;
-        psi.Environment["AITM_SERVER_PORT"] = _port.ToString();
         psi.Environment["AITM_SERVER_EXE"] = Path.Combine(_dataDir, "missing", "Aitm.Server.exe");
         psi.Environment["CLAUDE_PROJECT_DIR"] = _projectDir;
         psi.Environment.Remove("AITM_INSTANCE");
@@ -242,14 +238,5 @@ public sealed class HookVerbAgainstTheRunningServerTests : IDisposable
         AitmCliRunner.DeleteInstance(_instance);
         try { Directory.Delete(_dataDir, recursive: true); } catch (Exception) { }
         try { Directory.Delete(_projectDir, recursive: true); } catch (Exception) { }
-    }
-
-    private static int FreePort()
-    {
-        TcpListener l = new(IPAddress.Loopback, 0);
-        l.Start();
-        int port = ((IPEndPoint)l.LocalEndpoint).Port;
-        l.Stop();
-        return port == 7635 ? FreePort() : port;
     }
 }

@@ -1,6 +1,4 @@
 using System.Diagnostics;
-using System.Net;
-using System.Net.Sockets;
 using System.Text.RegularExpressions;
 using Aitm.Layout.Tests;
 using Aitm.TestSupport;
@@ -12,7 +10,7 @@ namespace Aitm.Server.Tests;
 // RESTRUCTURE.md sub-card 29e: bin-cli/aitm.dll is now the published thin client and bin-cli-old/aitm.dll the
 // last aitm.cs build. Every golden CLI verb's parity scenarios (the normal and error calls the slice 24
 // *CliParityTests already list) run through both: the old build on its own ~/.aitm test-* instance, the thin
-// client against a real Aitm.Server on an ephemeral port with a temp data dir. Stdout, stderr and exit code
+// client against a real Aitm.Server on its own pipe/socket (derived from a temp data dir; Slice P1). Stdout, stderr and exit code
 // must match once the instance name, its store folder and timings are masked. AITM_SERVER_EXE points at a
 // missing file, so a dead test server fails the test instead of starting the live one.
 public sealed class BinCliThinClientMatchesBinCliOldTests : IClassFixture<BinCliThinClientMatchesBinCliOldTests.TestServer>
@@ -128,7 +126,6 @@ public sealed class BinCliThinClientMatchesBinCliOldTests : IClassFixture<BinCli
             StandardErrorEncoding = System.Text.Encoding.UTF8,
         };
         psi.Environment["AITM_DATA_DIR"] = _server.DataDir;
-        psi.Environment["AITM_SERVER_PORT"] = _server.Port.ToString();
         psi.Environment["AITM_SERVER_EXE"] = Path.Combine(_server.DataDir, "missing", "Aitm.Server.exe");
         psi.Environment.Remove("AITM_INSTANCE");
         psi.Environment.Remove("CLAUDE_PROJECT_DIR");
@@ -144,8 +141,8 @@ public sealed class BinCliThinClientMatchesBinCliOldTests : IClassFixture<BinCli
         return new OldVsNewCli.Result(stdout.Result, stderr.Result, p.ExitCode);
     }
 
-    /// <summary>One real Aitm.Server (this build's output) per test class, on an ephemeral port that is
-    /// never 7635, with its own temp data dir.</summary>
+    /// <summary>One real Aitm.Server (this build's output) per test class, on the pipe/socket derived from
+    /// its own temp data dir (never the live service).</summary>
     public sealed class TestServer : IDisposable
     {
         private static readonly string Configuration = new DirectoryInfo(AppContext.BaseDirectory.TrimEnd('/', '\\')).Parent!.Name;
@@ -153,14 +150,12 @@ public sealed class BinCliThinClientMatchesBinCliOldTests : IClassFixture<BinCli
 
         private readonly Process _process;
         public string DataDir { get; } = Directory.CreateTempSubdirectory("aitm-thin-parity-").FullName;
-        public int Port { get; } = FreePort();
 
         public TestServer()
         {
             ProcessStartInfo psi = new("dotnet") { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true };
             psi.ArgumentList.Add(ServerDll);
             psi.Environment["AITM_DATA_DIR"] = DataDir;
-            psi.Environment["AITM_SERVER_PORT"] = Port.ToString();
             psi.Environment.Remove("CLAUDE_PROJECT_DIR");
             psi.Environment.Remove("AITM_INSTANCE");
             _process = Process.Start(psi)!;
@@ -169,12 +164,12 @@ public sealed class BinCliThinClientMatchesBinCliOldTests : IClassFixture<BinCli
             _process.BeginOutputReadLine();
             _process.BeginErrorReadLine();
             Stopwatch sw = Stopwatch.StartNew();
-            using HttpClient client = new() { Timeout = TimeSpan.FromSeconds(1) };
             while (sw.Elapsed < TimeSpan.FromSeconds(30))
             {
                 try
                 {
-                    if (client.GetAsync($"http://127.0.0.1:{Port}/health").Result.IsSuccessStatusCode) return;
+                    using HttpClient client = PipeTestClient.CreateClient(DataDir, TimeSpan.FromSeconds(1));
+                    if (client.GetAsync("/health").Result.IsSuccessStatusCode) return;
                 }
                 catch (Exception) when (!_process.HasExited) { }
                 Thread.Sleep(100);
@@ -188,15 +183,6 @@ public sealed class BinCliThinClientMatchesBinCliOldTests : IClassFixture<BinCli
             try { if (!_process.HasExited) { _process.Kill(entireProcessTree: true); _process.WaitForExit(5000); } } catch (Exception) { }
             _process.Dispose();
             try { Directory.Delete(DataDir, recursive: true); } catch (Exception) { }
-        }
-
-        private static int FreePort()
-        {
-            TcpListener l = new(IPAddress.Loopback, 0);
-            l.Start();
-            int port = ((IPEndPoint)l.LocalEndpoint).Port;
-            l.Stop();
-            return port == 7635 ? FreePort() : port;
         }
     }
 }

@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using System.Net;
-using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
 using Aitm.Layout.Tests;
@@ -9,9 +8,10 @@ using Xunit.Abstractions;
 
 namespace Aitm.Server.Tests;
 
-// RESTRUCTURE.md slice 29d: the published Aitm.Cli (`aitm`) as a thin client of POST /cli. A real Aitm.Server
-// process (this build's output) runs on an ephemeral port with a temp data dir; the CLI runs as its own
-// process with that port and data dir. The oracle is the same call made straight to /cli. The cli-exit
+// RESTRUCTURE.md slice 29d, transport updated by Slice P1: the published Aitm.Cli (`aitm`) as a thin client
+// of POST /cli, over the local pipe / Unix socket derived from a temp data dir instead of an ephemeral TCP
+// port. A real Aitm.Server process (this build's output) runs against that data dir; the CLI runs as its
+// own process with the same data dir. The oracle is the same call made straight to /cli. The cli-exit
 // contract (cli-exit.test.mjs: unknown verb 2, flag before the verb 2, dropped verbs 2) holds through the
 // thin client. And with no server running, a verb starts the configured server and still answers.
 public sealed class ThinClientAgainstTheRunningServerTests : IDisposable
@@ -23,7 +23,6 @@ public sealed class ThinClientAgainstTheRunningServerTests : IDisposable
     private readonly ITestOutputHelper _output;
     private readonly string _dataDir = Directory.CreateTempSubdirectory("aitm-thin-srv-").FullName;
     private readonly string _projectDir;
-    private readonly int _port = FreePort();
     private readonly List<Process> _servers = [];
 
     public ThinClientAgainstTheRunningServerTests(ITestOutputHelper output)
@@ -38,18 +37,17 @@ public sealed class ThinClientAgainstTheRunningServerTests : IDisposable
         ProcessStartInfo psi = new("dotnet") { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true };
         psi.ArgumentList.Add(Path.Combine(ServerDir, "Aitm.Server.dll"));
         psi.Environment["AITM_DATA_DIR"] = _dataDir;
-        psi.Environment["AITM_SERVER_PORT"] = _port.ToString();
         psi.Environment.Remove("CLAUDE_PROJECT_DIR");
         psi.Environment.Remove("AITM_INSTANCE");
         Process process = Process.Start(psi)!;
         _servers.Add(process);
         Stopwatch sw = Stopwatch.StartNew();
-        using HttpClient client = new() { Timeout = TimeSpan.FromSeconds(1) };
         while (sw.Elapsed < TimeSpan.FromSeconds(20))
         {
             try
             {
-                if (client.GetAsync($"http://127.0.0.1:{_port}/health").Result.IsSuccessStatusCode) return;
+                using HttpClient client = PipeTestClient.CreateClient(_dataDir, TimeSpan.FromSeconds(1));
+                if (client.GetAsync("/health").Result.IsSuccessStatusCode) return;
             }
             catch (Exception) when (!process.HasExited) { }
             Thread.Sleep(100);
@@ -59,8 +57,8 @@ public sealed class ThinClientAgainstTheRunningServerTests : IDisposable
 
     private (int Exit, string Stdout, string Stderr) PostCli(string[] args)
     {
-        using HttpClient client = new();
-        using HttpRequestMessage request = new(HttpMethod.Post, $"http://127.0.0.1:{_port}/cli");
+        using HttpClient client = PipeTestClient.CreateClient(_dataDir, TimeSpan.FromSeconds(20));
+        using HttpRequestMessage request = new(HttpMethod.Post, "/cli");
         request.Headers.TryAddWithoutValidation("Claude-Project-Dir", _projectDir);
         request.Content = new StringContent(JsonSerializer.Serialize(new { args, cwd = _projectDir }), Encoding.UTF8, "application/json");
         using HttpResponseMessage response = client.Send(request);
@@ -76,7 +74,6 @@ public sealed class ThinClientAgainstTheRunningServerTests : IDisposable
         psi.ArgumentList.Add(CliDll);
         foreach (string a in args) psi.ArgumentList.Add(a);
         psi.Environment["AITM_DATA_DIR"] = _dataDir;
-        psi.Environment["AITM_SERVER_PORT"] = _port.ToString();
         psi.Environment["AITM_SERVER_EXE"] = serverExe ?? Path.Combine(_dataDir, "missing", "Aitm.Server.exe");
         psi.Environment["CLAUDE_PROJECT_DIR"] = _projectDir;
         psi.Environment.Remove("AITM_INSTANCE");
@@ -185,14 +182,5 @@ public sealed class ThinClientAgainstTheRunningServerTests : IDisposable
         }
         try { Directory.Delete(_dataDir, recursive: true); } catch (Exception) { }
         try { Directory.Delete(_projectDir, recursive: true); } catch (Exception) { }
-    }
-
-    private static int FreePort()
-    {
-        TcpListener l = new(IPAddress.Loopback, 0);
-        l.Start();
-        int port = ((IPEndPoint)l.LocalEndpoint).Port;
-        l.Stop();
-        return port == 7635 ? FreePort() : port;
     }
 }

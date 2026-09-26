@@ -69,10 +69,9 @@ public sealed class HooksEndpointTests : IDisposable
         psi.ArgumentList.Add("hook");
         psi.ArgumentList.Add(eventName);
         psi.Environment["CLAUDE_PROJECT_DIR"] = _projectDir;
-        // The CLI sends SessionEnd and PostToolUse on to a server; this factory's server listens on no port,
-        // so those events reach nothing and fail open, and never the live server on the default port.
+        // The CLI sends SessionEnd and PostToolUse on to a server; this factory's server listens on no pipe,
+        // so those events reach nothing and fail open, and never the live server on the default data dir's pipe.
         psi.Environment["AITM_DATA_DIR"] = _dataDir;
-        psi.Environment["AITM_SERVER_PORT"] = Port;
         using Process process = Process.Start(psi)!;
         process.StandardInput.Write(payload);
         process.StandardInput.Close();

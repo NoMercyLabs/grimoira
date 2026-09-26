@@ -1,8 +1,5 @@
 using System.Diagnostics;
-using System.IO.Pipes;
-using System.Net.Sockets;
 using Aitm.Layout.Tests;
-using Aitm.Server.Data;
 using Xunit;
 
 namespace Aitm.Server.Tests;
@@ -10,11 +7,7 @@ namespace Aitm.Server.Tests;
 // RESTRUCTURE.md Slice P1: "no TCP listener remains (a test asserts it)"; "a pipe opened as the current
 // user works". This runs the real published Aitm.Server process (never TestServer/WebApplicationFactory,
 // which bypasses Kestrel) against a temp data dir and a per-test pipe/socket name, so it never touches
-// ~/.aitm or the live 127.0.0.1:7635 service the coordinator left running.
-//
-// The client side here is a minimal inline connect, not Aitm.Cli.Tools.PipeConnection: Aitm.Server.Tests
-// references Aitm.Cli for build order only (ReferenceOutputAssembly="false", HooksEndpointTests's comment
-// — its linked Hooks copies would clash with Aitm.Hooks), so the assembly's types are not usable here.
+// ~/.aitm or the live 127.0.0.1:7635 service the coordinator left running. Client side: PipeTestClient.
 public sealed class PipeTransportRealProcessTests : IDisposable
 {
     private static readonly string Configuration = new DirectoryInfo(AppContext.BaseDirectory.TrimEnd('/', '\\')).Parent!.Name;
@@ -25,23 +18,7 @@ public sealed class PipeTransportRealProcessTests : IDisposable
 
     private static async Task<HttpResponseMessage> GetHealthAsync(string dataDir, TimeSpan timeout)
     {
-        using SocketsHttpHandler handler = new()
-        {
-            ConnectCallback = async (_, ct) =>
-            {
-                if (OperatingSystem.IsWindows())
-                {
-                    NamedPipeClientStream pipe = new(".", ServerAddress.PipeName(dataDir), PipeDirection.InOut, PipeOptions.Asynchronous);
-                    await pipe.ConnectAsync((int)timeout.TotalMilliseconds, ct);
-                    return pipe;
-                }
-                Socket socket = new(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
-                await socket.ConnectAsync(new UnixDomainSocketEndPoint(ServerAddress.SocketPath(dataDir)), ct);
-                return new NetworkStream(socket, ownsSocket: true);
-            },
-            ConnectTimeout = timeout,
-        };
-        using HttpClient client = new(handler) { BaseAddress = new Uri("http://aitm-pipe.local/"), Timeout = timeout };
+        using HttpClient client = PipeTestClient.CreateClient(dataDir, timeout);
         return await client.GetAsync("/health");
     }
 

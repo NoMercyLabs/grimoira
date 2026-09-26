@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using System.Net;
-using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
 using Aitm.Layout.Tests;
@@ -13,7 +12,7 @@ namespace Aitm.Server.Tests;
 // RESTRUCTURE.md slice 32b: a new build's server takes over from the running one. The plugin data folder holds
 // builds/<stamp12>/{bin-cli,bin-server} and a `current` link (slice 32a). Here two copies of this build's CLI and
 // server output stand in for build A and build B, told apart only by the stamp in bin-cli/build-stamp.txt. A
-// server from build A runs on a free port with a temp data dir while `current` points at build B; then
+// server from build A runs on the pipe/socket of a temp data dir (Slice P1) while `current` points at build B; then
 // `dotnet current/bin-cli/aitm.dll hook SessionStart` runs, as session-start.mjs runs it.
 public sealed class ServerHandsOverToTheCurrentBuildTests : IClassFixture<ServerHandsOverToTheCurrentBuildTests.TwoBuilds>, IDisposable
 {
@@ -21,7 +20,6 @@ public sealed class ServerHandsOverToTheCurrentBuildTests : IClassFixture<Server
     private readonly ITestOutputHelper _output;
     private readonly string _dataDir = Directory.CreateTempSubdirectory("aitm-handover-").FullName;
     private readonly string _projectDir = Path.Combine(Path.GetTempPath(), $"test-handover-{Guid.NewGuid():N}");
-    private readonly int _port = FreePort();
     private readonly List<Process> _servers = [];
 
     public ServerHandsOverToTheCurrentBuildTests(TwoBuilds builds, ITestOutputHelper output)
@@ -114,7 +112,6 @@ public sealed class ServerHandsOverToTheCurrentBuildTests : IClassFixture<Server
         ProcessStartInfo psi = new("dotnet") { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true };
         psi.ArgumentList.Add(Path.Combine(_builds.BuildDir(stamp), "bin-server", "Aitm.Server.dll"));
         psi.Environment["AITM_DATA_DIR"] = _dataDir;
-        psi.Environment["AITM_SERVER_PORT"] = _port.ToString();
         psi.Environment.Remove("CLAUDE_PROJECT_DIR");
         psi.Environment.Remove("AITM_INSTANCE");
         Process process = Process.Start(psi)!;
@@ -137,8 +134,8 @@ public sealed class ServerHandsOverToTheCurrentBuildTests : IClassFixture<Server
     {
         try
         {
-            using HttpClient client = new() { Timeout = TimeSpan.FromSeconds(1) };
-            using HttpResponseMessage response = client.GetAsync($"http://127.0.0.1:{_port}/health").Result;
+            using HttpClient client = PipeTestClient.CreateClient(_dataDir, TimeSpan.FromSeconds(1));
+            using HttpResponseMessage response = client.GetAsync("/health").Result;
             if (!response.IsSuccessStatusCode) return null;
             using JsonDocument doc = JsonDocument.Parse(response.Content.ReadAsStringAsync().Result);
             return doc.RootElement.Clone();
@@ -158,10 +155,8 @@ public sealed class ServerHandsOverToTheCurrentBuildTests : IClassFixture<Server
 
     private (int Exit, string Stdout, string Stderr) PostCli(string[] args)
     {
-        using HttpClient client = new() { Timeout = TimeSpan.FromSeconds(60) };
-        using HttpRequestMessage request = new(HttpMethod.Post, $"http://127.0.0.1:{_port}/cli");
-        string tokenFile = Path.Combine(_dataDir, "server.token"); // gone once the server drops its token
-        if (File.Exists(tokenFile)) request.Headers.TryAddWithoutValidation("Authorization", $"Bearer {File.ReadAllText(tokenFile).Trim()}");
+        using HttpClient client = PipeTestClient.CreateClient(_dataDir, TimeSpan.FromSeconds(60));
+        using HttpRequestMessage request = new(HttpMethod.Post, "/cli");
         request.Headers.TryAddWithoutValidation("Claude-Project-Dir", _projectDir);
         request.Content = new StringContent(JsonSerializer.Serialize(new { args, cwd = _projectDir }), Encoding.UTF8, "application/json");
         using HttpResponseMessage response = client.Send(request);
@@ -177,7 +172,6 @@ public sealed class ServerHandsOverToTheCurrentBuildTests : IClassFixture<Server
         psi.ArgumentList.Add("hook");
         psi.ArgumentList.Add("SessionStart");
         psi.Environment["AITM_DATA_DIR"] = _dataDir;
-        psi.Environment["AITM_SERVER_PORT"] = _port.ToString();
         psi.Environment.Remove("AITM_SERVER_EXE"); // the server beside the CLI: current/bin-server
         psi.Environment.Remove("CLAUDE_PROJECT_DIR");
         psi.Environment.Remove("AITM_INSTANCE");
@@ -230,15 +224,6 @@ public sealed class ServerHandsOverToTheCurrentBuildTests : IClassFixture<Server
         }
         try { Directory.Delete(_dataDir, recursive: true); } catch (Exception) { }
         try { Directory.Delete(_projectDir, recursive: true); } catch (Exception) { }
-    }
-
-    private static int FreePort()
-    {
-        TcpListener l = new(IPAddress.Loopback, 0);
-        l.Start();
-        int port = ((IPEndPoint)l.LocalEndpoint).Port;
-        l.Stop();
-        return port == 7635 ? FreePort() : port;
     }
 
     /// <summary>Build A and build B, copied once per class from this build's CLI and server output, with

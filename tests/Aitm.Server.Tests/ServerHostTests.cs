@@ -11,7 +11,8 @@ namespace Aitm.Server.Tests;
 // (the owner, 2026-09-26). These tests run the real Program pipeline through an in-process
 // TestServer (WebApplicationFactory<Program>), which replaces Kestrel entirely and so never exercises the
 // pipe/socket transport itself (PipeOnlyTransportTests and PipeTransportRealProcessTests do) — Program
-// still reads AITM_DATA_DIR / AITM_SERVER_PORT so a test never touches ~/.aitm.
+// reads AITM_DATA_DIR so a test never touches ~/.aitm; AITM_SERVER_PORT below is no longer read by anything
+// (it only survives in these WebApplicationFactory tests as a harmless leftover).
 public sealed class ServerHostTests : IDisposable
 {
     private readonly string _dataDir = Directory.CreateTempSubdirectory("aitm-server-host-").FullName;
