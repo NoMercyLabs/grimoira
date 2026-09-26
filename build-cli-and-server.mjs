@@ -4,55 +4,82 @@
 //
 // Usage: node build-cli-and-server.mjs <data folder>
 //
-// The build goes into <data>/build-next/ first, with the same publish commands as build-cli.ps1 and
-// build-server.ps1, and is swapped in only when both publishes succeed. bin-server/ is swapped before bin-cli/,
-// because the stamp lives in bin-cli/: a half-done swap leaves the build stale, never falsely current.
-// A swap fails while a folder is in use (a running server holds bin-server/ on Windows); the stamped
-// build-next/ then stays, and the next build swaps it in without publishing again.
+// A running server holds the files of the build it started from, and a live hook or headersHelper holds
+// bin-cli/ files, so a build never writes into a folder that may be in use:
+// - Each build goes into its own folder, <data>/builds/<first 12 hex of the stamp>/{bin-cli,bin-server}, with
+//   the same publish commands as build-cli.ps1 and build-server.ps1. The stamp is written last.
+// - <data>/current (a directory junction on Windows, a symlink elsewhere) moves to it only then, so it never
+//   points at a half-built folder.
+// - The previous build stays as the rollback. Older ones are deleted only when a trial rename proves no process
+//   holds them (Windows refuses to rename a folder in use); a held one is tried again on the next build.
 
-import { closeSync, existsSync, mkdirSync, openSync, readdirSync, renameSync, rmSync, writeSync } from 'node:fs';
+import { closeSync, lstatSync, mkdirSync, openSync, readdirSync, realpathSync, renameSync, rmSync,
+  symlinkSync, unlinkSync, writeSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { readStamp, treeHash, writeHashStamp } from './build-stamp.mjs';
 import { BUILD_INPUTS, releaseLock } from './session-start.mjs';
+import { liveBuildDir } from './published-cli.mjs';
 
-const REPLACED = '.replaced-';
+const DELETING = '.deleting';
 
-/** Moves <next>/<name> to <data>/<name>. Throws, changing nothing, when the current folder is in use. */
-export function swapIn(nextDir, dataDir, name) {
-  const built = join(nextDir, name);
-  if (!existsSync(built)) return;
-  const live = join(dataDir, name);
-  const replaced = `${live}${REPLACED}${Date.now()}`;
-  if (existsSync(live)) renameSync(live, replaced);
-  renameSync(built, live);
-  rmSync(replaced, { recursive: true, force: true });
+function realOrNull(path) {
+  try { return realpathSync(path); } catch { return null; }
 }
 
-export function buildAndSwap({ root, dataDir, publish, swap = swapIn }) {
-  try {
-    removeReplacedLeftovers(dataDir);
-    const hash = treeHash(root, BUILD_INPUTS);
-    const nextDir = join(dataDir, 'build-next');
-    if (readStamp(join(nextDir, 'bin-cli')) !== hash) {
-      rmSync(nextDir, { recursive: true, force: true });
-      publish(join(root, 'src', 'Aitm.Cli', 'Aitm.Cli.csproj'), join(nextDir, 'bin-cli'));
-      publish(join(root, 'src', 'Aitm.Server', 'Aitm.Server.csproj'), join(nextDir, 'bin-server'));
-      writeHashStamp(join(nextDir, 'bin-cli'), hash);
-    }
-    swap(nextDir, dataDir, 'bin-server');
-    swap(nextDir, dataDir, 'bin-cli');
-    rmSync(nextDir, { recursive: true, force: true });
-  } finally {
-    releaseLock(dataDir);
+/** Points <data>/current at a complete build. */
+export function pointCurrent(dataDir, target) {
+  const link = liveBuildDir(dataDir);
+  if (process.platform === 'win32') {
+    // A junction needs no admin rights. It cannot be renamed over an existing one, so it is replaced; a hook
+    // starting in that moment fails open and the next one runs.
+    if (lstatOrNull(link)) unlinkSync(link);
+    symlinkSync(target, link, 'junction');
+  } else {
+    const next = `${link}.next`;
+    rmSync(next, { force: true });
+    symlinkSync(target, next, 'dir');
+    renameSync(next, link); // atomic replace
   }
 }
 
-// A replaced folder that was still in use when its swap ran is removed on a later build.
-function removeReplacedLeftovers(dataDir) {
-  for (const entry of readdirSync(dataDir)) {
-    if (entry.includes(REPLACED)) rmSync(join(dataDir, entry), { recursive: true, force: true });
+function lstatOrNull(path) {
+  try { return lstatSync(path); } catch { return null; }
+}
+
+/** Deletes every build except those kept, each only if a trial rename shows nothing holds it. */
+export function removeOldBuilds(buildsDir, keep) {
+  const kept = new Set(keep.filter(Boolean).map(p => resolve(p).toLowerCase()));
+  for (const name of readdirSync(buildsDir)) {
+    const folder = join(buildsDir, name);
+    if (kept.has(resolve(folder).toLowerCase())) continue;
+    try {
+      const doomed = name.endsWith(DELETING) ? folder : `${folder}${DELETING}`;
+      if (doomed !== folder) renameSync(folder, doomed);
+      rmSync(doomed, { recursive: true, force: true });
+    } catch {
+      // held by a running server or hook: kept until a later build
+    }
+  }
+}
+
+export function buildAndPoint({ root, dataDir, publish }) {
+  try {
+    const hash = treeHash(root, BUILD_INPUTS);
+    const buildsDir = join(dataDir, 'builds');
+    const target = join(buildsDir, hash.slice(0, 12));
+    if (readStamp(join(target, 'bin-cli')) !== hash) {
+      rmSync(target, { recursive: true, force: true }); // an unfinished earlier try: never current, never in use
+      publish(join(root, 'src', 'Aitm.Cli', 'Aitm.Cli.csproj'), join(target, 'bin-cli'));
+      publish(join(root, 'src', 'Aitm.Server', 'Aitm.Server.csproj'), join(target, 'bin-server'));
+      writeHashStamp(join(target, 'bin-cli'), hash);
+    }
+    const previous = realOrNull(liveBuildDir(dataDir));
+    pointCurrent(dataDir, target);
+    removeOldBuilds(buildsDir, [realOrNull(target), target, previous]);
+  } finally {
+    releaseLock(dataDir);
   }
 }
 
@@ -68,7 +95,7 @@ function main() {
     if (result.error || result.status !== 0) throw new Error(`dotnet publish ${project} failed (exit ${result.status}); see build.log`);
   };
   try {
-    buildAndSwap({ root, dataDir, publish });
+    buildAndPoint({ root, dataDir, publish });
   } catch (error) {
     // Started with stdio 'ignore', so the log is the only place a failure shows.
     writeSync(log, `build-cli-and-server: ${error.message}\n`);

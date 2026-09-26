@@ -5,8 +5,11 @@
 // install or update there is no bin-cli/ or bin-server/. The published CLI and server therefore live in
 // CLAUDE_PLUGIN_DATA (kept across plugin updates), guarded by a build stamp like launch-mcp.mjs.
 //
-// - Build current: run `dotnet <data>/bin-cli/aitm.dll hook SessionStart`, stdin, stdout and the exit code
-//   passed straight through.
+// - Build current: run `dotnet <data>/current/bin-cli/aitm.dll hook SessionStart`, stdin, stdout and the exit
+//   code passed straight through. The hook gets AITM_PLUGIN_ROOT, so a server it starts from the data folder
+//   still finds the files that ship in the plugin root (idp-impersonate.mjs, seeds/).
+// - A running server keeps the build it started from; the next SessionStart after it exits starts the server
+//   of the current build (ServerAutoStart reuses any server that answers /health).
 // - Missing or stale: start build-cli-and-server.mjs detached, print one line, exit 0. A lock file makes
 //   sure two sessions never build at once. The session goes on without AITM until the build is done.
 //
@@ -19,6 +22,7 @@ import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn, spawnSync } from 'node:child_process';
 import { readStamp, treeHash } from './build-stamp.mjs';
+import { liveBuildDir } from './published-cli.mjs';
 
 /** Every input of `dotnet publish` for the CLI and the server: all project sources and the shared build files. */
 export const BUILD_INPUTS = ['src', 'Directory.Build.props', 'Directory.Packages.props', 'global.json'];
@@ -29,10 +33,16 @@ const LOCK_EXPIRY_MS = 30 * 60 * 1000;
 
 export const BUILDING_LINE = 'AITM is building its CLI and server in the background (first session after an install or update); it is ready in a few minutes.';
 
-export function isCurrent(root, dataDir, checkStamp) {
-  const cliDir = join(dataDir, 'bin-cli');
-  if (!existsSync(join(cliDir, 'aitm.dll')) || !existsSync(join(dataDir, 'bin-server', 'Aitm.Server.dll'))) return false;
-  return !checkStamp || readStamp(cliDir) === treeHash(root, BUILD_INPUTS);
+/** The folder holding bin-cli/ and bin-server/: the data folder's current build, else the checkout itself. */
+export function buildDir(dataDir, pluginData) {
+  return pluginData ? liveBuildDir(dataDir) : dataDir;
+}
+
+export function isCurrent(root, dataDir, pluginData) {
+  const dir = buildDir(dataDir, pluginData);
+  const cliDir = join(dir, 'bin-cli');
+  if (!existsSync(join(cliDir, 'aitm.dll')) || !existsSync(join(dir, 'bin-server', 'Aitm.Server.dll'))) return false;
+  return !pluginData || readStamp(cliDir) === treeHash(root, BUILD_INPUTS);
 }
 
 /** Takes the build lock; false when another session holds it. */
@@ -55,8 +65,10 @@ export function releaseLock(dataDir) {
   rmSync(join(dataDir, LOCK), { force: true });
 }
 
-export function sessionStart({ root, dataDir, checkStamp, runHook, startBuild, write }) {
-  if (isCurrent(root, dataDir, checkStamp)) return runHook(join(dataDir, 'bin-cli', 'aitm.dll'));
+export function sessionStart({ root, dataDir, pluginData, runHook, startBuild, write }) {
+  if (isCurrent(root, dataDir, pluginData)) {
+    return runHook(join(buildDir(dataDir, pluginData), 'bin-cli', 'aitm.dll'), { AITM_PLUGIN_ROOT: root });
+  }
   if (takeLock(dataDir)) {
     try {
       startBuild(dataDir);
@@ -82,9 +94,10 @@ function main() {
   const code = sessionStart({
     root,
     dataDir: pluginData || root,
-    checkStamp: Boolean(pluginData),
-    runHook: cli => {
-      const hook = spawnSync('dotnet', [cli, 'hook', 'SessionStart'], { stdio: 'inherit', windowsHide: true });
+    pluginData: Boolean(pluginData),
+    runHook: (cli, env) => {
+      const hook = spawnSync('dotnet', [cli, 'hook', 'SessionStart'],
+        { stdio: 'inherit', windowsHide: true, env: { ...process.env, ...env } });
       return hook.status ?? 0; // a hook that could not start fails open, like the CLI's own hook
     },
     startBuild: dataDir => startDetached(join(root, 'build-cli-and-server.mjs'), [dataDir]),

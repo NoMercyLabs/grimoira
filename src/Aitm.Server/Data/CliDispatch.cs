@@ -183,7 +183,7 @@ public static class CliDispatch
                     break;
                 case "seed-edges":
                 {
-                    string seedPath = GetFlag("--from") ?? Path.Combine(AppContext.BaseDirectory, "..", "seeds", "spine.json");
+                    string seedPath = GetFlag("--from") ?? PluginFileLocator.SeedPath();
                     // SeedEdgesTool.Execute returns the same "no spine file at ..." text the old inline SeedEdges
                     // wrote to stderr, so the missing-file case has to be checked here to keep it on stderr.
                     if (!File.Exists(seedPath)) { stderr.WriteLine($"no spine file at {Path.GetFullPath(seedPath)}"); break; }
@@ -192,7 +192,7 @@ public static class CliDispatch
                 }
                 case "spine-export":
                     stdout.WriteLine(new SpineExportTool().ExecuteCli(db,
-                        GetFlag("--to") ?? Path.Combine(AppContext.BaseDirectory, "..", "seeds", "spine.json")));
+                        GetFlag("--to") ?? PluginFileLocator.SeedPath()));
                     break;
                 // Same gap forget-project had: the graph could gain a node but never lose one, so anything indexed
                 // by mistake or moved out of scope stayed live forever. Retires on the timeline rather than
@@ -711,7 +711,7 @@ public static class CliDispatch
                 case "distill": stdout.WriteLine(new BrainDistillTool().Execute(db, root)); break;
                 case "seed":
                 {
-                    string brainSeedFrom = GetFlag("--from") ?? Path.Combine(AppContext.BaseDirectory, "..", "seeds", "spine.json");
+                    string brainSeedFrom = GetFlag("--from") ?? PluginFileLocator.SeedPath();
                     // BrainSeedTool.ExecuteCli returns the same "no spine file at ..." text the old inline
                     // BrainSeed wrote to stderr, so the missing-file case has to be checked here to keep it on
                     // stderr (same trap as seed-edges/spine-import above).

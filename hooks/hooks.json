@@ -43,7 +43,7 @@
           {
             "type": "command",
             "command": "dotnet",
-            "args": ["${CLAUDE_PLUGIN_DATA}/bin-cli/aitm.dll", "hook", "UserPromptSubmit"],
+            "args": ["${CLAUDE_PLUGIN_DATA}/current/bin-cli/aitm.dll", "hook", "UserPromptSubmit"],
             "timeout": 10
           }
         ]
@@ -79,7 +79,7 @@
           {
             "type": "command",
             "command": "dotnet",
-            "args": ["${CLAUDE_PLUGIN_DATA}/bin-cli/aitm.dll", "hook", "PreCompact"],
+            "args": ["${CLAUDE_PLUGIN_DATA}/current/bin-cli/aitm.dll", "hook", "PreCompact"],
             "timeout": 20,
             "statusMessage": "Saving anchors before compaction…"
           }
@@ -92,7 +92,7 @@
           {
             "type": "command",
             "command": "dotnet",
-            "args": ["${CLAUDE_PLUGIN_DATA}/bin-cli/aitm.dll", "hook", "SessionEnd"],
+            "args": ["${CLAUDE_PLUGIN_DATA}/current/bin-cli/aitm.dll", "hook", "SessionEnd"],
             "timeout": 390,
             "async": true
           }

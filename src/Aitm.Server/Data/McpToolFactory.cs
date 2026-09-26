@@ -108,24 +108,9 @@ public static class McpToolFactory
             new McpServerToolCreateOptions { Name = tool.McpName, Description = tool.Help });
     }
 
-    // Mirrors mcp.cs's EnginePath(): locates idp-impersonate.mjs beside the running binary, or at
-    // AITM_HOME when set. Returns null (never throws) so IdPTokenTool reports the same "cannot
-    // locate" message it always has for a missing engine.
-    private static string? EnginePath()
-    {
-        string? home = Environment.GetEnvironmentVariable("AITM_HOME");
-        if (!string.IsNullOrEmpty(home))
-        {
-            string p = Path.Combine(home, "idp-impersonate.mjs");
-            return File.Exists(p) ? p : null;
-        }
-        string? dir = AppContext.BaseDirectory;
-        for (int i = 0; i < 6 && dir != null; i++)
-        {
-            string p = Path.Combine(dir, "idp-impersonate.mjs");
-            if (File.Exists(p)) return p;
-            dir = Path.GetDirectoryName(dir.TrimEnd(Path.DirectorySeparatorChar));
-        }
-        return null;
-    }
+    // Mirrors mcp.cs's EnginePath(): locates idp-impersonate.mjs at AITM_HOME when set, in the plugin root
+    // (slice 32a: the installed server runs from the data folder), or beside the running binary. Returns null
+    // (never throws) so IdPTokenTool reports the same "cannot locate" message it always has for a missing engine.
+    private static string? EnginePath() => PluginFileLocator.FindEngine("idp-impersonate.mjs",
+        Environment.GetEnvironmentVariable("AITM_HOME"), PluginFileLocator.PluginRoot(), AppContext.BaseDirectory);
 }

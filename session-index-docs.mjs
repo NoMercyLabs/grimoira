@@ -6,6 +6,7 @@ import { existsSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { homedir } from 'node:os';
 import { join, basename } from 'node:path';
+import { publishedCliDll } from './published-cli.mjs';
 
 let input = '';
 process.stdin.on('data', (d) => { input += d; });
@@ -18,7 +19,7 @@ process.stdin.on('end', () => {
     const slug = basename(proj.replace(/[\\/]+$/, '')).toLowerCase().replace(/[^a-z0-9_-]/g, '');
     if (!slug || !existsSync(join(homedir(), '.aitm', slug, 'aitm.db'))) process.exit(0);
     spawnSync('dotnet', [
-      'c:/Projects/aitm/bin-cli/aitm.dll',
+      publishedCliDll(process.env, import.meta.dirname),
       'index-docs',
       '--from', claudeDir,
       '--instance', slug,
