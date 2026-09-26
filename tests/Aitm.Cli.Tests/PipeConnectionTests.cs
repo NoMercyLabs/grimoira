@@ -45,6 +45,20 @@ public sealed class PipeConnectionTests : IDisposable
         Assert.Equal("pong", body);
     }
 
+    // ThinClient starts the server only when the first call fails as HttpRequestError.ConnectionError (the
+    // TCP "connection refused" it used to get). A pipe/socket with nobody behind it must fail the same way,
+    // not as the TaskCanceledException a connect timeout would otherwise surface as, or a down server is
+    // never started on demand.
+    [Fact]
+    public async Task ADataDirWithNoServerFailsAsAConnectionError()
+    {
+        using HttpClient client = PipeConnection.CreateClient(_dataDir, TimeSpan.FromMilliseconds(300), TimeSpan.FromSeconds(30));
+
+        HttpRequestException ex = await Assert.ThrowsAsync<HttpRequestException>(() => client.GetAsync("/ping"));
+
+        Assert.Equal(HttpRequestError.ConnectionError, ex.HttpRequestError);
+    }
+
     [Fact]
     public async Task TwoDifferentDataDirsNeverCrossTalk()
     {
