@@ -71,7 +71,8 @@ public class HookCommandTests
     }
 
     // RESTRUCTURE.md slice 32a: "Every other hook slot and the headersHelper point at
-    // ${CLAUDE_PLUGIN_DATA}/bin-cli/aitm.dll." The plugin root has no build output after an install.
+    // ${CLAUDE_PLUGIN_DATA}/bin-cli/aitm.dll", now through the `current` build folder so a rebuild never writes
+    // into a folder in use. The plugin root has no build output after an install.
     [Fact]
     public void NoHookSlotRunsTheCliFromThePluginRoot()
     {
@@ -102,7 +103,7 @@ public class HookCommandTests
 
         Assert.Equal("dotnet", hook.GetProperty("command").GetString());
         string[] args = hook.GetProperty("args").EnumerateArray().Select(a => a.GetString()!).ToArray();
-        Assert.Equal(["${CLAUDE_PLUGIN_DATA}/bin-cli/aitm.dll", "hook", eventName], args);
+        Assert.Equal(["${CLAUDE_PLUGIN_DATA}/current/bin-cli/aitm.dll", "hook", eventName], args);
     }
 
     // The SessionEnd handlers index for seconds. Claude Code gives SessionEnd hooks a shared 1.5 s budget

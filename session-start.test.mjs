@@ -2,14 +2,19 @@
 // CLAUDE_PLUGIN_DATA on the first session after an install or a source change, in the background, and the
 // hook runs through the built CLI once that build is current. Nothing here runs a real `dotnet publish`:
 // the build is a fake that writes the files a publish would.
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+//
+// Each build lands in its own folder, <data>/builds/<stamp>/{bin-cli,bin-server}, and <data>/current (a
+// directory junction, a symlink off Windows) points at the newest complete one. A running server and a live
+// hook hold the files of the build they started from, so a rebuild must never write into that folder.
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { sessionStart, startDetached } from './session-start.mjs';
-import { buildAndSwap } from './build-cli-and-server.mjs';
+import { buildAndPoint } from './build-cli-and-server.mjs';
+import { publishedCliDll } from './published-cli.mjs';
 
 function fixture() {
   const dir = mkdtempSync(join(tmpdir(), 'aitm-session-start-'));
@@ -25,8 +30,9 @@ function fixture() {
 }
 
 // Stands in for `dotnet publish <project> -o <out>`: writes the entry file each publish produces.
-function fakePublish(calls = []) {
+function fakePublish(calls = [], onPublish = () => {}) {
   return (project, out) => {
+    onPublish(project, out);
     calls.push({ project, out });
     mkdirSync(out, { recursive: true });
     writeFileSync(join(out, project.includes('Aitm.Server') ? 'Aitm.Server.dll' : 'aitm.dll'), 'built');
@@ -34,18 +40,33 @@ function fakePublish(calls = []) {
 }
 
 function run(f, overrides = {}) {
-  const calls = { hook: [], build: [], lines: [] };
+  const calls = { hook: [], hookEnv: [], build: [], lines: [] };
   const code = sessionStart({
     root: f.root,
     dataDir: f.dataDir,
-    checkStamp: true,
-    runHook: cli => { calls.hook.push(cli); return overrides.hookExit ?? 0; },
+    pluginData: true,
+    runHook: (cli, env) => { calls.hook.push(cli); calls.hookEnv.push(env); return overrides.hookExit ?? 0; },
     startBuild: dataDir => calls.build.push(dataDir),
     write: line => calls.lines.push(line),
     ...overrides.deps,
   });
   return { code, calls };
 }
+
+const build = (f, publish = fakePublish()) => buildAndPoint({ root: f.root, dataDir: f.dataDir, publish });
+const current = f => { try { return realpathSync(join(f.dataDir, 'current')); } catch { return null; } };
+const builds = f => readdirSync(join(f.dataDir, 'builds')).sort();
+const changeSource = (f, text) => writeFileSync(join(f.root, 'src', 'Aitm.Server', 'Program.cs'), text);
+
+// Keeps a folder in use the way a running server does: a process whose working directory is inside it.
+function holdFolder(folder) {
+  const child = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 60000)'], { cwd: folder, stdio: 'ignore' });
+  spawnSync(process.execPath, ['-e', 'setTimeout(() => {}, 300)']); // let it start
+  return () => { child.kill(); spawnSync(process.execPath, ['-e', 'setTimeout(() => {}, 300)']); };
+}
+
+// Only Windows refuses to rename a folder in use; elsewhere a running process keeps its files after a delete.
+const windowsOnly = { skip: process.platform !== 'win32' && 'a folder in use only blocks a rename on Windows' };
 
 test('a fresh data folder starts one build, prints one line and exits 0 without running the hook', () => {
   const f = fixture();
@@ -71,15 +92,25 @@ test('a second SessionStart while the first build runs starts no second build', 
   } finally { f.clean(); }
 });
 
-test('a finished build is current: no build, the hook runs through the built CLI and its exit code comes back', () => {
+test('a finished build is current: no build, the hook runs through current/bin-cli and its exit code comes back', () => {
   const f = fixture();
   try {
     run(f);
-    buildAndSwap({ root: f.root, dataDir: f.dataDir, publish: fakePublish() });
+    build(f);
     const { code, calls } = run(f, { hookExit: 3 });
     assert.equal(calls.build.length, 0);
-    assert.deepEqual(calls.hook, [join(f.dataDir, 'bin-cli', 'aitm.dll')]);
+    assert.deepEqual(calls.hook, [join(f.dataDir, 'current', 'bin-cli', 'aitm.dll')]);
     assert.equal(code, 3);
+  } finally { f.clean(); }
+});
+
+test('the hook gets the plugin root, so a server it starts can find the plugin files', () => {
+  const f = fixture();
+  try {
+    run(f);
+    build(f);
+    const { calls } = run(f);
+    assert.equal(calls.hookEnv[0].AITM_PLUGIN_ROOT, f.root);
   } finally { f.clean(); }
 });
 
@@ -87,8 +118,8 @@ test('a changed source makes the build stale, so SessionStart starts a rebuild',
   const f = fixture();
   try {
     run(f);
-    buildAndSwap({ root: f.root, dataDir: f.dataDir, publish: fakePublish() });
-    writeFileSync(join(f.root, 'src', 'Aitm.Server', 'Program.cs'), 'class Server { void NewTool() {} }');
+    build(f);
+    changeSource(f, 'class Server { void NewTool() {} }');
     const { calls } = run(f);
     assert.deepEqual(calls.build, [f.dataDir]);
     assert.equal(calls.hook.length, 0);
@@ -99,7 +130,7 @@ test('a changed shared build file (Directory.Build.props) also makes the build s
   const f = fixture();
   try {
     run(f);
-    buildAndSwap({ root: f.root, dataDir: f.dataDir, publish: fakePublish() });
+    build(f);
     writeFileSync(join(f.root, 'Directory.Build.props'), '<Project><PropertyGroup /></Project>');
     assert.equal(run(f).calls.build.length, 1);
   } finally { f.clean(); }
@@ -109,7 +140,7 @@ test('build output under src (obj/, bin/) is not a source change, so a publish n
   const f = fixture();
   try {
     run(f);
-    buildAndSwap({ root: f.root, dataDir: f.dataDir, publish: fakePublish() });
+    build(f);
     mkdirSync(join(f.root, 'src', 'Aitm.Cli', 'obj'), { recursive: true });
     writeFileSync(join(f.root, 'src', 'Aitm.Cli', 'obj', 'project.assets.json'), '{}');
     mkdirSync(join(f.root, 'src', 'Aitm.Cli', 'bin'), { recursive: true });
@@ -120,53 +151,94 @@ test('build output under src (obj/, bin/) is not a source change, so a publish n
   } finally { f.clean(); }
 });
 
-test('the build publishes the CLI and the server as siblings, then frees the lock', () => {
+test('the build publishes the CLI and the server as siblings in one build folder, then frees the lock', () => {
   const f = fixture();
   try {
     run(f);
     const publishes = [];
-    writeFileSync(join(f.dataDir, 'marker'), '');
-    mkdirSync(join(f.dataDir, 'bin-cli'));
-    writeFileSync(join(f.dataDir, 'bin-cli', 'from-the-old-build.dll'), 'old');
-    buildAndSwap({ root: f.root, dataDir: f.dataDir, publish: fakePublish(publishes) });
+    build(f, fakePublish(publishes));
     assert.deepEqual(publishes.map(p => p.project), [
       join(f.root, 'src', 'Aitm.Cli', 'Aitm.Cli.csproj'),
       join(f.root, 'src', 'Aitm.Server', 'Aitm.Server.csproj'),
     ]);
-    assert.ok(existsSync(join(f.dataDir, 'bin-cli', 'aitm.dll')));
-    assert.ok(existsSync(join(f.dataDir, 'bin-server', 'Aitm.Server.dll')));
-    assert.ok(!existsSync(join(f.dataDir, 'bin-cli', 'from-the-old-build.dll')), 'the old build is swapped out, not merged');
+    const [only] = builds(f);
+    assert.deepEqual(publishes.map(p => p.out), [
+      join(f.dataDir, 'builds', only, 'bin-cli'),
+      join(f.dataDir, 'builds', only, 'bin-server'),
+    ]);
+    assert.ok(existsSync(join(f.dataDir, 'current', 'bin-server', 'Aitm.Server.dll')));
     assert.equal(run(f).calls.build.length, 0, 'the lock is free and the build is current');
   } finally { f.clean(); }
 });
 
-test('a failed publish swaps nothing in and frees the lock, so the next session tries again', () => {
+test('current never points at a half-built folder: it moves only after both publishes and the stamp', () => {
   const f = fixture();
   try {
-    run(f);
-    const failing = () => { throw new Error('publish failed'); };
-    assert.throws(() => buildAndSwap({ root: f.root, dataDir: f.dataDir, publish: failing }), /publish failed/);
-    assert.ok(!existsSync(join(f.dataDir, 'bin-cli')));
-    assert.equal(run(f).calls.build.length, 1);
+    const seen = [];
+    build(f, fakePublish([], () => seen.push(current(f))));
+    assert.deepEqual(seen, [null, null], 'a first build has no current until it is complete');
+    const first = current(f);
+    changeSource(f, 'class Server { int v = 2; }');
+    const seenOnRebuild = [];
+    build(f, fakePublish([], () => seenOnRebuild.push(current(f))));
+    assert.deepEqual(seenOnRebuild, [first, first]);
+    assert.notEqual(current(f), first);
+    assert.equal(readFileSync(join(f.dataDir, 'current', 'bin-cli', 'build-stamp.txt'), 'utf8').length, 64);
   } finally { f.clean(); }
 });
 
-test('a finished build that could not be swapped in is swapped next time without publishing again', () => {
+test('a failed publish leaves current on the last complete build and frees the lock', () => {
   const f = fixture();
   try {
-    run(f);
-    buildAndSwap({ root: f.root, dataDir: f.dataDir, publish: fakePublish() });
-    // Recreate what a swap blocked by a running server leaves behind: a stamped build-next/.
-    writeFileSync(join(f.root, 'src', 'Aitm.Cli', 'Program.cs'), 'class Program { int v = 2; }');
-    const publishes = [];
-    const blocked = (project, out) => {
-      fakePublish(publishes)(project, out);
-      if (project.includes('Aitm.Server')) writeFileSync(join(out, 'Aitm.Server.dll'), 'v2');
+    build(f);
+    const first = current(f);
+    changeSource(f, 'class Server { int v = 3; }');
+    const failOnServer = (project, out) => {
+      if (project.includes('Aitm.Server')) throw new Error('publish failed');
+      fakePublish()(project, out);
     };
-    assert.throws(() => buildAndSwap({ root: f.root, dataDir: f.dataDir, publish: blocked, swap: () => { throw new Error('in use'); } }), /in use/);
-    assert.equal(publishes.length, 2);
-    buildAndSwap({ root: f.root, dataDir: f.dataDir, publish: () => { throw new Error('must not publish again'); } });
-    assert.equal(readFileSync(join(f.dataDir, 'bin-server', 'Aitm.Server.dll'), 'utf8'), 'v2');
+    assert.throws(() => build(f, failOnServer), /publish failed/);
+    assert.equal(current(f), first);
+    assert.equal(run(f).calls.build.length, 1, 'the next session tries again');
+  } finally { f.clean(); }
+});
+
+test('a rebuild while a server runs from the old folder writes only the new folder', windowsOnly, () => {
+  const f = fixture();
+  try {
+    build(f);
+    const oldFolder = current(f);
+    const before = readdirSync(oldFolder, { recursive: true }).sort();
+    const beforeServer = readFileSync(join(oldFolder, 'bin-server', 'Aitm.Server.dll'), 'utf8');
+    const release = holdFolder(join(f.dataDir, 'current', 'bin-server'));
+    try {
+      changeSource(f, 'class Server { int v = 4; }');
+      const outs = [];
+      build(f, fakePublish(outs));
+      assert.ok(outs.every(p => !p.out.startsWith(oldFolder)), 'a publish wrote into the folder in use');
+      assert.notEqual(current(f), oldFolder);
+      assert.deepEqual(readdirSync(oldFolder, { recursive: true }).sort(), before);
+      assert.equal(readFileSync(join(oldFolder, 'bin-server', 'Aitm.Server.dll'), 'utf8'), beforeServer);
+    } finally { release(); }
+  } finally { f.clean(); }
+});
+
+test('the previous build is kept; an older one is deleted only when nothing holds it', windowsOnly, () => {
+  const f = fixture();
+  try {
+    build(f);
+    const v1 = current(f);
+    const release = holdFolder(join(v1, 'bin-server'));
+    try {
+      changeSource(f, 'v2'); build(f);
+      const v2 = current(f);
+      changeSource(f, 'v3'); build(f);
+      assert.ok(existsSync(v2), 'the previous build is the rollback and stays');
+      assert.ok(existsSync(join(v1, 'bin-server', 'Aitm.Server.dll')), 'an older build in use was deleted');
+    } finally { release(); }
+    changeSource(f, 'v4'); build(f);
+    assert.ok(!existsSync(v1), 'an older build nothing holds is deleted');
+    assert.equal(builds(f).length, 2, `current and previous only, got ${builds(f).join(', ')}`);
   } finally { f.clean(); }
 });
 
@@ -177,10 +249,16 @@ test('with no plugin data folder the checkout build runs the hook without a stam
     writeFileSync(join(f.root, 'bin-cli', 'aitm.dll'), 'built by build-cli.ps1');
     mkdirSync(join(f.root, 'bin-server'));
     writeFileSync(join(f.root, 'bin-server', 'Aitm.Server.dll'), 'built by build-server.ps1');
-    const { calls } = run({ ...f, dataDir: f.root }, { deps: { checkStamp: false } });
+    const { calls } = run({ ...f, dataDir: f.root }, { deps: { pluginData: false } });
     assert.equal(calls.build.length, 0);
     assert.deepEqual(calls.hook, [join(f.root, 'bin-cli', 'aitm.dll')]);
   } finally { f.clean(); }
+});
+
+test('the published CLI is the data folder\'s current build, else the checkout\'s bin-cli', () => {
+  assert.equal(publishedCliDll({ CLAUDE_PLUGIN_DATA: join('d', 'data') }, join('c', 'checkout')),
+    join('d', 'data', 'current', 'bin-cli', 'aitm.dll'));
+  assert.equal(publishedCliDll({}, join('c', 'checkout')), join('c', 'checkout', 'bin-cli', 'aitm.dll'));
 });
 
 // Slice 29d: a server started with the hook's stdout/stderr pipes kept them open, and the hook runner

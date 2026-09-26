@@ -28,7 +28,7 @@ public class McpJsonTests
         string helper = aitm.GetProperty("headersHelper").GetString()!;
         // Slice 32a: the CLI is built into ${CLAUDE_PLUGIN_DATA}, which survives a plugin update; the plugin
         // root has no build output after an install.
-        Assert.Equal("dotnet \"${CLAUDE_PLUGIN_DATA}/bin-cli/aitm.dll\" server headers", helper);
+        Assert.Equal("dotnet \"${CLAUDE_PLUGIN_DATA}/current/bin-cli/aitm.dll\" server headers", helper);
         Assert.False(aitm.TryGetProperty("command", out _));
     }
 
