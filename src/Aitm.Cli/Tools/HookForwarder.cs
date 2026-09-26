@@ -10,7 +10,8 @@ namespace Aitm.Cli.Tools;
 /// holds no secret), and the answer body is printed as it is (RESTRUCTURE.md slice 30).
 ///
 /// A hook fails open: a server that is down, a non-200 answer or any error prints nothing.
-/// It never starts the server (SessionStart does that). The connect gives up after
+/// A server that is not there is started silently once, within <see cref="ServerAutoStart.DefaultMaxWait"/>,
+/// and the payload is sent again. The connect gives up after
 /// <see cref="ConnectTimeout"/>: on Windows a closed loopback port is only refused after about 3 s of
 /// retries, and SessionEnd hooks share a 1.5 s budget. The whole call ends at the event's entry in
 /// <see cref="Deadlines"/>, so a server that accepts and never answers cannot keep the hook alive.
@@ -31,7 +32,7 @@ public static class HookForwarder
     /// <summary>A pipe/socket connect to a running server takes well under a millisecond.</summary>
     public static readonly TimeSpan ConnectTimeout = TimeSpan.FromMilliseconds(500);
 
-    public static string Forward(string eventName, string payload, string dataDir, string? projectDirEnv, TimeSpan deadline)
+    public static string Forward(string eventName, string payload, string dataDir, string? projectDirEnv, TimeSpan deadline, Func<bool>? ensureServer = null)
     {
         try
         {
@@ -43,9 +44,25 @@ public static class HookForwarder
             if (!string.IsNullOrWhiteSpace(projectDirEnv)) request.Headers.TryAddWithoutValidation("Claude-Project-Dir", projectDirEnv);
             request.Content = new StringContent(payload, Encoding.UTF8, "application/json");
 
-            using HttpResponseMessage response = client.Send(request, deadlineSource.Token);
+            HttpResponseMessage response;
+            try
+            {
+                response = client.Send(request, deadlineSource.Token);
+            }
+            catch (HttpRequestException ex) when (ex.HttpRequestError == HttpRequestError.ConnectionError && ensureServer is not null)
+            {
+                // Nobody home: start the service (silently, bounded) and send the payload once more.
+                if (!ensureServer()) return "";
+                using HttpRequestMessage again = new(HttpMethod.Post, request.RequestUri);
+                foreach (var h in request.Headers) again.Headers.TryAddWithoutValidation(h.Key, h.Value);
+                again.Content = new StringContent(payload, Encoding.UTF8, "application/json");
+                response = client.Send(again, deadlineSource.Token);
+            }
+            using (response)
+            {
             if (response.StatusCode != HttpStatusCode.OK) return "";
             return response.Content.ReadAsStringAsync(deadlineSource.Token).GetAwaiter().GetResult();
+            }
         }
         catch
         {
@@ -60,5 +77,6 @@ public static class HookForwarder
         payload,
         ServerAutoStart.DefaultDataDir(),
         Environment.GetEnvironmentVariable("CLAUDE_PROJECT_DIR"),
-        Deadlines[eventName]);
+        Deadlines[eventName],
+        ServerAutoStart.EnsureRunning);
 }

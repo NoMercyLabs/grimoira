@@ -21,21 +21,11 @@ public static class Program
             return 0;
         }
 
-        // Slice 27: installs/removes the Windows Task Scheduler entry that starts Aitm.Server at
-        // logon. The published server path is a required argument (slice 29 publishes it).
-        if (args.Length >= 2 && args[0] == "server" && args[1] == "install-logon")
-        {
-            if (args.Length < 3)
-            {
-                Console.Error.WriteLine("usage: aitm server install-logon <path-to-Aitm.Server.exe>");
-                return 2;
-            }
-            int exitCode = ServerLogonCommand.Install(
-                args[2], ServerLogonCommand.DefaultUserName, ServerLogonCommand.DefaultXmlPath,
-                new ProcessRunner(), out string error);
-            if (error.Length > 0) Console.Error.WriteLine(error);
-            return exitCode;
-        }
+        // The service starts on the first call and stops when idle, so no logon task is installed any more.
+        // uninstall-logon stays, so an old install can remove the task it has.
+        if (args.Length >= 1 && args[0] == "service")
+            return ServiceCommand.RunDefault(args, Console.Out, Console.Error);
+
         if (args.Length >= 2 && args[0] == "server" && args[1] == "uninstall-logon")
         {
             int exitCode = ServerLogonCommand.Uninstall(new ProcessRunner(), out string error);

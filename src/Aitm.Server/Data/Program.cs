@@ -102,8 +102,22 @@ WebApplication app = builder.Build();
 // (RESTRUCTURE.md slice 32b: the old server finishes its calls in flight, then exits).
 app.Lifetime.ApplicationStopped.Register(projectStore.Dispose);
 
+// On demand: the service exits when it has had no real call for the idle time. /health does not count.
+TimeSpan idleTime = IdleExit.ConfiguredIdle();
+IdleExit idleExit = new(idleTime, () => app.Lifetime.StopApplication());
+app.Use(async (context, next) =>
+{
+    if (context.Request.Path == "/health") { await next(context); return; }
+    using (idleExit.Begin()) await next(context);
+});
+using Timer idleTimer = new(_ => idleExit.CheckAndStopIfIdle(), null,
+    TimeSpan.FromSeconds(1) < idleTime / 4 ? TimeSpan.FromSeconds(1) : idleTime / 4,
+    TimeSpan.FromSeconds(1) < idleTime / 4 ? TimeSpan.FromSeconds(1) : idleTime / 4);
+
 app.MapGet("/health", () => Results.Json(new
 {
+    pid = Environment.ProcessId,
+    idleExitSeconds = (int)idleTime.TotalSeconds,
     version,
     buildStamp,
     uptimeSeconds = (DateTime.UtcNow - startedAt).TotalSeconds,

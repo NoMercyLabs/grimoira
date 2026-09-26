@@ -1,5 +1,5 @@
 # Build the AITM CLI. RESTRUCTURE.md sub-card 29e: bin-cli/ is the published Aitm.Cli (assembly `aitm`), the
-# thin client of the server's POST /cli; `hook` and `server install-logon/uninstall-logon`
+# thin client of the server's POST /cli; `hook`, `service` and `server uninstall-logon`
 # run locally. Hooks, .mcp.json, brain-sweep and the scripts run bin-cli/aitm(.exe|.dll).
 #
 # The last aitm.cs build is kept beside it as bin-cli-old/ until slice 32 signs off: it is the rollback
