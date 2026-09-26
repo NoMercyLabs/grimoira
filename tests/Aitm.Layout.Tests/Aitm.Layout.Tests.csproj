@@ -18,5 +18,9 @@
     <!-- CliClientTimeoutsCoverTheServerLimitTests reads ThinClient.RequestTimeout itself. Private: Aitm.Server.Tests
          references this project, and the thin client's types would clash with Aitm.Brain's there. -->
     <ProjectReference Include="..\..\src\Aitm.Cli\Aitm.Cli.csproj" PrivateAssets="all" />
+    <!-- ServerAddressMatchesAcrossCliAndServerTests (Slice P1): the pipe/socket-name derivation is
+         duplicated in Aitm.Cli.Tools and Aitm.Server.Data (the two projects cannot reference each
+         other; ReferenceDirectionTests), so this test project needs both to catch drift. -->
+    <ProjectReference Include="..\..\src\Aitm.Server\Aitm.Server.csproj" />
   </ItemGroup>
 </Project>
