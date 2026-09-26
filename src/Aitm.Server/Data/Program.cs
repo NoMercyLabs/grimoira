@@ -113,6 +113,10 @@ app.MapMcp("/mcp");
 // slice 20-22 handlers under the same per-project writer gate as /mcp (HookEndpoint).
 app.MapPost("/hooks/{event}", (string @event, HttpContext context) => HookEndpoint.Handle(@event, context, projectStore));
 
+// RESTRUCTURE.md "Slice 29c": the CLI verbs, behind the same auth middleware; each runs on the project's
+// one open connection under its writer gate, with a timeout that answers exit 124 (CliEndpoint).
+app.MapPost("/cli", (Func<HttpContext, Task<IResult>>)(context => CliEndpoint.Handle(context, projectStore, dataDir)));
+
 app.Run();
 
 // Makes the top-level Program class visible to Aitm.Server.Tests' WebApplicationFactory<Program>.

@@ -25,9 +25,19 @@ namespace Aitm.Server.Data;
 public static class CliDispatch
 {
     public static int Run(string[] args, string cwd, TextWriter stdout, TextWriter stderr)
-        => new Dispatcher(args, cwd, stdout, stderr).Dispatch();
+        => new Dispatcher(args, cwd, stdout, stderr, null, null, null).Dispatch();
 
-    private sealed class Dispatcher(string[] a, string cwd, TextWriter stdout, TextWriter stderr)
+    /// <summary>Slice 29c: the server form for <c>POST /cli</c>. The project is already resolved from the
+    /// request (<paramref name="instance"/>), the store root is the server's data directory, and the verb
+    /// runs on the project's one open connection (<see cref="ProjectHandle.Connection"/>, held under its
+    /// gate by the caller) instead of opening a second connection of its own. The process environment
+    /// (AITM_INSTANCE, CLAUDE_PROJECT_DIR) is never read, so the server's env cannot pin a request.</summary>
+    internal static int RunOnStore(string[] args, string cwd, TextWriter stdout, TextWriter stderr,
+        string instance, string dataDir, SqliteConnection connection)
+        => new Dispatcher(args, cwd, stdout, stderr, instance, dataDir, connection).Dispatch();
+
+    private sealed class Dispatcher(string[] a, string cwd, TextWriter stdout, TextWriter stderr,
+        string? fixedInstance, string? dataDir, SqliteConnection? shared)
     {
         private string instance = "";
         private string root = "";
@@ -44,14 +54,16 @@ public static class CliDispatch
         public int Dispatch()
         {
             string cmd = a.Length > 0 ? a[0] : "help";
-            instance = GetFlag("--instance") ?? ResolveInstance();
-            root = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".aitm", instance);
+            instance = fixedInstance ?? GetFlag("--instance") ?? ResolveInstance();
+            root = Path.Combine(dataDir ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".aitm"), instance);
             Directory.CreateDirectory(root);
             dbPath = Path.Combine(root, "aitm.db");
 
-            using SqliteConnection conn = new($"Data Source={dbPath};Foreign Keys=True");
-            db = conn;
-            db.Open();
+            // The server passes the project's open connection (pragmas already applied by StoreConnection.Open);
+            // it is the gate's, so it is not disposed here. The CLI opens and owns its own, as before.
+            using SqliteConnection? owned = shared is null ? new($"Data Source={dbPath};Foreign Keys=True") : null;
+            db = shared ?? owned!;
+            if (owned is not null) db.Open();
             // SQLite serialises writers, and Init/InitBrain below are DDL, so even `query` takes the write lock.
             // Without a busy timeout a momentary writer (session indexer, MCP server, a second CLI) makes the
             // command throw SQLITE_BUSY and the process hard-crash, so callers read the store as broken and fall
