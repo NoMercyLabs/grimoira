@@ -146,8 +146,8 @@ public sealed partial class BrainIndexOrgTool : ITool
                 (string stdout, string _, int exitCode) = runner.Run("git", ["-C", dir, "remote", "get-url", "origin"]);
                 if (exitCode == 0)
                 {
-                    string url = RemoteUrlGitSuffix().Replace(stdout.Trim(), "");
-                    url = GithubSshPrefix().Replace(url, "https://github.com/");
+                    string url = RemoteUrlGitSuffix().ReplaceOrKeep(stdout.Trim(), "");
+                    url = GithubSshPrefix().ReplaceOrKeep(url, "https://github.com/");
                     if (url.Length > 0) byRemote[url.ToLowerInvariant()] = dir.Replace('\\', '/');
                 }
             }

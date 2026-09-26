@@ -89,7 +89,7 @@ public sealed partial class IndexDocsTool : ITool
             "src", "content", "site", "docs", "doc", "md", "readme", "index", "app", "apps", "packages",
             "projects", "c", "entries", "reports", "claude", "work", "public", "assets", "pages",
         ];
-        IEnumerable<string> words = PathWordSeparators().Split(fullPath)
+        IEnumerable<string> words = PathWordSeparators().SplitOrWhole(fullPath)
             .Select(w => w.Trim().ToLowerInvariant())
             .Where(w => w.Length > 1 && !w.All(char.IsDigit) && !generic.Contains(w));
         return string.Join(' ', words.Distinct());
@@ -122,9 +122,9 @@ public sealed partial class IndexDocsTool : ITool
             line = line.TrimStart('#', '>', '-', '*', '+', ' ', '\t');
             if (line.StartsWith("[ ] ")) line = line[4..];
             else if (line.StartsWith("[x] ", StringComparison.OrdinalIgnoreCase)) line = line[4..];
-            line = MarkdownLink().Replace(line, "$1");
+            line = MarkdownLink().ReplaceOrKeep(line, "$1");
             line = line.Replace("**", "").Replace("__", "").Replace("`", "").Replace("|", " ");
-            line = ConsecutiveWhitespace().Replace(line, " ").Trim();
+            line = ConsecutiveWhitespace().ReplaceOrKeep(line, " ").Trim();
             if (line.Length > 0) sb.Append(line).Append('\n');
         }
         return StripFiller(sb.ToString().Trim());
@@ -142,10 +142,10 @@ public sealed partial class IndexDocsTool : ITool
             ("is able to", "can"), ("a number of", "several"), ("the majority of", "most"),
         ];
         foreach ((string from, string to) in phrases)
-            text = Regex.Replace(text, Regex.Escape(from), to, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, RegexTimeout.Span);
-        text = FillerWords().Replace(text, "");
-        text = Surrogates().Replace(text, "");
-        return RepeatedSpacesAndTabs().Replace(text, " ");
+            text = RegexTimeout.ReplaceLiteralIgnoreCase(text, from, to);
+        text = FillerWords().ReplaceOrKeep(text, "");
+        text = Surrogates().ReplaceOrKeep(text, "");
+        return RepeatedSpacesAndTabs().ReplaceOrKeep(text, " ");
     }
 
     private static bool IsOutdated(string title, string body)

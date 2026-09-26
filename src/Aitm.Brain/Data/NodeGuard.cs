@@ -21,7 +21,7 @@ public static partial class NodeGuard
     /// <summary>Copied verbatim from aitm.cs's <c>NodeGuard</c> (aitm.cs:418).</summary>
     public static string ValidateCli(string kind, string label)
     {
-        if (!ValidNodeKind().IsMatch(kind))
+        if (!ValidNodeKind().IsMatchOrFalse(kind))
             return "rejected: node kind must be a short lowercase vocab token (rule/fact/concept/symbol/finding/contract/seam/codekind/project/reference/platform/layer). Yours looks like prose — order is <k> <kind> <label>, the statement goes in --gloss.";
         if (label.Length > 120)
             return "rejected: label must be a short noun phrase (max 120 chars) — the full statement belongs in --gloss.";
@@ -34,7 +34,7 @@ public static partial class NodeGuard
     /// second look.</summary>
     public static string ValidateMcp(string kind, string label)
     {
-        if (!ValidNodeKind().IsMatch(kind))
+        if (!ValidNodeKind().IsMatchOrFalse(kind))
             return Usage($"\"{Trim(kind)}\" is not a node kind — it looks like prose, and a=<node kind> is a single short token.");
         if (label.Length > 120)
             return Usage($"label is {label.Length} chars; it must be a short noun phrase (max 120). The full statement goes in c.");

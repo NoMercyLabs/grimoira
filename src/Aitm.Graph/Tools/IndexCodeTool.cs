@@ -205,7 +205,7 @@ public sealed partial class IndexCodeTool : ITool
             {
                 foreach (string f in Walk(full)) yield return f;
             }
-            else if (LangByExt.ContainsKey(Path.GetExtension(name)) && !VendoredLibraryPath().IsMatch(full.Replace('\\', '/')))
+            else if (LangByExt.ContainsKey(Path.GetExtension(name)) && !VendoredLibraryPath().IsMatchOrFalse(full.Replace('\\', '/')))
             {
                 yield return full;
             }
@@ -237,7 +237,7 @@ public sealed partial class IndexCodeTool : ITool
         {
             foreach (Regex re in patterns)
             {
-                foreach (Match m in re.Matches(text))
+                foreach (Match m in re.MatchesOrEmpty(text))
                 {
                     string name = m.Groups[1].Value;
                     if (name.Length < 3) continue;

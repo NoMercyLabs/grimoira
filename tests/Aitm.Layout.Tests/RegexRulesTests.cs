@@ -147,4 +147,46 @@ public partial class RegexRulesTests
 
     [GeneratedRegex(@"(?<![\w.])(?:System\.Text\.RegularExpressions\.)?Regex\.(?:Replace|IsMatch|Match|Matches|Split|Count|EnumerateMatches)\(", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex StaticRegexCall();
+
+    [Fact]
+    public void SrcNeverCallsAGeneratedRegexWithoutTheTimeoutSafeHelpers()
+    {
+        // Under src/ a RegexMatchTimeoutException must never escape a hook or crash the service: text-reading
+        // code calls IsMatchOrFalse / ReplaceOrKeep / MatchOrEmpty / MatchesOrEmpty / SplitOrWhole
+        // (RegexTimeout) instead of the throwing IsMatch / Replace / Match / Matches / Split.
+        // SecretScrubber is exempt: it catches the timeout itself and fails closed.
+        string srcRoot = Path.Combine(RepoPaths.Root, "src") + Path.DirectorySeparatorChar;
+        List<string> offenders = [];
+        foreach (string file in SourceFiles().Where(f => f.StartsWith(srcRoot, StringComparison.OrdinalIgnoreCase)))
+        {
+            if (Path.GetFileName(file) is "SecretScrubber.cs" or "RegexTimeout.cs")
+            {
+                continue;
+            }
+            string text = File.ReadAllText(file);
+            foreach (Match generated in GeneratedRegexAttribute().Matches(text))
+            {
+                string name = generated.Groups["method"].Value;
+                foreach (Match call in Regex.Matches(text, ThrowingCallPattern(name + @"\(\)"), RegexOptions.None, RegexTimeout.Span))
+                {
+                    offenders.Add($"{Path.GetRelativePath(RepoPaths.Root, file)}: {call.Value}");
+                }
+            }
+            // a Regex held in a variable, parameter or loop variable is checked the same way
+            foreach (Match held in RegexVariableDeclaration().Matches(text))
+            {
+                foreach (Match call in Regex.Matches(text, ThrowingCallPattern(Regex.Escape(held.Groups["name"].Value)), RegexOptions.None, RegexTimeout.Span))
+                {
+                    offenders.Add($"{Path.GetRelativePath(RepoPaths.Root, file)}: {call.Value}");
+                }
+            }
+        }
+        Assert.True(offenders.Count == 0, "throwing regex call under src/: " + string.Join("; ", offenders));
+    }
+
+    private static string ThrowingCallPattern(string receiver) =>
+        $@"(?<![\w.]){receiver}\s*\.\s*(?:IsMatch|Replace|Match|Matches|Split|Count|EnumerateMatches)\(";
+
+    [GeneratedRegex(@"\bRegex\??\s+(?<name>\w+)\s*(?:=|;|\)|,|\bin\b)", RegexOptions.None, RegexTimeout.Milliseconds)]
+    private static partial Regex RegexVariableDeclaration();
 }

@@ -197,10 +197,10 @@ public static partial class CompactBriefTool
 
             string trimmed = text.Trim();
             if (trimmed.Length < 12 || trimmed.StartsWith('<') || trimmed.StartsWith("Caveat:", StringComparison.Ordinal)) continue;
-            if (ContinuedSummaryStart().IsMatch(trimmed)) continue;
-            if (HookFeedbackNotice().IsMatch(trimmed[..Math.Min(60, trimmed.Length)])) continue;
+            if (ContinuedSummaryStart().IsMatchOrFalse(trimmed)) continue;
+            if (HookFeedbackNotice().IsMatchOrFalse(trimmed[..Math.Min(60, trimmed.Length)])) continue;
 
-            string cleaned = ConsecutiveWhitespace().Replace(trimmed, " ");
+            string cleaned = ConsecutiveWhitespace().ReplaceOrKeep(trimmed, " ");
             said.Add(cleaned.Length > 400 ? cleaned[..400] : cleaned);
         }
         return said.Count > 4 ? said[^4..] : said;
@@ -217,7 +217,7 @@ public static partial class CompactBriefTool
             if (name is not ("Edit" or "Write" or "NotebookEdit")) continue;
             if (!b.TryGetProperty("input", out JsonElement input)) continue;
             string? fp = GetString(input, "file_path");
-            if (fp is null || ScratchPath().IsMatch(fp)) continue;
+            if (fp is null || ScratchPath().IsMatchOrFalse(fp)) continue;
             if (seen.Add(fp)) files.Add(fp);
         }
         return files;

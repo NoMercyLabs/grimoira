@@ -134,12 +134,12 @@ public sealed partial class ExtractEdgesTool : ITool
     {
         string trimmed = line.Trim();
         if (trimmed.Length > 120) trimmed = trimmed[..120];
-        string camel = SnakeCaseUnderscoreLetter().Replace(symbol, m => m.Groups[1].Value.ToUpperInvariant());
-        string residue = DeclarationKeywordsAndAnnotations().Replace(trimmed,
+        string camel = SnakeCaseUnderscoreLetter().ReplaceOrKeep(symbol, m => m.Groups[1].Value.ToUpperInvariant());
+        string residue = DeclarationKeywordsAndAnnotations().ReplaceOrKeep(trimmed,
             "");
-        residue = System.Text.RegularExpressions.Regex.Replace(residue, System.Text.RegularExpressions.Regex.Escape(symbol), "", System.Text.RegularExpressions.RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, RegexTimeout.Span);
-        residue = System.Text.RegularExpressions.Regex.Replace(residue, System.Text.RegularExpressions.Regex.Escape(camel), "", System.Text.RegularExpressions.RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, RegexTimeout.Span);
-        residue = AnyWhitespace().Replace(residue, "");
+        residue = RegexTimeout.ReplaceLiteralIgnoreCase(residue, symbol, "");
+        residue = RegexTimeout.ReplaceLiteralIgnoreCase(residue, camel, "");
+        residue = AnyWhitespace().ReplaceOrKeep(residue, "");
         return residue.Length <= 1 ? "" : trimmed; // nothing left but the symbol + decl syntax -> declaration, no usage
     }
 

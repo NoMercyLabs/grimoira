@@ -311,7 +311,7 @@ public static partial class InitFull
     // init.mjs's root.replace(/[:\\/]+/g, '-'), used both for the memory directory and the chat
     // transcript-directory prefix match.
     private static string PathSlug(string path) =>
-        PathSeparatorRun().Replace(path, "-");
+        PathSeparatorRun().ReplaceOrKeep(path, "-");
 
     [GeneratedRegex(@"[:\\/]+", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex PathSeparatorRun();

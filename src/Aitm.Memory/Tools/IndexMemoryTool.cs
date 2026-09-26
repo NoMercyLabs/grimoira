@@ -37,7 +37,7 @@ public sealed partial class IndexMemoryTool : ITool
             string hook = Compact(fm.GetValueOrDefault("description", ""));
             string body = Compact(rawBody);
             if (hook.Length == 0) hook = body.Length <= 200 ? body : body[..200];
-            string links = string.Join(",", WikiLink().Matches(rawBody).Select(m => m.Groups[1].Value).Distinct());
+            string links = string.Join(",", WikiLink().MatchesOrEmpty(rawBody).Select(m => m.Groups[1].Value).Distinct());
             bool hard = (title + " " + hook).Contains("hard rule", StringComparison.OrdinalIgnoreCase);
             if (hard) hardN++;
             UpsertMemory(connection, slug, type, title, hook, body, links, hard, "index-memory");
@@ -129,9 +129,9 @@ public sealed partial class IndexMemoryTool : ITool
             line = line.TrimStart('#', '>', '-', '*', '+', ' ', '\t');
             if (line.StartsWith("[ ] ")) line = line[4..];
             else if (line.StartsWith("[x] ", StringComparison.OrdinalIgnoreCase)) line = line[4..];
-            line = MarkdownLink().Replace(line, "$1");
+            line = MarkdownLink().ReplaceOrKeep(line, "$1");
             line = line.Replace("**", "").Replace("__", "").Replace("`", "").Replace("|", " ");
-            line = ConsecutiveWhitespace().Replace(line, " ").Trim();
+            line = ConsecutiveWhitespace().ReplaceOrKeep(line, " ").Trim();
             if (line.Length > 0) sb.Append(line).Append('\n');
         }
         return StripFiller(sb.ToString().Trim());
@@ -151,10 +151,10 @@ public sealed partial class IndexMemoryTool : ITool
             ("is able to", "can"), ("a number of", "several"), ("the majority of", "most"),
         };
         foreach ((string from, string to) in phrases)
-            text = Regex.Replace(text, Regex.Escape(from), to, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, RegexTimeout.Span);
-        text = FillerWords().Replace(text, "");
-        text = Surrogates().Replace(text, "");
-        return RepeatedSpacesAndTabs().Replace(text, " ");
+            text = RegexTimeout.ReplaceLiteralIgnoreCase(text, from, to);
+        text = FillerWords().ReplaceOrKeep(text, "");
+        text = Surrogates().ReplaceOrKeep(text, "");
+        return RepeatedSpacesAndTabs().ReplaceOrKeep(text, " ");
     }
 
     [GeneratedRegex(@"\[\[([^\]]+)\]\]", RegexOptions.None, RegexTimeout.Milliseconds)]

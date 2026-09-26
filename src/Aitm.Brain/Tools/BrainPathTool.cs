@@ -91,11 +91,11 @@ public sealed partial class BrainPathTool : ITool
             {
                 string name = repoLabel.Split('/').Last();
                 string g = gloss;
-                string lang = RepoLanguage().Match(g) is { Success: true } lm ? lm.Groups[1].Value : "-";
-                string vis = PrivateRepoMarker().IsMatch(g) ? "private" : "public";
-                string arch = ArchivedMarker().IsMatch(g) ? "  [ARCHIVED]" : "";
-                string fork = ForkMarker().IsMatch(g) ? "  [fork]" : "";
-                string pkg = PublishedNpmPackage().Match(g) is { Success: true } pm ? pm.Groups[1].Value : "";
+                string lang = RepoLanguage().MatchOrEmpty(g) is { Success: true } lm ? lm.Groups[1].Value : "-";
+                string vis = PrivateRepoMarker().IsMatchOrFalse(g) ? "private" : "public";
+                string arch = ArchivedMarker().IsMatchOrFalse(g) ? "  [ARCHIVED]" : "";
+                string fork = ForkMarker().IsMatchOrFalse(g) ? "  [fork]" : "";
+                string pkg = PublishedNpmPackage().MatchOrEmpty(g) is { Success: true } pm ? pm.Groups[1].Value : "";
                 string clone = g.Contains("cloned at") ? "cloned" : "";
                 string desc = g.Split('.')[0];
                 lines.Add($"  {name.PadRight(34)} {lang.PadRight(12)} {vis.PadRight(8)} {clone.PadRight(7)}{arch}{fork}");

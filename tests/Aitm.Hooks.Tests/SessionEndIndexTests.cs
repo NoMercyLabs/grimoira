@@ -222,6 +222,41 @@ public class SessionEndIndexTests
     }
 
     [Fact]
+    public void IndexCodeSessionEndKeepsIndexingWhenARegexTimesOutOnOneFile()
+    {
+        // 60k blank lines make the python class/function patterns rescan the whitespace from every line start
+        // (quadratic), so both outrun the shared match timeout on that file. A timeout means "no declaration
+        // found in this file": the hook still exits 0 with no output AND indexes the next file.
+        string projectDir = NewTempProjectDir("code-regex-timeout");
+        string instance = HookPaths.ResolveInstance(projectDir);
+        string fixtureRoot = Path.Combine(Path.GetTempPath(), $"aitm-index-code-timeout-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(fixtureRoot);
+        try
+        {
+            AitmCliRunner.Run($"init --instance {instance}");
+            File.WriteAllText(Path.Combine(fixtureRoot, "a_blank_lines.py"), new string('\n', 60_000) + "class Lost:\n    pass\n");
+            File.WriteAllText(Path.Combine(fixtureRoot, "b_kept.py"), "class Kept:\n    pass\n");
+            AitmCliRunner.Run($"project --instance {instance} --name py --root \"{fixtureRoot}\" --globs \"*.py\"");
+            string payload = JsonSerializer.Serialize(new { cwd = projectDir, session_id = "s1" });
+
+            string result = IndexCodeSessionEndTool.Execute(payload);
+
+            Assert.Equal("", result);
+            using SqliteConnection connection = new($"Data Source={HookPaths.DbPath(instance)};Mode=ReadOnly");
+            connection.Open();
+            using SqliteCommand count = connection.CreateCommand();
+            count.CommandText = "SELECT count(*) FROM edges WHERE symbol='Kept'";
+            Assert.Equal(1L, (long)count.ExecuteScalar()!);
+        }
+        finally
+        {
+            AitmCliRunner.DeleteInstance(instance);
+            Directory.Delete(projectDir, recursive: true);
+            Directory.Delete(fixtureRoot, recursive: true);
+        }
+    }
+
+    [Fact]
     public void IndexCodeSessionEndWithABadPayloadNeverBlocksSessionEnd()
     {
         string result = IndexCodeSessionEndTool.Execute("{{{not json");

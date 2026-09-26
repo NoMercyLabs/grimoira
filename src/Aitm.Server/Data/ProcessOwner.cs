@@ -94,7 +94,7 @@ public static partial class ProcessOwner
             foreach (string filename in Directory.EnumerateFiles(directory).Take(1000))
             {
                 string name = Path.GetFileName(filename);
-                if (!ProcessRecordFileName().IsMatch(name)) continue;
+                if (!ProcessRecordFileName().IsMatchOrFalse(name)) continue;
                 try
                 {
                     using JsonDocument doc = JsonDocument.Parse(File.ReadAllText(filename));
@@ -213,7 +213,7 @@ public static partial class ProcessOwner
     {
         string directory = Directory_(root);
         if (!Directory.Exists(directory)) return (false, []);
-        string[] files = [.. Directory.EnumerateFiles(directory).Where(f => ProcessRecordFileName().IsMatch(Path.GetFileName(f)))];
+        string[] files = [.. Directory.EnumerateFiles(directory).Where(f => ProcessRecordFileName().IsMatchOrFalse(Path.GetFileName(f)))];
         List<Dictionary<string, object?>> records = [];
         foreach (string file in files.Take(limit))
         {

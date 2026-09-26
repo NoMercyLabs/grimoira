@@ -175,7 +175,7 @@ public sealed partial class GraphQueryTool : ITool
     {
         string name = symbol.ToLowerInvariant();
         HashSet<string> parts = new(StringComparer.OrdinalIgnoreCase) { name };
-        foreach (string part in SymbolWordBoundary().Split(symbol))
+        foreach (string part in SymbolWordBoundary().SplitOrWhole(symbol))
             if (part.Length > 0) parts.Add(part.ToLowerInvariant());
         return toks.Any(t => parts.Contains(t));
     }

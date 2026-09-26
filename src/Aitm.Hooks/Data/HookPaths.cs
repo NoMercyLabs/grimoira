@@ -17,7 +17,7 @@ public static partial class HookPaths
     {
         string trimmed = ProjectDir(cwd, projectDir).TrimEnd('\\', '/');
         string name = Path.GetFileName(trimmed).ToLowerInvariant();
-        return NonSlugCharacters().Replace(name, "");
+        return NonSlugCharacters().ReplaceOrKeep(name, "");
     }
 
     /// <summary>
