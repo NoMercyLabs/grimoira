@@ -85,7 +85,7 @@ public sealed class ServerHostTests : IDisposable
         using WebApplicationFactory<Program> factory = Factory();
         using HttpClient client = factory.CreateClient();
 
-        foreach (string path in new[] { "/mcp", "/cli", "/hooks/PreCompact" })
+        foreach (string path in new[] { "/mcp", "/cli", "/hooks/PreCompact", "/shutdown" })
         {
             HttpResponseMessage response = await client.SendAsync(Request(HttpMethod.Post, path, $"attacker.example:{Port}"));
             Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
@@ -98,7 +98,7 @@ public sealed class ServerHostTests : IDisposable
         using WebApplicationFactory<Program> factory = Factory();
         using HttpClient client = factory.CreateClient();
 
-        foreach (string path in new[] { "/mcp", "/cli", "/hooks/PreCompact" })
+        foreach (string path in new[] { "/mcp", "/cli", "/hooks/PreCompact", "/shutdown" })
         {
             HttpResponseMessage response = await client.SendAsync(Request(HttpMethod.Post, path, _allowedHost, addOrigin: true));
             Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);

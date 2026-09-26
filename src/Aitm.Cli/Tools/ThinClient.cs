@@ -6,7 +6,8 @@ namespace Aitm.Cli.Tools;
 
 /// <summary>
 /// RESTRUCTURE.md slice 29d: `aitm &lt;verb&gt;` as a thin client of Aitm.Server's <c>POST /cli</c>. Body
-/// <c>{ "args", "cwd" }</c>, no token (AITM holds no secret; the server trusts loopback only), the project in the <c>Claude-Project-Dir</c> header (and <c>Aitm-Instance</c> when set), exactly the inputs
+/// <c>{ "args", "cwd" }</c>, no token (AITM holds no secret; the server trusts loopback only),
+/// the project in the <c>Claude-Project-Dir</c> header (and <c>Aitm-Instance</c> when set), exactly the inputs
 /// the old CLI resolved its instance from (<c>AITM_INSTANCE</c>, <c>CLAUDE_PROJECT_DIR</c>, else the current
 /// directory). The answer's stdout and stderr are written as they are and its <c>exitCode</c> is returned.
 ///
