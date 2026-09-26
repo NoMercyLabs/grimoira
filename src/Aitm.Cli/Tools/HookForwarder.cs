@@ -28,18 +28,18 @@ public static class HookForwarder
         ["PostToolUse"] = TimeSpan.FromSeconds(65),
     };
 
-    /// <summary>A loopback connect to a running server takes well under a millisecond.</summary>
+    /// <summary>A pipe/socket connect to a running server takes well under a millisecond.</summary>
     public static readonly TimeSpan ConnectTimeout = TimeSpan.FromMilliseconds(500);
 
-    public static string Forward(string eventName, string payload, int port, string? projectDirEnv, TimeSpan deadline)
+    public static string Forward(string eventName, string payload, string dataDir, string? projectDirEnv, TimeSpan deadline)
     {
         try
         {
             // The deadline covers the whole call: connect, send, the server's work and reading the answer.
             using CancellationTokenSource deadlineSource = new(deadline);
-            using SocketsHttpHandler handler = new() { ConnectTimeout = deadline < ConnectTimeout ? deadline : ConnectTimeout };
-            using HttpClient client = new(handler) { Timeout = Timeout.InfiniteTimeSpan };
-            using HttpRequestMessage request = new(HttpMethod.Post, $"http://127.0.0.1:{port}/hooks/{Uri.EscapeDataString(eventName)}");
+            using HttpClient client = PipeConnection.CreateClient(dataDir, deadline < ConnectTimeout ? deadline : ConnectTimeout);
+            client.Timeout = Timeout.InfiniteTimeSpan; // the deadline token below covers the whole call instead
+            using HttpRequestMessage request = new(HttpMethod.Post, $"/hooks/{Uri.EscapeDataString(eventName)}");
             if (!string.IsNullOrWhiteSpace(projectDirEnv)) request.Headers.TryAddWithoutValidation("Claude-Project-Dir", projectDirEnv);
             request.Content = new StringContent(payload, Encoding.UTF8, "application/json");
 
@@ -54,11 +54,11 @@ public static class HookForwarder
         }
     }
 
-    /// <summary>The real call: the port Aitm.Server uses, and the project Claude Code gave this hook.</summary>
+    /// <summary>The real call: the data dir Aitm.Server uses, and the project Claude Code gave this hook.</summary>
     public static string ForwardDefault(string eventName, string payload) => Forward(
         eventName,
         payload,
-        ServerAutoStart.DefaultPort(),
+        ServerAutoStart.DefaultDataDir(),
         Environment.GetEnvironmentVariable("CLAUDE_PROJECT_DIR"),
         Deadlines[eventName]);
 }

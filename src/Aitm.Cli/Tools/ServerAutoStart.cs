@@ -35,17 +35,20 @@ public static class ServerAutoStart
         return false;
     }
 
-    /// <summary><see cref="EnsureRunning(Func{bool}, Func{bool}, TimeSpan, TimeSpan)"/> on the real port and
-    /// server path: <see cref="DefaultPort"/> and <see cref="DefaultServerExe"/>.</summary>
+    /// <summary><see cref="EnsureRunning(Func{bool}, Func{bool}, TimeSpan, TimeSpan)"/> on the real data
+    /// directory and server path: <see cref="DefaultDataDir"/> and <see cref="DefaultServerExe"/>.</summary>
     public static bool EnsureRunning() => EnsureRunning(
-        () => IsHealthy(DefaultPort(), TimeSpan.FromSeconds(1)),
+        () => IsHealthy(DefaultDataDir(), TimeSpan.FromSeconds(1)),
         () => StartDetached(DefaultServerExe()),
         DefaultMaxWait,
         TimeSpan.FromMilliseconds(250));
 
-    /// <summary>The port Aitm.Server uses: <c>AITM_SERVER_PORT</c>, else 7635.</summary>
-    public static int DefaultPort() =>
-        int.TryParse(Environment.GetEnvironmentVariable("AITM_SERVER_PORT"), out int configured) ? configured : 7635;
+    /// <summary>The data directory ("realm") Aitm.Server uses, and so the pipe/socket it is reached on is
+    /// derived from: <c>AITM_DATA_DIR</c>, else <c>~/.aitm</c>.</summary>
+    public static string DefaultDataDir() =>
+        Environment.GetEnvironmentVariable("AITM_DATA_DIR") is { Length: > 0 } configured
+            ? configured
+            : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".aitm");
 
     /// <summary>The server at <c>AITM_SERVER_EXE</c>, else <see cref="DefaultServerPath"/> beside this CLI.</summary>
     public static string DefaultServerExe() =>
@@ -63,12 +66,12 @@ public static class ServerAutoStart
         return Path.GetFullPath(Path.Combine(cliDirectory.TrimEnd('/', '\\'), "..", "bin-server", name));
     }
 
-    public static bool IsHealthy(int port, TimeSpan timeout)
+    public static bool IsHealthy(string dataDir, TimeSpan timeout)
     {
         try
         {
-            using HttpClient client = new() { Timeout = timeout };
-            using HttpResponseMessage response = client.GetAsync($"http://127.0.0.1:{port}/health").GetAwaiter().GetResult();
+            using HttpClient client = PipeConnection.CreateClient(dataDir, timeout);
+            using HttpResponseMessage response = client.GetAsync("/health").GetAwaiter().GetResult();
             return response.IsSuccessStatusCode;
         }
         catch

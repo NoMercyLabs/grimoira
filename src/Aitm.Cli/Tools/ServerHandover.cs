@@ -68,22 +68,15 @@ public static class ServerHandover
         }
     }
 
-    /// <summary>The data folder Aitm.Server uses: <c>AITM_DATA_DIR</c>, else <c>~/.aitm</c>.</summary>
-    private static string DefaultDataDir() =>
-        Environment.GetEnvironmentVariable("AITM_DATA_DIR") is { Length: > 0 } configured
-            ? configured
-            : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".aitm");
-
-    /// <summary><see cref="Run"/> on the real port, data folder, server path and the stamp of this CLI's build.</summary>
+    /// <summary><see cref="Run"/> on the real data folder, server path and the stamp of this CLI's build.</summary>
     public static bool RunDefault()
     {
-        int port = ServerAutoStart.DefaultPort();
-        string dataDir = DefaultDataDir();
+        string dataDir = ServerAutoStart.DefaultDataDir();
         return Run(
             ReadStamp(AppContext.BaseDirectory),
-            () => Probe(port, TimeSpan.FromSeconds(1)),
+            () => Probe(dataDir, TimeSpan.FromSeconds(1)),
             () => TryLockFile(Path.Combine(dataDir, SwapLockFileName)),
-            () => RequestShutdown(port, TimeSpan.FromSeconds(2)),
+            () => RequestShutdown(dataDir, TimeSpan.FromSeconds(2)),
             () => IsFree(Path.Combine(dataDir, "server.lock")),
             () => ServerAutoStart.StartDetached(ServerAutoStart.DefaultServerExe()),
             ServerAutoStart.DefaultMaxWait,
@@ -110,12 +103,12 @@ public static class ServerHandover
         }
     }
 
-    public static Running Probe(int port, TimeSpan timeout)
+    public static Running Probe(string dataDir, TimeSpan timeout)
     {
         try
         {
-            using HttpClient client = new() { Timeout = timeout };
-            using HttpResponseMessage response = client.GetAsync($"http://127.0.0.1:{port}/health").GetAwaiter().GetResult();
+            using HttpClient client = PipeConnection.CreateClient(dataDir, timeout);
+            using HttpResponseMessage response = client.GetAsync("/health").GetAwaiter().GetResult();
             if (!response.IsSuccessStatusCode) return new Running(false, null);
             string body = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
             try
@@ -139,13 +132,13 @@ public static class ServerHandover
         }
     }
 
-    /// <summary>POST /shutdown, behind the same Host and Origin guard as every route.</summary>
-    public static bool RequestShutdown(int port, TimeSpan timeout)
+    /// <summary>POST /shutdown over the pipe.</summary>
+    public static bool RequestShutdown(string dataDir, TimeSpan timeout)
     {
         try
         {
-            using HttpClient client = new() { Timeout = timeout };
-            using HttpRequestMessage request = new(HttpMethod.Post, $"http://127.0.0.1:{port}/shutdown");
+            using HttpClient client = PipeConnection.CreateClient(dataDir, timeout);
+            using HttpRequestMessage request = new(HttpMethod.Post, "/shutdown");
             using HttpResponseMessage response = client.Send(request);
             return response.IsSuccessStatusCode;
         }

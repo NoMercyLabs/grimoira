@@ -1,34 +1,41 @@
 using System.Diagnostics;
-using System.Net;
-using System.Net.Sockets;
 using System.Text.Json;
 using Aitm.Cli.Tools;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Server.Kestrel.Transport.NamedPipes;
 using Xunit;
 
 namespace Aitm.Cli.Tests;
 
 /// <summary>
-/// RESTRUCTURE.md slice 29d: Aitm.Cli is the thin client. Every verb except `hook ...` and
-/// `server install-logon/uninstall-logon` goes to <c>POST http://127.0.0.1:&lt;port&gt;/cli</c> with
-/// <c>{args, cwd}</c> and the Claude-Project-Dir header, and no token (AITM holds no secret); the
-/// answer's stdout, stderr and exitCode are passed through exactly. The server here is a stand-in /cli on
-/// an ephemeral port (never 7635), so the test pins what the client sends and prints, not what a verb does.
+/// RESTRUCTURE.md slice 29d, transport updated by Slice P1: Aitm.Cli is the thin client. Every verb except
+/// `hook ...` and `server install-logon/uninstall-logon` goes to <c>POST /cli</c> over the local pipe /
+/// Unix socket derived from <c>AITM_DATA_DIR</c>, with <c>{args, cwd}</c> and the Claude-Project-Dir
+/// header, and no token (AITM holds no secret; only the current user can open the pipe); the answer's
+/// stdout, stderr and exitCode are passed through exactly. The server here is a stand-in /cli bound to the
+/// same pipe/socket a real Aitm.Server for this data dir would use, never the real 127.0.0.1:7635, so the
+/// test pins what the client sends and prints, not what a verb does.
 /// </summary>
 public sealed class ThinClientForwardsVerbsToTheServerTests : IAsyncLifetime
 {
     private readonly string _dataDir = Directory.CreateTempSubdirectory("aitm-thin-").FullName;
     private WebApplication? _server;
-    private int _port;
     private readonly List<(IHeaderDictionary Headers, string Body)> _calls = [];
     private object _answer = new { exitCode = 0, stdout = "", stderr = "" };
 
     public async Task InitializeAsync()
     {
         WebApplicationBuilder builder = WebApplication.CreateSlimBuilder();
-        builder.WebHost.UseUrls("http://127.0.0.1:0");
+        if (OperatingSystem.IsWindows())
+        {
+            builder.WebHost.ConfigureKestrel(o => o.ListenNamedPipe(ServerAddress.PipeName(_dataDir)));
+        }
+        else
+        {
+            builder.WebHost.ConfigureKestrel(o => o.ListenUnixSocket(ServerAddress.SocketPath(_dataDir)));
+        }
         _server = builder.Build();
         _server.MapGet("/health", () => Results.Ok());
         _server.MapPost("/cli", async (HttpContext context) =>
@@ -38,8 +45,6 @@ public sealed class ThinClientForwardsVerbsToTheServerTests : IAsyncLifetime
             return Results.Json(_answer);
         });
         await _server.StartAsync();
-        _port = new Uri(_server.Urls.First()).Port;
-        Assert.NotEqual(7635, _port);
     }
 
     public async Task DisposeAsync()
@@ -50,7 +55,6 @@ public sealed class ThinClientForwardsVerbsToTheServerTests : IAsyncLifetime
 
     private Dictionary<string, string> Env(string? projectDir = "", string? instance = "") => new()
     {
-        ["AITM_SERVER_PORT"] = _port.ToString(),
         ["AITM_SERVER_EXE"] = Path.Combine(_dataDir, "missing", "Aitm.Server.exe"),
         ["CLAUDE_PROJECT_DIR"] = projectDir ?? "",
         ["AITM_INSTANCE"] = instance ?? "",
@@ -93,45 +97,52 @@ public sealed class ThinClientForwardsVerbsToTheServerTests : IAsyncLifetime
     [Fact]
     public void ServerDownAndNoServerExeExitsOneWithOneClearLine()
     {
-        Dictionary<string, string> env = Env();
-        env["AITM_SERVER_PORT"] = FreePort().ToString();
-        Stopwatch sw = Stopwatch.StartNew();
+        // A separate, empty data dir: nothing is bound to its derived pipe/socket, unlike _dataDir which
+        // the stand-in server above is listening on.
+        string downDataDir = Directory.CreateTempSubdirectory("aitm-thin-down-").FullName;
+        try
+        {
+            Dictionary<string, string> env = Env();
+            Stopwatch sw = Stopwatch.StartNew();
 
-        (string stdout, string stderr, int exit) = BuiltCli.Run(["todos"], _dataDir, env);
+            (string stdout, string stderr, int exit) = BuiltCli.Run(["todos"], downDataDir, env);
 
-        Assert.Equal(1, exit);
-        Assert.Equal("", stdout);
-        string line = Assert.Single(stderr.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
-        Assert.Contains("aitm server", line);
-        Assert.Contains(env["AITM_SERVER_PORT"], line);
-        Assert.True(sw.Elapsed < TimeSpan.FromSeconds(15), $"took {sw.Elapsed}");
+            Assert.Equal(1, exit);
+            Assert.Equal("", stdout);
+            string line = Assert.Single(stderr.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+            Assert.Contains("aitm server", line);
+            Assert.Contains(downDataDir, line);
+            Assert.True(sw.Elapsed < TimeSpan.FromSeconds(15), $"took {sw.Elapsed}");
+        }
+        finally
+        {
+            Directory.Delete(downDataDir, recursive: true);
+        }
     }
 
     [Fact]
     public void HookStillRunsLocallyWithTheServerDown()
     {
-        Dictionary<string, string> env = Env();
-        env["AITM_SERVER_PORT"] = FreePort().ToString();
+        string downDataDir = Directory.CreateTempSubdirectory("aitm-thin-down-").FullName;
+        try
+        {
+            Dictionary<string, string> env = Env();
 
-        (_, string hookErr, int hookExit) = BuiltCli.Run(["hook", "PreCompact"], _dataDir, env);
+            (_, string hookErr, int hookExit) = BuiltCli.Run(["hook", "PreCompact"], downDataDir, env);
 
-        Assert.Equal(0, hookExit);
-        Assert.Equal("", hookErr);
-        Assert.Empty(_calls);
+            Assert.Equal(0, hookExit);
+            Assert.Equal("", hookErr);
+            Assert.Empty(_calls);
+        }
+        finally
+        {
+            Directory.Delete(downDataDir, recursive: true);
+        }
     }
 
     [Fact]
     public void TheCliAssemblyIsNamedAitm()
     {
         Assert.Equal("aitm", typeof(ThinClient).Assembly.GetName().Name);
-    }
-
-    private static int FreePort()
-    {
-        TcpListener l = new(IPAddress.Loopback, 0);
-        l.Start();
-        int port = ((IPEndPoint)l.LocalEndpoint).Port;
-        l.Stop();
-        return port == 7635 ? FreePort() : port;
     }
 }

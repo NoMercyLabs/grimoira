@@ -1,5 +1,5 @@
 using System.Diagnostics;
-using System.Net;
+using System.IO.Pipes;
 using System.Net.Sockets;
 using Aitm.Cli.Tools;
 using Xunit;
@@ -9,33 +9,25 @@ namespace Aitm.Cli.Tests;
 /// <summary>
 /// A forwarded hook (RESTRUCTURE.md slice 30) must end by its own deadline. An async command hook's timeout is
 /// not enforced in an interactive session, so a server that accepts the connection and never answers would
-/// otherwise keep the hook process alive for the rest of the session.
+/// otherwise keep the hook process alive for the rest of the session. Slice P1: the transport is the local
+/// pipe / Unix socket, so the stand-in "server" here accepts on the same transport and simply never answers.
 /// </summary>
 public class HookForwarderDeadlineTests
 {
     [Fact]
     public async Task AServerThatAcceptsAndNeverAnswersEndsTheHookAtItsDeadlineWithNoOutput()
     {
-        TcpListener listener = new(IPAddress.Loopback, 0);
-        listener.Start();
-        int port = ((IPEndPoint)listener.LocalEndpoint).Port;
-        Assert.NotEqual(7635, port);
-        List<TcpClient> accepted = [];
-        Task acceptLoop = Task.Run(() =>
-        {
-            try
-            {
-                while (true) accepted.Add(listener.AcceptTcpClient());
-            }
-            catch (SocketException) { /* listener stopped */ }
-        });
         string dataDir = Directory.CreateTempSubdirectory("aitm-hook-deadline-").FullName;
+        using CancellationTokenSource acceptCancel = new();
+        Task acceptLoop = OperatingSystem.IsWindows()
+            ? AcceptForeverOnNamedPipeAsync(dataDir, acceptCancel.Token)
+            : AcceptForeverOnUnixSocketAsync(dataDir, acceptCancel.Token);
         try
         {
             TimeSpan deadline = TimeSpan.FromSeconds(1);
             Stopwatch sw = Stopwatch.StartNew();
 
-            Task<string> call = Task.Run(() => HookForwarder.Forward("SessionEnd", "{}", port, null, deadline));
+            Task<string> call = Task.Run(() => HookForwarder.Forward("SessionEnd", "{}", dataDir, null, deadline));
             bool finished = await Task.WhenAny(call, Task.Delay(TimeSpan.FromSeconds(10))) == call;
             long elapsedMs = sw.ElapsedMilliseconds;
 
@@ -47,10 +39,41 @@ public class HookForwarderDeadlineTests
         }
         finally
         {
-            listener.Stop();
+            acceptCancel.Cancel();
             await Task.WhenAny(acceptLoop, Task.Delay(TimeSpan.FromSeconds(5)));
-            foreach (TcpClient client in accepted) client.Dispose();
             Directory.Delete(dataDir, recursive: true);
         }
+    }
+
+    private static async Task AcceptForeverOnNamedPipeAsync(string dataDir, CancellationToken cancellationToken)
+    {
+        try
+        {
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                using NamedPipeServerStream pipe = new(ServerAddress.PipeName(dataDir), PipeDirection.InOut, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous);
+                await pipe.WaitForConnectionAsync(cancellationToken);
+                await Task.Delay(Timeout.Infinite, cancellationToken); // accepted; never answers, held until cancelled
+            }
+        }
+        catch (OperationCanceledException) { /* the test is tearing down */ }
+    }
+
+    private static async Task AcceptForeverOnUnixSocketAsync(string dataDir, CancellationToken cancellationToken)
+    {
+        string path = ServerAddress.SocketPath(dataDir);
+        try { File.Delete(path); } catch (IOException) { /* nothing to remove */ }
+        using Socket listener = new(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
+        listener.Bind(new UnixDomainSocketEndPoint(path));
+        listener.Listen(1);
+        try
+        {
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                using Socket accepted = await listener.AcceptAsync(cancellationToken);
+                await Task.Delay(Timeout.Infinite, cancellationToken); // accepted; never answers, held until cancelled
+            }
+        }
+        catch (OperationCanceledException) { /* the test is tearing down */ }
     }
 }

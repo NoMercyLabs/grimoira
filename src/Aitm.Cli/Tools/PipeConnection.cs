@@ -18,15 +18,23 @@ public static class PipeConnection
     public static readonly Uri BaseAddress = new("http://aitm-pipe.local/");
 
     /// <summary>An HttpClient that reaches the service for <paramref name="dataDir"/> over a named pipe
-    /// (Windows) or a Unix domain socket (macOS/Linux), never a TCP port.</summary>
-    public static HttpClient CreateClient(string dataDir, TimeSpan timeout)
+    /// (Windows) or a Unix domain socket (macOS/Linux), never a TCP port. <paramref name="timeout"/> bounds
+    /// both the connect and the whole call.</summary>
+    public static HttpClient CreateClient(string dataDir, TimeSpan timeout) => CreateClient(dataDir, timeout, timeout);
+
+    /// <summary>As above, with the connect wait and the whole-call budget bounded separately: a
+    /// <see cref="NamedPipeClientStream"/> connect keeps retrying CreateFile until its own timeout elapses
+    /// even when no pipe by that name exists at all (there is no fast "connection refused" the way a closed
+    /// TCP port gives one), so a caller with a long overall budget (ThinClient's 960 s verb timeout) still
+    /// needs a short <paramref name="connectTimeout"/> to fail fast against a server that is simply down.</summary>
+    public static HttpClient CreateClient(string dataDir, TimeSpan connectTimeout, TimeSpan overallTimeout)
     {
         SocketsHttpHandler handler = new()
         {
-            ConnectCallback = async (_, cancellationToken) => await ConnectAsync(dataDir, timeout, cancellationToken),
-            ConnectTimeout = timeout,
+            ConnectCallback = async (_, cancellationToken) => await ConnectAsync(dataDir, connectTimeout, cancellationToken),
+            ConnectTimeout = connectTimeout,
         };
-        return new HttpClient(handler) { BaseAddress = BaseAddress, Timeout = timeout };
+        return new HttpClient(handler) { BaseAddress = BaseAddress, Timeout = overallTimeout };
     }
 
     private static async ValueTask<System.IO.Stream> ConnectAsync(string dataDir, TimeSpan timeout, CancellationToken cancellationToken)

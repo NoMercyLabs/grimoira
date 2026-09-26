@@ -27,5 +27,5 @@ public static class SessionStartServerCheck
 
     public static string DefaultServerPath(string cliDirectory) => ServerAutoStart.DefaultServerPath(cliDirectory);
 
-    public static bool IsHealthy(int port, TimeSpan timeout) => ServerAutoStart.IsHealthy(port, timeout);
+    public static bool IsHealthy(string dataDir, TimeSpan timeout) => ServerAutoStart.IsHealthy(dataDir, timeout);
 }

@@ -1,6 +1,4 @@
 using System.Diagnostics;
-using System.Net;
-using System.Net.Sockets;
 using Aitm.Cli.Tools;
 using Xunit;
 
@@ -66,9 +64,17 @@ public class SessionStartServerCheckTests
     }
 
     [Fact]
-    public void HealthProbeAgainstAClosedPortIsFalse()
+    public void HealthProbeAgainstADataDirWithNoServerIsFalse()
     {
-        Assert.False(SessionStartServerCheck.IsHealthy(FreePort(), TimeSpan.FromMilliseconds(500)));
+        string dataDir = Directory.CreateTempSubdirectory("aitm-ss-health-").FullName;
+        try
+        {
+            Assert.False(SessionStartServerCheck.IsHealthy(dataDir, TimeSpan.FromMilliseconds(500)));
+        }
+        finally
+        {
+            Directory.Delete(dataDir, recursive: true);
+        }
     }
 
     [Fact]
@@ -80,7 +86,6 @@ public class SessionStartServerCheckTests
             Stopwatch sw = Stopwatch.StartNew();
             (string stdout, _, int exit) = BuiltCli.Run(["hook", "SessionStart"], dataDir, new Dictionary<string, string>
             {
-                ["AITM_SERVER_PORT"] = FreePort().ToString(),
                 ["AITM_SERVER_EXE"] = Path.Combine(dataDir, "missing", "Aitm.Server.exe"),
             });
 
@@ -94,12 +99,4 @@ public class SessionStartServerCheckTests
         }
     }
 
-    private static int FreePort()
-    {
-        TcpListener l = new(IPAddress.Loopback, 0);
-        l.Start();
-        int port = ((IPEndPoint)l.LocalEndpoint).Port;
-        l.Stop();
-        return port;
-    }
 }
