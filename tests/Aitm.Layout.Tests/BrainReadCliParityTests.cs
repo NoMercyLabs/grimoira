@@ -19,11 +19,10 @@ namespace Aitm.Layout.Tests;
 // ("fixture-service-a") already carries a hyphen, which is the only punctuation this verb's key shape
 // can carry; slash/dot/underscore have no meaning in a node key here (a `:` schema separator is what the
 // key format actually uses), so this file does not force artificial coverage of the other three.
-public class BrainReadCliParityTests
+public partial class BrainReadCliParityTests
 {
     private static string StripVolatile(string s) =>
-        Regex.Replace(Regex.Replace(s, @"\(\d+[.,]\d+ms\)", "(<ms>)"),
-            @"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z", "<ts>");
+        MyRegex().Replace(MyRegex1().Replace(s, "(<ms>)"), "<ts>");
 
     private static (string stdout, string stderr, int exitCode) RunNormalized(
         OldVsNewCli.Result result, string instance, string dbPath)
@@ -154,4 +153,10 @@ public class BrainReadCliParityTests
         AssertParity(seed, "brain audit");
         AssertParity(seed, "brain core");
     }
+
+    [GeneratedRegex(@"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z")]
+    private static partial Regex MyRegex();
+
+    [GeneratedRegex(@"\(\d+[.,]\d+ms\)")]
+    private static partial Regex MyRegex1();
 }

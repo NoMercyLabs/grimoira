@@ -13,12 +13,12 @@ namespace Aitm.Layout.Tests;
 // have finished — a regression a code review reading either file alone would miss. CliEndpoint is
 // internal and init.mjs is JavaScript, so those two are read as text; ThinClient.RequestTimeout is read
 // directly.
-public class CliClientTimeoutsCoverTheServerLimitTests
+public partial class CliClientTimeoutsCoverTheServerLimitTests
 {
     private static int LongTimeoutSeconds()
     {
         string source = File.ReadAllText(Path.Combine(RepoPaths.Root, "src", "Aitm.Server", "Data", "CliEndpoint.cs"));
-        Match match = Regex.Match(source, @"LongTimeout = TimeSpan\.FromSeconds\((\d+)\)");
+        Match match = MyRegex().Match(source);
         Assert.True(match.Success, "CliEndpoint.LongTimeout was not found; the regex needs updating to match its new shape.");
         return int.Parse(match.Groups[1].Value);
     }
@@ -26,7 +26,7 @@ public class CliClientTimeoutsCoverTheServerLimitTests
     private static int IndexChatTimeoutMs()
     {
         string source = File.ReadAllText(Path.Combine(RepoPaths.Root, "init.mjs"));
-        Match match = Regex.Match(source, @"runCli\(\['index-chat',[^\]]*\],\s*(\d+)\)");
+        Match match = MyRegex1().Match(source);
         Assert.True(match.Success, "init.mjs's index-chat runCli call was not found; the regex needs updating to match its new shape.");
         return int.Parse(match.Groups[1].Value);
     }
@@ -52,4 +52,9 @@ public class CliClientTimeoutsCoverTheServerLimitTests
             $"ThinClient.RequestTimeout is {thinClientSeconds} s but CliEndpoint.LongTimeout is {serverSeconds} s; " +
             "the thin client would give up on a long verb before the server's own 124 answer could arrive.");
     }
+
+    [GeneratedRegex(@"LongTimeout = TimeSpan\.FromSeconds\((\d+)\)")]
+    private static partial Regex MyRegex();
+    [GeneratedRegex(@"runCli\(\['index-chat',[^\]]*\],\s*(\d+)\)")]
+    private static partial Regex MyRegex1();
 }

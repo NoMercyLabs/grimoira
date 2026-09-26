@@ -9,9 +9,8 @@ namespace Aitm.Layout.Tests;
 // to get the bytes back some other way. This guard freezes that grep as a test: a file under src/ that
 // newly starts calling Console fails here, and every name already on the allow-list below carries the
 // one-line reason it is still there instead of being fixed by this slice.
-public class NoConsoleWritesUnderSrcTests
+public partial class NoConsoleWritesUnderSrcTests
 {
-    private static readonly Regex ConsoleUsage = new(@"Console\.(Write\w*|Out|Error)\b", RegexOptions.Compiled);
 
     // Path (relative to src/, forward slashes) -> why this file may still name Console.
     private static readonly Dictionary<string, string> AllowList = new(StringComparer.Ordinal)
@@ -56,7 +55,7 @@ public class NoConsoleWritesUnderSrcTests
         {
             string relative = Path.GetRelativePath(srcRoot, path).Replace('\\', '/');
             if (AllowList.ContainsKey(relative)) continue;
-            if (ConsoleUsage.IsMatch(File.ReadAllText(path))) offenders.Add(relative);
+            if (MyRegex().IsMatch(File.ReadAllText(path))) offenders.Add(relative);
         }
 
         Assert.True(offenders.Count == 0,
@@ -73,11 +72,14 @@ public class NoConsoleWritesUnderSrcTests
         foreach (string relative in AllowList.Keys)
         {
             string full = Path.Combine(srcRoot, relative.Replace('/', Path.DirectorySeparatorChar));
-            if (!File.Exists(full) || !ConsoleUsage.IsMatch(File.ReadAllText(full))) stale.Add(relative);
+            if (!File.Exists(full) || !MyRegex().IsMatch(File.ReadAllText(full))) stale.Add(relative);
         }
 
         Assert.True(stale.Count == 0,
             "NoConsoleWritesUnderSrcTests.AllowList names a file that no longer exists or no longer names "
             + "Console — shrink the list:\n" + string.Join("\n", stale));
     }
+
+    [GeneratedRegex(@"Console\.(Write\w*|Out|Error)\b", RegexOptions.Compiled)]
+    private static partial Regex MyRegex();
 }

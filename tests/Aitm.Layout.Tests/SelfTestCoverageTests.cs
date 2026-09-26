@@ -11,7 +11,7 @@ namespace Aitm.Layout.Tests;
 // MAPPING FILE, this class), verified structurally: the mapped file must exist under tests/ and contain
 // a `public void <Method>(` declaration. This is a real, permanent regression guard — delete a mapped
 // test method (or its file) and this test goes red.
-public class SelfTestCoverageTests
+public partial class SelfTestCoverageTests
 {
     // Verbatim from aitm.cs's deleted SelfTest, in the order the checks ran.
     public static readonly string[] SelfTestChecks =
@@ -249,8 +249,13 @@ public class SelfTestCoverageTests
     public void SelftestVerbIsGoneFromAitmCs()
     {
         string source = File.ReadAllText(Path.Combine(RepoPaths.Root, "src", "Aitm.Server", "Data", "CliDispatch.cs"));
-        Assert.DoesNotMatch(new Regex(@"void\s+SelfTest\s*\("), source);
-        Assert.Matches(new Regex("case \"selftest\":"), source); // still a case, but as a removed-verb message
+        Assert.DoesNotMatch(MyRegex(), source);
+        Assert.Matches(MyRegex1(), source); // still a case, but as a removed-verb message
         Assert.Contains("removed in 0.4: aitm selftest is gone", source);
     }
+
+    [GeneratedRegex(@"void\s+SelfTest\s*\(")]
+    private static partial Regex MyRegex();
+    [GeneratedRegex("case \"selftest\":")]
+    private static partial Regex MyRegex1();
 }

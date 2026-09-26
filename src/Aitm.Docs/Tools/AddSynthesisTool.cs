@@ -1,5 +1,6 @@
 using Microsoft.Data.Sqlite;
 using Aitm.Store.Tools;
+using System.Text.RegularExpressions;
 
 namespace Aitm.Docs.Tools;
 
@@ -8,7 +9,7 @@ namespace Aitm.Docs.Tools;
 /// their newest mtime so a reader can tell when the sources have moved on underneath it. Copied verbatim
 /// from aitm.cs's <c>AddSynthesis</c> (aitm.cs:1063).
 /// </summary>
-public sealed class AddSynthesisTool : ITool
+public sealed partial class AddSynthesisTool : ITool
 {
     public string Name => "add-synthesis";
     public string CliVerb => "add-synthesis";
@@ -75,13 +76,16 @@ public sealed class AddSynthesisTool : ITool
     private static string PathTerms(string fullPath)
     {
         string[] generic =
-        {
+        [
             "src", "content", "site", "docs", "doc", "md", "readme", "index", "app", "apps", "packages",
             "projects", "c", "entries", "reports", "claude", "work", "public", "assets", "pages",
-        };
-        IEnumerable<string> words = System.Text.RegularExpressions.Regex.Split(fullPath, @"[\\/\-_. ]+")
+        ];
+        IEnumerable<string> words = MyRegex().Split(fullPath)
             .Select(w => w.Trim().ToLowerInvariant())
             .Where(w => w.Length > 1 && !w.All(char.IsDigit) && !generic.Contains(w));
         return string.Join(' ', words.Distinct());
     }
+
+    [GeneratedRegex(@"[\\/\-_. ]+")]
+    private static partial Regex MyRegex();
 }

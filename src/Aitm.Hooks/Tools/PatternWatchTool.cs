@@ -18,7 +18,7 @@ namespace Aitm.Hooks.Tools;
 /// PowerShell spelling of cd, shell keywords, "npm run" naming no task, and codifying things already
 /// codified) — pattern-watch.test.mjs pins every one of them.
 /// </summary>
-public static class PatternWatchTool
+public static partial class PatternWatchTool
 {
     private const int SeqLen = 3;
 
@@ -36,7 +36,6 @@ public static class PatternWatchTool
         { "node", "python", "python3", "bash", "sh", "pwsh", "powershell" };
     private static readonly HashSet<string> Runners = new(StringComparer.Ordinal)
         { "npm", "yarn", "pnpm", "bun", "npx", "dotnet" };
-    private static readonly Regex ScriptFile = new(@"\.(mjs|cjs|js|ts|py|ps1|sh|bat|cmd|rb|pl)$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly HashSet<string> Primitives = new(StringComparer.Ordinal)
     {
         "git add", "git rm", "git mv", "git status", "git log", "git diff", "git show", "git branch",
@@ -50,9 +49,6 @@ public static class PatternWatchTool
         "python", "python3", "node", "bash", "sh", "pwsh", "powershell", "which", "test", "true", "printf",
         "sleep", "start-sleep", "timeout", "wait", "date", "pwd", "basename", "dirname", "seq", "read",
     };
-    private static readonly Regex WordRe = new(@"^[A-Za-z][\w.:-]*$", RegexOptions.Compiled);
-    private static readonly Regex RedirectRe = new(@"^\d?>>?$|^<$|^\d?>&\d$", RegexOptions.Compiled);
-    private static readonly Regex AssignPrefixRe = new(@"^\$?[\w.]+$", RegexOptions.Compiled);
 
     public static string? Signature(string raw)
     {
@@ -60,10 +56,9 @@ public static class PatternWatchTool
         if (first is null) return null;
 
         List<string> words = [];
-        foreach (string rawStage in Regex.Split(first, @"&&|\|\||;|\|"))
+        foreach (string rawStage in MyRegex4().Split(first))
         {
-            List<string> w = rawStage.Trim().Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)
-                .Select(t => t.Trim('"', '\'')).ToList();
+            List<string> w = [.. rawStage.Trim().Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Select(t => t.Trim('"', '\''))];
             if (w.Count == 0) continue;
 
             string head = w[0].ToLowerInvariant();
@@ -73,26 +68,26 @@ public static class PatternWatchTool
                 BodyKeywords.Contains(w[0].ToLowerInvariant())
                 || w[0].Contains('=')
                 || w[0] == "="
-                || (w.Count > 1 && w[1] == "=" && AssignPrefixRe.IsMatch(w[0]))))
+                || (w.Count > 1 && w[1] == "=" && MyRegex3().IsMatch(w[0]))))
             {
-                w = w.Skip(1).ToList();
+                w = [.. w.Skip(1)];
             }
 
             if (w.Count == 0 || w[0].StartsWith('-') || w[0].StartsWith('$')) continue;
 
-            int redirect = w.FindIndex(t => RedirectRe.IsMatch(t));
-            words = redirect > 0 ? w.Take(redirect).ToList() : w;
+            int redirect = w.FindIndex(t => MyRegex2().IsMatch(t));
+            words = redirect > 0 ? [.. w.Take(redirect)] : w;
             break;
         }
         if (words.Count == 0) return null;
 
         string exeToken = words[0].Split('\\', '/').LastOrDefault() ?? words[0];
-        if (ScriptFile.IsMatch(exeToken)) return null;
-        string exe = Regex.Replace(exeToken, @"\.(exe|cmd)$", "", RegexOptions.IgnoreCase).ToLowerInvariant();
+        if (MyRegex().IsMatch(exeToken)) return null;
+        string exe = MyRegex5().Replace(exeToken, "").ToLowerInvariant();
         if (exe.Length == 0 || exe.Length > 40) return null;
         if (Utilities.Contains(exe) && !Runners.Contains(exe) && !SubcommandLess.Contains(exe)) return null;
 
-        bool IsWord(string w) => WordRe.IsMatch(w);
+        bool IsWord(string w) => MyRegex1().IsMatch(w);
 
         string sub = "";
         if (SubcommandLess.Contains(exe))
@@ -102,7 +97,7 @@ public static class PatternWatchTool
         }
         else
         {
-            List<string> rest = words.Skip(1).ToList();
+            List<string> rest = [.. words.Skip(1)];
             string? found = null;
             for (int i = 0; i < rest.Count; i++)
             {
@@ -126,7 +121,7 @@ public static class PatternWatchTool
         if (sub.Length == 0 && Utilities.Contains(exe)) return null;
         string sig = sub.Length > 0 ? $"{exe} {sub}" : exe;
         if (Primitives.Contains(sig)) return null;
-        if (ScriptFile.IsMatch(sub)) return null;
+        if (MyRegex().IsMatch(sub)) return null;
         return sig;
     }
 
@@ -193,9 +188,9 @@ public static class PatternWatchTool
                 {
                     using JsonDocument trailDoc = JsonDocument.Parse(File.ReadAllText(trailPath));
                     if (trailDoc.RootElement.TryGetProperty("sigs", out JsonElement sigsEl) && sigsEl.ValueKind == JsonValueKind.Array)
-                        sigs = sigsEl.EnumerateArray().Select(e => e.GetString() ?? "").ToList();
+                        sigs = [.. sigsEl.EnumerateArray().Select(e => e.GetString() ?? "")];
                     if (trailDoc.RootElement.TryGetProperty("cmds", out JsonElement cmdsEl) && cmdsEl.ValueKind == JsonValueKind.Array)
-                        cmds = cmdsEl.EnumerateArray().Select(e => e.GetString() ?? "").ToList();
+                        cmds = [.. cmdsEl.EnumerateArray().Select(e => e.GetString() ?? "")];
                 }
                 catch { /* first command */ }
 
@@ -242,4 +237,17 @@ public static class PatternWatchTool
         e.ValueKind == JsonValueKind.Object && e.TryGetProperty(prop, out JsonElement v) && v.ValueKind == JsonValueKind.String
             ? v.GetString()
             : null;
+
+    [GeneratedRegex(@"\.(mjs|cjs|js|ts|py|ps1|sh|bat|cmd|rb|pl)$", RegexOptions.IgnoreCase | RegexOptions.Compiled, "nl-NL")]
+    private static partial Regex MyRegex();
+    [GeneratedRegex(@"^[A-Za-z][\w.:-]*$", RegexOptions.Compiled)]
+    private static partial Regex MyRegex1();
+    [GeneratedRegex(@"^\d?>>?$|^<$|^\d?>&\d$", RegexOptions.Compiled)]
+    private static partial Regex MyRegex2();
+    [GeneratedRegex(@"^\$?[\w.]+$", RegexOptions.Compiled)]
+    private static partial Regex MyRegex3();
+    [GeneratedRegex(@"&&|\|\||;|\|")]
+    private static partial Regex MyRegex4();
+    [GeneratedRegex(@"\.(exe|cmd)$", RegexOptions.IgnoreCase, "nl-NL")]
+    private static partial Regex MyRegex5();
 }

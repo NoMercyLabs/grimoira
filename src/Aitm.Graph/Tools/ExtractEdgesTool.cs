@@ -1,5 +1,6 @@
 using Aitm.Store.Tools;
 using Microsoft.Data.Sqlite;
+using System.Text.RegularExpressions;
 
 namespace Aitm.Graph.Tools;
 
@@ -9,7 +10,7 @@ namespace Aitm.Graph.Tools;
 /// verbatim from aitm.cs's <c>ExtractEdges</c> and its helpers <c>EnumerateSource</c>,
 /// <c>ContainsToken</c>, <c>IsIdent</c>, <c>LeanUsage</c>, <c>IsHardcoded</c> (aitm.cs:2830-2948).
 /// </summary>
-public sealed class ExtractEdgesTool : ITool
+public sealed partial class ExtractEdgesTool : ITool
 {
     public string Name => "extract-edges";
     public string CliVerb => "extract-edges";
@@ -132,13 +133,12 @@ public sealed class ExtractEdgesTool : ITool
     {
         string trimmed = line.Trim();
         if (trimmed.Length > 120) trimmed = trimmed[..120];
-        string camel = System.Text.RegularExpressions.Regex.Replace(symbol, @"_(\w)", m => m.Groups[1].Value.ToUpperInvariant());
-        string residue = System.Text.RegularExpressions.Regex.Replace(trimmed,
-            @"@?\[?\b(JsonProperty|JsonPropertyName|SerialName|JsonInclude|DataMember|field|get|set|init|public|private|internal|val|var|let|const|readonly|required|override|string|String|int|Int|long|Long|bool|Boolean|number|Guid|Ulid)\b|[\[\]@(){}<>"":;,?=]",
-            "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        string camel = MyRegex().Replace(symbol, m => m.Groups[1].Value.ToUpperInvariant());
+        string residue = MyRegex1().Replace(trimmed,
+            "");
         residue = System.Text.RegularExpressions.Regex.Replace(residue, System.Text.RegularExpressions.Regex.Escape(symbol), "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
         residue = System.Text.RegularExpressions.Regex.Replace(residue, System.Text.RegularExpressions.Regex.Escape(camel), "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-        residue = System.Text.RegularExpressions.Regex.Replace(residue, @"\s+", "");
+        residue = MyRegex2().Replace(residue, "");
         return residue.Length <= 1 ? "" : trimmed; // nothing left but the symbol + decl syntax -> declaration, no usage
     }
 
@@ -148,4 +148,11 @@ public sealed class ExtractEdgesTool : ITool
         line.Contains($"'{symbol}'", StringComparison.Ordinal) ||
         line.Contains($"@JsonProperty({symbol}", StringComparison.Ordinal) ||
         line.Contains($".{symbol}", StringComparison.Ordinal);
+
+    [GeneratedRegex(@"_(\w)")]
+    private static partial Regex MyRegex();
+    [GeneratedRegex(@"@?\[?\b(JsonProperty|JsonPropertyName|SerialName|JsonInclude|DataMember|field|get|set|init|public|private|internal|val|var|let|const|readonly|required|override|string|String|int|Int|long|Long|bool|Boolean|number|Guid|Ulid)\b|[\[\]@(){}<>"":;,?=]", RegexOptions.IgnoreCase, "nl-NL")]
+    private static partial Regex MyRegex1();
+    [GeneratedRegex(@"\s+")]
+    private static partial Regex MyRegex2();
 }

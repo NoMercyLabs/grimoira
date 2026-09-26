@@ -13,7 +13,7 @@ namespace Aitm.Server.Tests;
 // client against a real Aitm.Server on its own pipe/socket (derived from a temp data dir; Slice P1). Stdout, stderr and exit code
 // must match once the instance name, its store folder and timings are masked. AITM_SERVER_EXE points at a
 // missing file, so a dead test server fails the test instead of starting the live one.
-public sealed class BinCliThinClientMatchesBinCliOldTests : IClassFixture<BinCliThinClientMatchesBinCliOldTests.TestServer>
+public sealed partial class BinCliThinClientMatchesBinCliOldTests : IClassFixture<BinCliThinClientMatchesBinCliOldTests.TestServer>
 {
     private static readonly string NewDll = Path.Combine(RepoPaths.Root, "bin-cli", "aitm.dll");
     private static readonly string OldDll = Path.Combine(RepoPaths.Root, "bin-cli-old", "aitm.dll");
@@ -106,13 +106,7 @@ public sealed class BinCliThinClientMatchesBinCliOldTests : IClassFixture<BinCli
     // time with one more space, so the pad is part of the mask), and the yyyyMMdd-HHmmssfff stamp in the
     // backup file name redact-chat prints.
     private static string Normalize(string s, string instance, string root) =>
-        Regex.Replace(
-            Regex.Replace(
-                Regex.Replace(
-                    s.Replace(root, "<root>").Replace(root.Replace('\\', '/'), "<root>").Replace(instance, "<instance>"),
-                    @"[ \t]*\d+([.,]\d+)?\s?ms\b", "<ms>"),
-                @"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z", "<ts>"),
-            @"\b\d{8}-\d{9}\b", "<stamp>");
+        MyRegex().Replace(MyRegex1().Replace(MyRegex2().Replace(s.Replace(root, "<root>").Replace(root.Replace('\\', '/'), "<root>").Replace(instance, "<instance>"), "<ms>"), "<ts>"), "<stamp>");
 
     private OldVsNewCli.Result Run(string dll, string instance, string arguments)
     {
@@ -185,4 +179,13 @@ public sealed class BinCliThinClientMatchesBinCliOldTests : IClassFixture<BinCli
             try { Directory.Delete(DataDir, recursive: true); } catch (Exception) { }
         }
     }
+
+    [GeneratedRegex(@"\b\d{8}-\d{9}\b")]
+    private static partial Regex MyRegex();
+
+    [GeneratedRegex(@"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z")]
+    private static partial Regex MyRegex1();
+
+    [GeneratedRegex(@"[ \t]*\d+([.,]\d+)?\s?ms\b")]
+    private static partial Regex MyRegex2();
 }

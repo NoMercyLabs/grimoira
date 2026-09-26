@@ -7,7 +7,7 @@ using Xunit;
 
 namespace Aitm.Brain.Tests;
 
-public class EvalToolTests
+public partial class EvalToolTests
 {
     [Fact]
     public void CliShapeMatchesTodaysCliOutputOnAFreshStore()
@@ -44,5 +44,8 @@ public class EvalToolTests
     // not; the mask must eat that optional pad (the same rule BinCliThinClientMatchesBinCliOldTests
     // already applies to eval's CLI output) or two runs that land on opposite sides of that 10ms boundary
     // mismatch on whitespace alone.
-    private static string StripTiming(string s) => Regex.Replace(s.Replace("\r\n", "\n"), @"[ \t]*\d+[.,]\d+ms", "<MS>");
+    private static string StripTiming(string s) => MyRegex().Replace(s.Replace("\r\n", "\n"), "<MS>");
+
+    [GeneratedRegex(@"[ \t]*\d+[.,]\d+ms")]
+    private static partial Regex MyRegex();
 }

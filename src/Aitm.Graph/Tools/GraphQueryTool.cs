@@ -2,6 +2,7 @@ using System.Text;
 using Aitm.Store.Data;
 using Aitm.Store.Tools;
 using Microsoft.Data.Sqlite;
+using System.Text.RegularExpressions;
 
 namespace Aitm.Graph.Tools;
 
@@ -16,7 +17,7 @@ namespace Aitm.Graph.Tools;
 /// miss — kept as separate paths rather than unified, the same way <c>ImpactTool</c> keeps its CLI and
 /// MCP shapes apart.
 /// </summary>
-public sealed class GraphQueryTool : ITool
+public sealed partial class GraphQueryTool : ITool
 {
     public string Name => "graph-query";
     public string CliVerb => "graph-query";
@@ -174,7 +175,7 @@ public sealed class GraphQueryTool : ITool
     {
         string name = symbol.ToLowerInvariant();
         HashSet<string> parts = new(StringComparer.OrdinalIgnoreCase) { name };
-        foreach (string part in System.Text.RegularExpressions.Regex.Split(symbol, "_|(?<=[a-z0-9])(?=[A-Z])"))
+        foreach (string part in MyRegex().Split(symbol))
             if (part.Length > 0) parts.Add(part.ToLowerInvariant());
         return toks.Any(t => parts.Contains(t));
     }
@@ -201,4 +202,7 @@ public sealed class GraphQueryTool : ITool
             .Where(t => t.Length > 1 && !McpStop.Contains(t))];
 
     private static string Clip(string s, int max) => s.Length <= max ? s : s[..max].TrimEnd() + "…";
+
+    [GeneratedRegex("_|(?<=[a-z0-9])(?=[A-Z])")]
+    private static partial Regex MyRegex();
 }

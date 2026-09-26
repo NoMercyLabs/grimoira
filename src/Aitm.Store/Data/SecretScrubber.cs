@@ -10,19 +10,19 @@ namespace Aitm.Store.Data;
 /// security fix. Ordinary text, code and hashes (git SHAs, sha256 digests) are left alone — they carry
 /// no dots-and-dashes token shape and no key prefix.
 /// </summary>
-public static class SecretScrubber
+public static partial class SecretScrubber
 {
     // Order matters: PEM blocks and Bearer headers are consumed whole first, so a JWT sitting inside
     // either of them is counted once, under the outer kind, not twice.
     private static readonly (string Kind, Regex Pattern)[] Patterns =
     [
-        ("private-key", new Regex(@"-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----", RegexOptions.Compiled)),
-        ("bearer", new Regex(@"Bearer\s+[A-Za-z0-9\-_.+/=]{10,}", RegexOptions.Compiled)),
-        ("jwt", new Regex(@"(?<![A-Za-z0-9_-])[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}(?![A-Za-z0-9_-])", RegexOptions.Compiled)),
-        ("github", new Regex(@"\b(?:ghp_|gho_|github_pat_)[A-Za-z0-9_]{20,}\b", RegexOptions.Compiled)),
-        ("openai", new Regex(@"\bsk-[A-Za-z0-9]{20,}\b", RegexOptions.Compiled)),
-        ("aws", new Regex(@"\bAKIA[A-Z0-9]{12,}\b", RegexOptions.Compiled)),
-        ("slack", new Regex(@"\bxox[baprs]-[A-Za-z0-9-]{10,}\b", RegexOptions.Compiled)),
+        ("private-key", MyRegex()),
+        ("bearer", MyRegex1()),
+        ("jwt", MyRegex2()),
+        ("github", MyRegex3()),
+        ("openai", MyRegex4()),
+        ("aws", MyRegex5()),
+        ("slack", MyRegex6()),
     ];
 
     /// <summary>Replaces every token-shaped string with <c>[redacted:&lt;kind&gt;]</c> and returns the
@@ -41,4 +41,19 @@ public static class SecretScrubber
         }
         return (result, counts);
     }
+
+    [GeneratedRegex(@"-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----", RegexOptions.Compiled)]
+    private static partial Regex MyRegex();
+    [GeneratedRegex(@"Bearer\s+[A-Za-z0-9\-_.+/=]{10,}", RegexOptions.Compiled)]
+    private static partial Regex MyRegex1();
+    [GeneratedRegex(@"(?<![A-Za-z0-9_-])[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}(?![A-Za-z0-9_-])", RegexOptions.Compiled)]
+    private static partial Regex MyRegex2();
+    [GeneratedRegex(@"\b(?:ghp_|gho_|github_pat_)[A-Za-z0-9_]{20,}\b", RegexOptions.Compiled)]
+    private static partial Regex MyRegex3();
+    [GeneratedRegex(@"\bsk-[A-Za-z0-9]{20,}\b", RegexOptions.Compiled)]
+    private static partial Regex MyRegex4();
+    [GeneratedRegex(@"\bAKIA[A-Z0-9]{12,}\b", RegexOptions.Compiled)]
+    private static partial Regex MyRegex5();
+    [GeneratedRegex(@"\bxox[baprs]-[A-Za-z0-9-]{10,}\b", RegexOptions.Compiled)]
+    private static partial Regex MyRegex6();
 }

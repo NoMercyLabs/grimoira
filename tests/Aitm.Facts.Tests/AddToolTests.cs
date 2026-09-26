@@ -7,7 +7,7 @@ using Xunit;
 
 namespace Aitm.Facts.Tests;
 
-public class AddToolTests
+public partial class AddToolTests
 {
     [Fact]
     public void MatchesTodaysCliOutputAndUpsertsTheRow()
@@ -124,5 +124,8 @@ public class AddToolTests
         }
     }
 
-    private static string Normalize(string s) => Regex.Replace(s.Trim(), @"\s+", " ");
+    private static string Normalize(string s) => MyRegex().Replace(s.Trim(), " ");
+
+    [GeneratedRegex(@"\s+")]
+    private static partial Regex MyRegex();
 }

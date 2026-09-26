@@ -16,15 +16,10 @@ namespace Aitm.Layout.Tests;
 // OldVsNewCli.OracleCommit (before slice 24 moved any verb into a tool class). Every flag the oracle
 // read for a verb must still be read for that verb today — a verb losing a flag fails this test, even
 // if no other test happens to exercise that flag's value.
-public class CliFlagCoverageGuardTests
+public partial class CliFlagCoverageGuardTests
 {
-    private static readonly Regex FlagRegex = new(
-        @"(?:GetFlag|HasFlag)\(\s*""(--[\w-]+)""\s*\)|\ba\.Contains\(\s*""(--[\w-]+)""\s*\)",
-        RegexOptions.Compiled);
 
-    private static readonly Regex CaseNameRegex = new(@"case\s+""([^""]+)""\s*:", RegexOptions.Compiled);
 
-    private static readonly Regex CallRegex = new(@"\b([A-Z][A-Za-z0-9_]*)\s*\(", RegexOptions.Compiled);
 
     [Fact]
     public void NoTopLevelOrBrainVerbLosesAFlagTheOracleRead()
@@ -63,7 +58,7 @@ public class CliFlagCoverageGuardTests
     private static Dictionary<string, HashSet<string>> ExtractVerbFlags(string fullSource, string switchBody)
     {
         Dictionary<string, HashSet<string>> result = new(StringComparer.Ordinal);
-        MatchCollection caseMatches = CaseNameRegex.Matches(switchBody);
+        MatchCollection caseMatches = MyRegex1().Matches(switchBody);
         for (int i = 0; i < caseMatches.Count; i++)
         {
             Match m = caseMatches[i];
@@ -89,11 +84,11 @@ public class CliFlagCoverageGuardTests
     private static HashSet<string> FlagsIn(string block, string fullSource, HashSet<string> visited, int depth)
     {
         HashSet<string> flags = new(StringComparer.Ordinal);
-        foreach (Match fm in FlagRegex.Matches(block))
+        foreach (Match fm in MyRegex().Matches(block))
             flags.Add(fm.Groups[1].Success ? fm.Groups[1].Value : fm.Groups[2].Value);
 
         if (depth >= 3) return flags;
-        foreach (Match cm in CallRegex.Matches(block))
+        foreach (Match cm in MyRegex2().Matches(block))
         {
             string name = cm.Groups[1].Value;
             if (!visited.Add(name)) continue;
@@ -117,7 +112,7 @@ public class CliFlagCoverageGuardTests
 
     private static string FindTopLevelSwitchBody(string source)
     {
-        Match anchor = Regex.Match(source, @"switch\s*\(cmd\)");
+        Match anchor = MyRegex3().Match(source);
         int openBrace = source.IndexOf('{', anchor.Index + anchor.Length);
         return ExtractBalanced(source, openBrace);
     }
@@ -128,7 +123,7 @@ public class CliFlagCoverageGuardTests
     {
         string? functionBody = FindFunctionBody(source, functionName)
             ?? throw new InvalidOperationException($"{functionName} not found in the given source");
-        Match anchor = Regex.Match(functionBody, @"switch\s*\(sub\)");
+        Match anchor = MyRegex4().Match(functionBody);
         int openBrace = functionBody.IndexOf('{', anchor.Index + anchor.Length);
         return ExtractBalanced(functionBody, openBrace);
     }
@@ -165,4 +160,15 @@ public class CliFlagCoverageGuardTests
             throw new InvalidOperationException($"git show {OldVsNewCli.OracleCommit}:aitm.cs exited {process.ExitCode}");
         return stdout;
     }
+
+    [GeneratedRegex(@"(?:GetFlag|HasFlag)\(\s*""(--[\w-]+)""\s*\)|\ba\.Contains\(\s*""(--[\w-]+)""\s*\)", RegexOptions.Compiled)]
+    private static partial Regex MyRegex();
+    [GeneratedRegex(@"case\s+""([^""]+)""\s*:", RegexOptions.Compiled)]
+    private static partial Regex MyRegex1();
+    [GeneratedRegex(@"\b([A-Z][A-Za-z0-9_]*)\s*\(", RegexOptions.Compiled)]
+    private static partial Regex MyRegex2();
+    [GeneratedRegex(@"switch\s*\(cmd\)")]
+    private static partial Regex MyRegex3();
+    [GeneratedRegex(@"switch\s*\(sub\)")]
+    private static partial Regex MyRegex4();
 }

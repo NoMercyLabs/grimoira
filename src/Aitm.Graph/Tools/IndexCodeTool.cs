@@ -17,7 +17,7 @@ namespace Aitm.Graph.Tools;
 /// schema step 1), same as the two <c>CREATE INDEX IF NOT EXISTS</c> statements index-code.mjs runs
 /// before it queries <c>edges</c>.
 /// </summary>
-public sealed class IndexCodeTool : ITool
+public sealed partial class IndexCodeTool : ITool
 {
     public string Name => "index-code";
     public string CliVerb => "index-code";
@@ -33,9 +33,6 @@ public sealed class IndexCodeTool : ITool
         "third_party", "thirdparty", "deps", "external", "subprojects", "submodules", "extern",
     };
 
-    private static readonly Regex Vendored = new(
-        @"[\\/]lib[\\/](freetype|brotli|harfbuzz|fribidi|libass|zlib|openssl|ffmpeg|expat|png|jpeg)[\\/]",
-        RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     private const long MaxBytes = 1_500_000;
 
@@ -43,51 +40,51 @@ public sealed class IndexCodeTool : ITool
     {
         ["ts"] =
         [
-            new(@"^\s*export\s+(?:default\s+)?(?:abstract\s+)?class\s+([A-Za-z_]\w*)", Multiline),
-            new(@"^\s*export\s+(?:declare\s+)?(?:async\s+)?function\s+\*?\s*([A-Za-z_]\w*)", Multiline),
-            new(@"^\s*export\s+(?:declare\s+)?(?:interface|type|enum)\s+([A-Za-z_]\w*)", Multiline),
-            new(@"^\s*export\s+(?:declare\s+)?(?:const|let|var)\s+([A-Za-z_]\w*)", Multiline),
-            new(@"^\s*export\s+\{\s*([A-Za-z_]\w*)", Multiline),
+            MyRegex1(),
+            MyRegex2(),
+            MyRegex3(),
+            MyRegex4(),
+            MyRegex5(),
         ],
         ["kotlin"] =
         [
-            new(@"^\s*(?:public\s+|internal\s+)?(?:data\s+|sealed\s+|abstract\s+|open\s+|value\s+)*(?:class|interface|object)\s+([A-Za-z_]\w*)", Multiline),
-            new(@"^\s*(?:public\s+|internal\s+)?(?:suspend\s+)?fun\s+(?:<[^>]+>\s*)?([A-Za-z_]\w*)\s*\(", Multiline),
-            new(@"^\s*(?:public\s+|internal\s+)?(?:const\s+)?val\s+([A-Z][A-Za-z0-9_]*)", Multiline),
+            MyRegex6(),
+            MyRegex7(),
+            MyRegex8(),
         ],
         ["csharp"] =
         [
-            new(@"^\s*(?:public|internal)\s+(?:static\s+|sealed\s+|abstract\s+|partial\s+|readonly\s+)*(?:class|interface|record|struct|enum)\s+([A-Za-z_]\w*)", Multiline),
-            new(@"^\s*public\s+(?:static\s+|virtual\s+|override\s+|async\s+|sealed\s+)*[A-Za-z_][\w<>,.\[\]?]*\s+([A-Za-z_]\w*)\s*\(", Multiline),
+            MyRegex9(),
+            MyRegex10(),
         ],
         ["php"] =
         [
-            new(@"^\s*(?:abstract\s+|final\s+)?(?:class|interface|trait|enum)\s+([A-Za-z_]\w*)", Multiline),
-            new(@"^\s*(?:public\s+|protected\s+)?(?:static\s+)?function\s+([A-Za-z_]\w*)\s*\(", Multiline),
+            MyRegex11(),
+            MyRegex12(),
         ],
         ["c"] =
         [
-            new(@"^\s*(?:extern\s+)?(?:const\s+|unsigned\s+|signed\s+|static\s+)*(?:struct\s+|enum\s+|union\s+)?[A-Za-z_]\w*\s*\**\s*([A-Za-z_]\w*)\s*\([^;{]*\)\s*;", Multiline),
-            new(@"^\s*typedef\s+(?:struct|enum|union)?\s*[^;]*?\b([A-Za-z_]\w*)\s*;", Multiline),
-            new(@"^\s*(?:struct|enum|union)\s+([A-Za-z_]\w*)\s*\{", Multiline),
-            new(@"^\s*#\s*define\s+([A-Za-z_]\w{3,})", Multiline),
+            MyRegex13(),
+            MyRegex14(),
+            MyRegex15(),
+            MyRegex16(),
         ],
         ["cpp"] =
         [
-            new(@"^\s*(?:class|struct)\s+(?:[A-Z_]+\s+)?([A-Za-z_]\w*)\s*(?::|\{)", Multiline),
-            new(@"^\s*namespace\s+([A-Za-z_]\w*)", Multiline),
-            new(@"^\s*(?:template\s*<[^>]*>\s*)?(?:[A-Za-z_][\w:<>,\s*&]*\s+)?([A-Za-z_]\w*)\s*\([^;{]*\)\s*(?:const\s*)?(?:override\s*)?[;{]", Multiline),
-            new(@"^\s*typedef\s+[^;]*?\b([A-Za-z_]\w*)\s*;", Multiline),
+            MyRegex17(),
+            MyRegex18(),
+            MyRegex19(),
+            MyRegex20(),
         ],
         ["swift"] =
         [
-            new(@"^\s*(?:public\s+|open\s+|internal\s+)?(?:final\s+)?(?:class|struct|enum|protocol|actor)\s+([A-Za-z_]\w*)", Multiline),
-            new(@"^\s*(?:public\s+|open\s+|internal\s+)?func\s+([A-Za-z_]\w*)", Multiline),
+            MyRegex21(),
+            MyRegex22(),
         ],
         ["python"] =
         [
-            new(@"^\s*class\s+([A-Za-z_]\w*)", Multiline),
-            new(@"^\s*(?:async\s+)?def\s+([A-Za-z_]\w*)", Multiline),
+            MyRegex23(),
+            MyRegex24(),
         ],
     };
 
@@ -209,7 +206,7 @@ public sealed class IndexCodeTool : ITool
             {
                 foreach (string f in Walk(full)) yield return f;
             }
-            else if (LangByExt.ContainsKey(Path.GetExtension(name)) && !Vendored.IsMatch(full.Replace('\\', '/')))
+            else if (LangByExt.ContainsKey(Path.GetExtension(name)) && !MyRegex().IsMatch(full.Replace('\\', '/')))
             {
                 yield return full;
             }
@@ -261,4 +258,55 @@ public sealed class IndexCodeTool : ITool
 
         foreach (string name in order) yield return (name, found[name]);
     }
+
+    [GeneratedRegex(@"[\\/]lib[\\/](freetype|brotli|harfbuzz|fribidi|libass|zlib|openssl|ffmpeg|expat|png|jpeg)[\\/]", RegexOptions.IgnoreCase | RegexOptions.Compiled, "nl-NL")]
+    private static partial Regex MyRegex();
+    [GeneratedRegex(@"^\s*export\s+(?:default\s+)?(?:abstract\s+)?class\s+([A-Za-z_]\w*)", RegexOptions.Multiline | RegexOptions.Compiled)]
+    private static partial Regex MyRegex1();
+    [GeneratedRegex(@"^\s*export\s+(?:declare\s+)?(?:async\s+)?function\s+\*?\s*([A-Za-z_]\w*)", RegexOptions.Multiline | RegexOptions.Compiled)]
+    private static partial Regex MyRegex2();
+    [GeneratedRegex(@"^\s*export\s+(?:declare\s+)?(?:interface|type|enum)\s+([A-Za-z_]\w*)", RegexOptions.Multiline | RegexOptions.Compiled)]
+    private static partial Regex MyRegex3();
+    [GeneratedRegex(@"^\s*export\s+(?:declare\s+)?(?:const|let|var)\s+([A-Za-z_]\w*)", RegexOptions.Multiline | RegexOptions.Compiled)]
+    private static partial Regex MyRegex4();
+    [GeneratedRegex(@"^\s*export\s+\{\s*([A-Za-z_]\w*)", RegexOptions.Multiline | RegexOptions.Compiled)]
+    private static partial Regex MyRegex5();
+    [GeneratedRegex(@"^\s*(?:public\s+|internal\s+)?(?:data\s+|sealed\s+|abstract\s+|open\s+|value\s+)*(?:class|interface|object)\s+([A-Za-z_]\w*)", RegexOptions.Multiline | RegexOptions.Compiled)]
+    private static partial Regex MyRegex6();
+    [GeneratedRegex(@"^\s*(?:public\s+|internal\s+)?(?:suspend\s+)?fun\s+(?:<[^>]+>\s*)?([A-Za-z_]\w*)\s*\(", RegexOptions.Multiline | RegexOptions.Compiled)]
+    private static partial Regex MyRegex7();
+    [GeneratedRegex(@"^\s*(?:public\s+|internal\s+)?(?:const\s+)?val\s+([A-Z][A-Za-z0-9_]*)", RegexOptions.Multiline | RegexOptions.Compiled)]
+    private static partial Regex MyRegex8();
+    [GeneratedRegex(@"^\s*(?:public|internal)\s+(?:static\s+|sealed\s+|abstract\s+|partial\s+|readonly\s+)*(?:class|interface|record|struct|enum)\s+([A-Za-z_]\w*)", RegexOptions.Multiline | RegexOptions.Compiled)]
+    private static partial Regex MyRegex9();
+    [GeneratedRegex(@"^\s*public\s+(?:static\s+|virtual\s+|override\s+|async\s+|sealed\s+)*[A-Za-z_][\w<>,.\[\]?]*\s+([A-Za-z_]\w*)\s*\(", RegexOptions.Multiline | RegexOptions.Compiled)]
+    private static partial Regex MyRegex10();
+    [GeneratedRegex(@"^\s*(?:abstract\s+|final\s+)?(?:class|interface|trait|enum)\s+([A-Za-z_]\w*)", RegexOptions.Multiline | RegexOptions.Compiled)]
+    private static partial Regex MyRegex11();
+    [GeneratedRegex(@"^\s*(?:public\s+|protected\s+)?(?:static\s+)?function\s+([A-Za-z_]\w*)\s*\(", RegexOptions.Multiline | RegexOptions.Compiled)]
+    private static partial Regex MyRegex12();
+    [GeneratedRegex(@"^\s*(?:extern\s+)?(?:const\s+|unsigned\s+|signed\s+|static\s+)*(?:struct\s+|enum\s+|union\s+)?[A-Za-z_]\w*\s*\**\s*([A-Za-z_]\w*)\s*\([^;{]*\)\s*;", RegexOptions.Multiline | RegexOptions.Compiled)]
+    private static partial Regex MyRegex13();
+    [GeneratedRegex(@"^\s*typedef\s+(?:struct|enum|union)?\s*[^;]*?\b([A-Za-z_]\w*)\s*;", RegexOptions.Multiline | RegexOptions.Compiled)]
+    private static partial Regex MyRegex14();
+    [GeneratedRegex(@"^\s*(?:struct|enum|union)\s+([A-Za-z_]\w*)\s*\{", RegexOptions.Multiline | RegexOptions.Compiled)]
+    private static partial Regex MyRegex15();
+    [GeneratedRegex(@"^\s*#\s*define\s+([A-Za-z_]\w{3,})", RegexOptions.Multiline | RegexOptions.Compiled)]
+    private static partial Regex MyRegex16();
+    [GeneratedRegex(@"^\s*(?:class|struct)\s+(?:[A-Z_]+\s+)?([A-Za-z_]\w*)\s*(?::|\{)", RegexOptions.Multiline | RegexOptions.Compiled)]
+    private static partial Regex MyRegex17();
+    [GeneratedRegex(@"^\s*namespace\s+([A-Za-z_]\w*)", RegexOptions.Multiline | RegexOptions.Compiled)]
+    private static partial Regex MyRegex18();
+    [GeneratedRegex(@"^\s*(?:template\s*<[^>]*>\s*)?(?:[A-Za-z_][\w:<>,\s*&]*\s+)?([A-Za-z_]\w*)\s*\([^;{]*\)\s*(?:const\s*)?(?:override\s*)?[;{]", RegexOptions.Multiline | RegexOptions.Compiled)]
+    private static partial Regex MyRegex19();
+    [GeneratedRegex(@"^\s*typedef\s+[^;]*?\b([A-Za-z_]\w*)\s*;", RegexOptions.Multiline | RegexOptions.Compiled)]
+    private static partial Regex MyRegex20();
+    [GeneratedRegex(@"^\s*(?:public\s+|open\s+|internal\s+)?(?:final\s+)?(?:class|struct|enum|protocol|actor)\s+([A-Za-z_]\w*)", RegexOptions.Multiline | RegexOptions.Compiled)]
+    private static partial Regex MyRegex21();
+    [GeneratedRegex(@"^\s*(?:public\s+|open\s+|internal\s+)?func\s+([A-Za-z_]\w*)", RegexOptions.Multiline | RegexOptions.Compiled)]
+    private static partial Regex MyRegex22();
+    [GeneratedRegex(@"^\s*class\s+([A-Za-z_]\w*)", RegexOptions.Multiline | RegexOptions.Compiled)]
+    private static partial Regex MyRegex23();
+    [GeneratedRegex(@"^\s*(?:async\s+)?def\s+([A-Za-z_]\w*)", RegexOptions.Multiline | RegexOptions.Compiled)]
+    private static partial Regex MyRegex24();
 }

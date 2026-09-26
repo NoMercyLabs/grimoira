@@ -17,7 +17,7 @@ namespace Aitm.Layout.Tests;
 // (e.g. `new BrainTool()`) would silently drop those unwired sub-verbs' behaviour, so this part leaves
 // BrainCmd in place and only rewires the bodies of the 10 sub-verb cases it owns. This is red before the
 // wiring lands (no case yet calls a tool class) and green after.
-public class BrainReadVerbDispatchTests
+public partial class BrainReadVerbDispatchTests
 {
     // sub-verb -> the tool type its nested case (inside BrainCmd) has to call.
     public static readonly (string Verb, string ToolType)[] WiredVerbs =
@@ -60,10 +60,13 @@ public class BrainReadVerbDispatchTests
     public void TopLevelBrainCaseStillDispatchesThroughBrainCmd()
     {
         string source = File.ReadAllText(Path.Combine(RepoPaths.Root, "src", "Aitm.Server", "Data", "CliDispatch.cs"));
-        Match caseMatch = Regex.Match(source, "case \"brain\":");
+        Match caseMatch = MyRegex().Match(source);
         Assert.True(caseMatch.Success, "aitm.cs has no case for 'brain'");
         int blockEnd = source.IndexOf("break;", caseMatch.Index, StringComparison.Ordinal);
         string block = source[caseMatch.Index..blockEnd];
         Assert.Contains("BrainCmd(", block, StringComparison.Ordinal);
     }
+
+    [GeneratedRegex("case \"brain\":")]
+    private static partial Regex MyRegex();
 }

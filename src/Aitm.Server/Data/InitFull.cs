@@ -11,6 +11,7 @@ using Aitm.Store.Data;
 using Aitm.Store.Schema;
 using Aitm.Store.Tools;
 using Microsoft.Data.Sqlite;
+using System.Text.RegularExpressions;
 
 namespace Aitm.Server.Data;
 
@@ -30,7 +31,7 @@ public sealed record InitFullOptions(string Root, string Instance, string DbPath
 /// <c>step()</c> log lines appear, plus whether every step that can fail did.</summary>
 public sealed record InitFullResult(bool Success, string Log);
 
-public static class InitFull
+public static partial class InitFull
 {
     // init.mjs MARKERS, in the same priority order.
     public static readonly IReadOnlyList<(string File, ProjectMarker Marker)> Markers =
@@ -310,5 +311,8 @@ public static class InitFull
     // init.mjs's root.replace(/[:\\/]+/g, '-'), used both for the memory directory and the chat
     // transcript-directory prefix match.
     private static string PathSlug(string path) =>
-        System.Text.RegularExpressions.Regex.Replace(path, @"[:\\/]+", "-");
+        MyRegex().Replace(path, "-");
+
+    [GeneratedRegex(@"[:\\/]+")]
+    private static partial Regex MyRegex();
 }

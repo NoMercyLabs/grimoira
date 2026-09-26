@@ -10,6 +10,7 @@ using Microsoft.Data.Sqlite;
 using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
 using Xunit;
+using System.Text.RegularExpressions;
 
 namespace Aitm.Server.Tests;
 
@@ -32,7 +33,7 @@ namespace Aitm.Server.Tests;
 /// <c>scripts/workspace-*.py</c>, so both oracles hit the safe "unavailable" branch before any process
 /// would run.
 /// </summary>
-public sealed class HttpSnapshotParityTests
+public sealed partial class HttpSnapshotParityTests
 {
     // Program.cs binds a real Kestrel listener at this port (UseUrls), not the in-memory TestServer, so a
     // literal port shared with another class (HeadersHelperMcpTests used to hardcode the same "17638")
@@ -271,7 +272,7 @@ public sealed class HttpSnapshotParityTests
     private static object[] CaseNoShape(string name, Action<SqliteConnection> seed, object normalArgs, object errorArgs) =>
         [name, seed, normalArgs, errorArgs, false];
 
-    internal static void WaitForNonEmptyFile(string path)
+    private static void WaitForNonEmptyFile(string path)
     {
         for (int i = 0; i < 40; i++)
         {
@@ -281,7 +282,7 @@ public sealed class HttpSnapshotParityTests
         throw new InvalidOperationException($"expected {path} to exist with content after seeding, but it did not appear within 1s.");
     }
 
-    internal static void Seed(string dbPath, Action<SqliteConnection> body)
+    private static void Seed(string dbPath, Action<SqliteConnection> body)
     {
         using SqliteConnection connection = StoreConnection.Open(dbPath);
         body(connection);
@@ -348,12 +349,15 @@ public sealed class HttpSnapshotParityTests
     // History's rows carry a real insertion timestamp, which differs by construction between the old
     // and new store (two separate seed calls, milliseconds apart) even though the rest of the row is
     // identical; blank it out before comparing shape (same rule as McpSnapshotParityTests).
-    internal static string StripTimestamps(string text) =>
-        System.Text.RegularExpressions.Regex.Replace(text, @"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z", "<ts>");
+    private static string StripTimestamps(string text) =>
+        MyRegex().Replace(text, "<ts>");
 
     private static string FindRoot([System.Runtime.CompilerServices.CallerFilePath] string here = "")
     {
         string dir = Path.GetDirectoryName(here)!;
         return Path.GetFullPath(Path.Combine(dir, "..", ".."));
     }
+
+    [GeneratedRegex(@"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z")]
+    private static partial Regex MyRegex();
 }

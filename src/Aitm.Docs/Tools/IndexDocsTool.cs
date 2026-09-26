@@ -12,7 +12,7 @@ namespace Aitm.Docs.Tools;
 /// <c>CanonicalCopies</c> (aitm.cs:892), <c>Compact</c> (aitm.cs:913), <c>StripFiller</c> (aitm.cs:935),
 /// <c>IsOutdated</c> (aitm.cs:984), <c>ChunkMarkdown</c> (aitm.cs:997) and <c>EnumerateSource</c> (aitm.cs:2880).
 /// </summary>
-public sealed class IndexDocsTool : ITool
+public sealed partial class IndexDocsTool : ITool
 {
     public string Name => "index-docs";
     public string CliVerb => "index-docs";
@@ -22,7 +22,7 @@ public sealed class IndexDocsTool : ITool
 
     public string Execute(SqliteConnection connection, string fromPath, string category)
     {
-        IEnumerable<string> found = Directory.Exists(fromPath) ? EnumerateSource(fromPath, new[] { "*.md" }) : new[] { fromPath };
+        IEnumerable<string> found = Directory.Exists(fromPath) ? EnumerateSource(fromPath, ["*.md"]) : new[] { fromPath };
         List<string> files = CanonicalCopies(found);
         int docCount = 0, chunkCount = 0, shedCount = 0;
 
@@ -84,11 +84,11 @@ public sealed class IndexDocsTool : ITool
     private static string PathTerms(string fullPath)
     {
         string[] generic =
-        {
+        [
             "src", "content", "site", "docs", "doc", "md", "readme", "index", "app", "apps", "packages",
             "projects", "c", "entries", "reports", "claude", "work", "public", "assets", "pages",
-        };
-        IEnumerable<string> words = Regex.Split(fullPath, @"[\\/\-_. ]+")
+        ];
+        IEnumerable<string> words = MyRegex().Split(fullPath)
             .Select(w => w.Trim().ToLowerInvariant())
             .Where(w => w.Length > 1 && !w.All(char.IsDigit) && !generic.Contains(w));
         return string.Join(' ', words.Distinct());
@@ -96,8 +96,8 @@ public sealed class IndexDocsTool : ITool
 
     private static List<string> CanonicalCopies(IEnumerable<string> files)
     {
-        Dictionary<string, string> byHash = new();
-        List<string> ordered = new();
+        Dictionary<string, string> byHash = [];
+        List<string> ordered = [];
         foreach (string file in files)
         {
             string hash;
@@ -107,7 +107,7 @@ public sealed class IndexDocsTool : ITool
             if (!byHash.TryGetValue(hash, out string? held)) { byHash[hash] = norm; ordered.Add(hash); continue; }
             if (norm.Length < held.Length) byHash[hash] = norm;
         }
-        return ordered.Select(h => byHash[h]).ToList();
+        return [.. ordered.Select(h => byHash[h])];
     }
 
     internal static string Compact(string text)
@@ -121,9 +121,9 @@ public sealed class IndexDocsTool : ITool
             line = line.TrimStart('#', '>', '-', '*', '+', ' ', '\t');
             if (line.StartsWith("[ ] ")) line = line[4..];
             else if (line.StartsWith("[x] ", StringComparison.OrdinalIgnoreCase)) line = line[4..];
-            line = Regex.Replace(line, @"\[([^\]]+)\]\([^)]+\)", "$1");
+            line = MyRegex1().Replace(line, "$1");
             line = line.Replace("**", "").Replace("__", "").Replace("`", "").Replace("|", " ");
-            line = Regex.Replace(line, @"\s{2,}", " ").Trim();
+            line = MyRegex2().Replace(line, " ").Trim();
             if (line.Length > 0) sb.Append(line).Append('\n');
         }
         return StripFiller(sb.ToString().Trim());
@@ -132,19 +132,19 @@ public sealed class IndexDocsTool : ITool
     private static string StripFiller(string text)
     {
         (string from, string to)[] phrases =
-        {
+        [
             ("in order to", "to"), ("due to the fact that", "because"), ("in the event that", "if"),
             ("for the purpose of", "for"), ("a large number of", "many"), ("in close proximity to", "near"),
             ("at this point in time", "now"), ("it is important to note that", "note:"),
             ("with the exception of", "except"), ("in spite of the fact that", "although"),
             ("on account of the fact that", "because"), ("has the ability to", "can"),
             ("is able to", "can"), ("a number of", "several"), ("the majority of", "most"),
-        };
+        ];
         foreach ((string from, string to) in phrases)
             text = Regex.Replace(text, Regex.Escape(from), to, RegexOptions.IgnoreCase);
-        text = Regex.Replace(text, @"\b(very|really|just|actually|basically|simply|essentially|quite|somewhat|fairly|definitely|absolutely|literally|obviously|clearly|please|kindly)\b ?", "", RegexOptions.IgnoreCase);
-        text = Regex.Replace(text, @"\p{Cs}", "");
-        return Regex.Replace(text, @"[ \t]{2,}", " ");
+        text = MyRegex3().Replace(text, "");
+        text = MyRegex4().Replace(text, "");
+        return MyRegex5().Replace(text, " ");
     }
 
     private static bool IsOutdated(string title, string body)
@@ -182,10 +182,10 @@ public sealed class IndexDocsTool : ITool
     private static IEnumerable<string> EnumerateSource(string root, string[] patterns)
     {
         string[] skip =
-        {
+        [
             "node_modules", "dist", "build", "bin", "obj", ".git", ".nuxt", ".gradle", "vendor", ".idea", ".vs",
             ".scratch", ".turbo", ".next", ".output", ".svelte-kit", "coverage", "out", "target", "__pycache__",
-        };
+        ];
         Stack<string> stack = new();
         stack.Push(root);
         while (stack.Count > 0)
@@ -193,16 +193,29 @@ public sealed class IndexDocsTool : ITool
             string dir = stack.Pop();
             string[] subs;
             try { subs = Directory.GetDirectories(dir); }
-            catch { subs = Array.Empty<string>(); }
+            catch { subs = []; }
             foreach (string sub in subs)
                 if (!skip.Contains(Path.GetFileName(sub), StringComparer.OrdinalIgnoreCase)) stack.Push(sub);
             foreach (string pattern in patterns)
             {
                 string[] files;
                 try { files = Directory.GetFiles(dir, pattern); }
-                catch { files = Array.Empty<string>(); }
+                catch { files = []; }
                 foreach (string file in files) yield return file;
             }
         }
     }
+
+    [GeneratedRegex(@"[\\/\-_. ]+")]
+    private static partial Regex MyRegex();
+    [GeneratedRegex(@"\[([^\]]+)\]\([^)]+\)")]
+    private static partial Regex MyRegex1();
+    [GeneratedRegex(@"\s{2,}")]
+    private static partial Regex MyRegex2();
+    [GeneratedRegex(@"\b(very|really|just|actually|basically|simply|essentially|quite|somewhat|fairly|definitely|absolutely|literally|obviously|clearly|please|kindly)\b ?", RegexOptions.IgnoreCase, "nl-NL")]
+    private static partial Regex MyRegex3();
+    [GeneratedRegex(@"\p{Cs}")]
+    private static partial Regex MyRegex4();
+    [GeneratedRegex(@"[ \t]{2,}")]
+    private static partial Regex MyRegex5();
 }

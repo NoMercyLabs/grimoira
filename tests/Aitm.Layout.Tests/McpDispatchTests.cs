@@ -8,7 +8,7 @@ namespace Aitm.Layout.Tests;
 // method in mcp.cs must call its tool class's ExecuteMcp instead of carrying its own inline copy of
 // the logic — a mechanical grep on the source, not a behavioural test (the per-tool oracle tests in
 // Aitm.Store.Tests/Aitm.Facts.Tests/Aitm.Memory.Tests/Aitm.Docs.Tests cover behaviour).
-public class McpDispatchTests
+public partial class McpDispatchTests
 {
     // MCP tool name -> the tool class whose ExecuteMcp it must call (RESTRUCTURE.md section 2.2,
     // "Aitm.Store (1)", "Aitm.Facts (3)", "Aitm.Memory (3)", "Aitm.Docs (1)").
@@ -108,7 +108,7 @@ public class McpDispatchTests
         string source = File.ReadAllText(Path.Combine(RepoPaths.Root, "mcp.cs"));
         string body = MethodBody(source, "idp_token");
         Assert.False(
-            Regex.IsMatch(body, @"new\s+IdPTokenTool\s*\(.*\)\s*\.\s*Execute\s*\(", RegexOptions.Singleline),
+            MyRegex().IsMatch(body),
             "idp_token is the documented exception (RESTRUCTURE.md slice 28): it must stay inline, " +
             "returning the token itself, until slice 28 accepts the file-path-and-claims output change.");
     }
@@ -143,4 +143,7 @@ public class McpDispatchTests
         }
         return source[start..(i - 1)];
     }
+
+    [GeneratedRegex(@"new\s+IdPTokenTool\s*\(.*\)\s*\.\s*Execute\s*\(", RegexOptions.Singleline)]
+    private static partial Regex MyRegex();
 }

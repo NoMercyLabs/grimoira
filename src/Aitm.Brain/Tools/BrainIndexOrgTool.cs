@@ -2,6 +2,7 @@ using System.Text.Json;
 using Aitm.Brain.Data;
 using Aitm.Store.Tools;
 using Microsoft.Data.Sqlite;
+using System.Text.RegularExpressions;
 
 namespace Aitm.Brain.Tools;
 
@@ -16,7 +17,7 @@ namespace Aitm.Brain.Tools;
 /// through the injected <see cref="IProcessRunner"/> so a test never reaches the network or a real
 /// <c>gh</c> installation.
 /// </summary>
-public sealed class BrainIndexOrgTool : ITool
+public sealed partial class BrainIndexOrgTool : ITool
 {
     private const string Fields = "name,description,primaryLanguage,isPrivate,isArchived,isFork,defaultBranchRef,pushedAt,url,repositoryTopics";
 
@@ -144,8 +145,8 @@ public sealed class BrainIndexOrgTool : ITool
                 (string stdout, string _, int exitCode) = runner.Run("git", ["-C", dir, "remote", "get-url", "origin"]);
                 if (exitCode == 0)
                 {
-                    string url = System.Text.RegularExpressions.Regex.Replace(stdout.Trim(), @"\.git$", "");
-                    url = System.Text.RegularExpressions.Regex.Replace(url, "^git@github\\.com:", "https://github.com/");
+                    string url = MyRegex().Replace(stdout.Trim(), "");
+                    url = MyRegex1().Replace(url, "https://github.com/");
                     if (url.Length > 0) byRemote[url.ToLowerInvariant()] = dir.Replace('\\', '/');
                 }
             }
@@ -183,4 +184,9 @@ public sealed class BrainIndexOrgTool : ITool
 
     private static bool Bool(JsonElement e, string name) =>
         e.TryGetProperty(name, out JsonElement v) && v.ValueKind == JsonValueKind.True;
+
+    [GeneratedRegex(@"\.git$")]
+    private static partial Regex MyRegex();
+    [GeneratedRegex("^git@github\\.com:")]
+    private static partial Regex MyRegex1();
 }

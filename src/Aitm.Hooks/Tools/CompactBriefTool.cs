@@ -13,17 +13,13 @@ namespace Aitm.Hooks.Tools;
 /// side. Never blocks or crashes a session: any error returns an empty string, same as the .mjs's
 /// fail-open catch plus <c>process.exit(0)</c>.
 /// </summary>
-public static class CompactBriefTool
+public static partial class CompactBriefTool
 {
-    // Scratch files are deliberately throwaway; carrying them across a compaction makes the real edits
+    // MyRegex() files are deliberately throwaway; carrying them across a compaction makes the real edits
     // harder to see and invites the next turn to treat a temp script as project work.
-    private static readonly Regex Scratch = new(@"(^|[\\/])(scratchpad|\.?scratch|Temp|tmp)([\\/]|$)", RegexOptions.IgnoreCase);
 
     // An earlier compaction's summary is injected as a user turn. Quoting it back as a directive would
     // let each compaction copy the previous one forward until the brief is nothing but old summaries.
-    private static readonly Regex ContinuedSummary = new(@"^(This session is being continued|Caveat: The messages below|\[Request interrupted)");
-    private static readonly Regex HookFeedback = new("hook (feedback|additional context)", RegexOptions.IgnoreCase);
-    private static readonly Regex Whitespace = new(@"\s+");
 
     public static string Execute(string stdin) => Execute(stdin, projectDir: null);
 
@@ -200,10 +196,10 @@ public static class CompactBriefTool
 
             string trimmed = text.Trim();
             if (trimmed.Length < 12 || trimmed.StartsWith('<') || trimmed.StartsWith("Caveat:", StringComparison.Ordinal)) continue;
-            if (ContinuedSummary.IsMatch(trimmed)) continue;
-            if (HookFeedback.IsMatch(trimmed[..Math.Min(60, trimmed.Length)])) continue;
+            if (MyRegex1().IsMatch(trimmed)) continue;
+            if (MyRegex2().IsMatch(trimmed[..Math.Min(60, trimmed.Length)])) continue;
 
-            string cleaned = Whitespace.Replace(trimmed, " ");
+            string cleaned = MyRegex3().Replace(trimmed, " ");
             said.Add(cleaned.Length > 400 ? cleaned[..400] : cleaned);
         }
         return said.Count > 4 ? said[^4..] : said;
@@ -220,7 +216,7 @@ public static class CompactBriefTool
             if (name is not ("Edit" or "Write" or "NotebookEdit")) continue;
             if (!b.TryGetProperty("input", out JsonElement input)) continue;
             string? fp = GetString(input, "file_path");
-            if (fp is null || Scratch.IsMatch(fp)) continue;
+            if (fp is null || MyRegex().IsMatch(fp)) continue;
             if (seen.Add(fp)) files.Add(fp);
         }
         return files;
@@ -298,4 +294,13 @@ public static class CompactBriefTool
         if (process.ExitCode != 0) throw new InvalidOperationException("git exited non-zero");
         return output;
     }
+
+    [GeneratedRegex(@"(^|[\\/])(scratchpad|\.?scratch|Temp|tmp)([\\/]|$)", RegexOptions.IgnoreCase, "nl-NL")]
+    private static partial Regex MyRegex();
+    [GeneratedRegex(@"^(This session is being continued|Caveat: The messages below|\[Request interrupted)")]
+    private static partial Regex MyRegex1();
+    [GeneratedRegex("hook (feedback|additional context)", RegexOptions.IgnoreCase, "nl-NL")]
+    private static partial Regex MyRegex2();
+    [GeneratedRegex(@"\s+")]
+    private static partial Regex MyRegex3();
 }

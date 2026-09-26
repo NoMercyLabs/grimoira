@@ -7,7 +7,7 @@ namespace Aitm.Layout.Tests;
 // reference points down-to-up." Each project's level is the highest level any of its allowed
 // dependencies may sit at; a ProjectReference to a project at the same or a higher level is a cycle
 // or an upward reference and fails the test.
-public class ReferenceDirectionTests
+public partial class ReferenceDirectionTests
 {
     private static readonly Dictionary<string, int> Level = new()
     {
@@ -48,9 +48,12 @@ public class ReferenceDirectionTests
     {
         string csproj = Path.Combine(RepoPaths.Root, "src", project, $"{project}.csproj");
         string text = File.ReadAllText(csproj);
-        foreach (Match m in Regex.Matches(text, "ProjectReference Include=\"([^\"]+)\""))
+        foreach (Match m in MyRegex().Matches(text))
         {
             yield return Path.GetFileNameWithoutExtension(m.Groups[1].Value);
         }
     }
+
+    [GeneratedRegex("ProjectReference Include=\"([^\"]+)\"")]
+    private static partial Regex MyRegex();
 }

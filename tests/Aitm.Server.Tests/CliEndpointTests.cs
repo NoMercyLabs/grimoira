@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using ModelContextProtocol.Client;
 using Xunit;
+using System.Text.RegularExpressions;
 
 namespace Aitm.Server.Tests;
 
@@ -15,7 +16,7 @@ namespace Aitm.Server.Tests;
 // (Claude-Project-Dir header, else the body cwd), never from the server's own environment, and the verb
 // runs under that project's writer gate. The oracle is CliDispatch.Run in-process and the bin-cli binary
 // (slice 29b), each on its own fresh test instance. The server's own stores live in a temp data dir.
-public sealed class CliEndpointTests : IDisposable
+public sealed partial class CliEndpointTests : IDisposable
 {
     private readonly string _dataDir = Directory.CreateTempSubdirectory("aitm-cli-").FullName;
     private readonly List<string> _projectDirs = [];
@@ -128,7 +129,7 @@ public sealed class CliEndpointTests : IDisposable
         Assert.Equal(binQuery.ExitCode, routeQuery.ExitCode);
         Assert.Contains("a value seeded through slash cli", binQuery.Stdout);
         // query ends with its own elapsed time, "(0,32ms)", which differs run to run.
-        static string NoTiming(string text) => System.Text.RegularExpressions.Regex.Replace(text, @"\(\d+[.,]\d+ms\)", "(Tms)");
+        static string NoTiming(string text) => MyRegex().Replace(text, "(Tms)");
         Assert.Equal(NoTiming(inProcQuery.stdout), NoTiming(routeQuery.Stdout));
         // The spawned binary writes its U+2022 bullet through the console code page (OEM 437 on Windows,
         // byte 0x07), which OldVsNewCli reads back as BEL; the route and the in-process run answer in UTF-8.
@@ -286,4 +287,7 @@ public sealed class CliEndpointTests : IDisposable
         }
         try { Directory.Delete(_dataDir, recursive: true); } catch (IOException) { } catch (UnauthorizedAccessException) { }
     }
+
+    [GeneratedRegex(@"\(\d+[.,]\d+ms\)")]
+    private static partial Regex MyRegex();
 }

@@ -23,11 +23,10 @@ namespace Aitm.Layout.Tests;
 //
 // Every fixture used here is a fake key/label/predicate under a throwaway temp instance — never a real
 // repo or ~/.claude, and never real content.
-public class BrainWriteCliParityTests
+public partial class BrainWriteCliParityTests
 {
     private static string StripVolatile(string s) =>
-        Regex.Replace(Regex.Replace(s, @"\(\d+[.,]\d+ms\)", "(<ms>)"),
-            @"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z", "<ts>");
+        MyRegex().Replace(MyRegex1().Replace(s, "(<ms>)"), "<ts>");
 
     private static (string stdout, string stderr, int exitCode) RunNormalized(
         OldVsNewCli.Result result, string instance, string dbPath)
@@ -323,4 +322,10 @@ public class BrainWriteCliParityTests
         Directory.CreateDirectory(dir);
         return dir;
     }
+
+    [GeneratedRegex(@"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z")]
+    private static partial Regex MyRegex();
+
+    [GeneratedRegex(@"\(\d+[.,]\d+ms\)")]
+    private static partial Regex MyRegex1();
 }

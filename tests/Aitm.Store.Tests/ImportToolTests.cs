@@ -7,7 +7,7 @@ using Xunit;
 
 namespace Aitm.Store.Tests;
 
-public class ImportToolTests
+public partial class ImportToolTests
 {
     [Fact]
     public void MatchesTodaysCliOutputAndFactCounts()
@@ -56,5 +56,8 @@ public class ImportToolTests
     }
 
     // Strips the trailing "(<db path>)" so two different instance directories still compare equal.
-    private static string MessagePrefix(string text) => Regex.Replace(text.Trim(), @"\s*\([^)]*\)\s*$", "");
+    private static string MessagePrefix(string text) => MyRegex().Replace(text.Trim(), "");
+
+    [GeneratedRegex(@"\s*\([^)]*\)\s*$")]
+    private static partial Regex MyRegex();
 }

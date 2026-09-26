@@ -9,7 +9,7 @@ namespace Aitm.Layout.Tests;
 // binary (OldVsNewCli.OracleDll, built from the commit slice 24 started at) and against today's
 // bin-cli/aitm.dll, and diffing stdout, stderr and exit code. Every wired verb gets at least a
 // no-arg/help or normal run, and most also get a deliberate error case.
-public class StoreFactsCliParityTests
+public partial class StoreFactsCliParityTests
 {
     // Stats/init/import/backup echo the instance name and/or db path in their own output, which is
     // necessarily different between the two fresh instances this test uses (one per binary, so neither
@@ -18,8 +18,7 @@ public class StoreFactsCliParityTests
     // run to run by design, on the SAME binary, never mind two different ones, so neither is part of
     // what "identical behaviour" means here.
     private static string StripVolatile(string s) =>
-        Regex.Replace(Regex.Replace(s, @"\(\d+[.,]\d+ms\)", "(<ms>)"),
-            @"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z", "<ts>");
+        MyRegex().Replace(MyRegex1().Replace(s, "(<ms>)"), "<ts>");
 
     private static (string stdout, string stderr, int exitCode) RunNormalized(
         OldVsNewCli.Result result, string instance, string dbPath)
@@ -303,4 +302,10 @@ public class StoreFactsCliParityTests
     [Fact]
     public void IndexPackagesMatchesOldBehaviourOnAMissingRoot() =>
         AssertParity(["init"], "index-packages --root \"/no/such/directory/aitm-slice24-fixture\"");
+
+    [GeneratedRegex(@"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z")]
+    private static partial Regex MyRegex();
+
+    [GeneratedRegex(@"\(\d+[.,]\d+ms\)")]
+    private static partial Regex MyRegex1();
 }

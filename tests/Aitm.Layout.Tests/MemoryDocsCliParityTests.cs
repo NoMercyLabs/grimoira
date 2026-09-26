@@ -20,11 +20,10 @@ namespace Aitm.Layout.Tests;
 // Every fixture used here (memory/docs/chat) lives under the OS temp dir, created and torn down by the
 // test — never a real repo or ~/.claude — and any chat/redact-chat fixture text is an obviously fake
 // token shape, never real data.
-public class MemoryDocsCliParityTests
+public partial class MemoryDocsCliParityTests
 {
     private static string StripVolatile(string s) =>
-        Regex.Replace(Regex.Replace(s, @"\(\d+[.,]\d+ms\)", "(<ms>)"),
-            @"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z", "<ts>");
+        MyRegex().Replace(MyRegex1().Replace(s, "(<ms>)"), "<ts>");
 
     private static (string stdout, string stderr, int exitCode) RunNormalized(
         OldVsNewCli.Result result, string instance, string dbPath)
@@ -251,6 +250,12 @@ public class MemoryDocsCliParityTests
         Directory.CreateDirectory(dir);
         return dir;
     }
+
+    [GeneratedRegex(@"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z")]
+    private static partial Regex MyRegex();
+
+    [GeneratedRegex(@"\(\d+[.,]\d+ms\)")]
+    private static partial Regex MyRegex1();
 }
 
 // redact-chat never had an aitm.cs case before this part (no oracle behaviour exists to diff against —

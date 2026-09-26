@@ -15,7 +15,7 @@ namespace Aitm.Layout.Tests;
 // Deliberate exception, after slice 8 (design checklist "Secrets in outputs"): `redact-chat` is a new
 // Aitm.Memory verb, added by the standalone secrets/redaction step, not moved from aitm.cs (aitm.cs
 // never had this verb — the CLI list is 71, one more than the 70 RESTRUCTURE.md counted at slice 2).
-public class GoldenListsTests
+public partial class GoldenListsTests
 {
     // Section 2.1: 5 + 9 + 5 + 6 + 13 + 32 = 70 mapped, 4 dropped (loop, start, tick, selftest).
     // Plus 1: "redact-chat" (new, see the class comment above) = 71.
@@ -112,7 +112,7 @@ public class GoldenListsTests
         // Descriptions carry arbitrary parentheses, so this walks forward from each attribute to the
         // next `public static` signature instead of matching the attribute block with one regex.
         List<string> found = [];
-        var signature = new Regex(@"public static (?:async )?(?:Task<string>|string) (\w+)\s*\(");
+        Regex signature = MyRegex();
         int index = 0;
         while ((index = source.IndexOf("[McpServerTool]", index, StringComparison.Ordinal)) >= 0)
         {
@@ -128,4 +128,7 @@ public class GoldenListsTests
             Assert.Contains(tool, found);
         }
     }
+
+    [GeneratedRegex(@"public static (?:async )?(?:Task<string>|string) (\w+)\s*\(")]
+    private static partial Regex MyRegex();
 }

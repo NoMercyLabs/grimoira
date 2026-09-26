@@ -7,7 +7,7 @@ namespace Aitm.Hooks.Data;
 /// <c>resolveInstance</c> and <c>briefPath</c> (RESTRUCTURE.md slice 20): compact-brief.mjs writes here
 /// and compact-restore.mjs reads the same path back, so the two must compute it identically.
 /// </summary>
-public static class HookPaths
+public static partial class HookPaths
 {
     public static string ResolveInstance(string? cwd) => ResolveInstance(cwd, projectDir: null);
 
@@ -16,7 +16,7 @@ public static class HookPaths
     {
         string trimmed = ProjectDir(cwd, projectDir).TrimEnd('\\', '/');
         string name = Path.GetFileName(trimmed).ToLowerInvariant();
-        return Regex.Replace(name, "[^a-z0-9_-]", "");
+        return MyRegex().Replace(name, "");
     }
 
     /// <summary>
@@ -47,4 +47,7 @@ public static class HookPaths
     /// <summary>Where an instance's store lives. The SessionEnd/PostToolUse hooks check this exists
     /// before opening a connection, same as the .mjs files' <c>existsSync(... 'aitm.db')</c> guard.</summary>
     public static string DbPath(string instance) => Path.Combine(InstanceDir(instance), "aitm.db");
+
+    [GeneratedRegex("[^a-z0-9_-]")]
+    private static partial Regex MyRegex();
 }

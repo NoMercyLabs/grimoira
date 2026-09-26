@@ -9,7 +9,7 @@ namespace Aitm.Brain.Data;
 /// positional key/a/b/c parameters) — kept as separate methods rather than unified, the same way
 /// <c>QueryTool</c> keeps its CLI and MCP shapes apart (RESTRUCTURE.md section 2.2).
 /// </summary>
-public static class NodeGuard
+public static partial class NodeGuard
 {
     private static readonly string[] NodeKinds =
     {
@@ -20,7 +20,7 @@ public static class NodeGuard
     /// <summary>Copied verbatim from aitm.cs's <c>NodeGuard</c> (aitm.cs:418).</summary>
     public static string ValidateCli(string kind, string label)
     {
-        if (!Regex.IsMatch(kind, "^[a-z0-9_-]{2,30}$"))
+        if (!MyRegex().IsMatch(kind))
             return "rejected: node kind must be a short lowercase vocab token (rule/fact/concept/symbol/finding/contract/seam/codekind/project/reference/platform/layer). Yours looks like prose — order is <k> <kind> <label>, the statement goes in --gloss.";
         if (label.Length > 120)
             return "rejected: label must be a short noun phrase (max 120 chars) — the full statement belongs in --gloss.";
@@ -33,7 +33,7 @@ public static class NodeGuard
     /// second look.</summary>
     public static string ValidateMcp(string kind, string label)
     {
-        if (!Regex.IsMatch(kind, "^[a-z0-9_-]{2,30}$"))
+        if (!MyRegex().IsMatch(kind))
             return Usage($"\"{Trim(kind)}\" is not a node kind — it looks like prose, and a=<node kind> is a single short token.");
         if (label.Length > 120)
             return Usage($"label is {label.Length} chars; it must be a short noun phrase (max 120). The full statement goes in c.");
@@ -51,4 +51,7 @@ public static class NodeGuard
         $"node kinds: {string.Join(" / ", NodeKinds)}\n" +
         "example: kind=\"node\" key=\"nvenc-windows-native\" a=\"fact\" " +
         "b=\"NVENC encodes natively on Windows only\" c=\"Confirmed on real hardware: 3.03x, exit 0, 345 KB output. Never through WSL.\"";
+
+    [GeneratedRegex("^[a-z0-9_-]{2,30}$")]
+    private static partial Regex MyRegex();
 }

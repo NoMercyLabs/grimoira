@@ -7,7 +7,7 @@ namespace Aitm.Layout.Tests;
 // error-severity IDE diagnostic in the repo-root .editorconfig, and every folder that holds C# projects
 // turns on EnforceCodeStyleInBuild, so `dotnet build` fails on a violation. The text checks here pin
 // that wiring; the real proof is a seeded violation failing the build (see the commit message).
-public class CodeStyleIsEnforcedInBuildTests
+public partial class CodeStyleIsEnforcedInBuildTests
 {
     public static readonly string[] EnforcedRules =
     [
@@ -38,7 +38,7 @@ public class CodeStyleIsEnforcedInBuildTests
     public void Repo_root_editorconfig_is_the_root_and_covers_cs_files()
     {
         string text = Read(".editorconfig");
-        Assert.Matches(new Regex(@"^root\s*=\s*true\s*$", RegexOptions.Multiline), text);
+        Assert.Matches(MyRegex(), text);
         Assert.Contains("[*.cs]", text);
     }
 
@@ -47,7 +47,7 @@ public class CodeStyleIsEnforcedInBuildTests
     [InlineData("tests/Directory.Build.props")]
     public void Folder_turns_on_code_style_analysis_in_build(string props)
     {
-        Assert.Matches(new Regex(@"<EnforceCodeStyleInBuild>\s*true\s*</EnforceCodeStyleInBuild>"), Read(props));
+        Assert.Matches(MyRegex1(), Read(props));
     }
 
     [Fact]
@@ -60,4 +60,9 @@ public class CodeStyleIsEnforcedInBuildTests
             Assert.Contains("--verify-no-changes", text);
         }
     }
+
+    [GeneratedRegex(@"^root\s*=\s*true\s*$", RegexOptions.Multiline)]
+    private static partial Regex MyRegex();
+    [GeneratedRegex(@"<EnforceCodeStyleInBuild>\s*true\s*</EnforceCodeStyleInBuild>")]
+    private static partial Regex MyRegex1();
 }

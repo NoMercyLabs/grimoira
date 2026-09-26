@@ -23,3 +23,4 @@ dotnet_diagnostic.IDE0300.severity = error
 dotnet_diagnostic.IDE0301.severity = error
 dotnet_diagnostic.IDE0305.severity = error
 dotnet_diagnostic.IDE0370.severity = error
+dotnet_diagnostic.SYSLIB1045.severity = error

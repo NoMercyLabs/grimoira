@@ -10,7 +10,7 @@ namespace Aitm.Layout.Tests;
 // `spine-export` and `spine-import` are also top-level cases (`eval`/`spine-export`/`spine-import` sit
 // beside `stage`/`flush` in the outer switch; `seed` is a `brain <sub>` case inside the nested BrainCmd
 // switch). This is red before the wiring lands (no case yet calls a tool class) and green after.
-public class StagingSpineEvalVerbDispatchTests
+public partial class StagingSpineEvalVerbDispatchTests
 {
     // verb -> the tool type its aitm.cs case has to call.
     public static readonly (string Verb, string ToolType)[] WiredVerbs =
@@ -39,7 +39,7 @@ public class StagingSpineEvalVerbDispatchTests
         // nested inside the BrainCmd switch) keep an inline usage/flag check ahead of the tool call, so
         // a plain "first break;" search would stop at that inner break and miss the call after it.
         int searchFrom = caseMatch.Index + caseMatch.Length;
-        Match next = Regex.Match(source[searchFrom..], "case \"[^\"]+\":|default:");
+        Match next = MyRegex().Match(source[searchFrom..]);
         int blockEnd = next.Success ? searchFrom + next.Index : source.Length;
         string block = source[caseMatch.Index..blockEnd];
         Assert.True(block.Contains($"new {toolType}", StringComparison.Ordinal),
@@ -48,4 +48,7 @@ public class StagingSpineEvalVerbDispatchTests
 
     public static IEnumerable<object[]> WiredVerbCases() =>
         WiredVerbs.Select(v => new object[] { v.Verb, v.ToolType });
+
+    [GeneratedRegex("case \"[^\"]+\":|default:")]
+    private static partial Regex MyRegex();
 }

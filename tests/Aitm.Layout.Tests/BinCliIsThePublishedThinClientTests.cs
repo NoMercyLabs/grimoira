@@ -8,14 +8,14 @@ namespace Aitm.Layout.Tests;
 // part 1) retires. The build scripts and the ignore list must agree on that layout, and every test oracle
 // that means "the aitm.cs build" must read bin-cli-old/ (bin-cli/ now forwards to a running server). The
 // old-vs-new behaviour is pinned in Aitm.Server.Tests.BinCliThinClientMatchesBinCliOldTests.
-public class BinCliIsThePublishedThinClientTests
+public partial class BinCliIsThePublishedThinClientTests
 {
     [Fact]
     public void BuildCliScriptPublishesAitmCliToBinCliAndKeepsAitmCsAsBinCliOld()
     {
         string script = File.ReadAllText(Path.Combine(RepoPaths.Root, "build-cli.ps1"));
-        Assert.Matches(new Regex(@"dotnet publish ""\$PSScriptRoot/src/Aitm\.Cli/Aitm\.Cli\.csproj"" -c Release -o ""\$PSScriptRoot/bin-cli"""), script);
-        Assert.Matches(new Regex(@"dotnet build ""\$PSScriptRoot/aitm\.cs"" -c Release -o ""\$PSScriptRoot/bin-cli-old"""), script);
+        Assert.Matches(MyRegex(), script);
+        Assert.Matches(MyRegex1(), script);
         Assert.DoesNotContain("bin-cli-next", script);
     }
 
@@ -23,7 +23,7 @@ public class BinCliIsThePublishedThinClientTests
     public void BuildScriptNeverWritesTheAitmCsBuildOverBinCli()
     {
         string script = File.ReadAllText(Path.Combine(RepoPaths.Root, "build.ps1"));
-        Assert.DoesNotMatch(new Regex(@"aitm\.cs""[^\r\n]*-o ""\$root/bin-cli"""), script);
+        Assert.DoesNotMatch(MyRegex2(), script);
         Assert.Contains("build-cli.ps1", script);
     }
 
@@ -69,4 +69,11 @@ public class BinCliIsThePublishedThinClientTests
         Assert.True(publishIndex >= 0, "the bin-cli publish line was not found; the assertion above needs updating to match its new shape.");
         Assert.True(removeIndex < publishIndex, "bin-cli/ must be cleared before the publish that fills it back in, not after.");
     }
+
+    [GeneratedRegex(@"dotnet publish ""\$PSScriptRoot/src/Aitm\.Cli/Aitm\.Cli\.csproj"" -c Release -o ""\$PSScriptRoot/bin-cli""")]
+    private static partial Regex MyRegex();
+    [GeneratedRegex(@"dotnet build ""\$PSScriptRoot/aitm\.cs"" -c Release -o ""\$PSScriptRoot/bin-cli-old""")]
+    private static partial Regex MyRegex1();
+    [GeneratedRegex(@"aitm\.cs""[^\r\n]*-o ""\$root/bin-cli""")]
+    private static partial Regex MyRegex2();
 }

@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 
 namespace Aitm.Server.Data;
 
@@ -59,10 +60,8 @@ public sealed class OwnedProcess
     }
 }
 
-public static class ProcessOwner
+public static partial class ProcessOwner
 {
-    private static readonly System.Text.RegularExpressions.Regex RecordName =
-        new(@"^[a-f0-9-]{36}\.json$");
 
     /// <summary>Null when <paramref name="project"/> is not inside <paramref name="workspace"/>.</summary>
     public static string? PilotRoot(string project, string workspace)
@@ -94,7 +93,7 @@ public static class ProcessOwner
             foreach (string filename in Directory.EnumerateFiles(directory).Take(1000))
             {
                 string name = Path.GetFileName(filename);
-                if (!RecordName.IsMatch(name)) continue;
+                if (!MyRegex().IsMatch(name)) continue;
                 try
                 {
                     using JsonDocument doc = JsonDocument.Parse(File.ReadAllText(filename));
@@ -213,9 +212,7 @@ public static class ProcessOwner
     {
         string directory = Directory_(root);
         if (!Directory.Exists(directory)) return (false, []);
-        string[] files = Directory.EnumerateFiles(directory)
-            .Where(f => RecordName.IsMatch(Path.GetFileName(f)))
-            .ToArray();
+        string[] files = [.. Directory.EnumerateFiles(directory).Where(f => MyRegex().IsMatch(Path.GetFileName(f)))];
         List<Dictionary<string, object?>> records = [];
         foreach (string file in files.Take(limit))
         {
@@ -264,4 +261,7 @@ public static class ProcessOwner
             return null;
         }
     }
+
+    [GeneratedRegex(@"^[a-f0-9-]{36}\.json$")]
+    private static partial Regex MyRegex();
 }

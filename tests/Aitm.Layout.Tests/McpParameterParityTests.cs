@@ -20,12 +20,10 @@ namespace Aitm.Layout.Tests;
 /// mcp.cs's own live signature against the oracle catches that even when the tool class behind it still
 /// runs without throwing.
 /// </summary>
-public class McpParameterParityTests
+public partial class McpParameterParityTests
 {
     public const string PreDispatchOracleCommit = "bbb9b4d2f4788d3f1960438799331d57198c9fbe";
 
-    private static readonly Regex Signature =
-        new(@"public static (?:async )?(?:Task<string>|string) (\w+)\s*\(([^)]*)\)", RegexOptions.Compiled);
 
     [Fact]
     public void Every25McpToolParameterListMatchesThePreDispatchOracle()
@@ -57,7 +55,7 @@ public class McpParameterParityTests
         int index = 0;
         while ((index = source.IndexOf("[McpServerTool]", index, StringComparison.Ordinal)) >= 0)
         {
-            Match m = Signature.Match(source, index);
+            Match m = MyRegex().Match(source, index);
             Assert.True(m.Success, $"no method signature found after [McpServerTool] at offset {index}");
             found[m.Groups[1].Value] = Normalize(m.Groups[2].Value);
             index = m.Index + m.Length;
@@ -70,7 +68,7 @@ public class McpParameterParityTests
     private static string Normalize(string parameters) =>
         string.Join(", ", parameters
             .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Select(p => Regex.Replace(p, @"\s+", " ")));
+            .Select(p => MyRegex1().Replace(p, " ")));
 
     private static string GitShow(string commit, string relativePath)
     {
@@ -90,4 +88,9 @@ public class McpParameterParityTests
             throw new InvalidOperationException($"git show {commit}:{relativePath} failed: {stderr}");
         return stdout;
     }
+
+    [GeneratedRegex(@"public static (?:async )?(?:Task<string>|string) (\w+)\s*\(([^)]*)\)", RegexOptions.Compiled)]
+    private static partial Regex MyRegex();
+    [GeneratedRegex(@"\s+")]
+    private static partial Regex MyRegex1();
 }

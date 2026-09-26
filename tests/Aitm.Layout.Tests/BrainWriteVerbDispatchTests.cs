@@ -9,7 +9,7 @@ namespace Aitm.Layout.Tests;
 // case used to carry. `shed-node` lives as a top-level `case "shed-node":` (not under `brain`); the other
 // eight are `brain <sub>` cases inside the nested BrainCmd switch.
 // This is red before the wiring lands (no case yet calls a tool class) and green after.
-public class BrainWriteVerbDispatchTests
+public partial class BrainWriteVerbDispatchTests
 {
     // verb -> the tool type its aitm.cs case has to call.
     public static readonly (string Verb, string ToolType)[] WiredVerbs =
@@ -41,7 +41,7 @@ public class BrainWriteVerbDispatchTests
         // stop at that inner break and miss the tool call after it. Bound the block by the next case/default
         // label instead, which still cannot cross into a different verb's block.
         int searchFrom = caseMatch.Index + caseMatch.Length;
-        Match next = Regex.Match(source[searchFrom..], "case \"[^\"]+\":|default:");
+        Match next = MyRegex().Match(source[searchFrom..]);
         int blockEnd = next.Success ? searchFrom + next.Index : source.Length;
         string block = source[caseMatch.Index..blockEnd];
         Assert.True(block.Contains($"new {toolType}", StringComparison.Ordinal),
@@ -50,4 +50,7 @@ public class BrainWriteVerbDispatchTests
 
     public static IEnumerable<object[]> WiredVerbCases() =>
         WiredVerbs.Select(v => new object[] { v.Verb, v.ToolType });
+
+    [GeneratedRegex("case \"[^\"]+\":|default:")]
+    private static partial Regex MyRegex();
 }

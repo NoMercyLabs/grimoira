@@ -1,6 +1,7 @@
 using Aitm.Brain.Data;
 using Aitm.Store.Tools;
 using Microsoft.Data.Sqlite;
+using System.Text.RegularExpressions;
 
 namespace Aitm.Brain.Tools;
 
@@ -14,7 +15,7 @@ namespace Aitm.Brain.Tools;
 /// host once this tool is wired in a later slice, so <c>ExecuteCli</c> starts from an already-open
 /// connection, same as every other tool in this project.
 /// </summary>
-public sealed class BrainPathTool : ITool
+public sealed partial class BrainPathTool : ITool
 {
     public string Name => "brain-path";
     public string CliVerb => "brain-path";
@@ -89,11 +90,11 @@ public sealed class BrainPathTool : ITool
             {
                 string name = repoLabel.Split('/').Last();
                 string g = gloss;
-                string lang = System.Text.RegularExpressions.Regex.Match(g, "language ([A-Za-z+#]+)") is { Success: true } lm ? lm.Groups[1].Value : "-";
-                string vis = System.Text.RegularExpressions.Regex.IsMatch(g, @"\. private\.") ? "private" : "public";
-                string arch = System.Text.RegularExpressions.Regex.IsMatch(g, "ARCHIVED") ? "  [ARCHIVED]" : "";
-                string fork = System.Text.RegularExpressions.Regex.IsMatch(g, @"\. fork\.") ? "  [fork]" : "";
-                string pkg = System.Text.RegularExpressions.Regex.Match(g, @"publishes npm package (\S+?)\.") is { Success: true } pm ? pm.Groups[1].Value : "";
+                string lang = MyRegex().Match(g) is { Success: true } lm ? lm.Groups[1].Value : "-";
+                string vis = MyRegex1().IsMatch(g) ? "private" : "public";
+                string arch = MyRegex2().IsMatch(g) ? "  [ARCHIVED]" : "";
+                string fork = MyRegex3().IsMatch(g) ? "  [fork]" : "";
+                string pkg = MyRegex4().Match(g) is { Success: true } pm ? pm.Groups[1].Value : "";
                 string clone = g.Contains("cloned at") ? "cloned" : "";
                 string desc = g.Split('.')[0];
                 lines.Add($"  {name.PadRight(34)} {lang.PadRight(12)} {vis.PadRight(8)} {clone.PadRight(7)}{arch}{fork}");
@@ -191,4 +192,15 @@ public sealed class BrainPathTool : ITool
         }
         return string.Join("\n", lines);
     }
+
+    [GeneratedRegex("language ([A-Za-z+#]+)")]
+    private static partial Regex MyRegex();
+    [GeneratedRegex(@"\. private\.")]
+    private static partial Regex MyRegex1();
+    [GeneratedRegex("ARCHIVED")]
+    private static partial Regex MyRegex2();
+    [GeneratedRegex(@"\. fork\.")]
+    private static partial Regex MyRegex3();
+    [GeneratedRegex(@"publishes npm package (\S+?)\.")]
+    private static partial Regex MyRegex4();
 }

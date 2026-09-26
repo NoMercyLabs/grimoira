@@ -18,7 +18,7 @@ namespace Aitm.Layout.Tests;
 //
 // Every fixture used here is a fake key/label/predicate under a throwaway temp instance — never a real
 // repo or ~/.claude, and never real content.
-public class StagingSpineEvalCliParityTests
+public partial class StagingSpineEvalCliParityTests
 {
     // eval prints its own elapsed time per question via "{ms,5:F2}ms" — a 5-char right-aligned field, so
     // a single-digit value ("1.23ms") carries one more leading pad space than a double-digit one
@@ -27,10 +27,7 @@ public class StagingSpineEvalCliParityTests
     // ahead of an otherwise-identical line. Consuming the leading whitespace along with the number fixes
     // it. On top of the "(N.Nms)" shape other verbs use, so both need normalizing before a diff.
     private static string StripVolatile(string s) =>
-        Regex.Replace(
-            Regex.Replace(Regex.Replace(s, @"\(\d+[.,]\d+ms\)", "(<ms>)"),
-                @"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z", "<ts>"),
-            @"[ \t]*\d+[.,]\d+ms", "<ms>");
+        MyRegex().Replace(MyRegex1().Replace(MyRegex2().Replace(s, "(<ms>)"), "<ts>"), "<ms>");
 
     private static (string stdout, string stderr, int exitCode) RunNormalized(
         OldVsNewCli.Result result, string instance, string dbPath)
@@ -360,4 +357,13 @@ public class StagingSpineEvalCliParityTests
         ];
         AssertParity(setup, "eval");
     }
+
+    [GeneratedRegex(@"[ \t]*\d+[.,]\d+ms")]
+    private static partial Regex MyRegex();
+
+    [GeneratedRegex(@"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z")]
+    private static partial Regex MyRegex1();
+
+    [GeneratedRegex(@"\(\d+[.,]\d+ms\)")]
+    private static partial Regex MyRegex2();
 }

@@ -4,10 +4,11 @@ using Aitm.Facts.Tools;
 using Aitm.Store.Data;
 using Microsoft.Data.Sqlite;
 using Xunit;
+using System.Text.RegularExpressions;
 
 namespace Aitm.Facts.Tests;
 
-public class QueryToolTests
+public partial class QueryToolTests
 {
     [Fact]
     public void CliShapeMatchesTodaysCliOutputForAConfidentMatch()
@@ -343,5 +344,8 @@ public class QueryToolTests
 
     // The oracle and the new tool run at slightly different times, so the "(N.NNms)" tail never
     // matches byte for byte; strip it the same way ImportToolTests strips the trailing db path.
-    private static string StripTiming(string s) => System.Text.RegularExpressions.Regex.Replace(s, @"\(\d+[.,]\d+ms\)\s*$", "").TrimEnd();
+    private static string StripTiming(string s) => MyRegex().Replace(s, "").TrimEnd();
+
+    [GeneratedRegex(@"\(\d+[.,]\d+ms\)\s*$")]
+    private static partial Regex MyRegex();
 }

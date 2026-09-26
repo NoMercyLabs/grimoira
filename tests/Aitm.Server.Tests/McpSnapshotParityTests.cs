@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 using Aitm.TestSupport;
 using Xunit;
+using System.Text.RegularExpressions;
 
 namespace Aitm.Server.Tests;
 
@@ -10,7 +11,7 @@ namespace Aitm.Server.Tests;
 /// (<see cref="McpSnapshotHarness"/>) and today's built <c>bin/mcp.dll</c> over real stdio, against a
 /// fresh temp store each, and diffs <c>tools/list</c> and each call's answer text.
 /// </summary>
-public class McpSnapshotParityTests
+public partial class McpSnapshotParityTests
 {
     private static readonly string RepoRoot = FindRoot();
 
@@ -343,7 +344,7 @@ public class McpSnapshotParityTests
     // and new instance (two separate `aitm add` runs, milliseconds apart) even though the rest of the
     // row is identical; blank it out before comparing shape.
     private static string StripTimestamps(string text) =>
-        System.Text.RegularExpressions.Regex.Replace(text, @"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z", "<ts>");
+        MyRegex().Replace(text, "<ts>");
 
     private static string MemoryKey(string label) => $"memory-fixture-{label}";
 
@@ -395,4 +396,7 @@ public class McpSnapshotParityTests
         string dir = Path.GetDirectoryName(here)!;
         return Path.GetFullPath(Path.Combine(dir, "..", ".."));
     }
+
+    [GeneratedRegex(@"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z")]
+    private static partial Regex MyRegex();
 }
