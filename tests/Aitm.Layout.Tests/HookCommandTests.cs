@@ -47,25 +47,44 @@ public class HookCommandTests
             string command = hook.TryGetProperty("command", out JsonElement c) ? c.GetString() ?? "" : "";
             bool execForm = hook.TryGetProperty("args", out _);
             bool hasUnquotedPlaceholder = !execForm
-                && command.Contains("${CLAUDE_PLUGIN_ROOT}")
-                && !command.Contains("\"${CLAUDE_PLUGIN_ROOT}");
+                && ((command.Contains("${CLAUDE_PLUGIN_ROOT}") && !command.Contains("\"${CLAUDE_PLUGIN_ROOT}"))
+                    || (command.Contains("${CLAUDE_PLUGIN_DATA}") && !command.Contains("\"${CLAUDE_PLUGIN_DATA}")));
             if (hasUnquotedPlaceholder) offenders.Add($"{ev.Name}: {command}");
         }
         Assert.True(offenders.Count == 0, "shell-form hooks with an unquoted placeholder:\n" + string.Join('\n', offenders));
     }
 
-    // The SessionStart hook uses exec form (`args` set): the safe way to reference `bin-cli/aitm.dll`,
-    // since `aitm.exe` does not exist off Windows (only the Windows apphost is named `.exe`) and `dotnet`
-    // plus the dll path is the one invocation that resolves the same way on every platform.
+    // RESTRUCTURE.md slice 32a: a fresh install has no bin-cli/ (build output is gitignored), so SessionStart
+    // runs a Node step first. It builds the CLI and server into ${CLAUDE_PLUGIN_DATA} when they are missing or
+    // stale, and otherwise runs `hook SessionStart` through the built CLI. Exec form (`args` set) keeps a path
+    // with a space as one argument.
     [Fact]
-    public void SessionStartInvokesThePortableDotnetDllForm()
+    public void SessionStartRunsTheBuildCheckStepFirst()
     {
         using JsonDocument doc = JsonDocument.Parse(File.ReadAllText(Path.Combine(RepoPaths.Root, "hooks", "hooks.json")));
         JsonElement hook = doc.RootElement.GetProperty("hooks").GetProperty("SessionStart")[0].GetProperty("hooks")[0];
 
-        Assert.Equal("dotnet", hook.GetProperty("command").GetString());
+        Assert.Equal("node", hook.GetProperty("command").GetString());
         string[] args = hook.GetProperty("args").EnumerateArray().Select(a => a.GetString()!).ToArray();
-        Assert.Equal("${CLAUDE_PLUGIN_ROOT}/bin-cli/aitm.dll", args[0]);
+        Assert.Equal(["${CLAUDE_PLUGIN_ROOT}/session-start.mjs"], args);
+        Assert.True(File.Exists(Path.Combine(RepoPaths.Root, "session-start.mjs")));
+    }
+
+    // RESTRUCTURE.md slice 32a: "Every other hook slot and the headersHelper point at
+    // ${CLAUDE_PLUGIN_DATA}/bin-cli/aitm.dll." The plugin root has no build output after an install.
+    [Fact]
+    public void NoHookSlotRunsTheCliFromThePluginRoot()
+    {
+        using JsonDocument doc = JsonDocument.Parse(File.ReadAllText(Path.Combine(RepoPaths.Root, "hooks", "hooks.json")));
+        List<string> offenders = [];
+        foreach (JsonProperty ev in doc.RootElement.GetProperty("hooks").EnumerateObject())
+        foreach (JsonElement group in ev.Value.EnumerateArray())
+        foreach (JsonElement hook in group.GetProperty("hooks").EnumerateArray())
+        {
+            string line = string.Join(' ', ArgsOf(hook).Prepend(hook.GetProperty("command").GetString() ?? ""));
+            if (line.Contains("${CLAUDE_PLUGIN_ROOT}/bin-", StringComparison.Ordinal)) offenders.Add($"{ev.Name}: {line}");
+        }
+        Assert.True(offenders.Count == 0, "hook slots that run build output from the plugin root:\n" + string.Join('\n', offenders));
     }
 
     // RESTRUCTURE.md slice 30: the PreCompact, UserPromptSubmit and SessionEnd slots run `aitm hook <event>`
@@ -83,7 +102,7 @@ public class HookCommandTests
 
         Assert.Equal("dotnet", hook.GetProperty("command").GetString());
         string[] args = hook.GetProperty("args").EnumerateArray().Select(a => a.GetString()!).ToArray();
-        Assert.Equal(["${CLAUDE_PLUGIN_ROOT}/bin-cli/aitm.dll", "hook", eventName], args);
+        Assert.Equal(["${CLAUDE_PLUGIN_DATA}/bin-cli/aitm.dll", "hook", eventName], args);
     }
 
     // The SessionEnd handlers index for seconds. Claude Code gives SessionEnd hooks a shared 1.5 s budget

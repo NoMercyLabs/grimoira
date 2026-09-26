@@ -26,7 +26,9 @@ public class McpJsonTests
         // must be quoted the same way the docs quote their own shell-form examples. `aitm.exe` also does
         // not exist off Windows, so the portable, quote-safe form is `dotnet "<dll>" server headers`.
         string helper = aitm.GetProperty("headersHelper").GetString()!;
-        Assert.Equal("dotnet \"${CLAUDE_PLUGIN_ROOT}/bin-cli/aitm.dll\" server headers", helper);
+        // Slice 32a: the CLI is built into ${CLAUDE_PLUGIN_DATA}, which survives a plugin update; the plugin
+        // root has no build output after an install.
+        Assert.Equal("dotnet \"${CLAUDE_PLUGIN_DATA}/bin-cli/aitm.dll\" server headers", helper);
         Assert.False(aitm.TryGetProperty("command", out _));
     }
 
@@ -37,14 +39,11 @@ public class McpJsonTests
         JsonElement groups = doc.RootElement.GetProperty("hooks").GetProperty("SessionStart");
         JsonElement hook = Assert.Single(Assert.Single(groups.EnumerateArray()).GetProperty("hooks").EnumerateArray());
 
-        // `args` is set, so this is exec form (code.claude.com/docs/en/hooks.md: "A command hook runs
-        // as exec form when args is set... Set args whenever the hook references a path placeholder");
-        // exec form spawns the executable directly with no shell, so ${CLAUDE_PLUGIN_ROOT} substitutes
-        // as one argument even with a space in it and needs no quoting. `dotnet` plus the dll path is
-        // also the portable form: `aitm.exe` does not exist off Windows, but `aitm.dll` and `dotnet` do.
-        Assert.Equal("dotnet", hook.GetProperty("command").GetString());
+        // Slice 32a: SessionStart runs the Node step that builds the CLI when it is missing or stale and
+        // otherwise runs `hook SessionStart` through it. Exec form (`args` set) needs no quoting.
+        Assert.Equal("node", hook.GetProperty("command").GetString());
         Assert.Equal(
-            ["${CLAUDE_PLUGIN_ROOT}/bin-cli/aitm.dll", "hook", "SessionStart"],
+            ["${CLAUDE_PLUGIN_ROOT}/session-start.mjs"],
             hook.GetProperty("args").EnumerateArray().Select(a => a.GetString()!).ToArray());
         Assert.True(hook.GetProperty("timeout").GetInt32() <= 20);
     }
