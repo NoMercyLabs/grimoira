@@ -1,3 +1,4 @@
+using Aitm.Store.Data;
 using System.Text.RegularExpressions;
 using Xunit;
 
@@ -85,7 +86,7 @@ public partial class GoldenListsTests
         ];
         foreach (string verb in topLevel)
         {
-            Assert.Matches(new Regex($"case \"{Regex.Escape(verb)}\":"), source);
+            Assert.Contains($"case \"{verb}\":", source, StringComparison.Ordinal);
         }
     }
 
@@ -101,7 +102,7 @@ public partial class GoldenListsTests
         ];
         foreach (string verb in brainSubVerbs)
         {
-            Assert.Matches(new Regex($"case \"{Regex.Escape(verb)}\":"), source);
+            Assert.Contains($"case \"{verb}\":", source, StringComparison.Ordinal);
         }
     }
 
@@ -129,6 +130,6 @@ public partial class GoldenListsTests
         }
     }
 
-    [GeneratedRegex(@"public static (?:async )?(?:Task<string>|string) (\w+)\s*\(")]
+    [GeneratedRegex(@"public static (?:async )?(?:Task<string>|string) (\w+)\s*\(", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex ToolMethodSignature();
 }

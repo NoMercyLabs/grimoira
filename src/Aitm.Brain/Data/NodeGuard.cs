@@ -1,3 +1,4 @@
+using Aitm.Store.Data;
 using System.Text.RegularExpressions;
 
 namespace Aitm.Brain.Data;
@@ -52,6 +53,6 @@ public static partial class NodeGuard
         "example: kind=\"node\" key=\"nvenc-windows-native\" a=\"fact\" " +
         "b=\"NVENC encodes natively on Windows only\" c=\"Confirmed on real hardware: 3.03x, exit 0, 345 KB output. Never through WSL.\"";
 
-    [GeneratedRegex("^[a-z0-9_-]{2,30}$")]
+    [GeneratedRegex("^[a-z0-9_-]{2,30}$", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex ValidNodeKind();
 }

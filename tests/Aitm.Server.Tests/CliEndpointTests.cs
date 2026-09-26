@@ -1,3 +1,4 @@
+using Aitm.Store.Data;
 using System.Net;
 using System.Text;
 using System.Text.Json;
@@ -288,6 +289,6 @@ public sealed partial class CliEndpointTests : IDisposable
         try { Directory.Delete(_dataDir, recursive: true); } catch (IOException) { } catch (UnauthorizedAccessException) { }
     }
 
-    [GeneratedRegex(@"\(\d+[.,]\d+ms\)")]
+    [GeneratedRegex(@"\(\d+[.,]\d+ms\)", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex ParenthesisedTimingMs();
 }

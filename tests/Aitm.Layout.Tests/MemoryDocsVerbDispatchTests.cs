@@ -1,3 +1,4 @@
+using Aitm.Store.Data;
 using System.Text.RegularExpressions;
 using Xunit;
 
@@ -37,7 +38,7 @@ public class MemoryDocsVerbDispatchTests
     public void EveryWiredVerbsCaseCallsItsToolClass(string verb, string toolType)
     {
         string source = File.ReadAllText(Path.Combine(RepoPaths.Root, "src", "Aitm.Server", "Data", "CliDispatch.cs"));
-        Match caseMatch = Regex.Match(source, $"case \"{Regex.Escape(verb)}\":");
+        Match caseMatch = Regex.Match(source, $"case \"{Regex.Escape(verb)}\":", RegexOptions.None, RegexTimeout.Span);
         Assert.True(caseMatch.Success, $"aitm.cs has no case for '{verb}'");
 
         int blockEnd = source.IndexOf("break;", caseMatch.Index, StringComparison.Ordinal);

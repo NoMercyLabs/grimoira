@@ -313,6 +313,6 @@ public static partial class InitFull
     private static string PathSlug(string path) =>
         PathSeparatorRun().Replace(path, "-");
 
-    [GeneratedRegex(@"[:\\/]+")]
+    [GeneratedRegex(@"[:\\/]+", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex PathSeparatorRun();
 }

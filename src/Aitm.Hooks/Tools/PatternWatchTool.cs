@@ -1,3 +1,4 @@
+using Aitm.Store.Data;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Aitm.Hooks.Data;
@@ -238,16 +239,16 @@ public static partial class PatternWatchTool
             ? v.GetString()
             : null;
 
-    [GeneratedRegex(@"\.(mjs|cjs|js|ts|py|ps1|sh|bat|cmd|rb|pl)$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"\.(mjs|cjs|js|ts|py|ps1|sh|bat|cmd|rb|pl)$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, RegexTimeout.Milliseconds)]
     private static partial Regex ScriptFileExtension();
-    [GeneratedRegex(@"^[A-Za-z][\w.:-]*$")]
+    [GeneratedRegex(@"^[A-Za-z][\w.:-]*$", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex CommandWord();
-    [GeneratedRegex(@"^\d?>>?$|^<$|^\d?>&\d$")]
+    [GeneratedRegex(@"^\d?>>?$|^<$|^\d?>&\d$", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex ShellRedirect();
-    [GeneratedRegex(@"^\$?[\w.]+$")]
+    [GeneratedRegex(@"^\$?[\w.]+$", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex VariableAssignmentTarget();
-    [GeneratedRegex(@"&&|\|\||;|\|")]
+    [GeneratedRegex(@"&&|\|\||;|\|", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex PipelineStageSeparators();
-    [GeneratedRegex(@"\.(exe|cmd)$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"\.(exe|cmd)$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, RegexTimeout.Milliseconds)]
     private static partial Regex WindowsExecutableSuffix();
 }

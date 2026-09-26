@@ -1,3 +1,4 @@
+using Aitm.Store.Data;
 using System.Text.RegularExpressions;
 using Xunit;
 
@@ -42,7 +43,7 @@ public partial class GraphVerbDispatchTests
     public void EveryWiredVerbsCaseCallsItsToolClass(string verb, string toolType)
     {
         string source = File.ReadAllText(Path.Combine(RepoPaths.Root, "src", "Aitm.Server", "Data", "CliDispatch.cs"));
-        Match caseMatch = Regex.Match(source, $"case \"{Regex.Escape(verb)}\":");
+        Match caseMatch = Regex.Match(source, $"case \"{Regex.Escape(verb)}\":", RegexOptions.None, RegexTimeout.Span);
         Assert.True(caseMatch.Success, $"aitm.cs has no case for '{verb}'");
 
         // Bound the block at the next top-level "case " or "default:" rather than the first "break;" —
@@ -58,6 +59,6 @@ public partial class GraphVerbDispatchTests
     public static IEnumerable<object[]> WiredVerbCases() =>
         WiredVerbs.Select(v => new object[] { v.Verb, v.ToolType });
 
-    [GeneratedRegex("\\n    (case \"|default:)")]
+    [GeneratedRegex("\\n    (case \"|default:)", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex NextCaseOrDefaultAtDispatchIndent();
 }

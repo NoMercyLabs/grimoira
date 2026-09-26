@@ -58,6 +58,6 @@ public partial class ImportToolTests
     // Strips the trailing "(<db path>)" so two different instance directories still compare equal.
     private static string MessagePrefix(string text) => TrailingParenthesisedSuffix().Replace(text.Trim(), "");
 
-    [GeneratedRegex(@"\s*\([^)]*\)\s*$")]
+    [GeneratedRegex(@"\s*\([^)]*\)\s*$", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex TrailingParenthesisedSuffix();
 }

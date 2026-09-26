@@ -358,6 +358,6 @@ public sealed partial class HttpSnapshotParityTests
         return Path.GetFullPath(Path.Combine(dir, "..", ".."));
     }
 
-    [GeneratedRegex(@"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z")]
+    [GeneratedRegex(@"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex IsoTimestamp();
 }

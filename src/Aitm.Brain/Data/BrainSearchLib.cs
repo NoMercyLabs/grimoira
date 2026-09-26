@@ -1,3 +1,4 @@
+using Aitm.Store.Data;
 using System.Text.RegularExpressions;
 using Microsoft.Data.Sqlite;
 
@@ -280,16 +281,16 @@ public static partial class BrainSearchLib
         return picks;
     }
 
-    [GeneratedRegex(@"\\[a-zA-Z]")]
+    [GeneratedRegex(@"\\[a-zA-Z]", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex BackslashEscape();
-    [GeneratedRegex(@"[(){}\[\]|^$*+?.\\/'""`<>=!,;:#@&%~-]")]
+    [GeneratedRegex(@"[(){}\[\]|^$*+?.\\/'""`<>=!,;:#@&%~-]", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex QueryPunctuation();
-    [GeneratedRegex(@"_|(?<=[a-z0-9])(?=[A-Z])")]
+    [GeneratedRegex(@"_|(?<=[a-z0-9])(?=[A-Z])", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex IdentifierWordBoundary();
-    [GeneratedRegex(@"(^|[\\/])(tests?|spec|__tests__)[\\/]", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"(^|[\\/])(tests?|spec|__tests__)[\\/]", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, RegexTimeout.Milliseconds)]
     private static partial Regex TestFilePath();
-    [GeneratedRegex(@"^(this session is being continued|<\?xml|summary:|caveat: the messages below)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"^(this session is being continued|<\?xml|summary:|caveat: the messages below)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, RegexTimeout.Milliseconds)]
     private static partial Regex TranscriptBoilerplateStart();
-    [GeneratedRegex(@"\.[^.]+$")]
+    [GeneratedRegex(@"\.[^.]+$", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex FileExtension();
 }

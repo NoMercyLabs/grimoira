@@ -1,3 +1,4 @@
+using Aitm.Store.Data;
 using System.Diagnostics;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -89,8 +90,8 @@ public partial class McpParameterParityTests
         return stdout;
     }
 
-    [GeneratedRegex(@"public static (?:async )?(?:Task<string>|string) (\w+)\s*\(([^)]*)\)")]
+    [GeneratedRegex(@"public static (?:async )?(?:Task<string>|string) (\w+)\s*\(([^)]*)\)", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex ToolMethodSignatureWithParameters();
-    [GeneratedRegex(@"\s+")]
+    [GeneratedRegex(@"\s+", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex WhitespaceRun();
 }

@@ -1,3 +1,4 @@
+using Aitm.Store.Data;
 using System.Text.RegularExpressions;
 using Aitm.TestSupport;
 using Xunit;
@@ -303,9 +304,9 @@ public partial class StoreFactsCliParityTests
     public void IndexPackagesMatchesOldBehaviourOnAMissingRoot() =>
         AssertParity(["init"], "index-packages --root \"/no/such/directory/aitm-slice24-fixture\"");
 
-    [GeneratedRegex(@"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z")]
+    [GeneratedRegex(@"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex IsoTimestamp();
 
-    [GeneratedRegex(@"\(\d+[.,]\d+ms\)")]
+    [GeneratedRegex(@"\(\d+[.,]\d+ms\)", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex ParenthesisedTimingMs();
 }

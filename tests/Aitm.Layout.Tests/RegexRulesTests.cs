@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using Aitm.Store.Data;
 using Xunit;
 
 namespace Aitm.Layout.Tests;
@@ -141,9 +142,9 @@ public partial class RegexRulesTests
         Assert.True(offenders.Count == 0, "regex without the shared timeout: " + string.Join("; ", offenders));
     }
 
-    [GeneratedRegex(@"\bnew\s+(?:System\.Text\.RegularExpressions\.)?Regex\s*\(")]
+    [GeneratedRegex(@"\bnew\s+(?:System\.Text\.RegularExpressions\.)?Regex\s*\(", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex NewRegexCall();
 
-    [GeneratedRegex(@"(?<![\w.])(?:System\.Text\.RegularExpressions\.)?Regex\.(?:Replace|IsMatch|Match|Matches|Split|Count|EnumerateMatches)\(")]
+    [GeneratedRegex(@"(?<![\w.])(?:System\.Text\.RegularExpressions\.)?Regex\.(?:Replace|IsMatch|Match|Matches|Split|Count|EnumerateMatches)\(", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex StaticRegexCall();
 }

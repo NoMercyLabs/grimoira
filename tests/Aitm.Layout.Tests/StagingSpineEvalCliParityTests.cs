@@ -1,3 +1,4 @@
+using Aitm.Store.Data;
 using System.Globalization;
 using System.Text.RegularExpressions;
 using Aitm.TestSupport;
@@ -358,12 +359,12 @@ public partial class StagingSpineEvalCliParityTests
         AssertParity(setup, "eval");
     }
 
-    [GeneratedRegex(@"[ \t]*\d+[.,]\d+ms")]
+    [GeneratedRegex(@"[ \t]*\d+[.,]\d+ms", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex PaddedTimingMs();
 
-    [GeneratedRegex(@"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z")]
+    [GeneratedRegex(@"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex IsoTimestamp();
 
-    [GeneratedRegex(@"\(\d+[.,]\d+ms\)")]
+    [GeneratedRegex(@"\(\d+[.,]\d+ms\)", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex ParenthesisedTimingMs();
 }

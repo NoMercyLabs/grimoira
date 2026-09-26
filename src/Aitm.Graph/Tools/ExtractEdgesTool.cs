@@ -1,3 +1,4 @@
+using Aitm.Store.Data;
 using Aitm.Store.Tools;
 using Microsoft.Data.Sqlite;
 using System.Text.RegularExpressions;
@@ -136,8 +137,8 @@ public sealed partial class ExtractEdgesTool : ITool
         string camel = SnakeCaseUnderscoreLetter().Replace(symbol, m => m.Groups[1].Value.ToUpperInvariant());
         string residue = DeclarationKeywordsAndAnnotations().Replace(trimmed,
             "");
-        residue = System.Text.RegularExpressions.Regex.Replace(residue, System.Text.RegularExpressions.Regex.Escape(symbol), "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-        residue = System.Text.RegularExpressions.Regex.Replace(residue, System.Text.RegularExpressions.Regex.Escape(camel), "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        residue = System.Text.RegularExpressions.Regex.Replace(residue, System.Text.RegularExpressions.Regex.Escape(symbol), "", System.Text.RegularExpressions.RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, RegexTimeout.Span);
+        residue = System.Text.RegularExpressions.Regex.Replace(residue, System.Text.RegularExpressions.Regex.Escape(camel), "", System.Text.RegularExpressions.RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, RegexTimeout.Span);
         residue = AnyWhitespace().Replace(residue, "");
         return residue.Length <= 1 ? "" : trimmed; // nothing left but the symbol + decl syntax -> declaration, no usage
     }
@@ -149,10 +150,10 @@ public sealed partial class ExtractEdgesTool : ITool
         line.Contains($"@JsonProperty({symbol}", StringComparison.Ordinal) ||
         line.Contains($".{symbol}", StringComparison.Ordinal);
 
-    [GeneratedRegex(@"_(\w)")]
+    [GeneratedRegex(@"_(\w)", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex SnakeCaseUnderscoreLetter();
-    [GeneratedRegex(@"@?\[?\b(JsonProperty|JsonPropertyName|SerialName|JsonInclude|DataMember|field|get|set|init|public|private|internal|val|var|let|const|readonly|required|override|string|String|int|Int|long|Long|bool|Boolean|number|Guid|Ulid)\b|[\[\]@(){}<>"":;,?=]", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"@?\[?\b(JsonProperty|JsonPropertyName|SerialName|JsonInclude|DataMember|field|get|set|init|public|private|internal|val|var|let|const|readonly|required|override|string|String|int|Int|long|Long|bool|Boolean|number|Guid|Ulid)\b|[\[\]@(){}<>"":;,?=]", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, RegexTimeout.Milliseconds)]
     private static partial Regex DeclarationKeywordsAndAnnotations();
-    [GeneratedRegex(@"\s+")]
+    [GeneratedRegex(@"\s+", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex AnyWhitespace();
 }

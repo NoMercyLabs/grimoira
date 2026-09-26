@@ -42,18 +42,18 @@ public static partial class SecretScrubber
         return (result, counts);
     }
 
-    [GeneratedRegex(@"-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----")]
+    [GeneratedRegex(@"-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex PrivateKeyBlock();
-    [GeneratedRegex(@"Bearer\s+[A-Za-z0-9\-_.+/=]{10,}")]
+    [GeneratedRegex(@"Bearer\s+[A-Za-z0-9\-_.+/=]{10,}", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex BearerHeader();
-    [GeneratedRegex(@"(?<![A-Za-z0-9_-])[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}(?![A-Za-z0-9_-])")]
+    [GeneratedRegex(@"(?<![A-Za-z0-9_-])[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}(?![A-Za-z0-9_-])", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex JsonWebToken();
-    [GeneratedRegex(@"\b(?:ghp_|gho_|github_pat_)[A-Za-z0-9_]{20,}\b")]
+    [GeneratedRegex(@"\b(?:ghp_|gho_|github_pat_)[A-Za-z0-9_]{20,}\b", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex GithubToken();
-    [GeneratedRegex(@"\bsk-[A-Za-z0-9]{20,}\b")]
+    [GeneratedRegex(@"\bsk-[A-Za-z0-9]{20,}\b", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex OpenAiKey();
-    [GeneratedRegex(@"\bAKIA[A-Z0-9]{12,}\b")]
+    [GeneratedRegex(@"\bAKIA[A-Z0-9]{12,}\b", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex AwsAccessKeyId();
-    [GeneratedRegex(@"\bxox[baprs]-[A-Za-z0-9-]{10,}\b")]
+    [GeneratedRegex(@"\bxox[baprs]-[A-Za-z0-9-]{10,}\b", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex SlackToken();
 }

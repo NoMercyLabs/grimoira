@@ -1,3 +1,4 @@
+using Aitm.Store.Data;
 using System.Diagnostics;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -262,6 +263,6 @@ public static partial class ProcessOwner
         }
     }
 
-    [GeneratedRegex(@"^[a-f0-9-]{36}\.json$")]
+    [GeneratedRegex(@"^[a-f0-9-]{36}\.json$", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex ProcessRecordFileName();
 }

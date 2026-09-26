@@ -1,3 +1,4 @@
+using Aitm.Store.Data;
 using System.Diagnostics;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -295,12 +296,12 @@ public static partial class CompactBriefTool
         return output;
     }
 
-    [GeneratedRegex(@"(^|[\\/])(scratchpad|\.?scratch|Temp|tmp)([\\/]|$)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"(^|[\\/])(scratchpad|\.?scratch|Temp|tmp)([\\/]|$)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, RegexTimeout.Milliseconds)]
     private static partial Regex ScratchPath();
-    [GeneratedRegex(@"^(This session is being continued|Caveat: The messages below|\[Request interrupted)")]
+    [GeneratedRegex(@"^(This session is being continued|Caveat: The messages below|\[Request interrupted)", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex ContinuedSummaryStart();
-    [GeneratedRegex("hook (feedback|additional context)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    [GeneratedRegex("hook (feedback|additional context)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, RegexTimeout.Milliseconds)]
     private static partial Regex HookFeedbackNotice();
-    [GeneratedRegex(@"\s+")]
+    [GeneratedRegex(@"\s+", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex ConsecutiveWhitespace();
 }

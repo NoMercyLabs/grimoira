@@ -346,6 +346,6 @@ public partial class QueryToolTests
     // matches byte for byte; strip it the same way ImportToolTests strips the trailing db path.
     private static string StripTiming(string s) => TrailingParenthesisedTimingMs().Replace(s, "").TrimEnd();
 
-    [GeneratedRegex(@"\(\d+[.,]\d+ms\)\s*$")]
+    [GeneratedRegex(@"\(\d+[.,]\d+ms\)\s*$", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex TrailingParenthesisedTimingMs();
 }

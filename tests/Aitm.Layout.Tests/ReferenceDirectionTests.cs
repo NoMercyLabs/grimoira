@@ -1,3 +1,4 @@
+using Aitm.Store.Data;
 using System.Text.RegularExpressions;
 using Xunit;
 
@@ -54,6 +55,6 @@ public partial class ReferenceDirectionTests
         }
     }
 
-    [GeneratedRegex("ProjectReference Include=\"([^\"]+)\"")]
+    [GeneratedRegex("ProjectReference Include=\"([^\"]+)\"", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex ProjectReferenceInclude();
 }

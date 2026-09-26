@@ -1,3 +1,4 @@
+using Aitm.Store.Data;
 using System.Diagnostics;
 using System.Text.RegularExpressions;
 using Aitm.TestSupport;
@@ -104,7 +105,7 @@ public partial class CliFlagCoverageGuardTests
     // is not a declaration here (a tool constructor, a BCL call, a call with no local declaration).
     private static string? FindFunctionBody(string source, string name)
     {
-        Match decl = Regex.Match(source, $@"(?m)^[\w<>\[\],\?\s]+\b{Regex.Escape(name)}\s*\([^\)]*\)\s*\r?\n?\{{");
+        Match decl = Regex.Match(source, $@"(?m)^[\w<>\[\],\?\s]+\b{Regex.Escape(name)}\s*\([^\)]*\)\s*\r?\n?\{{", RegexOptions.None, RegexTimeout.Span);
         if (!decl.Success) return null;
         int openBrace = decl.Index + decl.Length - 1;
         return ExtractBalanced(source, openBrace);
@@ -161,14 +162,14 @@ public partial class CliFlagCoverageGuardTests
         return stdout;
     }
 
-    [GeneratedRegex(@"(?:GetFlag|HasFlag)\(\s*""(--[\w-]+)""\s*\)|\ba\.Contains\(\s*""(--[\w-]+)""\s*\)")]
+    [GeneratedRegex(@"(?:GetFlag|HasFlag)\(\s*""(--[\w-]+)""\s*\)|\ba\.Contains\(\s*""(--[\w-]+)""\s*\)", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex FlagLookup();
-    [GeneratedRegex(@"case\s+""([^""]+)""\s*:")]
+    [GeneratedRegex(@"case\s+""([^""]+)""\s*:", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex CaseLabel();
-    [GeneratedRegex(@"\b([A-Z][A-Za-z0-9_]*)\s*\(")]
+    [GeneratedRegex(@"\b([A-Z][A-Za-z0-9_]*)\s*\(", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex CalledMethodName();
-    [GeneratedRegex(@"switch\s*\(cmd\)")]
+    [GeneratedRegex(@"switch\s*\(cmd\)", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex SwitchOnCmd();
-    [GeneratedRegex(@"switch\s*\(sub\)")]
+    [GeneratedRegex(@"switch\s*\(sub\)", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex SwitchOnSub();
 }

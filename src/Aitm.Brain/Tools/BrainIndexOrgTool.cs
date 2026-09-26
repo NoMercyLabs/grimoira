@@ -1,3 +1,4 @@
+using Aitm.Store.Data;
 using System.Text.Json;
 using Aitm.Brain.Data;
 using Aitm.Store.Tools;
@@ -185,8 +186,8 @@ public sealed partial class BrainIndexOrgTool : ITool
     private static bool Bool(JsonElement e, string name) =>
         e.TryGetProperty(name, out JsonElement v) && v.ValueKind == JsonValueKind.True;
 
-    [GeneratedRegex(@"\.git$")]
+    [GeneratedRegex(@"\.git$", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex RemoteUrlGitSuffix();
-    [GeneratedRegex("^git@github\\.com:")]
+    [GeneratedRegex("^git@github\\.com:", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex GithubSshPrefix();
 }

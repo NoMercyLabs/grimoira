@@ -1,3 +1,4 @@
+using Aitm.Store.Data;
 using System.Text.RegularExpressions;
 using Aitm.Cli.Tools;
 using Xunit;
@@ -53,8 +54,8 @@ public partial class CliClientTimeoutsCoverTheServerLimitTests
             "the thin client would give up on a long verb before the server's own 124 answer could arrive.");
     }
 
-    [GeneratedRegex(@"LongTimeout = TimeSpan\.FromSeconds\((\d+)\)")]
+    [GeneratedRegex(@"LongTimeout = TimeSpan\.FromSeconds\((\d+)\)", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex LongTimeoutDeclaration();
-    [GeneratedRegex(@"runCli\(\['index-chat',[^\]]*\],\s*(\d+)\)")]
+    [GeneratedRegex(@"runCli\(\['index-chat',[^\]]*\],\s*(\d+)\)", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex IndexChatRunCliTimeout();
 }

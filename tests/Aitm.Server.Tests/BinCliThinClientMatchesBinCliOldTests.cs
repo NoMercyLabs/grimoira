@@ -1,3 +1,4 @@
+using Aitm.Store.Data;
 using System.Diagnostics;
 using System.Text.RegularExpressions;
 using Aitm.Layout.Tests;
@@ -180,12 +181,12 @@ public sealed partial class BinCliThinClientMatchesBinCliOldTests : IClassFixtur
         }
     }
 
-    [GeneratedRegex(@"\b\d{8}-\d{9}\b")]
+    [GeneratedRegex(@"\b\d{8}-\d{9}\b", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex DateTimeRunId();
 
-    [GeneratedRegex(@"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z")]
+    [GeneratedRegex(@"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex IsoTimestamp();
 
-    [GeneratedRegex(@"[ \t]*\d+([.,]\d+)?\s?ms\b")]
+    [GeneratedRegex(@"[ \t]*\d+([.,]\d+)?\s?ms\b", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex LooseTimingMs();
 }

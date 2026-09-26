@@ -1,3 +1,4 @@
+using Aitm.Store.Data;
 using Microsoft.Data.Sqlite;
 using Aitm.Store.Tools;
 using System.Text.RegularExpressions;
@@ -86,6 +87,6 @@ public sealed partial class AddSynthesisTool : ITool
         return string.Join(' ', words.Distinct());
     }
 
-    [GeneratedRegex(@"[\\/\-_. ]+")]
+    [GeneratedRegex(@"[\\/\-_. ]+", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex PathWordSeparators();
 }

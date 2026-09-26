@@ -203,6 +203,6 @@ public sealed partial class GraphQueryTool : ITool
 
     private static string Clip(string s, int max) => s.Length <= max ? s : s[..max].TrimEnd() + "…";
 
-    [GeneratedRegex("_|(?<=[a-z0-9])(?=[A-Z])")]
+    [GeneratedRegex("_|(?<=[a-z0-9])(?=[A-Z])", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex SymbolWordBoundary();
 }

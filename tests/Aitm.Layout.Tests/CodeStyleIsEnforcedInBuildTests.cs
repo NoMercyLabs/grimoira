@@ -1,3 +1,4 @@
+using Aitm.Store.Data;
 using System.Text.RegularExpressions;
 using Xunit;
 
@@ -31,7 +32,7 @@ public partial class CodeStyleIsEnforcedInBuildTests
     public void Rule_is_an_error_in_the_repo_root_editorconfig(string rule)
     {
         string text = Read(".editorconfig");
-        Assert.Matches(new Regex($@"^dotnet_diagnostic\.{rule}\.severity\s*=\s*error\s*$", RegexOptions.Multiline), text);
+        Assert.True(Regex.IsMatch(text, $@"^dotnet_diagnostic\.{rule}\.severity\s*=\s*error\s*$", RegexOptions.Multiline, RegexTimeout.Span), $"{rule} is not an error in .editorconfig");
     }
 
     [Fact]
@@ -61,8 +62,8 @@ public partial class CodeStyleIsEnforcedInBuildTests
         }
     }
 
-    [GeneratedRegex(@"^root\s*=\s*true\s*$", RegexOptions.Multiline)]
+    [GeneratedRegex(@"^root\s*=\s*true\s*$", RegexOptions.Multiline, RegexTimeout.Milliseconds)]
     private static partial Regex RootEditorconfigLine();
-    [GeneratedRegex(@"<EnforceCodeStyleInBuild>\s*true\s*</EnforceCodeStyleInBuild>")]
+    [GeneratedRegex(@"<EnforceCodeStyleInBuild>\s*true\s*</EnforceCodeStyleInBuild>", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex EnforceCodeStyleSetting();
 }

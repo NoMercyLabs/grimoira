@@ -1,3 +1,4 @@
+using Aitm.Store.Data;
 using System.Text.RegularExpressions;
 using Xunit;
 
@@ -34,7 +35,7 @@ public partial class McpDispatchTests
         string source = File.ReadAllText(Path.Combine(RepoPaths.Root, "mcp.cs"));
         string body = MethodBody(source, mcpName);
         Assert.True(
-            Regex.IsMatch(body, $@"new\s+{Regex.Escape(toolClass)}\s*\(.*\)\s*\.\s*ExecuteMcp\s*\(", RegexOptions.Singleline),
+            Regex.IsMatch(body, $@"new\s+{Regex.Escape(toolClass)}\s*\(.*\)\s*\.\s*ExecuteMcp\s*\(", RegexOptions.Singleline, RegexTimeout.Span),
             $"mcp.cs's {mcpName}() must call new {toolClass}(...).ExecuteMcp(...) instead of holding its own inline logic.\n---\n{body}");
     }
 
@@ -69,7 +70,7 @@ public partial class McpDispatchTests
         string source = File.ReadAllText(Path.Combine(RepoPaths.Root, "mcp.cs"));
         string body = MethodBody(source, mcpName);
         Assert.True(
-            Regex.IsMatch(body, $@"new\s+{Regex.Escape(toolClass)}\s*\(.*\)\s*\.\s*ExecuteMcp\s*\(", RegexOptions.Singleline),
+            Regex.IsMatch(body, $@"new\s+{Regex.Escape(toolClass)}\s*\(.*\)\s*\.\s*ExecuteMcp\s*\(", RegexOptions.Singleline, RegexTimeout.Span),
             $"mcp.cs's {mcpName}() must call new {toolClass}(...).ExecuteMcp(...) instead of holding its own inline logic.\n---\n{body}");
     }
 
@@ -92,7 +93,7 @@ public partial class McpDispatchTests
         string source = File.ReadAllText(Path.Combine(RepoPaths.Root, "mcp.cs"));
         string body = MethodBody(source, mcpName);
         Assert.True(
-            Regex.IsMatch(body, $@"new\s+{Regex.Escape(toolClass)}\s*\(.*\)\s*\.\s*Execute\s*\(", RegexOptions.Singleline),
+            Regex.IsMatch(body, $@"new\s+{Regex.Escape(toolClass)}\s*\(.*\)\s*\.\s*Execute\s*\(", RegexOptions.Singleline, RegexTimeout.Span),
             $"mcp.cs's {mcpName}() must call new {toolClass}(...).Execute(...) instead of holding its own inline logic.\n---\n{body}");
     }
 
@@ -130,7 +131,7 @@ public partial class McpDispatchTests
     // brace to the matching closing brace (methods here never nest braces inside a string literal).
     private static string MethodBody(string source, string methodName)
     {
-        Match signature = Regex.Match(source, $@"public static string {Regex.Escape(methodName)}\s*\([^)]*\)\s*\{{");
+        Match signature = Regex.Match(source, $@"public static string {Regex.Escape(methodName)}\s*\([^)]*\)\s*\{{", RegexOptions.None, RegexTimeout.Span);
         Assert.True(signature.Success, $"mcp.cs has no method named {methodName}");
         int start = signature.Index + signature.Length;
         int depth = 1;
@@ -144,6 +145,6 @@ public partial class McpDispatchTests
         return source[start..(i - 1)];
     }
 
-    [GeneratedRegex(@"new\s+IdPTokenTool\s*\(.*\)\s*\.\s*Execute\s*\(", RegexOptions.Singleline)]
+    [GeneratedRegex(@"new\s+IdPTokenTool\s*\(.*\)\s*\.\s*Execute\s*\(", RegexOptions.Singleline, RegexTimeout.Milliseconds)]
     private static partial Regex IdPTokenToolCall();
 }

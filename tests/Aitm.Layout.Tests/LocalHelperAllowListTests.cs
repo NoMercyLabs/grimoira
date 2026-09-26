@@ -1,3 +1,4 @@
+using Aitm.Store.Data;
 using System.Text.RegularExpressions;
 using Xunit;
 
@@ -74,8 +75,8 @@ public partial class LocalHelperAllowListTests
             "McpAllowList names a private helper no longer in mcp.cs — shrink the list:\n" + string.Join("\n", stale));
     }
 
-    [GeneratedRegex(@"(?m)^(?:void|string\??|long|int|bool|double|List<[\w<>,\?\s]+>|IEnumerable<[\w<>,\?\s]+>)\s+([A-Za-z_]\w*)\s*\(")]
+    [GeneratedRegex(@"(?m)^(?:void|string\??|long|int|bool|double|List<[\w<>,\?\s]+>|IEnumerable<[\w<>,\?\s]+>)\s+([A-Za-z_]\w*)\s*\(", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex AitmLocalFunctionDeclaration();
-    [GeneratedRegex(@"(?m)^ {4}private static (?:async\s+)?[\w<>\?\[\],\s]+?\s+([A-Za-z_]\w*)\s*\(")]
+    [GeneratedRegex(@"(?m)^ {4}private static (?:async\s+)?[\w<>\?\[\],\s]+?\s+([A-Za-z_]\w*)\s*\(", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex McpPrivateHelperDeclaration();
 }

@@ -1,3 +1,4 @@
+using Aitm.Store.Data;
 using System.Text.RegularExpressions;
 using Xunit;
 
@@ -80,6 +81,6 @@ public partial class NoConsoleWritesUnderSrcTests
             + "Console — shrink the list:\n" + string.Join("\n", stale));
     }
 
-    [GeneratedRegex(@"Console\.(Write\w*|Out|Error)\b")]
+    [GeneratedRegex(@"Console\.(Write\w*|Out|Error)\b", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex ConsoleUsage();
 }

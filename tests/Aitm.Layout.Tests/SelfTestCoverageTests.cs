@@ -1,3 +1,4 @@
+using Aitm.Store.Data;
 using System.Text.RegularExpressions;
 using Xunit;
 
@@ -254,8 +255,8 @@ public partial class SelfTestCoverageTests
         Assert.Contains("removed in 0.4: aitm selftest is gone", source);
     }
 
-    [GeneratedRegex(@"void\s+SelfTest\s*\(")]
+    [GeneratedRegex(@"void\s+SelfTest\s*\(", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex SelfTestFunction();
-    [GeneratedRegex("case \"selftest\":")]
+    [GeneratedRegex("case \"selftest\":", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex SelfTestCase();
 }

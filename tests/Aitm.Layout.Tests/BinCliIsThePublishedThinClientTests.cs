@@ -1,3 +1,4 @@
+using Aitm.Store.Data;
 using System.Text.RegularExpressions;
 using Xunit;
 
@@ -70,10 +71,10 @@ public partial class BinCliIsThePublishedThinClientTests
         Assert.True(removeIndex < publishIndex, "bin-cli/ must be cleared before the publish that fills it back in, not after.");
     }
 
-    [GeneratedRegex(@"dotnet publish ""\$PSScriptRoot/src/Aitm\.Cli/Aitm\.Cli\.csproj"" -c Release -o ""\$PSScriptRoot/bin-cli""")]
+    [GeneratedRegex(@"dotnet publish ""\$PSScriptRoot/src/Aitm\.Cli/Aitm\.Cli\.csproj"" -c Release -o ""\$PSScriptRoot/bin-cli""", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex PublishCliCommand();
-    [GeneratedRegex(@"dotnet build ""\$PSScriptRoot/aitm\.cs"" -c Release -o ""\$PSScriptRoot/bin-cli-old""")]
+    [GeneratedRegex(@"dotnet build ""\$PSScriptRoot/aitm\.cs"" -c Release -o ""\$PSScriptRoot/bin-cli-old""", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex BuildOldCliCommand();
-    [GeneratedRegex(@"aitm\.cs""[^\r\n]*-o ""\$root/bin-cli""")]
+    [GeneratedRegex(@"aitm\.cs""[^\r\n]*-o ""\$root/bin-cli""", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex OldCliBuiltIntoBinCli();
 }

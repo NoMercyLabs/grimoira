@@ -126,6 +126,6 @@ public partial class AddToolTests
 
     private static string Normalize(string s) => WhitespaceRun().Replace(s.Trim(), " ");
 
-    [GeneratedRegex(@"\s+")]
+    [GeneratedRegex(@"\s+", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex WhitespaceRun();
 }

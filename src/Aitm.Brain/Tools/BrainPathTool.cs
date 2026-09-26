@@ -1,4 +1,5 @@
 using Aitm.Brain.Data;
+using Aitm.Store.Data;
 using Aitm.Store.Tools;
 using Microsoft.Data.Sqlite;
 using System.Text.RegularExpressions;
@@ -193,14 +194,14 @@ public sealed partial class BrainPathTool : ITool
         return string.Join("\n", lines);
     }
 
-    [GeneratedRegex("language ([A-Za-z+#]+)")]
+    [GeneratedRegex("language ([A-Za-z+#]+)", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex RepoLanguage();
-    [GeneratedRegex(@"\. private\.")]
+    [GeneratedRegex(@"\. private\.", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex PrivateRepoMarker();
-    [GeneratedRegex("ARCHIVED")]
+    [GeneratedRegex("ARCHIVED", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex ArchivedMarker();
-    [GeneratedRegex(@"\. fork\.")]
+    [GeneratedRegex(@"\. fork\.", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex ForkMarker();
-    [GeneratedRegex(@"publishes npm package (\S+?)\.")]
+    [GeneratedRegex(@"publishes npm package (\S+?)\.", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex PublishedNpmPackage();
 }

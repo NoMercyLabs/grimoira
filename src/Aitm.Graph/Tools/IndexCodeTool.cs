@@ -1,3 +1,4 @@
+using Aitm.Store.Data;
 using System.Text.RegularExpressions;
 using Aitm.Store.Schema;
 using Aitm.Store.Tools;
@@ -257,54 +258,54 @@ public sealed partial class IndexCodeTool : ITool
         foreach (string name in order) yield return (name, found[name]);
     }
 
-    [GeneratedRegex(@"[\\/]lib[\\/](freetype|brotli|harfbuzz|fribidi|libass|zlib|openssl|ffmpeg|expat|png|jpeg)[\\/]", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"[\\/]lib[\\/](freetype|brotli|harfbuzz|fribidi|libass|zlib|openssl|ffmpeg|expat|png|jpeg)[\\/]", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, RegexTimeout.Milliseconds)]
     private static partial Regex VendoredLibraryPath();
-    [GeneratedRegex(@"^\s*export\s+(?:default\s+)?(?:abstract\s+)?class\s+([A-Za-z_]\w*)", RegexOptions.Multiline)]
+    [GeneratedRegex(@"^\s*export\s+(?:default\s+)?(?:abstract\s+)?class\s+([A-Za-z_]\w*)", RegexOptions.Multiline, RegexTimeout.Milliseconds)]
     private static partial Regex TypeScriptExportedClass();
-    [GeneratedRegex(@"^\s*export\s+(?:declare\s+)?(?:async\s+)?function\s+\*?\s*([A-Za-z_]\w*)", RegexOptions.Multiline)]
+    [GeneratedRegex(@"^\s*export\s+(?:declare\s+)?(?:async\s+)?function\s+\*?\s*([A-Za-z_]\w*)", RegexOptions.Multiline, RegexTimeout.Milliseconds)]
     private static partial Regex TypeScriptExportedFunction();
-    [GeneratedRegex(@"^\s*export\s+(?:declare\s+)?(?:interface|type|enum)\s+([A-Za-z_]\w*)", RegexOptions.Multiline)]
+    [GeneratedRegex(@"^\s*export\s+(?:declare\s+)?(?:interface|type|enum)\s+([A-Za-z_]\w*)", RegexOptions.Multiline, RegexTimeout.Milliseconds)]
     private static partial Regex TypeScriptExportedTypeDeclaration();
-    [GeneratedRegex(@"^\s*export\s+(?:declare\s+)?(?:const|let|var)\s+([A-Za-z_]\w*)", RegexOptions.Multiline)]
+    [GeneratedRegex(@"^\s*export\s+(?:declare\s+)?(?:const|let|var)\s+([A-Za-z_]\w*)", RegexOptions.Multiline, RegexTimeout.Milliseconds)]
     private static partial Regex TypeScriptExportedVariable();
-    [GeneratedRegex(@"^\s*export\s+\{\s*([A-Za-z_]\w*)", RegexOptions.Multiline)]
+    [GeneratedRegex(@"^\s*export\s+\{\s*([A-Za-z_]\w*)", RegexOptions.Multiline, RegexTimeout.Milliseconds)]
     private static partial Regex TypeScriptExportList();
-    [GeneratedRegex(@"^\s*(?:public\s+|internal\s+)?(?:data\s+|sealed\s+|abstract\s+|open\s+|value\s+)*(?:class|interface|object)\s+([A-Za-z_]\w*)", RegexOptions.Multiline)]
+    [GeneratedRegex(@"^\s*(?:public\s+|internal\s+)?(?:data\s+|sealed\s+|abstract\s+|open\s+|value\s+)*(?:class|interface|object)\s+([A-Za-z_]\w*)", RegexOptions.Multiline, RegexTimeout.Milliseconds)]
     private static partial Regex KotlinTypeDeclaration();
-    [GeneratedRegex(@"^\s*(?:public\s+|internal\s+)?(?:suspend\s+)?fun\s+(?:<[^>]+>\s*)?([A-Za-z_]\w*)\s*\(", RegexOptions.Multiline)]
+    [GeneratedRegex(@"^\s*(?:public\s+|internal\s+)?(?:suspend\s+)?fun\s+(?:<[^>]+>\s*)?([A-Za-z_]\w*)\s*\(", RegexOptions.Multiline, RegexTimeout.Milliseconds)]
     private static partial Regex KotlinFunction();
-    [GeneratedRegex(@"^\s*(?:public\s+|internal\s+)?(?:const\s+)?val\s+([A-Z][A-Za-z0-9_]*)", RegexOptions.Multiline)]
+    [GeneratedRegex(@"^\s*(?:public\s+|internal\s+)?(?:const\s+)?val\s+([A-Z][A-Za-z0-9_]*)", RegexOptions.Multiline, RegexTimeout.Milliseconds)]
     private static partial Regex KotlinConstant();
-    [GeneratedRegex(@"^\s*(?:public|internal)\s+(?:static\s+|sealed\s+|abstract\s+|partial\s+|readonly\s+)*(?:class|interface|record|struct|enum)\s+([A-Za-z_]\w*)", RegexOptions.Multiline)]
+    [GeneratedRegex(@"^\s*(?:public|internal)\s+(?:static\s+|sealed\s+|abstract\s+|partial\s+|readonly\s+)*(?:class|interface|record|struct|enum)\s+([A-Za-z_]\w*)", RegexOptions.Multiline, RegexTimeout.Milliseconds)]
     private static partial Regex CSharpPublicType();
-    [GeneratedRegex(@"^\s*public\s+(?:static\s+|virtual\s+|override\s+|async\s+|sealed\s+)*[A-Za-z_][\w<>,.\[\]?]*\s+([A-Za-z_]\w*)\s*\(", RegexOptions.Multiline)]
+    [GeneratedRegex(@"^\s*public\s+(?:static\s+|virtual\s+|override\s+|async\s+|sealed\s+)*[A-Za-z_][\w<>,.\[\]?]*\s+([A-Za-z_]\w*)\s*\(", RegexOptions.Multiline, RegexTimeout.Milliseconds)]
     private static partial Regex CSharpPublicMethod();
-    [GeneratedRegex(@"^\s*(?:abstract\s+|final\s+)?(?:class|interface|trait|enum)\s+([A-Za-z_]\w*)", RegexOptions.Multiline)]
+    [GeneratedRegex(@"^\s*(?:abstract\s+|final\s+)?(?:class|interface|trait|enum)\s+([A-Za-z_]\w*)", RegexOptions.Multiline, RegexTimeout.Milliseconds)]
     private static partial Regex PhpTypeDeclaration();
-    [GeneratedRegex(@"^\s*(?:public\s+|protected\s+)?(?:static\s+)?function\s+([A-Za-z_]\w*)\s*\(", RegexOptions.Multiline)]
+    [GeneratedRegex(@"^\s*(?:public\s+|protected\s+)?(?:static\s+)?function\s+([A-Za-z_]\w*)\s*\(", RegexOptions.Multiline, RegexTimeout.Milliseconds)]
     private static partial Regex PhpFunction();
-    [GeneratedRegex(@"^\s*(?:extern\s+)?(?:const\s+|unsigned\s+|signed\s+|static\s+)*(?:struct\s+|enum\s+|union\s+)?[A-Za-z_]\w*\s*\**\s*([A-Za-z_]\w*)\s*\([^;{]*\)\s*;", RegexOptions.Multiline)]
+    [GeneratedRegex(@"^\s*(?:extern\s+)?(?:const\s+|unsigned\s+|signed\s+|static\s+)*(?:struct\s+|enum\s+|union\s+)?[A-Za-z_]\w*\s*\**\s*([A-Za-z_]\w*)\s*\([^;{]*\)\s*;", RegexOptions.Multiline, RegexTimeout.Milliseconds)]
     private static partial Regex CFunctionPrototype();
-    [GeneratedRegex(@"^\s*typedef\s+(?:struct|enum|union)?\s*[^;]*?\b([A-Za-z_]\w*)\s*;", RegexOptions.Multiline)]
+    [GeneratedRegex(@"^\s*typedef\s+(?:struct|enum|union)?\s*[^;]*?\b([A-Za-z_]\w*)\s*;", RegexOptions.Multiline, RegexTimeout.Milliseconds)]
     private static partial Regex CTypedefDeclaration();
-    [GeneratedRegex(@"^\s*(?:struct|enum|union)\s+([A-Za-z_]\w*)\s*\{", RegexOptions.Multiline)]
+    [GeneratedRegex(@"^\s*(?:struct|enum|union)\s+([A-Za-z_]\w*)\s*\{", RegexOptions.Multiline, RegexTimeout.Milliseconds)]
     private static partial Regex CStructDeclaration();
-    [GeneratedRegex(@"^\s*#\s*define\s+([A-Za-z_]\w{3,})", RegexOptions.Multiline)]
+    [GeneratedRegex(@"^\s*#\s*define\s+([A-Za-z_]\w{3,})", RegexOptions.Multiline, RegexTimeout.Milliseconds)]
     private static partial Regex CDefineMacro();
-    [GeneratedRegex(@"^\s*(?:class|struct)\s+(?:[A-Z_]+\s+)?([A-Za-z_]\w*)\s*(?::|\{)", RegexOptions.Multiline)]
+    [GeneratedRegex(@"^\s*(?:class|struct)\s+(?:[A-Z_]+\s+)?([A-Za-z_]\w*)\s*(?::|\{)", RegexOptions.Multiline, RegexTimeout.Milliseconds)]
     private static partial Regex CppClassOrStruct();
-    [GeneratedRegex(@"^\s*namespace\s+([A-Za-z_]\w*)", RegexOptions.Multiline)]
+    [GeneratedRegex(@"^\s*namespace\s+([A-Za-z_]\w*)", RegexOptions.Multiline, RegexTimeout.Milliseconds)]
     private static partial Regex CppNamespace();
-    [GeneratedRegex(@"^\s*(?:template\s*<[^>]*>\s*)?(?:[A-Za-z_][\w:<>,\s*&]*\s+)?([A-Za-z_]\w*)\s*\([^;{]*\)\s*(?:const\s*)?(?:override\s*)?[;{]", RegexOptions.Multiline)]
+    [GeneratedRegex(@"^\s*(?:template\s*<[^>]*>\s*)?(?:[A-Za-z_][\w:<>,\s*&]*\s+)?([A-Za-z_]\w*)\s*\([^;{]*\)\s*(?:const\s*)?(?:override\s*)?[;{]", RegexOptions.Multiline, RegexTimeout.Milliseconds)]
     private static partial Regex CppFunctionSignature();
-    [GeneratedRegex(@"^\s*typedef\s+[^;]*?\b([A-Za-z_]\w*)\s*;", RegexOptions.Multiline)]
+    [GeneratedRegex(@"^\s*typedef\s+[^;]*?\b([A-Za-z_]\w*)\s*;", RegexOptions.Multiline, RegexTimeout.Milliseconds)]
     private static partial Regex CppTypedef();
-    [GeneratedRegex(@"^\s*(?:public\s+|open\s+|internal\s+)?(?:final\s+)?(?:class|struct|enum|protocol|actor)\s+([A-Za-z_]\w*)", RegexOptions.Multiline)]
+    [GeneratedRegex(@"^\s*(?:public\s+|open\s+|internal\s+)?(?:final\s+)?(?:class|struct|enum|protocol|actor)\s+([A-Za-z_]\w*)", RegexOptions.Multiline, RegexTimeout.Milliseconds)]
     private static partial Regex SwiftTypeDeclaration();
-    [GeneratedRegex(@"^\s*(?:public\s+|open\s+|internal\s+)?func\s+([A-Za-z_]\w*)", RegexOptions.Multiline)]
+    [GeneratedRegex(@"^\s*(?:public\s+|open\s+|internal\s+)?func\s+([A-Za-z_]\w*)", RegexOptions.Multiline, RegexTimeout.Milliseconds)]
     private static partial Regex SwiftFunction();
-    [GeneratedRegex(@"^\s*class\s+([A-Za-z_]\w*)", RegexOptions.Multiline)]
+    [GeneratedRegex(@"^\s*class\s+([A-Za-z_]\w*)", RegexOptions.Multiline, RegexTimeout.Milliseconds)]
     private static partial Regex PythonClass();
-    [GeneratedRegex(@"^\s*(?:async\s+)?def\s+([A-Za-z_]\w*)", RegexOptions.Multiline)]
+    [GeneratedRegex(@"^\s*(?:async\s+)?def\s+([A-Za-z_]\w*)", RegexOptions.Multiline, RegexTimeout.Milliseconds)]
     private static partial Regex PythonFunction();
 }

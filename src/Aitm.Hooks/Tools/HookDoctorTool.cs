@@ -1,3 +1,4 @@
+using Aitm.Store.Data;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Aitm.Store.Tools;
@@ -116,10 +117,10 @@ public sealed partial class HookDoctorTool : ITool
             ? v.GetString()
             : null;
 
-    [GeneratedRegex(@"[a-z0-9-]+\.mjs\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"[a-z0-9-]+\.mjs\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, RegexTimeout.Milliseconds)]
     private static partial Regex HookScriptName();
-    [GeneratedRegex(@"(^|[/\\])aitm[/\\]", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"(^|[/\\])aitm[/\\]", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, RegexTimeout.Milliseconds)]
     private static partial Regex AitmInstallPath();
-    [GeneratedRegex("^aitm@", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    [GeneratedRegex("^aitm@", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, RegexTimeout.Milliseconds)]
     private static partial Regex AitmPluginKey();
 }

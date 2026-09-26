@@ -151,22 +151,22 @@ public sealed partial class IndexMemoryTool : ITool
             ("is able to", "can"), ("a number of", "several"), ("the majority of", "most"),
         };
         foreach ((string from, string to) in phrases)
-            text = Regex.Replace(text, Regex.Escape(from), to, RegexOptions.IgnoreCase);
+            text = Regex.Replace(text, Regex.Escape(from), to, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, RegexTimeout.Span);
         text = FillerWords().Replace(text, "");
         text = Surrogates().Replace(text, "");
         return RepeatedSpacesAndTabs().Replace(text, " ");
     }
 
-    [GeneratedRegex(@"\[\[([^\]]+)\]\]")]
+    [GeneratedRegex(@"\[\[([^\]]+)\]\]", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex WikiLink();
-    [GeneratedRegex(@"\[([^\]]+)\]\([^)]+\)")]
+    [GeneratedRegex(@"\[([^\]]+)\]\([^)]+\)", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex MarkdownLink();
-    [GeneratedRegex(@"\s{2,}")]
+    [GeneratedRegex(@"\s{2,}", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex ConsecutiveWhitespace();
-    [GeneratedRegex(@"\b(very|really|just|actually|basically|simply|essentially|quite|somewhat|fairly|definitely|absolutely|literally|obviously|clearly|please|kindly)\b ?", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"\b(very|really|just|actually|basically|simply|essentially|quite|somewhat|fairly|definitely|absolutely|literally|obviously|clearly|please|kindly)\b ?", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, RegexTimeout.Milliseconds)]
     private static partial Regex FillerWords();
-    [GeneratedRegex(@"\p{Cs}")]
+    [GeneratedRegex(@"\p{Cs}", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex Surrogates();
-    [GeneratedRegex(@"[ \t]{2,}")]
+    [GeneratedRegex(@"[ \t]{2,}", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex RepeatedSpacesAndTabs();
 }

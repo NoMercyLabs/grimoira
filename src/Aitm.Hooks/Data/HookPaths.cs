@@ -1,3 +1,4 @@
+using Aitm.Store.Data;
 using System.Text.RegularExpressions;
 
 namespace Aitm.Hooks.Data;
@@ -48,6 +49,6 @@ public static partial class HookPaths
     /// before opening a connection, same as the .mjs files' <c>existsSync(... 'aitm.db')</c> guard.</summary>
     public static string DbPath(string instance) => Path.Combine(InstanceDir(instance), "aitm.db");
 
-    [GeneratedRegex("[^a-z0-9_-]")]
+    [GeneratedRegex("[^a-z0-9_-]", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex NonSlugCharacters();
 }

@@ -46,6 +46,6 @@ public partial class EvalToolTests
     // mismatch on whitespace alone.
     private static string StripTiming(string s) => PaddedTimingMs().Replace(s.Replace("\r\n", "\n"), "<MS>");
 
-    [GeneratedRegex(@"[ \t]*\d+[.,]\d+ms")]
+    [GeneratedRegex(@"[ \t]*\d+[.,]\d+ms", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex PaddedTimingMs();
 }
