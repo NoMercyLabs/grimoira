@@ -17,7 +17,7 @@
 // launch-mcp.mjs uses the checkout's bin/. build-cli.ps1 and build-server.ps1 own their freshness there, so
 // the step only builds when they are missing.
 
-import { closeSync, existsSync, openSync, rmSync, statSync, writeSync } from 'node:fs';
+import { closeSync, existsSync, mkdirSync, openSync, rmSync, statSync, writeSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn, spawnSync } from 'node:child_process';
@@ -47,6 +47,7 @@ export function isCurrent(root, dataDir, pluginData) {
 
 /** Takes the build lock; false when another session holds it. */
 export function takeLock(dataDir) {
+  mkdirSync(dataDir, { recursive: true }); // the first session may be the first to use the data folder
   const lock = join(dataDir, LOCK);
   try {
     if (Date.now() - statSync(lock).mtimeMs > LOCK_EXPIRY_MS) rmSync(lock, { force: true });
