@@ -58,7 +58,7 @@ if (!existsSync(join(HERE, 'bin-server', 'Aitm.Server.dll'))) {
     process.exit(1);
   }
 }
-const runCli =(args, timeout = 300000) => {
+const runCli = (args, timeout = 300000) => {
   const useExe = existsSync(exe);
   const r = spawnSync(useExe ? exe : 'dotnet', useExe ? args : [dll, ...args], {
     encoding: 'utf8', timeout, cwd: root,

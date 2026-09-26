@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using Aitm.Cli.Tools;
 using Xunit;
 
 namespace Aitm.Layout.Tests;
@@ -9,9 +10,9 @@ namespace Aitm.Layout.Tests;
 // caller's own process, so only the caller's own timeout mattered; index-chat's chat import could run for
 // the full 900 s init.mjs gives it. Once the verb moved behind POST /cli, the server's own limit governs
 // too, and a server limit shorter than the caller's own wait would time out an import the old CLI would
-// have finished — a regression a code review reading either file alone would miss. These tests read both
-// sides as text (not by referencing CliEndpoint, which is internal, and not by running a 900 s import) and
-// assert one number against the other.
+// have finished — a regression a code review reading either file alone would miss. CliEndpoint is
+// internal and init.mjs is JavaScript, so those two are read as text; ThinClient.RequestTimeout is read
+// directly.
 public class CliClientTimeoutsCoverTheServerLimitTests
 {
     private static int LongTimeoutSeconds()
@@ -30,14 +31,6 @@ public class CliClientTimeoutsCoverTheServerLimitTests
         return int.Parse(match.Groups[1].Value);
     }
 
-    private static int ThinClientRequestTimeoutSeconds()
-    {
-        string source = File.ReadAllText(Path.Combine(RepoPaths.Root, "src", "Aitm.Cli", "Tools", "ThinClient.cs"));
-        Match match = Regex.Match(source, @"RequestTimeout = TimeSpan\.FromSeconds\((\d+)\)");
-        Assert.True(match.Success, "ThinClient.RequestTimeout was not found; the regex needs updating to match its new shape.");
-        return int.Parse(match.Groups[1].Value);
-    }
-
     [Fact]
     public void ServersLongVerbTimeoutIsAtLeastInitMjsGivesIndexChat()
     {
@@ -52,7 +45,7 @@ public class CliClientTimeoutsCoverTheServerLimitTests
     [Fact]
     public void ThinClientsOwnHttpTimeoutIsAtLeastTheServersLongVerbTimeout()
     {
-        int thinClientSeconds = ThinClientRequestTimeoutSeconds();
+        int thinClientSeconds = (int)ThinClient.RequestTimeout.TotalSeconds;
         int serverSeconds = LongTimeoutSeconds();
 
         Assert.True(thinClientSeconds >= serverSeconds,

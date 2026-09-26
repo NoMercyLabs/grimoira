@@ -15,5 +15,8 @@
          store directly and stay on Aitm.TestSupport alone. -->
     <ProjectReference Include="..\..\src\Aitm.Store\Aitm.Store.csproj" />
     <ProjectReference Include="..\..\src\Aitm.Graph\Aitm.Graph.csproj" />
+    <!-- CliClientTimeoutsCoverTheServerLimitTests reads ThinClient.RequestTimeout itself. Private: Aitm.Server.Tests
+         references this project, and the thin client's types would clash with Aitm.Brain's there. -->
+    <ProjectReference Include="..\..\src\Aitm.Cli\Aitm.Cli.csproj" PrivateAssets="all" />
   </ItemGroup>
 </Project>

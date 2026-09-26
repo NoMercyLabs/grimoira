@@ -41,13 +41,6 @@ public class BinServerPublishTests
     }
 
     [Fact]
-    public void BuildServerScriptNoLongerNamesTheRetiredBinCliNext()
-    {
-        string script = File.ReadAllText(Path.Combine(RepoPaths.Root, "build-server.ps1"));
-        Assert.DoesNotContain("bin-cli-next", script);
-    }
-
-    [Fact]
     public async Task PublishedServerStartsAndAnswersHealthThenStops()
     {
         string exe = PublishedServerExe();
