@@ -67,4 +67,33 @@ public class HookCommandTests
         string[] args = hook.GetProperty("args").EnumerateArray().Select(a => a.GetString()!).ToArray();
         Assert.Equal("${CLAUDE_PLUGIN_ROOT}/bin-cli/aitm.dll", args[0]);
     }
+
+    // RESTRUCTURE.md slice 30: the PreCompact, UserPromptSubmit and SessionEnd slots run `aitm hook <event>`
+    // from the published CLI, in the same portable exec form as SessionStart. SessionEnd is one slot: the
+    // server's /hooks/SessionEnd runs all three SessionEnd handlers, so three slots would run each three times.
+    [Theory]
+    [InlineData("PreCompact")]
+    [InlineData("UserPromptSubmit")]
+    [InlineData("SessionEnd")]
+    public void TheEventRunsTheHookVerbOfThePublishedCli(string eventName)
+    {
+        using JsonDocument doc = JsonDocument.Parse(File.ReadAllText(Path.Combine(RepoPaths.Root, "hooks", "hooks.json")));
+        JsonElement group = Assert.Single(doc.RootElement.GetProperty("hooks").GetProperty(eventName).EnumerateArray());
+        JsonElement hook = Assert.Single(group.GetProperty("hooks").EnumerateArray());
+
+        Assert.Equal("dotnet", hook.GetProperty("command").GetString());
+        string[] args = hook.GetProperty("args").EnumerateArray().Select(a => a.GetString()!).ToArray();
+        Assert.Equal(["${CLAUDE_PLUGIN_ROOT}/bin-cli/aitm.dll", "hook", eventName], args);
+    }
+
+    // The SessionEnd handlers index for seconds. Claude Code gives SessionEnd hooks a shared 1.5 s budget
+    // that a plugin's own timeout does not raise; only an async command hook is not cut at it.
+    [Fact]
+    public void TheSessionEndSlotStaysAsync()
+    {
+        using JsonDocument doc = JsonDocument.Parse(File.ReadAllText(Path.Combine(RepoPaths.Root, "hooks", "hooks.json")));
+        JsonElement hook = doc.RootElement.GetProperty("hooks").GetProperty("SessionEnd")[0].GetProperty("hooks")[0];
+
+        Assert.True(hook.GetProperty("async").GetBoolean());
+    }
 }
