@@ -80,6 +80,18 @@ test('a fresh data folder starts one build, prints one line and exits 0 without 
   } finally { f.clean(); }
 });
 
+// Found by the end-to-end run: with no data folder yet the lock file could not be created, which read as
+// "another session is building", so nothing ever built.
+test('a data folder that does not exist yet is created and the build starts', () => {
+  const f = fixture();
+  try {
+    rmSync(f.dataDir, { recursive: true, force: true });
+    const { code, calls } = run(f);
+    assert.equal(code, 0);
+    assert.deepEqual(calls.build, [f.dataDir]);
+  } finally { f.clean(); }
+});
+
 test('a second SessionStart while the first build runs starts no second build', () => {
   const f = fixture();
   try {
