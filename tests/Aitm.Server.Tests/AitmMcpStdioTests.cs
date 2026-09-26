@@ -1,0 +1,143 @@
+using System.Diagnostics;
+using System.Text;
+using System.Text.Json;
+using Aitm.Facts.Tools;
+using Aitm.Layout.Tests;
+using ModelContextProtocol.Client;
+using ModelContextProtocol.Protocol;
+using Xunit;
+
+namespace Aitm.Server.Tests;
+
+// RESTRUCTURE.md Slice P1: "`aitm mcp` is Claude Code's MCP server over stdio". The published CLI runs as its
+// own process against a real service on a temp data dir (so a pipe name of its own). stdout is the protocol
+// stream: only JSON-RPC frames may appear on it.
+public sealed class AitmMcpStdioTests : IDisposable
+{
+    private const string Instance = "mcp-stdio";
+    private readonly string _dataDir = Directory.CreateTempSubdirectory("aitm-mcp-stdio-").FullName;
+
+    public void Dispose()
+    {
+        try { Directory.Delete(_dataDir, recursive: true); } catch { /* best effort */ }
+    }
+
+    private Task<McpClient> ConnectAsync(IDictionary<string, string?>? extraEnv = null)
+    {
+        Dictionary<string, string?> env = new()
+        {
+            ["AITM_DATA_DIR"] = _dataDir,
+            ["AITM_INSTANCE"] = Instance,
+        };
+        if (extraEnv is not null) foreach ((string k, string? v) in extraEnv) env[k] = v;
+        return McpClient.CreateAsync(new StdioClientTransport(new StdioClientTransportOptions
+        {
+            Name = "aitm-under-test",
+            Command = "dotnet",
+            Arguments = [RunningServer.CliDll, "mcp"],
+            EnvironmentVariables = env,
+        }));
+    }
+
+    private void SeedFact()
+    {
+        string dbPath = Path.Combine(_dataDir, Instance, "aitm.db");
+        Directory.CreateDirectory(Path.GetDirectoryName(dbPath)!);
+        HttpSnapshotParityTests.Seed(dbPath, c => new AddTool().Execute(c, "stdio-term", "", "manual", "stdio-answer", "src", "", "stated"));
+        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+    }
+
+    [Fact]
+    public async Task InitializeListsTheGoldenToolsAndCallsGoThroughTheService()
+    {
+        SeedFact();
+        using RunningServer server = RunningServer.Start(_dataDir);
+        await using McpClient client = await ConnectAsync();
+
+        IList<McpClientTool> tools = await client.ListToolsAsync();
+        CallToolResult result = await client.CallToolAsync("fact", new Dictionary<string, object?> { ["query"] = "stdio-term" });
+
+        Assert.Equal(GoldenListsTests.GoldenMcpTools.OrderBy(n => n), tools.Select(t => t.Name).OrderBy(n => n));
+        Assert.NotEqual(true, result.IsError);
+        Assert.Contains("stdio-answer", ((TextContentBlock)result.Content[0]).Text);
+        Assert.All(tools, t => Assert.Equal(JsonValueKind.Object, t.JsonSchema.ValueKind));
+    }
+
+    [Fact]
+    public async Task AToolErrorComesBackAsAnMcpToolErrorAndTheSessionGoesOn()
+    {
+        SeedFact();
+        using RunningServer server = RunningServer.Start(_dataDir);
+        await using McpClient client = await ConnectAsync();
+
+        CallToolResult bad = await client.CallToolAsync("fact", new Dictionary<string, object?> { ["query"] = new[] { 1, 2 } });
+        CallToolResult good = await client.CallToolAsync("fact", new Dictionary<string, object?> { ["query"] = "stdio-term" });
+
+        Assert.True(bad.IsError);
+        Assert.NotEqual(true, good.IsError);
+    }
+
+    [Fact]
+    public async Task StdoutCarriesOnlyJsonRpcFrames()
+    {
+        SeedFact();
+        using RunningServer server = RunningServer.Start(_dataDir);
+        ProcessStartInfo psi = new("dotnet")
+        {
+            UseShellExecute = false, RedirectStandardInput = true, RedirectStandardOutput = true, RedirectStandardError = true,
+            StandardOutputEncoding = Encoding.UTF8,
+        };
+        psi.ArgumentList.Add(RunningServer.CliDll);
+        psi.ArgumentList.Add("mcp");
+        psi.Environment["AITM_DATA_DIR"] = _dataDir;
+        psi.Environment["AITM_INSTANCE"] = Instance;
+        using Process cli = Process.Start(psi)!;
+        Task<string> stderr = cli.StandardError.ReadToEndAsync();
+
+        await cli.StandardInput.WriteLineAsync("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2025-06-18\",\"capabilities\":{},\"clientInfo\":{\"name\":\"t\",\"version\":\"1\"}}}");
+        await cli.StandardInput.WriteLineAsync("{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\"}");
+        await cli.StandardInput.WriteLineAsync("{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/list\"}");
+        await cli.StandardInput.WriteLineAsync("{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"tools/call\",\"params\":{\"name\":\"fact\",\"arguments\":{\"query\":[1]}}}");
+        await cli.StandardInput.WriteLineAsync("{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"tools/call\",\"params\":{\"name\":\"no_such_tool\",\"arguments\":{}}}");
+        await cli.StandardInput.FlushAsync();
+
+        List<string> lines = [];
+        using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(60));
+        while (lines.Count < 4)
+        {
+            string? line = await cli.StandardOutput.ReadLineAsync(timeout.Token);
+            if (line is null) break;
+            lines.Add(line);
+        }
+        cli.StandardInput.Close();
+        Assert.True(cli.WaitForExit(20000), "aitm mcp did not exit when stdin closed");
+        string rest = await cli.StandardOutput.ReadToEndAsync();
+
+        Assert.Equal(4, lines.Count);
+        Assert.All(lines.Append(rest).Where(l => l.Length > 0), l =>
+        {
+            using JsonDocument frame = JsonDocument.Parse(l);
+            Assert.Equal("2.0", frame.RootElement.GetProperty("jsonrpc").GetString());
+        });
+        _ = await stderr;
+    }
+
+    [Fact]
+    public async Task WithNoServerAndNoneToStartItExitsOneWithNothingOnStdout()
+    {
+        ProcessStartInfo psi = new("dotnet") { UseShellExecute = false, RedirectStandardInput = true, RedirectStandardOutput = true, RedirectStandardError = true };
+        psi.ArgumentList.Add(RunningServer.CliDll);
+        psi.ArgumentList.Add("mcp");
+        psi.Environment["AITM_DATA_DIR"] = _dataDir;
+        psi.Environment["AITM_SERVER_EXE"] = Path.Combine(_dataDir, "no-such-server.exe");
+        using Process cli = Process.Start(psi)!;
+        Task<string> stdout = cli.StandardOutput.ReadToEndAsync();
+        Task<string> stderr = cli.StandardError.ReadToEndAsync();
+
+        Assert.True(cli.WaitForExit(30000), "aitm mcp did not give up on a server it cannot start");
+
+        Assert.Equal(1, cli.ExitCode);
+        Assert.Equal("", await stdout);
+        Assert.Contains("aitm mcp", await stderr);
+    }
+}

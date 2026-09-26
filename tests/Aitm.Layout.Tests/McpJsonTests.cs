@@ -3,25 +3,26 @@ using Xunit;
 
 namespace Aitm.Layout.Tests;
 
-// RESTRUCTURE.md slice 28: the `aitm` entry in .mcp.json is the http entry for the server, with
-// `headers: { "Claude-Project-Dir": "${CLAUDE_PROJECT_DIR}" }` and nothing that carries a credential. A SessionStart hook starts the server when /health does not answer, through the
-// built CLI (`aitm hook SessionStart`), never `dotnet run`.
+// RESTRUCTURE.md Slice P1: the `aitm` entry in .mcp.json is a stdio server: `node run-mcp.mjs`, which runs the
+// published CLI's `mcp` verb (no http url, no headers, no headersHelper, nothing that carries a credential).
+// A SessionStart hook starts the service when /health does not answer, through the built CLI.
 public class McpJsonTests
 {
     [Fact]
-    public void AitmEntryIsTheHttpServerWithTheProjectHeaderAndNoCredential()
+    public void AitmEntryIsAStdioServerThroughTheNoBuildNoNoiseStepWithNoHttpAndNoCredential()
     {
         using JsonDocument doc = JsonDocument.Parse(File.ReadAllText(Path.Combine(RepoPaths.Root, ".mcp.json")));
         JsonElement aitm = doc.RootElement.GetProperty("mcpServers").GetProperty("aitm");
 
-        Assert.Equal("http", aitm.GetProperty("type").GetString());
-        Assert.Equal("http://127.0.0.1:7635/mcp", aitm.GetProperty("url").GetString());
-        JsonElement headers = aitm.GetProperty("headers");
-        Assert.Equal("${CLAUDE_PROJECT_DIR}", headers.GetProperty("Claude-Project-Dir").GetString());
-        // AITM holds no secret (the owner, 2026-09-26): no token in the file and no helper that fetches one.
-        Assert.False(headers.TryGetProperty("Authorization", out _));
+        Assert.Equal("node", aitm.GetProperty("command").GetString());
+        Assert.Equal(
+            ["${CLAUDE_PLUGIN_ROOT}/run-mcp.mjs"],
+            aitm.GetProperty("args").EnumerateArray().Select(a => a.GetString()!).ToArray());
+        Assert.True(File.Exists(Path.Combine(RepoPaths.Root, "run-mcp.mjs")));
+        Assert.False(aitm.TryGetProperty("url", out _));
+        Assert.False(aitm.TryGetProperty("headers", out _));
         Assert.False(aitm.TryGetProperty("headersHelper", out _));
-        Assert.False(aitm.TryGetProperty("command", out _));
+        Assert.DoesNotContain("7635", File.ReadAllText(Path.Combine(RepoPaths.Root, ".mcp.json")));
     }
 
     [Fact]
