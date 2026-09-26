@@ -20,9 +20,9 @@
 import { closeSync, existsSync, mkdirSync, openSync, renameSync, rmSync, statSync, writeFileSync, writeSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { spawn, spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { readStamp, treeHash } from './build-stamp.mjs';
-import { liveBuildDir } from './published-cli.mjs';
+import { liveBuildDir, runCliHook } from './published-cli.mjs';
 
 /** Every input of `dotnet publish` for the CLI and the server: all project sources and the shared build files. */
 export const BUILD_INPUTS = ['src', 'Directory.Build.props', 'Directory.Packages.props', 'global.json'];
@@ -112,11 +112,7 @@ function main() {
     root,
     dataDir: pluginData || root,
     pluginData: Boolean(pluginData),
-    runHook: (cli, env) => {
-      const hook = spawnSync('dotnet', [cli, 'hook', 'SessionStart'],
-        { stdio: 'inherit', windowsHide: true, env: { ...process.env, ...env } });
-      return hook.status ?? 0; // a hook that could not start fails open, like the CLI's own hook
-    },
+    runHook: (cli, env) => runCliHook(cli, 'SessionStart', env.AITM_PLUGIN_ROOT),
     startBuild: dataDir => startDetached(join(root, 'build-cli-and-server.mjs'), [dataDir]),
     write: line => process.stdout.write(`${line}\n`),
   });
