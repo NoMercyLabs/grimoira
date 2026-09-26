@@ -75,14 +75,17 @@ public class SecretScrubberTests
     private static string ManyPemHeadersWithoutAFooter() => string.Concat(Enumerable.Repeat("-----BEGIN PRIVATE KEY-----", 100_000));
 
     [Fact]
-    public void ATimedOutScrubPatternRedactsTheWholeTextInsteadOfLeakingIt()
+    public void ManyPemHeadersWithoutAFooterAreScrubbedInLinearTimeNotTimedOut()
     {
         string hostile = ManyPemHeadersWithoutAFooter() + " Bearer abcDEF123456.ghIJKL7890-secretvalue";
 
         (string text, IReadOnlyDictionary<string, int> counts) = SecretScrubber.Redact(hostile);
 
-        // Fail closed: never the unscrubbed text, never an exception; the whole text becomes one marker.
-        Assert.Equal("[redacted: scrub timed out]", text);
-        Assert.Equal(1, counts["scrub-timeout"]);
+        // The footer-less headers are not keys, so they stay; the real secret after them is still redacted,
+        // and no pattern timed out.
+        Assert.NotEqual(SecretScrubber.TimedOutMarker, text);
+        Assert.Contains("[redacted:bearer]", text);
+        Assert.DoesNotContain("secretvalue", text);
+        Assert.DoesNotContain(SecretScrubber.TimedOutKind, counts.Keys);
     }
 }
