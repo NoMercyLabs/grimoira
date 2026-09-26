@@ -1,21 +1,21 @@
 using System.Reflection;
 using Aitm.Server.Data;
+using Microsoft.AspNetCore.Server.Kestrel.Transport.NamedPipes;
 using ModelContextProtocol.Server;
 
-// RESTRUCTURE.md "Slice 25: Aitm.Server host." A Kestrel host on 127.0.0.1:7635 only. It rejects a
-// wrong Host header and any request carrying an Origin header (a browser reaching localhost). It holds no
-// secret and checks no token (the owner, 2026-09-26: "AITM is for remembering everything"; authenticated
-// traffic is Arcanum's job): the guard is the loopback bind, the Host check and the Origin refusal. An old
-// server.token file is ignored, never deleted. Single instance per data directory via
-// ProcessOwner.TryAcquireSingleInstanceLock.
+// RESTRUCTURE.md "Phase 4, replaced (the owner, 2026-09-26): one command, a service behind a local pipe, no
+// HTTP" (supersedes "Slice 25: Aitm.Server host"): "The service owns the store and is reached only through
+// a local pipe: a named pipe on Windows, a Unix domain socket on macOS/Linux, created so only the current
+// user can open it. No TCP port, no HTTP listener on the network, no token, no Host/Origin guard." The old
+// Host-header check and Origin refusal are removed with it: there is nothing on the network left for them
+// to guard. An old server.token file is ignored, never deleted (unrelated to this change; kept as-is).
+// Single instance per data directory via ProcessOwner.TryAcquireSingleInstanceLock.
 //
-// RESTRUCTURE.md "Slice 26: /mcp on the server, beside mcp.cs." Adds the 25 golden MCP tools at /mcp,
-// behind the same guard as every other route. mcp.cs stays the working
-// host for the live session (.mcp.json still starts it) until phase 3 switches over.
+// RESTRUCTURE.md "Slice 26: /mcp on the server, beside mcp.cs." Adds the 25 golden MCP tools at /mcp.
+// mcp.cs stays the working host for the live session (.mcp.json still starts it) until phase 3 switches over.
 
 string dataDir = Environment.GetEnvironmentVariable("AITM_DATA_DIR")
     ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".aitm");
-int port = int.TryParse(Environment.GetEnvironmentVariable("AITM_SERVER_PORT"), out int configuredPort) ? configuredPort : 7635;
 string projectRoot = Environment.GetEnvironmentVariable("CLAUDE_PROJECT_DIR") ?? Directory.GetCurrentDirectory();
 
 Directory.CreateDirectory(dataDir);
@@ -36,8 +36,27 @@ string version = Assembly.GetExecutingAssembly().GetCustomAttribute<AssemblyInfo
     ?? "dev";
 string? buildStamp = BuildStamp.OfPublishedBuild(AppContext.BaseDirectory);
 
+string? unixSocketPath = OperatingSystem.IsWindows() ? null : ServerAddress.SocketPath(dataDir);
+
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
-builder.WebHost.UseUrls($"http://127.0.0.1:{port}");
+if (OperatingSystem.IsWindows())
+{
+    // Kestrel's named-pipe transport restricts the pipe to the current user by default; CurrentUserOnly
+    // is set explicitly (not left as the default) so a future refactor cannot silently loosen it, and so
+    // PipeOnlyTransportTests has something visible in source to pin.
+    builder.WebHost.UseNamedPipes(options => options.CurrentUserOnly = true);
+    builder.WebHost.ConfigureKestrel(o => o.ListenNamedPipe(ServerAddress.PipeName(dataDir)));
+}
+else
+{
+    // The socket file inherits the data directory's own permissions; the directory is set to user-only
+    // (0700) below, and the socket file itself is set to 0600 right after Kestrel creates it (it does not
+    // exist until the transport binds, so this cannot happen any earlier than after StartAsync).
+    try { File.SetUnixFileMode(dataDir, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute); }
+    catch (PlatformNotSupportedException) { /* already covered by the Windows branch above */ }
+    try { File.Delete(unixSocketPath!); } catch (IOException) { /* nothing to remove */ }
+    builder.WebHost.ConfigureKestrel(o => o.ListenUnixSocket(unixSocketPath!));
+}
 // RESTRUCTURE.md "Slice 32b": a stop (POST /shutdown, Ctrl+C, a logoff) lets every call in flight finish.
 // The longest call the server takes is a long /cli verb, so the drain waits that long, never the 30 s default.
 builder.Services.Configure<HostOptions>(options => options.ShutdownTimeout = CliEndpoint.LongTimeout);
@@ -61,30 +80,6 @@ WebApplication app = builder.Build();
 // (RESTRUCTURE.md slice 32b: the old server finishes its calls in flight, then exits).
 app.Lifetime.ApplicationStopped.Register(projectStore.Dispose);
 
-string[] allowedHosts = [$"127.0.0.1:{port}", $"localhost:{port}"];
-
-app.Use(async (context, next) =>
-{
-    string? host = context.Request.Host.Value;
-    if (host is null || Array.IndexOf(allowedHosts, host) < 0)
-    {
-        context.Response.StatusCode = StatusCodes.Status400BadRequest;
-        await context.Response.WriteAsync("host not allowed");
-        return;
-    }
-
-    if (context.Request.Headers.ContainsKey("Origin"))
-    {
-        // Section 5, "Network path": a web page in a local browser can reach 127.0.0.1; an Origin
-        // header is only ever sent by a browser (or something imitating one), so it is refused outright.
-        context.Response.StatusCode = StatusCodes.Status400BadRequest;
-        await context.Response.WriteAsync("browser origin not allowed");
-        return;
-    }
-
-    await next();
-});
-
 app.MapGet("/health", () => Results.Json(new
 {
     version,
@@ -93,15 +88,15 @@ app.MapGet("/health", () => Results.Json(new
     openStores = projectStore.OpenInstances,
 }));
 
-// The 25 golden MCP tools, behind the same Host and Origin guard as every route above.
+// The 25 golden MCP tools. Reachable only over the pipe/socket above (no Host/Origin guard needed).
 app.MapMcp("/mcp");
 
-// RESTRUCTURE.md "Slice 34": Claude Code http hooks, behind the same guard; runs the
-// slice 20-22 handlers under the same per-project writer gate as /mcp (HookEndpoint).
+// RESTRUCTURE.md "Slice 34": Claude Code http hooks; runs the slice 20-22 handlers under the same
+// per-project writer gate as /mcp (HookEndpoint).
 app.MapPost("/hooks/{event}", (string @event, HttpContext context) => HookEndpoint.Handle(@event, context, projectStore));
 
-// RESTRUCTURE.md "Slice 29c": the CLI verbs, behind the same guard; each runs on the project's
-// one open connection under its writer gate, with a timeout that answers exit 124 (CliEndpoint).
+// RESTRUCTURE.md "Slice 29c": the CLI verbs; each runs on the project's one open connection under its
+// writer gate, with a timeout that answers exit 124 (CliEndpoint).
 app.MapPost("/cli", (Func<HttpContext, Task<IResult>>)(context => CliEndpoint.Handle(context, projectStore, dataDir)));
 
 // RESTRUCTURE.md "Slice 32b": the SessionStart of a newer build asks this server to make way. It stops
@@ -112,7 +107,15 @@ app.MapPost("/shutdown", (IHostApplicationLifetime lifetime) =>
     return Results.Accepted();
 });
 
-app.Run();
+await app.StartAsync();
+if (!OperatingSystem.IsWindows() && unixSocketPath is not null)
+{
+    // The socket file only exists from here on: Kestrel creates it when the transport binds, which
+    // happens inside StartAsync, not at ListenUnixSocket configuration time.
+    try { File.SetUnixFileMode(unixSocketPath, UnixFileMode.UserRead | UnixFileMode.UserWrite); }
+    catch (IOException) { /* the socket file vanished (a racing shutdown); nothing left to secure */ }
+}
+await app.WaitForShutdownAsync();
 
 // Makes the top-level Program class visible to Aitm.Server.Tests' WebApplicationFactory<Program>.
 public partial class Program;
