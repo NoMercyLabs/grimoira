@@ -89,4 +89,26 @@ public sealed class PipeTransportRealProcessTests : IDisposable
         _server?.Dispose();
         try { Directory.Delete(_dataDir, recursive: true); } catch { /* best effort cleanup */ }
     }
+
+    // Pipe squatting: if something already owns the pipe name, a server started afterwards must fail loudly,
+    // not quietly share or lose the name to the squatter. Kestrel's named-pipe listener must create the
+    // FIRST instance.
+    [Fact]
+    public async Task AServerStartedAfterASquatterOnThePipeNameFailsLoudly()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        using System.IO.Pipes.NamedPipeServerStream squatter = new(Aitm.Server.Data.ServerAddress.PipeName(_dataDir),
+            System.IO.Pipes.PipeDirection.InOut, 4, System.IO.Pipes.PipeTransmissionMode.Byte, System.IO.Pipes.PipeOptions.Asynchronous);
+        Assert.True(File.Exists(ServerDll), $"Aitm.Server not built at {ServerDll}");
+        ProcessStartInfo psi = new("dotnet") { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true };
+        psi.ArgumentList.Add(ServerDll);
+        psi.Environment["AITM_DATA_DIR"] = _dataDir;
+        _server = Process.Start(psi)!;
+
+        bool exited = _server.WaitForExit(20000);
+        await Task.CompletedTask;
+
+        Assert.True(exited, "the server kept running although its pipe name was already taken");
+        Assert.NotEqual(0, _server.ExitCode);
+    }
 }

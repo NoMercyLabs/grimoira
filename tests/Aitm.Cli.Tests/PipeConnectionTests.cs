@@ -1,3 +1,4 @@
+using System.IO.Pipes;
 using Aitm.Cli.Tools;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -80,5 +81,29 @@ public sealed class PipeConnectionTests : IDisposable
         _app?.StopAsync().GetAwaiter().GetResult();
         _app?.DisposeAsync().AsTask().GetAwaiter().GetResult();
         try { Directory.Delete(_dataDir, recursive: true); } catch { /* best effort cleanup */ }
+    }
+
+    // Pipe squatting: another user who creates the pipe first must not receive our requests. With
+    // CurrentUserOnly the client refuses a pipe owned by anyone else. I cannot run as a second OS user, so
+    // this asserts the option is passed and that a pipe made by the same user still connects.
+    [Fact]
+    public void TheClientOpensThePipeWithCurrentUserOnly()
+    {
+        Assert.True(PipeConnection.ClientPipeOptions.HasFlag(PipeOptions.CurrentUserOnly));
+        Assert.True(PipeConnection.ClientPipeOptions.HasFlag(PipeOptions.Asynchronous));
+    }
+
+    [Fact]
+    public async Task APipeMadeByTheSameUserStillConnects()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        using NamedPipeServerStream pipe = new(ServerAddress.PipeName(_dataDir), PipeDirection.InOut, 1,
+            PipeTransmissionMode.Byte, PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
+        Task accepted = pipe.WaitForConnectionAsync();
+        using HttpClient client = PipeConnection.CreateClient(_dataDir, TimeSpan.FromMilliseconds(500), TimeSpan.FromMilliseconds(700));
+
+        await Assert.ThrowsAnyAsync<Exception>(() => client.GetAsync("/ping")); // the stand-in never speaks HTTP
+
+        Assert.True(accepted.Wait(2000), "the client never connected to the same-user pipe");
     }
 }
