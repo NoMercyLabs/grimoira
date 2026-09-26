@@ -46,6 +46,10 @@ jobs:
       - name: Build MCP server
         run: dotnet build mcp.cs -c Release -o bin
 
+      # the owner, 2026-09-26: the code style "must be enforced by rules". A file the fixer would rewrite fails CI.
+      - name: Code style
+        run: dotnet format style Aitm.sln --severity info --diagnostics IDE0005 IDE0008 IDE0028 IDE0090 IDE0300 IDE0301 IDE0305 IDE0370 --verify-no-changes
+
       - name: Solution tests
         run: dotnet test Aitm.sln -c Release
 

@@ -1,9 +1,6 @@
 <Project>
-  <!-- RESTRUCTURE.md slice 24 "Also": an unused parameter is a build error under src/ only —
-       not tests/, and not the file-based aitm.cs/mcp.cs apps (they live at the repo root, above
-       this folder, so MSBuild never applies this file to them). EnforceCodeStyleInBuild turns on
-       code-style analysis (IDE-prefixed rules) during `dotnet build`, not just in the IDE; the
-       severity itself (error) comes from src/.editorconfig's dotnet_diagnostic.IDE0060.severity. -->
+  <!-- Code-style rules (repo-root .editorconfig) are enforced in the build for tests too: the cleanup
+       that prompted them touched test files as well. IDE0060 stays src-only (src/.editorconfig). -->
   <Import Project="$(MSBuildThisFileDirectory)..\Directory.Build.props" />
   <PropertyGroup>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>

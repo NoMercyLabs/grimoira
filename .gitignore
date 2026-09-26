@@ -26,3 +26,6 @@ ship-msg*.txt
 
 # Disposable fixture trees a test builds and deletes; never real content.
 .test-fixtures/
+
+# JetBrains Rider / IDE state.
+.idea/

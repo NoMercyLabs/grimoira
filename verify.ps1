@@ -28,6 +28,14 @@ if (-not $SkipBuild) {
     if ($buildExit -ne 0) { $failed += 'Aitm.Server build' }
 }
 
+Write-Host '-- code style (dotnet format style --verify-no-changes)' -ForegroundColor Cyan
+# The style rules in the repo-root .editorconfig are errors in the build already; this also fails on a file
+# `dotnet format` would rewrite. Fix a failure by running the same command without --verify-no-changes.
+$out = & dotnet format style "$PSScriptRoot/Aitm.sln" --severity info --diagnostics IDE0005 IDE0008 IDE0028 IDE0090 IDE0300 IDE0301 IDE0305 IDE0370 --verify-no-changes 2>&1
+$styleExit = $LASTEXITCODE
+$out | Select-Object -Last 5
+if ($styleExit -ne 0) { $failed += 'code style (dotnet format style)' }
+
 Write-Host '-- dotnet test Aitm.sln' -ForegroundColor Cyan
 # From slice 2 on (RESTRUCTURE.md section 4, "Exit check for every slice"): the new solution's own
 # test projects, run alongside the Node suites below until phase 2 finishes moving every feature.
