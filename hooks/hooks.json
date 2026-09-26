@@ -42,8 +42,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/compact-restore.mjs"],
+            "command": "dotnet",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/bin-cli/aitm.dll", "hook", "UserPromptSubmit"],
             "timeout": 10
           }
         ]
@@ -78,8 +78,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/compact-brief.mjs"],
+            "command": "dotnet",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/bin-cli/aitm.dll", "hook", "PreCompact"],
             "timeout": 20,
             "statusMessage": "Saving anchors before compaction…"
           }
@@ -91,23 +91,9 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/session-index.mjs"],
-            "timeout": 90,
-            "async": true
-          },
-          {
-            "type": "command",
-            "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/session-index-docs.mjs"],
-            "timeout": 120,
-            "async": true
-          },
-          {
-            "type": "command",
-            "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/index-code.mjs", "--quiet"],
-            "timeout": 180,
+            "command": "dotnet",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/bin-cli/aitm.dll", "hook", "SessionEnd"],
+            "timeout": 390,
             "async": true
           }
         ]
