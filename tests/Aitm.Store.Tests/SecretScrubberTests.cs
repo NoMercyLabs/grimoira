@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Aitm.Store.Data;
 using Xunit;
 
@@ -6,7 +7,7 @@ namespace Aitm.Store.Tests;
 // RESTRUCTURE.md docs/RESTRUCTURE.md, design checklist "Secrets in outputs": "index-chat removes
 // token-shaped strings (JWTs, `Bearer ...`, common key prefixes) before it stores chat." This is the
 // shared scrubber both the new IndexChatTool and today's aitm.cs IndexChat call.
-public class SecretScrubberTests
+public partial class SecretScrubberTests
 {
     [Fact]
     public void RedactsAJwt()
@@ -87,5 +88,24 @@ public class SecretScrubberTests
         Assert.Contains("[redacted:bearer]", text);
         Assert.DoesNotContain("secretvalue", text);
         Assert.DoesNotContain(SecretScrubber.TimedOutKind, counts.Keys);
+    }
+
+    // Overlapping alternation under a nested quantifier: exponential on 60 a's followed by a character that
+    // cannot match, so it always outruns the shared timeout. Stands in for any scrub pattern that times out.
+    [GeneratedRegex(@"^(a|aa)+$", RegexOptions.None, RegexTimeout.Milliseconds)]
+    private static partial Regex OverlappingAlternationThatNeverFinishes();
+
+    [Fact]
+    public void ATimedOutScrubPatternRedactsTheWholeTextInsteadOfLeakingIt()
+    {
+        string secret = "Bearer abcDEF123456.ghIJKL7890-secretvalue";
+        string text = new string('a', 60) + "! " + secret;
+
+        (string scrubbed, IReadOnlyDictionary<string, int> counts) =
+            SecretScrubber.Redact(text, [("stuck", OverlappingAlternationThatNeverFinishes())]);
+
+        // Fail closed: never the unscrubbed text, never an exception; the whole text becomes one marker.
+        Assert.Equal(SecretScrubber.TimedOutMarker, scrubbed);
+        Assert.Equal(1, counts[SecretScrubber.TimedOutKind]);
     }
 }
