@@ -17,7 +17,7 @@ namespace Aitm.Server.Tests;
 /// RESTRUCTURE.md "Slice 26b: every MCP tool over HTTP equals the old mcp.dll." For each of the 25
 /// golden MCP tools (<see cref="Aitm.Layout.Tests.GoldenListsTests.GoldenMcpTools"/>), seeds two
 /// identical fresh stores — one under a temp <c>AITM_DATA_DIR</c> for the real <c>/mcp</c> HTTP endpoint
-/// (<see cref="WebApplicationFactory{TEntryPoint}"/>, bearer token, the <see cref="RequestProjectResolver.InstanceHeader"/>
+/// (<see cref="WebApplicationFactory{TEntryPoint}"/>, the <see cref="RequestProjectResolver.InstanceHeader"/>
 /// header), one under a throwaway <c>test-*</c> instance for the pinned pre-slice-24 <c>mcp.dll</c>
 /// snapshot (<see cref="McpSnapshotHarness"/>, stdio) — and asserts the two give byte-identical text for
 /// one normal call and one error/miss call. Seeding calls each feature's own tool class directly against

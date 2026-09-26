@@ -9,7 +9,7 @@ namespace Aitm.Server.Data;
 /// directory, created user-only (Unix 0600 at creation; on Windows an ACL with only the current user and
 /// inheritance removed, applied before the move), then moved over the target. There is no window where the
 /// file is readable by anyone else, and a reader never sees a half-written file. Used for
-/// <see cref="ServerToken"/>'s server.token and <see cref="Handover.IdPTokenTool"/>'s token file.
+/// <see cref="Handover.IdPTokenTool"/>'s token file.
 /// </summary>
 internal static class UserOnlySecretFile
 {

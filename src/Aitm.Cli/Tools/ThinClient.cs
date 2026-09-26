@@ -1,5 +1,4 @@
 using System.Net;
-using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 
@@ -7,8 +6,7 @@ namespace Aitm.Cli.Tools;
 
 /// <summary>
 /// RESTRUCTURE.md slice 29d: `aitm &lt;verb&gt;` as a thin client of Aitm.Server's <c>POST /cli</c>. Body
-/// <c>{ "args", "cwd" }</c>, bearer token from <c>server.token</c> (the file `aitm server headers` reads),
-/// the project in the <c>Claude-Project-Dir</c> header (and <c>Aitm-Instance</c> when set), exactly the inputs
+/// <c>{ "args", "cwd" }</c>, no token (AITM holds no secret; the server trusts loopback only), the project in the <c>Claude-Project-Dir</c> header (and <c>Aitm-Instance</c> when set), exactly the inputs
 /// the old CLI resolved its instance from (<c>AITM_INSTANCE</c>, <c>CLAUDE_PROJECT_DIR</c>, else the current
 /// directory). The answer's stdout and stderr are written as they are and its <c>exitCode</c> is returned.
 ///
@@ -21,7 +19,7 @@ public static class ThinClient
     /// <summary>Above the server's longest verb timeout (900 s), so the server's own 124 answer arrives first.</summary>
     public static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(960);
 
-    public static int Run(string[] args, string cwd, int port, string dataDir, string? instanceEnv, string? projectDirEnv,
+    public static int Run(string[] args, string cwd, int port, string? instanceEnv, string? projectDirEnv,
         Func<bool> ensureServer, string serverExe, TextWriter stdout, TextWriter stderr)
     {
         string url = $"http://127.0.0.1:{port}/cli";
@@ -31,7 +29,7 @@ public static class ThinClient
             HttpResponseMessage response;
             try
             {
-                response = Send(client, url, args, cwd, dataDir, instanceEnv, projectDirEnv);
+                response = Send(client, url, args, cwd, instanceEnv, projectDirEnv);
             }
             catch (HttpRequestException ex) when (ex.HttpRequestError == HttpRequestError.ConnectionError)
             {
@@ -43,7 +41,7 @@ public static class ThinClient
                     stderr.WriteLine($"error: the aitm server at http://127.0.0.1:{port} is not running ({why}).");
                     return 1;
                 }
-                response = Send(client, url, args, cwd, dataDir, instanceEnv, projectDirEnv);
+                response = Send(client, url, args, cwd, instanceEnv, projectDirEnv);
             }
 
             using (response)
@@ -51,8 +49,7 @@ public static class ThinClient
                 string body = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
                 if (response.StatusCode != HttpStatusCode.OK)
                 {
-                    string hint = response.StatusCode == HttpStatusCode.Unauthorized ? "; the token in server.token was refused" : "";
-                    stderr.WriteLine($"error: the aitm server at http://127.0.0.1:{port} answered {(int)response.StatusCode}{hint}.");
+                    stderr.WriteLine($"error: the aitm server at http://127.0.0.1:{port} answered {(int)response.StatusCode}.");
                     return 1;
                 }
                 using JsonDocument doc = JsonDocument.Parse(body);
@@ -73,7 +70,6 @@ public static class ThinClient
         args,
         Directory.GetCurrentDirectory(),
         ServerAutoStart.DefaultPort(),
-        ServerHeadersCommand.DefaultDataDir(),
         Environment.GetEnvironmentVariable("AITM_INSTANCE"),
         Environment.GetEnvironmentVariable("CLAUDE_PROJECT_DIR"),
         ServerAutoStart.EnsureRunning,
@@ -81,13 +77,10 @@ public static class ThinClient
         stdout,
         stderr);
 
-    private static HttpResponseMessage Send(HttpClient client, string url, string[] args, string cwd, string dataDir,
+    private static HttpResponseMessage Send(HttpClient client, string url, string[] args, string cwd,
         string? instanceEnv, string? projectDirEnv)
     {
         using HttpRequestMessage request = new(HttpMethod.Post, url);
-        // Read on each send: a server started on demand writes server.token as it starts.
-        string token = ServerHeadersCommand.ReadToken(dataDir);
-        if (token.Length > 0) request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
         request.Headers.TryAddWithoutValidation("Claude-Project-Dir", string.IsNullOrWhiteSpace(projectDirEnv) ? cwd : projectDirEnv);
         if (!string.IsNullOrWhiteSpace(instanceEnv)) request.Headers.TryAddWithoutValidation("Aitm-Instance", instanceEnv);
         request.Content = new StringContent(JsonSerializer.Serialize(new { args, cwd }), Encoding.UTF8, "application/json");

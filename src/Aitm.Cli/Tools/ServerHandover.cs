@@ -68,11 +68,17 @@ public static class ServerHandover
         }
     }
 
+    /// <summary>The data folder Aitm.Server uses: <c>AITM_DATA_DIR</c>, else <c>~/.aitm</c>.</summary>
+    private static string DefaultDataDir() =>
+        Environment.GetEnvironmentVariable("AITM_DATA_DIR") is { Length: > 0 } configured
+            ? configured
+            : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".aitm");
+
     /// <summary><see cref="Run"/> on the real port, data folder, server path and the stamp of this CLI's build.</summary>
     public static bool RunDefault()
     {
         int port = ServerAutoStart.DefaultPort();
-        string dataDir = ServerHeadersCommand.DefaultDataDir();
+        string dataDir = DefaultDataDir();
         return Run(
             ReadStamp(AppContext.BaseDirectory),
             () => Probe(port, TimeSpan.FromSeconds(1)),
@@ -133,7 +139,7 @@ public static class ServerHandover
         }
     }
 
-    /// <summary>POST /shutdown, which needs no token (like /health).</summary>
+    /// <summary>POST /shutdown, behind the same Host and Origin guard as every route.</summary>
     public static bool RequestShutdown(int port, TimeSpan timeout)
     {
         try

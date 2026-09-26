@@ -4,7 +4,7 @@
 //
 // Usage: node build-cli-and-server.mjs <data folder>
 //
-// A running server holds the files of the build it started from, and a live hook or headersHelper holds
+// A running server holds the files of the build it started from, and a live hook holds
 // bin-cli/ files, so a build never writes into a folder that may be in use:
 // - Each build goes into its own folder, <data>/builds/<first 12 hex of the stamp>/{bin-cli,bin-server}, with
 //   the same publish commands as build-cli.ps1 and build-server.ps1. The stamp is written last.

@@ -21,12 +21,6 @@ public static class Program
             return 0;
         }
 
-        // Slice 28: the .mcp.json headersHelper. Prints the bearer header from server.token, or {}.
-        if (args.Length >= 2 && args[0] == "server" && args[1] == "headers")
-        {
-            return ServerHeadersCommand.Run(ServerHeadersCommand.DefaultDataDir(), Console.Out);
-        }
-
         // Slice 27: installs/removes the Windows Task Scheduler entry that starts Aitm.Server at
         // logon. The published server path is a required argument (slice 29 publishes it).
         if (args.Length >= 2 && args[0] == "server" && args[1] == "install-logon")
@@ -50,7 +44,7 @@ public static class Program
         }
 
         // Slice 29d: every other verb runs on Aitm.Server through POST /cli (ThinClient). The verbs above
-        // stay local: hooks must answer with the server down, and `server headers` runs on every MCP connect.
+        // stay local: hooks must answer with the server down.
         return ThinClient.RunDefault(args, Console.Out, Console.Error);
     }
 

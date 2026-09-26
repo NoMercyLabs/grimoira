@@ -5,8 +5,7 @@
       "url": "http://127.0.0.1:7635/mcp",
       "headers": {
         "Claude-Project-Dir": "${CLAUDE_PROJECT_DIR}"
-      },
-      "headersHelper": "dotnet \"${CLAUDE_PLUGIN_DATA}/current/bin-cli/aitm.dll\" server headers"
+      }
     }
   }
 }

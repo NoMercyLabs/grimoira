@@ -11,7 +11,7 @@ using Xunit;
 namespace Aitm.Server.Tests;
 
 // RESTRUCTURE.md "Slice 29c: POST /cli on the server." Body { "args": [...], "cwd": "..." }, answer
-// { "exitCode", "stdout", "stderr" }, behind the bearer token; the project comes from the request
+// { "exitCode", "stdout", "stderr" }, behind the Host and Origin guard; the project comes from the request
 // (Claude-Project-Dir header, else the body cwd), never from the server's own environment, and the verb
 // runs under that project's writer gate. The oracle is CliDispatch.Run in-process and the bin-cli binary
 // (slice 29b), each on its own fresh test instance. The server's own stores live in a temp data dir.
@@ -74,17 +74,6 @@ public sealed class CliEndpointTests : IDisposable
         using StringWriter stderr = new();
         int exit = CliDispatch.Run([.. args, "--instance", instance], Directory.GetCurrentDirectory(), stdout, stderr);
         return (exit, stdout.ToString(), stderr.ToString());
-    }
-
-    [Fact]
-    public async Task RequestWithoutATokenIs401()
-    {
-        using WebApplicationFactory<Program> factory = Factory();
-        using HttpClient client = Client(factory);
-
-        CliAnswer answer = await PostCli(client, ["help"], NewProjectDir("noauth"));
-
-        Assert.Equal(HttpStatusCode.Unauthorized, answer.Status);
     }
 
     public static TheoryData<string, string[]> Cases() => new()

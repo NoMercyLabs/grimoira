@@ -1,17 +1,16 @@
-using System.Net.Http.Headers;
 using System.Reflection;
-using System.Security.Cryptography;
-using System.Text;
 using Aitm.Server.Data;
 using ModelContextProtocol.Server;
 
 // RESTRUCTURE.md "Slice 25: Aitm.Server host." A Kestrel host on 127.0.0.1:7635 only. It rejects a
-// wrong Host header and any request carrying an Origin header (a browser reaching localhost). /health
-// needs no auth; every other route needs "Authorization: Bearer <server.token>". Single instance per
-// data directory via ProcessOwner.TryAcquireSingleInstanceLock.
+// wrong Host header and any request carrying an Origin header (a browser reaching localhost). It holds no
+// secret and checks no token (the owner, 2026-09-26: "AITM is for remembering everything"; authenticated
+// traffic is Arcanum's job): the guard is the loopback bind, the Host check and the Origin refusal. An old
+// server.token file is ignored, never deleted. Single instance per data directory via
+// ProcessOwner.TryAcquireSingleInstanceLock.
 //
 // RESTRUCTURE.md "Slice 26: /mcp on the server, beside mcp.cs." Adds the 25 golden MCP tools at /mcp,
-// behind the same bearer-auth middleware as every other non-/health route. mcp.cs stays the working
+// behind the same guard as every other route. mcp.cs stays the working
 // host for the live session (.mcp.json still starts it) until phase 3 switches over.
 
 string dataDir = Environment.GetEnvironmentVariable("AITM_DATA_DIR")
@@ -31,7 +30,6 @@ if (instanceLock is null)
     return;
 }
 
-string token = ServerToken.EnsureToken(dataDir);
 DateTime startedAt = DateTime.UtcNow;
 string version = Assembly.GetExecutingAssembly().GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
     ?? Assembly.GetExecutingAssembly().GetName().Version?.ToString()
@@ -84,27 +82,6 @@ app.Use(async (context, next) =>
         return;
     }
 
-    // /shutdown (slice 32b) is as open as /health: the SessionStart hand-over sends no token, and the Host and
-    // Origin checks above already keep a browser page from reaching it.
-    bool isOpen = string.Equals(context.Request.Path.Value, "/health", StringComparison.OrdinalIgnoreCase)
-        || string.Equals(context.Request.Path.Value, "/shutdown", StringComparison.OrdinalIgnoreCase);
-    if (!isOpen)
-    {
-        AuthenticationHeaderValue? auth = context.Request.Headers.Authorization.Count > 0
-            && AuthenticationHeaderValue.TryParse(context.Request.Headers.Authorization.ToString(), out AuthenticationHeaderValue? parsed)
-            ? parsed
-            : null;
-        string? presented = auth is { Scheme: "Bearer", Parameter: not null } ? auth.Parameter : null;
-        bool authorized = presented is not null && CryptographicOperations.FixedTimeEquals(
-            Encoding.UTF8.GetBytes(presented), Encoding.UTF8.GetBytes(token));
-        if (!authorized)
-        {
-            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-            await context.Response.WriteAsync("unauthorized");
-            return;
-        }
-    }
-
     await next();
 });
 
@@ -116,14 +93,14 @@ app.MapGet("/health", () => Results.Json(new
     openStores = projectStore.OpenInstances,
 }));
 
-// The 25 golden MCP tools, behind the same auth middleware as every non-/health route above.
+// The 25 golden MCP tools, behind the same Host and Origin guard as every route above.
 app.MapMcp("/mcp");
 
-// RESTRUCTURE.md "Slice 34": Claude Code http hooks, behind the same auth middleware; runs the
+// RESTRUCTURE.md "Slice 34": Claude Code http hooks, behind the same guard; runs the
 // slice 20-22 handlers under the same per-project writer gate as /mcp (HookEndpoint).
 app.MapPost("/hooks/{event}", (string @event, HttpContext context) => HookEndpoint.Handle(@event, context, projectStore));
 
-// RESTRUCTURE.md "Slice 29c": the CLI verbs, behind the same auth middleware; each runs on the project's
+// RESTRUCTURE.md "Slice 29c": the CLI verbs, behind the same guard; each runs on the project's
 // one open connection under its writer gate, with a timeout that answers exit 124 (CliEndpoint).
 app.MapPost("/cli", (Func<HttpContext, Task<IResult>>)(context => CliEndpoint.Handle(context, projectStore, dataDir)));
 

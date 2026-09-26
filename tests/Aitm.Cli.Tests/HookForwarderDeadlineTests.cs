@@ -35,7 +35,7 @@ public class HookForwarderDeadlineTests
             TimeSpan deadline = TimeSpan.FromSeconds(1);
             Stopwatch sw = Stopwatch.StartNew();
 
-            Task<string> call = Task.Run(() => HookForwarder.Forward("SessionEnd", "{}", port, dataDir, null, deadline));
+            Task<string> call = Task.Run(() => HookForwarder.Forward("SessionEnd", "{}", port, null, deadline));
             bool finished = await Task.WhenAny(call, Task.Delay(TimeSpan.FromSeconds(10))) == call;
             long elapsedMs = sw.ElapsedMilliseconds;
 

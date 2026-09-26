@@ -55,23 +55,6 @@ public sealed class McpEndpointTests : IDisposable
     }
 
     [Fact]
-    public async Task RequestWithoutATokenIs401()
-    {
-        using WebApplicationFactory<Program> factory = Factory();
-        using HttpClient httpClient = factory.CreateClient(new WebApplicationFactoryClientOptions { BaseAddress = new Uri($"http://{_allowedHost}") });
-
-        using HttpRequestMessage request = new(HttpMethod.Post, "/mcp") { Headers = { Host = _allowedHost } };
-        request.Headers.TryAddWithoutValidation("Accept", "application/json, text/event-stream");
-        request.Content = new StringContent(
-            """{"jsonrpc":"2.0","id":1,"method":"tools/list"}""",
-            System.Text.Encoding.UTF8, "application/json");
-
-        HttpResponseMessage response = await httpClient.SendAsync(request);
-
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
-    }
-
-    [Fact]
     public async Task FactToolMatchesThePhase2PinnedOutputForASeededTerm()
     {
         using WebApplicationFactory<Program> factory = Factory();

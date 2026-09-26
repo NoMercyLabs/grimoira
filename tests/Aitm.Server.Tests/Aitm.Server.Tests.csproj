@@ -11,12 +11,6 @@
   <ItemGroup>
     <ProjectReference Include="../../src/Aitm.Server/Aitm.Server.csproj" />
   </ItemGroup>
-  <!-- Slice 28: the headersHelper output under test is ServerHeadersCommand from Aitm.Cli. Linked as
-       source, not a ProjectReference: Aitm.Cli carries linked copies of Brain/Hooks types that would
-       clash with the real ones this project already references. -->
-  <ItemGroup>
-    <Compile Include="../../src/Aitm.Cli/Tools/ServerHeadersCommand.cs" Link="Linked/ServerHeadersCommand.cs" />
-  </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../Aitm.Layout.Tests/Aitm.Layout.Tests.csproj" />
     <ProjectReference Include="../Aitm.TestSupport/Aitm.TestSupport.csproj" />
