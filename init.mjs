@@ -36,7 +36,8 @@ const exe = join(HERE, 'bin-cli', 'aitm.exe');
 const dll = join(HERE, 'bin-cli', 'aitm.dll');
 if (!existsSync(exe) && !existsSync(dll)) {
   log('  building (build output is not committed)…');
-  const b = spawnSync('dotnet', ['build', join(HERE, 'aitm.cs'), '-c', 'Release', '-o', join(HERE, 'bin-cli')], {
+  // bin-cli/ is the published Aitm.Cli, the thin client of the server (sub-card 29e); never aitm.cs.
+  const b = spawnSync('dotnet', ['publish', join(HERE, 'src', 'Aitm.Cli', 'Aitm.Cli.csproj'), '-c', 'Release', '-o', join(HERE, 'bin-cli'), '-p:PublishAot=false'], {
     stdio: quiet ? 'ignore' : 'inherit',
     timeout: 600000,
   });
@@ -45,7 +46,19 @@ if (!existsSync(exe) && !existsSync(dll)) {
     process.exit(1);
   }
 }
-const runCli = (args, timeout = 300000) => {
+// The thin client starts bin-server/Aitm.Server on its first verb, so it has to exist too.
+if (!existsSync(join(HERE, 'bin-server', 'Aitm.Server.dll'))) {
+  log('  building the server…');
+  const s = spawnSync('dotnet', ['publish', join(HERE, 'src', 'Aitm.Server', 'Aitm.Server.csproj'), '-c', 'Release', '-o', join(HERE, 'bin-server'), '-p:PublishAot=false'], {
+    stdio: quiet ? 'ignore' : 'inherit',
+    timeout: 600000,
+  });
+  if (s.status !== 0) {
+    console.error('  FAILED: could not build the server. The CLI forwards every verb to it.');
+    process.exit(1);
+  }
+}
+const runCli =(args, timeout = 300000) => {
   const useExe = existsSync(exe);
   const r = spawnSync(useExe ? exe : 'dotnet', useExe ? args : [dll, ...args], {
     encoding: 'utf8', timeout, cwd: root,

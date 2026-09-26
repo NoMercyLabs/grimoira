@@ -48,7 +48,7 @@ mkdirSync(STORE_DIR, { recursive: true });
 const db = await (async () => {
   // openWrite refuses a store that doesn't exist yet, so touch the CLI once to create the schema.
   const { spawnSync } = await import('node:child_process');
-  spawnSync('dotnet', [join(import.meta.dirname, 'bin-cli', 'aitm.dll'), 'init', '--instance', INSTANCE], { stdio: 'ignore' });
+  spawnSync('dotnet', [join(import.meta.dirname, 'bin-cli-old', 'aitm.dll'), 'init', '--instance', INSTANCE], { stdio: 'ignore' });
   return openWrite(INSTANCE);
 })();
 

@@ -4,7 +4,7 @@ using System.Runtime.InteropServices;
 namespace Aitm.TestSupport;
 
 /// <summary>
-/// Runs today's compiled <c>bin-cli/aitm.dll</c> against a throwaway <c>test-*</c> instance and returns
+/// Runs today's compiled <c>bin-cli-old/aitm.dll</c> (the kept aitm.cs build) against a throwaway <c>test-*</c> instance and returns
 /// its stdout — the oracle every project's pinned-output tests run against. Previously duplicated once
 /// per test project (<c>Aitm.Store.Tests</c>, then <c>Aitm.Facts.Tests</c>) because the class was
 /// internal to its own assembly; a third copy for <c>Aitm.Memory.Tests</c> would have made three, so
@@ -132,11 +132,11 @@ public static class AitmCliRunner
         DirectoryInfo? dir = new(AppContext.BaseDirectory);
         while (dir is not null)
         {
-            string candidate = Path.Combine(dir.FullName, "bin-cli", "aitm.dll");
+            string candidate = Path.Combine(dir.FullName, "bin-cli-old", "aitm.dll");
             if (File.Exists(candidate)) return candidate;
             dir = dir.Parent;
         }
         throw new InvalidOperationException(
-            $"bin-cli/aitm.dll not found above {AppContext.BaseDirectory} — run build-cli.ps1 first");
+            $"bin-cli-old/aitm.dll not found above {AppContext.BaseDirectory} — run build-cli.ps1 first");
     }
 }

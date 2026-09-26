@@ -22,8 +22,8 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const INSTANCE = `agreement-test-${process.pid}`; // per run: parallel verify runs (worktrees) must not share a store
 const STORE = join(homedir(), '.aitm', INSTANCE);
 
-const exe = join(HERE, 'bin-cli', 'aitm.exe');
-const dll = join(HERE, 'bin-cli', 'aitm.dll');
+const exe = join(HERE, 'bin-cli-old', 'aitm.exe');
+const dll = join(HERE, 'bin-cli-old', 'aitm.dll');
 if (!existsSync(exe) && !existsSync(dll)) {
   console.log('skipped: CLI is not built (run build.ps1 first)');
   process.exit(0);

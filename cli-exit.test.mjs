@@ -5,7 +5,7 @@ import { spawnSync } from 'node:child_process';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const exe = join(dirname(fileURLToPath(import.meta.url)), 'bin-cli', 'aitm.exe');
+const exe = join(dirname(fileURLToPath(import.meta.url)), 'bin-cli-old', 'aitm.exe');
 let passed = 0, failed = 0;
 function check(name, actual, expected) {
   if (actual === expected) { passed++; } else { failed++; console.log(`FAIL ${name}: got ${actual}, want ${expected}`); }

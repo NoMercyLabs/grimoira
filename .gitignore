@@ -1,7 +1,7 @@
 # Build output. Rebuild with build-cli.ps1 / build-mcp.ps1 / build-server.ps1.
 bin/
 bin-cli/
-bin-cli-next/
+bin-cli-old/
 bin-server/
 obj/
 *.user

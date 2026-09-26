@@ -9,7 +9,7 @@ namespace Aitm.TestSupport;
 /// class. This is the oracle every part compares against: <see cref="OracleCommit"/> is the commit
 /// slice 24 started from, so building aitm.cs exactly as it stood there gives a frozen "before" binary.
 /// A test runs one verb on a fresh <c>test-*</c> instance against that frozen binary and against
-/// today's <c>bin-cli/aitm.dll</c>, and hands back both outputs — stdout, stderr and exit code all have
+/// the kept aitm.cs build, <c>bin-cli-old/aitm.dll</c>, and hands back both outputs — stdout, stderr and exit code all have
 /// to match, byte for byte, or the rewiring changed behaviour.
 ///
 /// The oracle build is cached under the OS temp dir, keyed by the commit sha, and built once per
@@ -46,7 +46,7 @@ public static class OldVsNewCli
 
     /// <summary>Today's compiled CLI — the "after" binary, rebuilt by build-cli.ps1 after each part's
     /// changes to aitm.cs.</summary>
-    public static string BinCliDll() => FindAbove(RepoRoot, Path.Combine("bin-cli", "aitm.dll"));
+    public static string BinCliDll() => FindAbove(RepoRoot, Path.Combine("bin-cli-old", "aitm.dll"));
 
     /// <summary>Runs the same verb/arguments on a fresh <c>test-*</c> instance for each binary and
     /// returns both results, so a single command's old-vs-new behaviour is one assertion away.</summary>

@@ -4,7 +4,7 @@ namespace Aitm.Store.Tests.Support;
 
 /// <summary>
 /// Builds a real-shaped v3 store the same way a user's does: by running the actual
-/// <c>bin-cli/aitm.dll</c> — today's compiled aitm.cs — against a fresh <c>test-*</c> instance. This is
+/// <c>bin-cli-old/aitm.dll</c> — the kept aitm.cs build — against a fresh <c>test-*</c> instance. This is
 /// the oracle for slice 3c's "a copy of a real-shaped v3 store ... create it with today's aitm.cs
 /// `init`" — the real CLI, not a reimplementation of what it creates.
 ///
@@ -74,17 +74,17 @@ internal sealed class V3StoreFixture : IDisposable
     }
 
     /// <summary>Walks up from the test assembly's output directory to find the repo-root
-    /// <c>bin-cli/aitm.dll</c> that build-cli.ps1, verify.ps1 and CI already produce.</summary>
+    /// <c>bin-cli-old/aitm.dll</c> (the aitm.cs build) that build-cli.ps1 produces.</summary>
     private static string FindAitmDll()
     {
         DirectoryInfo? dir = new(AppContext.BaseDirectory);
         while (dir is not null)
         {
-            string candidate = Path.Combine(dir.FullName, "bin-cli", "aitm.dll");
+            string candidate = Path.Combine(dir.FullName, "bin-cli-old", "aitm.dll");
             if (File.Exists(candidate)) return candidate;
             dir = dir.Parent;
         }
         throw new InvalidOperationException(
-            $"bin-cli/aitm.dll not found above {AppContext.BaseDirectory} — run build-cli.ps1 first");
+            $"bin-cli-old/aitm.dll not found above {AppContext.BaseDirectory} — run build-cli.ps1 first");
     }
 }

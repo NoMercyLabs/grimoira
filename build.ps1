@@ -17,7 +17,8 @@ Write-Host 'building Aitm.sln...' -ForegroundColor Cyan
 dotnet build "$root/Aitm.sln" | Select-String -Pattern 'error|warning NU19|-> '
 
 Write-Host 'building CLI...' -ForegroundColor Cyan
-dotnet build "$root/aitm.cs" -c Release -o "$root/bin-cli" | Select-String -Pattern 'error|warning NU19|-> '
+# build-cli.ps1 publishes Aitm.Cli to bin-cli/ and keeps the aitm.cs build as bin-cli-old/ (sub-card 29e).
+& "$root/build-cli.ps1" | Select-String -Pattern 'error|warning NU19|-> '
 
 Write-Host 'building MCP server...' -ForegroundColor Cyan
 # A live session keeps bin/mcp.dll open, and the copy then fails with MSB3027 after ten retries.
