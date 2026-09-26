@@ -104,14 +104,15 @@ public sealed class BinCliThinClientMatchesBinCliOldTests : IClassFixture<BinCli
     }
 
     // The instance name and its store folder differ per run by design; so do elapsed times (query) and the
-    // mutation timestamps history prints (the same masks the slice 24 parity tests use), and the
-    // yyyyMMdd-HHmmssfff stamp in the backup file name redact-chat prints.
+    // mutation timestamps history prints (the same masks the slice 24 parity tests use; eval pads a short
+    // time with one more space, so the pad is part of the mask), and the yyyyMMdd-HHmmssfff stamp in the
+    // backup file name redact-chat prints.
     private static string Normalize(string s, string instance, string root) =>
         Regex.Replace(
             Regex.Replace(
                 Regex.Replace(
                     s.Replace(root, "<root>").Replace(root.Replace('\\', '/'), "<root>").Replace(instance, "<instance>"),
-                    @"\d+([.,]\d+)?\s?ms\b", "<ms>"),
+                    @"[ \t]*\d+([.,]\d+)?\s?ms\b", "<ms>"),
                 @"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z", "<ts>"),
             @"\b\d{8}-\d{9}\b", "<stamp>");
 
