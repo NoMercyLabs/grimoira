@@ -13,19 +13,32 @@ namespace Aitm.Cli.Tools;
 /// A hook fails open: a server that is down, a refused token, a non-200 answer or any error prints nothing.
 /// It never starts the server (SessionStart does that). The connect gives up after
 /// <see cref="ConnectTimeout"/>: on Windows a closed loopback port is only refused after about 3 s of
-/// retries, and SessionEnd hooks share a 1.5 s budget. Once connected there is no client timeout; the slot's
-/// own timeout in hooks.json ends a call that runs too long.
+/// retries, and SessionEnd hooks share a 1.5 s budget. The whole call ends at the event's entry in
+/// <see cref="Deadlines"/>, so a server that accepts and never answers cannot keep the hook alive.
 /// </summary>
-internal static class HookForwarder
+public static class HookForwarder
 {
+    /// <summary>
+    /// The events this CLI sends to the server, each with the longest a call may take in total. Each equals the
+    /// timeout of the hooks.json slot that runs the event's handlers (HookCommandTests), because an async command
+    /// hook's own timeout is not enforced in an interactive session.
+    /// </summary>
+    public static readonly IReadOnlyDictionary<string, TimeSpan> Deadlines = new Dictionary<string, TimeSpan>
+    {
+        ["SessionEnd"] = TimeSpan.FromSeconds(390),
+        ["PostToolUse"] = TimeSpan.FromSeconds(65),
+    };
+
     /// <summary>A loopback connect to a running server takes well under a millisecond.</summary>
     public static readonly TimeSpan ConnectTimeout = TimeSpan.FromMilliseconds(500);
 
-    public static string Forward(string eventName, string payload, int port, string dataDir, string? projectDirEnv)
+    public static string Forward(string eventName, string payload, int port, string dataDir, string? projectDirEnv, TimeSpan deadline)
     {
         try
         {
-            using SocketsHttpHandler handler = new() { ConnectTimeout = ConnectTimeout };
+            // The deadline covers the whole call: connect, send, the server's work and reading the answer.
+            using CancellationTokenSource deadlineSource = new(deadline);
+            using SocketsHttpHandler handler = new() { ConnectTimeout = deadline < ConnectTimeout ? deadline : ConnectTimeout };
             using HttpClient client = new(handler) { Timeout = Timeout.InfiniteTimeSpan };
             using HttpRequestMessage request = new(HttpMethod.Post, $"http://127.0.0.1:{port}/hooks/{Uri.EscapeDataString(eventName)}");
             string token = ServerHeadersCommand.ReadToken(dataDir);
@@ -33,9 +46,9 @@ internal static class HookForwarder
             if (!string.IsNullOrWhiteSpace(projectDirEnv)) request.Headers.TryAddWithoutValidation("Claude-Project-Dir", projectDirEnv);
             request.Content = new StringContent(payload, Encoding.UTF8, "application/json");
 
-            using HttpResponseMessage response = client.Send(request);
+            using HttpResponseMessage response = client.Send(request, deadlineSource.Token);
             if (response.StatusCode != HttpStatusCode.OK) return "";
-            return response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+            return response.Content.ReadAsStringAsync(deadlineSource.Token).GetAwaiter().GetResult();
         }
         catch
         {
@@ -50,5 +63,6 @@ internal static class HookForwarder
         payload,
         ServerAutoStart.DefaultPort(),
         ServerHeadersCommand.DefaultDataDir(),
-        Environment.GetEnvironmentVariable("CLAUDE_PROJECT_DIR"));
+        Environment.GetEnvironmentVariable("CLAUDE_PROJECT_DIR"),
+        Deadlines[eventName]);
 }
