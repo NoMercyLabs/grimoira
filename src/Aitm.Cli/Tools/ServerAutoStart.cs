@@ -45,10 +45,7 @@ public static class ServerAutoStart
 
     /// <summary>The data directory ("realm") Aitm.Server uses, and so the pipe/socket it is reached on is
     /// derived from: <c>AITM_DATA_DIR</c>, else <c>~/.aitm</c>.</summary>
-    public static string DefaultDataDir() =>
-        Environment.GetEnvironmentVariable("AITM_DATA_DIR") is { Length: > 0 } configured
-            ? configured
-            : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".aitm");
+    public static string DefaultDataDir() => ServerAddress.ResolveDataDir();
 
     /// <summary>The server at <c>AITM_SERVER_EXE</c>, else <see cref="DefaultServerPath"/> beside this CLI.</summary>
     public static string DefaultServerExe() =>

@@ -19,7 +19,24 @@ public static class ServerAddress
     /// <summary>The Windows named pipe name (without the <c>\\.\pipe\</c> prefix NamedPipeClientStream and
     /// Kestrel's ListenNamedPipe both add on their own) for the given data directory.</summary>
     public static string PipeName(string dataDir) =>
-        "aitm-" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(Path.GetFullPath(dataDir))))[..16].ToLowerInvariant();
+        "aitm-" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(Normalize(dataDir))))[..16].ToLowerInvariant();
+
+    /// <summary>The one spelling of a data directory both sides hash: full path, no trailing separator, and
+    /// upper-cased on Windows where paths are case-insensitive.</summary>
+    private static string Normalize(string dataDir)
+    {
+        string full = Path.TrimEndingDirectorySeparator(Path.GetFullPath(dataDir));
+        return OperatingSystem.IsWindows() ? full.ToUpperInvariant() : full;
+    }
+
+    /// <summary>The data directory ("realm"): <c>AITM_DATA_DIR</c>, else <c>~/.aitm</c>. An empty value counts
+    /// as unset.</summary>
+    public static string ResolveDataDir(string? configured, string userProfile) =>
+        string.IsNullOrEmpty(configured) ? Path.Combine(userProfile, ".aitm") : configured;
+
+    public static string ResolveDataDir() => ResolveDataDir(
+        Environment.GetEnvironmentVariable("AITM_DATA_DIR"),
+        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
 
     /// <summary>The Unix domain socket path for the given data directory: a file inside it, so it inherits
     /// the data directory's own user-only permissions (mode 0700, set by whoever creates the directory).</summary>

@@ -14,8 +14,7 @@ using ModelContextProtocol.Server;
 // RESTRUCTURE.md "Slice 26: /mcp on the server, beside mcp.cs." Adds the 25 golden MCP tools at /mcp.
 // mcp.cs stays the working host for the live session (.mcp.json still starts it) until phase 3 switches over.
 
-string dataDir = Environment.GetEnvironmentVariable("AITM_DATA_DIR")
-    ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".aitm");
+string dataDir = ServerAddress.ResolveDataDir();
 string projectRoot = Environment.GetEnvironmentVariable("CLAUDE_PROJECT_DIR") ?? Directory.GetCurrentDirectory();
 
 Directory.CreateDirectory(dataDir);
