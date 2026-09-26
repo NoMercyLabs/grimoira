@@ -35,7 +35,28 @@ public sealed class BinCliThinClientMatchesBinCliOldTests : IClassFixture<BinCli
             .Concat(GraphCliParityTests.Scenarios())
             .Concat(BrainReadCliParityTests.Scenarios())
             .Concat(BrainWriteCliParityTests.Scenarios())
-            .Concat(StagingSpineEvalCliParityTests.Scenarios());
+            .Concat(StagingSpineEvalCliParityTests.Scenarios())
+            .Concat(FileVerbScenarios());
+
+    // The 7 golden verbs the slice 24 files pin only as [Fact]s with their own file fixtures. `{root}` is
+    // each side's own instance folder (masked back to <root> before comparing), so a verb that writes a
+    // file writes it inside the store it is testing and never into the repo.
+    private static IEnumerable<object[]> FileVerbScenarios()
+    {
+        (string name, string[] setup, string command)[] cases =
+        [
+            ("import-missing-from", ["init"], "import"),
+            ("import-from-a-copy", ["init", "add --term thin --value parity", "backup --to \"{root}/copy.db\""], "import --from \"{root}/copy.db\""),
+            ("backup-to-the-store-folder", ["init"], "backup --to \"{root}/copy.db\""),
+            ("redact-chat-dry-run", ["init"], "redact-chat --dry-run"),
+            ("index-packages-missing-root", ["init"], "index-packages --root \"/no/such/directory/aitm-thin-parity-fixture\""),
+            ("extract-edges-unknown-symbol", ["init"], "extract-edges --symbol WhateverSymbol"),
+            ("seed-edges-missing-file", ["init"], "seed-edges --from \"/no/such/directory/aitm-thin-parity-spine.json\""),
+            ("spine-export-to-the-store-folder", ["init", "brain learn node thin:parity fact \"a label\""], "spine-export --to \"{root}/spine.json\""),
+        ];
+        foreach ((string name, string[] setup, string command) in cases)
+            yield return new object[] { name, setup, command };
+    }
 
     [Theory]
     [MemberData(nameof(Scenarios))]
@@ -49,11 +70,11 @@ public sealed class BinCliThinClientMatchesBinCliOldTests : IClassFixture<BinCli
         {
             foreach (string s in setup)
             {
-                Run(OldDll, oldInstance, s);
-                Run(NewDll, newInstance, s);
+                Run(OldDll, oldInstance, s.Replace("{root}", oldRoot));
+                Run(NewDll, newInstance, s.Replace("{root}", newRoot));
             }
-            OldVsNewCli.Result o = Run(OldDll, oldInstance, command);
-            OldVsNewCli.Result n = Run(NewDll, newInstance, command);
+            OldVsNewCli.Result o = Run(OldDll, oldInstance, command.Replace("{root}", oldRoot));
+            OldVsNewCli.Result n = Run(NewDll, newInstance, command.Replace("{root}", newRoot));
 
             Assert.Equal(Normalize(o.Stdout, oldInstance, oldRoot), Normalize(n.Stdout, newInstance, newRoot));
             Assert.Equal(Normalize(o.Stderr, oldInstance, oldRoot), Normalize(n.Stderr, newInstance, newRoot));
@@ -73,8 +94,9 @@ public sealed class BinCliThinClientMatchesBinCliOldTests : IClassFixture<BinCli
         {
             string[] words = ((string)s[2]).Split(' ');
             covered.Add(words[0]);
-            // `brain <sub>` scenarios count for the brain sub-verbs the golden list names on their own.
-            if (words[0] == "brain" && words.Length > 1) covered.Add(words[1]);
+            // `brain <sub>` and `stage <sub>` scenarios count for the sub-verbs the golden list names on
+            // their own (node, triple, slot, list, dismiss, clear are `stage` sub-verbs).
+            if (words[0] is "brain" or "stage" && words.Length > 1) covered.Add(words[1]);
         }
         string[] missing = [.. GoldenListsTests.GoldenCliVerbs.Where(v => !covered.Contains(v))];
         _output.WriteLine($"golden verbs covered through the thin client: {GoldenListsTests.GoldenCliVerbs.Length - missing.Length} of {GoldenListsTests.GoldenCliVerbs.Length}; missing: {string.Join(", ", missing)}");
@@ -82,13 +104,16 @@ public sealed class BinCliThinClientMatchesBinCliOldTests : IClassFixture<BinCli
     }
 
     // The instance name and its store folder differ per run by design; so do elapsed times (query) and the
-    // mutation timestamps history prints (the same masks the slice 24 parity tests use).
+    // mutation timestamps history prints (the same masks the slice 24 parity tests use), and the
+    // yyyyMMdd-HHmmssfff stamp in the backup file name redact-chat prints.
     private static string Normalize(string s, string instance, string root) =>
         Regex.Replace(
             Regex.Replace(
-                s.Replace(root, "<root>").Replace(root.Replace('\\', '/'), "<root>").Replace(instance, "<instance>"),
-                @"\d+([.,]\d+)?\s?ms\b", "<ms>"),
-            @"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z", "<ts>");
+                Regex.Replace(
+                    s.Replace(root, "<root>").Replace(root.Replace('\\', '/'), "<root>").Replace(instance, "<instance>"),
+                    @"\d+([.,]\d+)?\s?ms\b", "<ms>"),
+                @"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z", "<ts>"),
+            @"\b\d{8}-\d{9}\b", "<stamp>");
 
     private OldVsNewCli.Result Run(string dll, string instance, string arguments)
     {
