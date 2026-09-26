@@ -34,20 +34,17 @@ internal static class HookEndpoint
 
             if (JsonNode.Parse(body) is not JsonObject payload) return Empty();
 
-            IReadOnlyList<Func<string, string>> handlers = HandlersFor(eventName, payload);
+            IReadOnlyList<Func<string, string?, string>> handlers = HandlersFor(eventName, payload);
             if (handlers.Count == 0) return Empty();
 
-            // A command hook inherits CLAUDE_PROJECT_DIR, which every handler prefers over the payload's
-            // cwd (HookPaths.ResolveInstance). The shared server has no per-session env, so the header
-            // takes that place: it becomes the cwd the handler sees, and handler and gate agree on the
-            // project.
-            string? projectDirHeader = RequestProjectResolver.ProjectDirHeaderOf(context);
-            if (projectDirHeader is not null)
-            {
-                payload["cwd"] = projectDirHeader;
-                body = payload.ToJsonString();
-            }
+            // A command hook gets CLAUDE_PROJECT_DIR from Claude Code. The shared server's own env is the env of
+            // whichever session started it, so the handlers get the request's project instead: the
+            // Claude-Project-Dir header, else the payload's cwd, else the server's directory, the same order
+            // RequestProjectResolver uses for the gate. Handler and gate agree on the project.
             string? payloadCwd = payload["cwd"] is JsonValue cwdValue && cwdValue.TryGetValue(out string? s) ? s : null;
+            string projectDir = RequestProjectResolver.ProjectDirHeaderOf(context)
+                ?? (string.IsNullOrWhiteSpace(payloadCwd) ? null : payloadCwd)
+                ?? Directory.GetCurrentDirectory();
             string instance = RequestProjectResolver.Resolve(context, requestCwd: payloadCwd);
 
             ProjectHandle handle = store.Acquire(instance);
@@ -55,11 +52,11 @@ internal static class HookEndpoint
             try
             {
                 StringBuilder combined = new();
-                foreach (Func<string, string> handler in handlers)
+                foreach (Func<string, string?, string> handler in handlers)
                 {
                     try
                     {
-                        combined.Append(handler(body));
+                        combined.Append(handler(body, projectDir));
                     }
                     catch
                     {
@@ -83,7 +80,9 @@ internal static class HookEndpoint
     }
 
     /// <summary>The event map: the slice 20-22 handlers, in the order hooks.json runs their slots.</summary>
-    private static IReadOnlyList<Func<string, string>> HandlersFor(string eventName, JsonObject payload)
+    /// <remarks>The SessionEnd handlers and PatternWatch do not take the project yet: they get it when their own
+    /// slots move to http.</remarks>
+    private static IReadOnlyList<Func<string, string?, string>> HandlersFor(string eventName, JsonObject payload)
     {
         switch (eventName)
         {
@@ -92,12 +91,12 @@ internal static class HookEndpoint
             case "UserPromptSubmit":
                 return [CompactRestoreTool.Execute];
             case "SessionEnd":
-                return [SessionIndexChatTool.Execute, SessionIndexDocsTool.Execute, IndexCodeSessionEndTool.Execute];
+                return [Ignore(SessionIndexChatTool.Execute), Ignore(SessionIndexDocsTool.Execute), Ignore(IndexCodeSessionEndTool.Execute)];
             case "PostToolUse":
                 string? toolName = payload["tool_name"] is JsonValue v && v.TryGetValue(out string? t) ? t : null;
                 return toolName switch
                 {
-                    "Bash" or "PowerShell" => [PatternWatchTool.Execute],
+                    "Bash" or "PowerShell" => [Ignore(PatternWatchTool.Execute)],
                     "Write" or "Edit" or "MultiEdit" or "NotebookEdit" => [IndexOnEditTool.Execute],
                     _ => [],
                 };
@@ -105,6 +104,8 @@ internal static class HookEndpoint
                 return [];
         }
     }
+
+    private static Func<string, string?, string> Ignore(Func<string, string> handler) => (stdin, _) => handler(stdin);
 
     private static IResult Empty() => Results.Text("", "text/plain", Encoding.UTF8);
 }

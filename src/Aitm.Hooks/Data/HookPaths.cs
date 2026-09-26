@@ -9,15 +9,27 @@ namespace Aitm.Hooks.Data;
 /// </summary>
 public static class HookPaths
 {
-    public static string ResolveInstance(string? cwd)
+    public static string ResolveInstance(string? cwd) => ResolveInstance(cwd, projectDir: null);
+
+    /// <summary>The instance of <see cref="ProjectDir"/>.</summary>
+    public static string ResolveInstance(string? cwd, string? projectDir)
     {
-        string proj = Environment.GetEnvironmentVariable("CLAUDE_PROJECT_DIR")
-            ?? cwd
-            ?? Directory.GetCurrentDirectory();
-        string trimmed = proj.TrimEnd('\\', '/');
+        string trimmed = ProjectDir(cwd, projectDir).TrimEnd('\\', '/');
         string name = Path.GetFileName(trimmed).ToLowerInvariant();
         return Regex.Replace(name, "[^a-z0-9_-]", "");
     }
+
+    /// <summary>
+    /// The project a hook works for: <paramref name="projectDir"/> when the caller already resolved it, else
+    /// CLAUDE_PROJECT_DIR, else the payload's cwd, else the current directory. A command hook (the CLI) passes
+    /// null: Claude Code gives it CLAUDE_PROJECT_DIR. The shared server passes the request's project, because
+    /// its own env is the env of whichever session started it.
+    /// </summary>
+    public static string ProjectDir(string? cwd, string? projectDir) =>
+        projectDir
+        ?? Environment.GetEnvironmentVariable("CLAUDE_PROJECT_DIR")
+        ?? cwd
+        ?? Directory.GetCurrentDirectory();
 
     public static string BriefPath(string instance, string? sessionId)
     {

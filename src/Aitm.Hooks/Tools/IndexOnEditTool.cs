@@ -25,7 +25,10 @@ namespace Aitm.Hooks.Tools;
 /// </summary>
 public static class IndexOnEditTool
 {
-    public static string Execute(string stdin)
+    public static string Execute(string stdin) => Execute(stdin, projectDir: null);
+
+    /// <param name="projectDir">The project the caller resolved (<see cref="HookPaths.ProjectDir"/>), or null.</param>
+    public static string Execute(string stdin, string? projectDir)
     {
         try
         {
@@ -36,13 +39,11 @@ public static class IndexOnEditTool
             if (filePath is null) return "";
 
             string? cwd = GetString(payload, "cwd");
-            string instance = HookPaths.ResolveInstance(cwd);
+            string instance = HookPaths.ResolveInstance(cwd, projectDir);
             if (!File.Exists(HookPaths.DbPath(instance))) return "";
 
             string file = Path.GetFullPath(filePath);
-            string proj = Environment.GetEnvironmentVariable("CLAUDE_PROJECT_DIR")
-                ?? cwd
-                ?? Directory.GetCurrentDirectory();
+            string proj = HookPaths.ProjectDir(cwd, projectDir);
 
             // (1) Memory channel: a *.md under ~/.claude/projects/<encoded>/memory/ — skip MEMORY.md
             // itself (the always-loaded index, which index-memory itself skips).

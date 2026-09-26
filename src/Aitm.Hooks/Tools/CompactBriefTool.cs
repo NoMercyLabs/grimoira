@@ -25,7 +25,10 @@ public static class CompactBriefTool
     private static readonly Regex HookFeedback = new("hook (feedback|additional context)", RegexOptions.IgnoreCase);
     private static readonly Regex Whitespace = new(@"\s+");
 
-    public static string Execute(string stdin)
+    public static string Execute(string stdin) => Execute(stdin, projectDir: null);
+
+    /// <param name="projectDir">The project the caller resolved (<see cref="HookPaths.ProjectDir"/>), or null.</param>
+    public static string Execute(string stdin, string? projectDir)
     {
         try
         {
@@ -34,7 +37,7 @@ public static class CompactBriefTool
             string? transcriptPath = GetString(payload, "transcript_path");
             if (transcriptPath is null || !File.Exists(transcriptPath)) return "";
 
-            string instance = HookPaths.ResolveInstance(GetString(payload, "cwd"));
+            string instance = HookPaths.ResolveInstance(GetString(payload, "cwd"), projectDir);
             List<JsonElement> entries = ReadEntries(transcriptPath);
             List<string> files = TouchedFiles(entries);
             List<(string status, string content)> todos = OpenTodos(entries);

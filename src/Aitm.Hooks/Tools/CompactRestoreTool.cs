@@ -12,7 +12,10 @@ namespace Aitm.Hooks.Tools;
 /// </summary>
 public static class CompactRestoreTool
 {
-    public static string Execute(string stdin)
+    public static string Execute(string stdin) => Execute(stdin, projectDir: null);
+
+    /// <param name="projectDir">The project the caller resolved (<see cref="HookPaths.ProjectDir"/>), or null.</param>
+    public static string Execute(string stdin, string? projectDir)
     {
         try
         {
@@ -30,7 +33,7 @@ public static class CompactRestoreTool
                     ? sidEl.GetString()
                     : null;
 
-            string instance = HookPaths.ResolveInstance(cwd);
+            string instance = HookPaths.ResolveInstance(cwd, projectDir);
             string path = HookPaths.BriefPath(instance, sessionId);
             if (!File.Exists(path)) return "";
 
