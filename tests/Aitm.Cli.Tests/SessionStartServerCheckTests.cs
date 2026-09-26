@@ -78,7 +78,7 @@ public class SessionStartServerCheckTests
         try
         {
             Stopwatch sw = Stopwatch.StartNew();
-            (string stdout, _, int exit) = ServerHeadersCommandTests.RunBuiltCli(["hook", "SessionStart"], dataDir, new Dictionary<string, string>
+            (string stdout, _, int exit) = BuiltCli.Run(["hook", "SessionStart"], dataDir, new Dictionary<string, string>
             {
                 ["AITM_SERVER_PORT"] = FreePort().ToString(),
                 ["AITM_SERVER_EXE"] = Path.Combine(dataDir, "missing", "Aitm.Server.exe"),

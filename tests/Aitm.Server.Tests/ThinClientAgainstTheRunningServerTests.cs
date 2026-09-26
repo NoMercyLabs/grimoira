@@ -61,7 +61,6 @@ public sealed class ThinClientAgainstTheRunningServerTests : IDisposable
     {
         using HttpClient client = new();
         using HttpRequestMessage request = new(HttpMethod.Post, $"http://127.0.0.1:{_port}/cli");
-        request.Headers.TryAddWithoutValidation("Authorization", $"Bearer {File.ReadAllText(Path.Combine(_dataDir, "server.token")).Trim()}");
         request.Headers.TryAddWithoutValidation("Claude-Project-Dir", _projectDir);
         request.Content = new StringContent(JsonSerializer.Serialize(new { args, cwd = _projectDir }), Encoding.UTF8, "application/json");
         using HttpResponseMessage response = client.Send(request);

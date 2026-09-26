@@ -42,10 +42,9 @@ public sealed class HooksEndpointTests : IDisposable
     private HttpClient Client(WebApplicationFactory<Program> factory) =>
         factory.CreateClient(new WebApplicationFactoryClientOptions { BaseAddress = new Uri($"http://{_allowedHost}") });
 
-    private async Task<(HttpStatusCode status, string body)> PostHook(HttpClient client, string? token, string eventName, string payload, bool sendProjectHeader = true)
+    private async Task<(HttpStatusCode status, string body)> PostHook(HttpClient client, string eventName, string payload, bool sendProjectHeader = true)
     {
         using HttpRequestMessage request = new(HttpMethod.Post, $"/hooks/{eventName}") { Headers = { Host = _allowedHost } };
-        if (token is not null) request.Headers.TryAddWithoutValidation("Authorization", $"Bearer {token}");
         if (sendProjectHeader) request.Headers.TryAddWithoutValidation(RequestProjectResolver.ProjectDirHeader, _projectDir);
         request.Content = new StringContent(payload, Encoding.UTF8, "application/json");
         using HttpResponseMessage response = await client.SendAsync(request);
@@ -96,27 +95,14 @@ public sealed class HooksEndpointTests : IDisposable
     private string HookDbPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".aitm", _instance, "aitm.db");
 
     [Fact]
-    public async Task RequestWithoutATokenIs401()
-    {
-        using WebApplicationFactory<Program> factory = Factory();
-        ServerToken.EnsureToken(_dataDir);
-        using HttpClient client = Client(factory);
-
-        (HttpStatusCode status, _) = await PostHook(client, null, "PreCompact", "{}");
-
-        Assert.Equal(HttpStatusCode.Unauthorized, status);
-    }
-
-    [Fact]
     public async Task PreCompactEqualsTheCliHook()
     {
         using WebApplicationFactory<Program> factory = Factory();
-        string token = ServerToken.EnsureToken(_dataDir);
         using HttpClient client = Client(factory);
         string payload = JsonSerializer.Serialize(new { transcript_path = WriteTranscript(), cwd = _projectDir, session_id = "s1" });
 
         string expected = RunCliHook("PreCompact", payload);
-        (HttpStatusCode status, string body) = await PostHook(client, token, "PreCompact", payload);
+        (HttpStatusCode status, string body) = await PostHook(client, "PreCompact", payload);
 
         Assert.Equal(HttpStatusCode.OK, status);
         Assert.Contains("Ship the hooks route", expected);
@@ -127,7 +113,6 @@ public sealed class HooksEndpointTests : IDisposable
     public async Task UserPromptSubmitEqualsTheCliHook()
     {
         using WebApplicationFactory<Program> factory = Factory();
-        string token = ServerToken.EnsureToken(_dataDir);
         using HttpClient client = Client(factory);
         string briefPath = Path.Combine(Path.GetDirectoryName(HookDbPath)!, "compact", "s2.md");
         void SeedBrief()
@@ -140,7 +125,7 @@ public sealed class HooksEndpointTests : IDisposable
         SeedBrief();
         string expected = RunCliHook("UserPromptSubmit", payload);
         SeedBrief();
-        (HttpStatusCode status, string body) = await PostHook(client, token, "UserPromptSubmit", payload);
+        (HttpStatusCode status, string body) = await PostHook(client, "UserPromptSubmit", payload);
 
         Assert.Equal(HttpStatusCode.OK, status);
         Assert.Contains("hookSpecificOutput", expected);
@@ -151,13 +136,12 @@ public sealed class HooksEndpointTests : IDisposable
     public async Task PostToolUseBashEqualsTheCliHookAndRecordsThePattern()
     {
         using WebApplicationFactory<Program> factory = Factory();
-        string token = ServerToken.EnsureToken(_dataDir);
         using HttpClient client = Client(factory);
         CreateEmptyHookDb();
         string payload = JsonSerializer.Serialize(new { cwd = _projectDir, session_id = "s3", tool_name = "Bash", tool_input = new { command = "dotnet test Aitm.sln" } });
 
         string expected = RunCliHook("PostToolUse", payload);
-        (HttpStatusCode status, string body) = await PostHook(client, token, "PostToolUse", payload);
+        (HttpStatusCode status, string body) = await PostHook(client, "PostToolUse", payload);
 
         Assert.Equal(HttpStatusCode.OK, status);
         Assert.Equal(expected, body);
@@ -170,12 +154,11 @@ public sealed class HooksEndpointTests : IDisposable
     public async Task PostToolUseEditEqualsTheCliHook()
     {
         using WebApplicationFactory<Program> factory = Factory();
-        string token = ServerToken.EnsureToken(_dataDir);
         using HttpClient client = Client(factory);
         string payload = JsonSerializer.Serialize(new { cwd = _projectDir, session_id = "s4", tool_name = "Edit", tool_input = new { file_path = Path.Combine(_projectDir, "x.txt") } });
 
         string expected = RunCliHook("PostToolUse", payload);
-        (HttpStatusCode status, string body) = await PostHook(client, token, "PostToolUse", payload);
+        (HttpStatusCode status, string body) = await PostHook(client, "PostToolUse", payload);
 
         Assert.Equal(HttpStatusCode.OK, status);
         Assert.Equal(expected, body);
@@ -185,13 +168,12 @@ public sealed class HooksEndpointTests : IDisposable
     public async Task SessionEndEqualsTheCliHookAndIndexesTheTranscript()
     {
         using WebApplicationFactory<Program> factory = Factory();
-        string token = ServerToken.EnsureToken(_dataDir);
         using HttpClient client = Client(factory);
         AitmCliRunner.Run($"init --instance {_instance}");
         string payload = JsonSerializer.Serialize(new { cwd = _projectDir, session_id = "s5", transcript_path = WriteTranscript(), reason = "exit" });
 
         string expected = RunCliHook("SessionEnd", payload);
-        (HttpStatusCode status, string body) = await PostHook(client, token, "SessionEnd", payload);
+        (HttpStatusCode status, string body) = await PostHook(client, "SessionEnd", payload);
 
         Assert.Equal(HttpStatusCode.OK, status);
         Assert.Equal(expected, body);
@@ -221,7 +203,6 @@ public sealed class HooksEndpointTests : IDisposable
     public async Task UserPromptSubmitRestoresTheBriefOfTheRequestProjectNotTheServerEnvProject()
     {
         using WebApplicationFactory<Program> factory = Factory();
-        string token = ServerToken.EnsureToken(_dataDir);
         using HttpClient client = Client(factory);
         string briefPath = Path.Combine(Path.GetDirectoryName(HookDbPath)!, "compact", "s7.md");
         Directory.CreateDirectory(Path.GetDirectoryName(briefPath)!);
@@ -230,7 +211,7 @@ public sealed class HooksEndpointTests : IDisposable
 
         await WithServerEnvPointingElsewhere(async () =>
         {
-            (HttpStatusCode status, string body) = await PostHook(client, token, "UserPromptSubmit", payload);
+            (HttpStatusCode status, string body) = await PostHook(client, "UserPromptSubmit", payload);
 
             Assert.Equal(HttpStatusCode.OK, status);
             Assert.Contains("a directive long enough to be kept", body);
@@ -241,13 +222,12 @@ public sealed class HooksEndpointTests : IDisposable
     public async Task PreCompactWritesTheBriefUnderTheRequestProjectNotTheServerEnvProject()
     {
         using WebApplicationFactory<Program> factory = Factory();
-        string token = ServerToken.EnsureToken(_dataDir);
         using HttpClient client = Client(factory);
         string payload = JsonSerializer.Serialize(new { transcript_path = WriteTranscript(), cwd = _projectDir, session_id = "s8" });
 
         await WithServerEnvPointingElsewhere(async () =>
         {
-            (HttpStatusCode status, _) = await PostHook(client, token, "PreCompact", payload);
+            (HttpStatusCode status, _) = await PostHook(client, "PreCompact", payload);
 
             Assert.Equal(HttpStatusCode.OK, status);
             Assert.True(File.Exists(Path.Combine(Path.GetDirectoryName(HookDbPath)!, "compact", "s8.md")),
@@ -259,10 +239,9 @@ public sealed class HooksEndpointTests : IDisposable
     public async Task UnknownEventIs200AndEmpty()
     {
         using WebApplicationFactory<Program> factory = Factory();
-        string token = ServerToken.EnsureToken(_dataDir);
         using HttpClient client = Client(factory);
 
-        (HttpStatusCode status, string body) = await PostHook(client, token, "NoSuchEvent", $$"""{"cwd":{{JsonSerializer.Serialize(_projectDir)}}}""");
+        (HttpStatusCode status, string body) = await PostHook(client, "NoSuchEvent", $$"""{"cwd":{{JsonSerializer.Serialize(_projectDir)}}}""");
 
         Assert.Equal(HttpStatusCode.OK, status);
         Assert.Equal("", body);
@@ -275,11 +254,10 @@ public sealed class HooksEndpointTests : IDisposable
     public async Task MalformedPayloadIs200AndEmpty(string eventName)
     {
         using WebApplicationFactory<Program> factory = Factory();
-        string token = ServerToken.EnsureToken(_dataDir);
         using HttpClient client = Client(factory);
 
-        (HttpStatusCode status, string body) = await PostHook(client, token, eventName, "{not json", sendProjectHeader: false);
-        (HttpStatusCode status2, string body2) = await PostHook(client, token, eventName, "[1,2]", sendProjectHeader: false);
+        (HttpStatusCode status, string body) = await PostHook(client, eventName, "{not json", sendProjectHeader: false);
+        (HttpStatusCode status2, string body2) = await PostHook(client, eventName, "[1,2]", sendProjectHeader: false);
 
         Assert.Equal(HttpStatusCode.OK, status);
         Assert.Equal("", body);
@@ -291,7 +269,6 @@ public sealed class HooksEndpointTests : IDisposable
     public async Task ConcurrentHooksAndMcpCallsOnOneProjectNeverHitALockError()
     {
         using WebApplicationFactory<Program> factory = Factory();
-        string token = ServerToken.EnsureToken(_dataDir);
         using HttpClient client = Client(factory);
         CreateEmptyHookDb();
 
@@ -300,14 +277,13 @@ public sealed class HooksEndpointTests : IDisposable
             Endpoint = new Uri(client.BaseAddress!, "/mcp"),
             AdditionalHeaders = new Dictionary<string, string>
             {
-                ["Authorization"] = $"Bearer {token}",
                 ["Host"] = _allowedHost,
                 [RequestProjectResolver.ProjectDirHeader] = _projectDir,
             },
         };
         await using McpClient mcp = await McpClient.CreateAsync(new HttpClientTransport(options, client));
 
-        List<Task<(HttpStatusCode, string)>> hookCalls = [.. Enumerable.Range(0, 10).Select(i => PostHook(client, token, "PostToolUse",
+        List<Task<(HttpStatusCode, string)>> hookCalls = [.. Enumerable.Range(0, 10).Select(i => PostHook(client, "PostToolUse",
             JsonSerializer.Serialize(new { cwd = _projectDir, session_id = "s6", tool_name = "Bash", tool_input = new { command = $"git commit -m c{i}" } })))];
         List<Task<ModelContextProtocol.Protocol.CallToolResult>> mcpCalls = [.. Enumerable.Range(0, 10).Select(i => mcp.CallToolAsync("brain_learn", new Dictionary<string, object?>
         {

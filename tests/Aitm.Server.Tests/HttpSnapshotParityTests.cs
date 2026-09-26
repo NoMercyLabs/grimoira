@@ -86,10 +86,9 @@ public sealed class HttpSnapshotParityTests
             Environment.SetEnvironmentVariable("AITM_DATA_DIR", newDataDir);
             Environment.SetEnvironmentVariable("AITM_SERVER_PORT", Port);
             using WebApplicationFactory<Program> factory = new();
-            string token = ServerToken.EnsureToken(newDataDir);
             using HttpClient httpClient = factory.CreateClient(
                 new WebApplicationFactoryClientOptions { BaseAddress = new Uri($"http://{_allowedHost}") });
-            await using McpClient client = await ConnectAsync(httpClient, token, newInstance);
+            await using McpClient client = await ConnectAsync(httpClient, newInstance);
 
             string normalText = await CallText(client, toolName, normalArgs);
             string errorText = await CallText(client, toolName, errorArgs);
@@ -305,14 +304,13 @@ public sealed class HttpSnapshotParityTests
         new IndexDocsTool().Execute(connection, dir, "doc");
     }
 
-    private async Task<McpClient> ConnectAsync(HttpClient httpClient, string token, string instance)
+    private async Task<McpClient> ConnectAsync(HttpClient httpClient, string instance)
     {
         HttpClientTransportOptions options = new()
         {
             Endpoint = new Uri(httpClient.BaseAddress!, "/mcp"),
             AdditionalHeaders = new Dictionary<string, string>
             {
-                ["Authorization"] = $"Bearer {token}",
                 ["Host"] = _allowedHost,
                 [RequestProjectResolver.InstanceHeader] = instance,
             },

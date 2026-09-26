@@ -50,11 +50,10 @@ public sealed class CliEndpointTests : IDisposable
         return instance;
     }
 
-    private async Task<CliAnswer> PostCli(HttpClient client, string? token, string[] args,
+    private async Task<CliAnswer> PostCli(HttpClient client, string[] args,
         string? projectDir = null, string? instanceHeader = null, string? cwd = null)
     {
         using HttpRequestMessage request = new(HttpMethod.Post, "/cli") { Headers = { Host = _allowedHost } };
-        if (token is not null) request.Headers.TryAddWithoutValidation("Authorization", $"Bearer {token}");
         if (projectDir is not null) request.Headers.TryAddWithoutValidation(RequestProjectResolver.ProjectDirHeader, projectDir);
         if (instanceHeader is not null) request.Headers.TryAddWithoutValidation(RequestProjectResolver.InstanceHeader, instanceHeader);
         request.Content = new StringContent(JsonSerializer.Serialize(new { args, cwd = cwd ?? projectDir ?? Path.GetTempPath() }),
@@ -81,10 +80,9 @@ public sealed class CliEndpointTests : IDisposable
     public async Task RequestWithoutATokenIs401()
     {
         using WebApplicationFactory<Program> factory = Factory();
-        ServerToken.EnsureToken(_dataDir);
         using HttpClient client = Client(factory);
 
-        CliAnswer answer = await PostCli(client, null, ["help"], NewProjectDir("noauth"));
+        CliAnswer answer = await PostCli(client, ["help"], NewProjectDir("noauth"));
 
         Assert.Equal(HttpStatusCode.Unauthorized, answer.Status);
     }
@@ -102,12 +100,11 @@ public sealed class CliEndpointTests : IDisposable
     public async Task CliRouteEqualsInProcessAndTheBinCliBinary(string name, string[] args)
     {
         using WebApplicationFactory<Program> factory = Factory();
-        string token = ServerToken.EnsureToken(_dataDir);
         using HttpClient client = Client(factory);
 
         (int exit, string stdout, string stderr) inProc = InProcess(args, NewCliInstance("cliroute-" + name));
         OldVsNewCli.Result bin = OldVsNewCli.Run(OldVsNewCli.BinCliDll(), NewCliInstance("cliroute-bin-" + name), string.Join(' ', args));
-        CliAnswer route = await PostCli(client, token, args, NewProjectDir(name));
+        CliAnswer route = await PostCli(client, args, NewProjectDir(name));
 
         Assert.Equal(HttpStatusCode.OK, route.Status);
         Assert.Equal(bin.ExitCode, inProc.exit);
@@ -121,7 +118,6 @@ public sealed class CliEndpointTests : IDisposable
     public async Task AddThenQueryEqualsInProcessAndTheBinCliBinary()
     {
         using WebApplicationFactory<Program> factory = Factory();
-        string token = ServerToken.EnsureToken(_dataDir);
         using HttpClient client = Client(factory);
         string[] add = ["add", "--term", "cliroutefixture", "--value", "a value seeded through slash cli"];
         string[] query = ["query", "cliroutefixture"];
@@ -134,8 +130,8 @@ public sealed class CliEndpointTests : IDisposable
         OldVsNewCli.Result binAdd = OldVsNewCli.Run(OldVsNewCli.BinCliDll(), binInstance,
             "add --term cliroutefixture --value \"a value seeded through slash cli\"");
         OldVsNewCli.Result binQuery = OldVsNewCli.Run(OldVsNewCli.BinCliDll(), binInstance, "query cliroutefixture");
-        CliAnswer routeAdd = await PostCli(client, token, add, projectDir);
-        CliAnswer routeQuery = await PostCli(client, token, query, projectDir);
+        CliAnswer routeAdd = await PostCli(client, add, projectDir);
+        CliAnswer routeQuery = await PostCli(client, query, projectDir);
 
         Assert.Equal(binAdd.ExitCode, routeAdd.ExitCode);
         Assert.Equal(binAdd.Stdout, routeAdd.Stdout);
@@ -154,19 +150,18 @@ public sealed class CliEndpointTests : IDisposable
     public async Task AnExceptionInsideAVerbIsExitOneAndTheServerStillAnswers()
     {
         using WebApplicationFactory<Program> factory = Factory();
-        string token = ServerToken.EnsureToken(_dataDir);
         using HttpClient client = Client(factory);
         string missing = Path.Combine(Path.GetTempPath(), $"no-such-dir-{Guid.NewGuid():N}", "none.db");
         string projectDir = NewProjectDir("throws");
 
-        CliAnswer answer = await PostCli(client, token, ["import", "--from", missing], projectDir);
+        CliAnswer answer = await PostCli(client, ["import", "--from", missing], projectDir);
 
         Assert.Equal(HttpStatusCode.OK, answer.Status);
         Assert.Equal(1, answer.ExitCode);
         Assert.StartsWith("error:", answer.Stderr);
         using HttpResponseMessage health = await client.GetAsync("/health");
         Assert.Equal(HttpStatusCode.OK, health.StatusCode);
-        CliAnswer after = await PostCli(client, token, ["todos"], projectDir);
+        CliAnswer after = await PostCli(client, ["todos"], projectDir);
         Assert.Equal(0, after.ExitCode);
     }
 
@@ -180,16 +175,15 @@ public sealed class CliEndpointTests : IDisposable
         try
         {
             using WebApplicationFactory<Program> factory = Factory();
-            string token = ServerToken.EnsureToken(_dataDir);
             using HttpClient client = Client(factory);
             string projectA = NewProjectDir("a");
             string projectB = NewProjectDir("b");
 
-            CliAnswer addA = await PostCli(client, token, ["add", "--term", "onlyinprojecta", "--value", "project a value"], projectA);
-            CliAnswer queryA = await PostCli(client, token, ["query", "onlyinprojecta"], projectA);
-            CliAnswer queryB = await PostCli(client, token, ["query", "onlyinprojecta"], projectB);
+            CliAnswer addA = await PostCli(client, ["add", "--term", "onlyinprojecta", "--value", "project a value"], projectA);
+            CliAnswer queryA = await PostCli(client, ["query", "onlyinprojecta"], projectA);
+            CliAnswer queryB = await PostCli(client, ["query", "onlyinprojecta"], projectB);
             // No header: the body cwd names the project, and it is still not the server's env project.
-            CliAnswer queryByCwd = await PostCli(client, token, ["query", "onlyinprojecta"], cwd: projectA);
+            CliAnswer queryByCwd = await PostCli(client, ["query", "onlyinprojecta"], cwd: projectA);
 
             Assert.Equal(0, addA.ExitCode);
             Assert.Contains("project a value", queryA.Stdout);
@@ -211,7 +205,6 @@ public sealed class CliEndpointTests : IDisposable
     public async Task TenCliWritesAndTenMcpWritesAtOnceGiveNoLockError()
     {
         using WebApplicationFactory<Program> factory = Factory();
-        string token = ServerToken.EnsureToken(_dataDir);
         using HttpClient client = Client(factory);
         string instance = "test-cli-concurrency-" + Guid.NewGuid().ToString("N");
 
@@ -220,7 +213,6 @@ public sealed class CliEndpointTests : IDisposable
             Endpoint = new Uri(client.BaseAddress!, "/mcp"),
             AdditionalHeaders = new Dictionary<string, string>
             {
-                ["Authorization"] = $"Bearer {token}",
                 ["Host"] = _allowedHost,
                 [RequestProjectResolver.InstanceHeader] = instance,
             },
@@ -228,7 +220,7 @@ public sealed class CliEndpointTests : IDisposable
         await using McpClient mcp = await McpClient.CreateAsync(new HttpClientTransport(options, client));
 
         Task<CliAnswer>[] cliWrites = Enumerable.Range(0, 10)
-            .Select(i => PostCli(client, token, ["add", "--term", $"concurrentterm{i}", "--value", $"value {i}"], instanceHeader: instance))
+            .Select(i => PostCli(client, ["add", "--term", $"concurrentterm{i}", "--value", $"value {i}"], instanceHeader: instance))
             .ToArray();
         Task<ModelContextProtocol.Protocol.CallToolResult>[] mcpWrites = Enumerable.Range(0, 10)
             .Select(i => mcp.CallToolAsync("brain_learn", new Dictionary<string, object?>
@@ -254,7 +246,7 @@ public sealed class CliEndpointTests : IDisposable
             string text = string.Join("\n", result.Content.OfType<ModelContextProtocol.Protocol.TextContentBlock>().Select(b => b.Text));
             Assert.DoesNotContain("locked", text, StringComparison.OrdinalIgnoreCase);
         }
-        CliAnswer todos = await PostCli(client, token, ["query", "concurrentterm7"], instanceHeader: instance);
+        CliAnswer todos = await PostCli(client, ["query", "concurrentterm7"], instanceHeader: instance);
         Assert.Contains("value 7", todos.Stdout);
     }
 
@@ -266,7 +258,6 @@ public sealed class CliEndpointTests : IDisposable
         try
         {
             using WebApplicationFactory<Program> factory = Factory();
-            string token = ServerToken.EnsureToken(_dataDir);
             using HttpClient client = Client(factory);
             string instance = "test-cli-timeout-" + Guid.NewGuid().ToString("N");
             ProjectHandle handle = factory.Services.GetRequiredService<ProjectStore>().Acquire(instance);
@@ -276,7 +267,7 @@ public sealed class CliEndpointTests : IDisposable
             CliAnswer timedOut;
             try
             {
-                timedOut = await PostCli(client, token, ["todos"], instanceHeader: instance);
+                timedOut = await PostCli(client, ["todos"], instanceHeader: instance);
             }
             finally
             {
@@ -288,7 +279,7 @@ public sealed class CliEndpointTests : IDisposable
             Assert.StartsWith("error: timed out", timedOut.Stderr);
             using HttpResponseMessage health = await client.GetAsync("/health");
             Assert.Equal(HttpStatusCode.OK, health.StatusCode);
-            CliAnswer after = await PostCli(client, token, ["todos"], instanceHeader: instance);
+            CliAnswer after = await PostCli(client, ["todos"], instanceHeader: instance);
             Assert.Equal(0, after.ExitCode);
         }
         finally

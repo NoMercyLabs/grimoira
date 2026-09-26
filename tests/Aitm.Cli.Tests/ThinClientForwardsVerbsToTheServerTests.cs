@@ -11,9 +11,9 @@ using Xunit;
 namespace Aitm.Cli.Tests;
 
 /// <summary>
-/// RESTRUCTURE.md slice 29d: Aitm.Cli is the thin client. Every verb except `hook ...`, `server headers`
-/// and `server install-logon/uninstall-logon` goes to <c>POST http://127.0.0.1:&lt;port&gt;/cli</c> with
-/// <c>{args, cwd}</c>, the bearer token from the server token file and the Claude-Project-Dir header; the
+/// RESTRUCTURE.md slice 29d: Aitm.Cli is the thin client. Every verb except `hook ...` and
+/// `server install-logon/uninstall-logon` goes to <c>POST http://127.0.0.1:&lt;port&gt;/cli</c> with
+/// <c>{args, cwd}</c> and the Claude-Project-Dir header, and no token (AITM holds no secret); the
 /// answer's stdout, stderr and exitCode are passed through exactly. The server here is a stand-in /cli on
 /// an ephemeral port (never 7635), so the test pins what the client sends and prints, not what a verb does.
 /// </summary>
@@ -61,7 +61,7 @@ public sealed class ThinClientForwardsVerbsToTheServerTests : IAsyncLifetime
     {
         _answer = new { exitCode = 7, stdout = "line one\nline two\n", stderr = "warn: from the server\n" };
 
-        (string stdout, string stderr, int exit) = ServerHeadersCommandTests.RunBuiltCli(["todos", "--flag", "v"], _dataDir, Env());
+        (string stdout, string stderr, int exit) = BuiltCli.Run(["todos", "--flag", "v"], _dataDir, Env());
 
         Assert.Equal(7, exit);
         Assert.Equal("line one\nline two\n", stdout);
@@ -73,19 +73,19 @@ public sealed class ThinClientForwardsVerbsToTheServerTests : IAsyncLifetime
     }
 
     [Fact]
-    public void TheTokenFileIsReadAndSentWithTheProjectDirHeader()
+    public void NoTokenIsSentEvenWithAnOldTokenFileOnlyTheProjectDirHeader()
     {
         File.WriteAllText(Path.Combine(_dataDir, "server.token"), "tok-thin-client\n");
         string projectDir = Path.Combine(Path.GetTempPath(), "test-thin-project");
 
-        ServerHeadersCommandTests.RunBuiltCli(["help"], _dataDir, Env());
-        ServerHeadersCommandTests.RunBuiltCli(["help"], _dataDir, Env(projectDir, "test-thin-inst"));
+        BuiltCli.Run(["help"], _dataDir, Env());
+        BuiltCli.Run(["help"], _dataDir, Env(projectDir, "test-thin-inst"));
 
         Assert.Equal(2, _calls.Count);
-        Assert.Equal("Bearer tok-thin-client", _calls[0].Headers.Authorization.ToString());
+        Assert.False(_calls[0].Headers.ContainsKey("Authorization"));
         Assert.Equal(Directory.GetCurrentDirectory(), _calls[0].Headers["Claude-Project-Dir"].ToString());
         Assert.False(_calls[0].Headers.ContainsKey("Aitm-Instance"));
-        Assert.Equal("Bearer tok-thin-client", _calls[1].Headers.Authorization.ToString());
+        Assert.False(_calls[1].Headers.ContainsKey("Authorization"));
         Assert.Equal(projectDir, _calls[1].Headers["Claude-Project-Dir"].ToString());
         Assert.Equal("test-thin-inst", _calls[1].Headers["Aitm-Instance"].ToString());
     }
@@ -97,7 +97,7 @@ public sealed class ThinClientForwardsVerbsToTheServerTests : IAsyncLifetime
         env["AITM_SERVER_PORT"] = FreePort().ToString();
         Stopwatch sw = Stopwatch.StartNew();
 
-        (string stdout, string stderr, int exit) = ServerHeadersCommandTests.RunBuiltCli(["todos"], _dataDir, env);
+        (string stdout, string stderr, int exit) = BuiltCli.Run(["todos"], _dataDir, env);
 
         Assert.Equal(1, exit);
         Assert.Equal("", stdout);
@@ -108,18 +108,13 @@ public sealed class ThinClientForwardsVerbsToTheServerTests : IAsyncLifetime
     }
 
     [Fact]
-    public void HookAndServerHeadersStillRunLocallyWithTheServerDown()
+    public void HookStillRunsLocallyWithTheServerDown()
     {
         Dictionary<string, string> env = Env();
         env["AITM_SERVER_PORT"] = FreePort().ToString();
-        File.WriteAllText(Path.Combine(_dataDir, "server.token"), "tok-local");
 
-        (string headers, string headersErr, int headersExit) = ServerHeadersCommandTests.RunBuiltCli(["server", "headers"], _dataDir, env);
-        (_, string hookErr, int hookExit) = ServerHeadersCommandTests.RunBuiltCli(["hook", "PreCompact"], _dataDir, env);
+        (_, string hookErr, int hookExit) = BuiltCli.Run(["hook", "PreCompact"], _dataDir, env);
 
-        Assert.Equal(0, headersExit);
-        Assert.Equal("""{"Authorization":"Bearer tok-local"}""", headers.Trim());
-        Assert.Equal("", headersErr);
         Assert.Equal(0, hookExit);
         Assert.Equal("", hookErr);
         Assert.Empty(_calls);
@@ -128,7 +123,7 @@ public sealed class ThinClientForwardsVerbsToTheServerTests : IAsyncLifetime
     [Fact]
     public void TheCliAssemblyIsNamedAitm()
     {
-        Assert.Equal("aitm", typeof(ServerHeadersCommand).Assembly.GetName().Name);
+        Assert.Equal("aitm", typeof(ThinClient).Assembly.GetName().Name);
     }
 
     private static int FreePort()

@@ -128,19 +128,6 @@ public sealed class HookVerbAgainstTheRunningServerTests : IDisposable
         Assert.True(elapsedMs < 2000, $"{eventName} took {elapsedMs} ms with the server down");
     }
 
-    [Fact]
-    public void WithAWrongTokenTheForwardedHookExitsZeroAndPrintsNothing()
-    {
-        StartServer();
-        File.WriteAllText(Path.Combine(_dataDir, "server.token"), "not-the-token");
-        string payload = JsonSerializer.Serialize(new { cwd = _projectDir, session_id = "s5", transcript_path = WriteTranscript() });
-
-        (int exit, string stdout, _) = RunHook("SessionEnd", payload);
-
-        Assert.Equal(0, exit);
-        Assert.Equal("", stdout);
-    }
-
     // Each call is measured against the timeout its slot declares in hooks.json, 5 warm runs per event.
     [Theory]
     [InlineData("PreCompact")]

@@ -26,14 +26,13 @@ public sealed class McpEndpointTests : IDisposable
         return new WebApplicationFactory<Program>();
     }
 
-    private async Task<McpClient> ConnectAsync(HttpClient httpClient, string token, string instance)
+    private async Task<McpClient> ConnectAsync(HttpClient httpClient, string instance)
     {
         HttpClientTransportOptions options = new()
         {
             Endpoint = new Uri(httpClient.BaseAddress!, "/mcp"),
             AdditionalHeaders = new Dictionary<string, string>
             {
-                ["Authorization"] = $"Bearer {token}",
                 ["Host"] = _allowedHost,
                 [RequestProjectResolver.InstanceHeader] = instance,
             },
@@ -45,10 +44,9 @@ public sealed class McpEndpointTests : IDisposable
     public async Task ToolsListMatchesTheGoldenMcpList()
     {
         using WebApplicationFactory<Program> factory = Factory();
-        string token = ServerToken.EnsureToken(_dataDir);
         using HttpClient httpClient = factory.CreateClient(new WebApplicationFactoryClientOptions { BaseAddress = new Uri($"http://{_allowedHost}") });
 
-        await using McpClient client = await ConnectAsync(httpClient, token, "tools-list-instance");
+        await using McpClient client = await ConnectAsync(httpClient, "tools-list-instance");
         IList<McpClientTool> tools = await client.ListToolsAsync();
 
         string[] names = [.. tools.Select(t => t.Name).OrderBy(n => n, StringComparer.Ordinal)];
@@ -60,7 +58,6 @@ public sealed class McpEndpointTests : IDisposable
     public async Task RequestWithoutATokenIs401()
     {
         using WebApplicationFactory<Program> factory = Factory();
-        ServerToken.EnsureToken(_dataDir);
         using HttpClient httpClient = factory.CreateClient(new WebApplicationFactoryClientOptions { BaseAddress = new Uri($"http://{_allowedHost}") });
 
         using HttpRequestMessage request = new(HttpMethod.Post, "/mcp") { Headers = { Host = _allowedHost } };
@@ -78,12 +75,11 @@ public sealed class McpEndpointTests : IDisposable
     public async Task FactToolMatchesThePhase2PinnedOutputForASeededTerm()
     {
         using WebApplicationFactory<Program> factory = Factory();
-        string token = ServerToken.EnsureToken(_dataDir);
         const string instance = "fact-mcp-instance";
         SeedFact(instance, "mcpfixtureterm", "mcpfixturevalue");
 
         using HttpClient httpClient = factory.CreateClient(new WebApplicationFactoryClientOptions { BaseAddress = new Uri($"http://{_allowedHost}") });
-        await using McpClient client = await ConnectAsync(httpClient, token, instance);
+        await using McpClient client = await ConnectAsync(httpClient, instance);
 
         ModelContextProtocol.Protocol.CallToolResult result = await client.CallToolAsync("fact", new Dictionary<string, object?> { ["query"] = "mcpfixtureterm" });
 
@@ -95,13 +91,12 @@ public sealed class McpEndpointTests : IDisposable
     public async Task TwoSessionsWritingToTheSameProjectStoreBackToBackAndConcurrentlyNeverSeeALockError()
     {
         using WebApplicationFactory<Program> factory = Factory();
-        string token = ServerToken.EnsureToken(_dataDir);
         const string instance = "concurrency-instance";
 
         using HttpClient httpClientA = factory.CreateClient(new WebApplicationFactoryClientOptions { BaseAddress = new Uri($"http://{_allowedHost}") });
         using HttpClient httpClientB = factory.CreateClient(new WebApplicationFactoryClientOptions { BaseAddress = new Uri($"http://{_allowedHost}") });
-        await using McpClient sessionA = await ConnectAsync(httpClientA, token, instance);
-        await using McpClient sessionB = await ConnectAsync(httpClientB, token, instance);
+        await using McpClient sessionA = await ConnectAsync(httpClientA, instance);
+        await using McpClient sessionB = await ConnectAsync(httpClientB, instance);
 
         // Back to back.
         await CallLearn(sessionA, "k1");

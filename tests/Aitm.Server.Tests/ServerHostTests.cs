@@ -7,8 +7,8 @@ using Xunit;
 namespace Aitm.Server.Tests;
 
 // RESTRUCTURE.md "Slice 25: Aitm.Server host." — a Kestrel host bound to 127.0.0.1:7635 only, that
-// rejects a wrong Host header and any Origin header, serves /health without auth, and requires a
-// bearer token on every other route. These tests run the real Program pipeline through an in-process
+// rejects a wrong Host header and any Origin header. It holds no secret and checks no token
+// (the owner, 2026-09-26). These tests run the real Program pipeline through an in-process
 // TestServer (WebApplicationFactory<Program>), never a real socket bind on 7635 — Program reads its
 // data directory and port from AITM_DATA_DIR / AITM_SERVER_PORT so a test never touches ~/.aitm.
 public sealed class ServerHostTests : IDisposable
@@ -49,21 +49,70 @@ public sealed class ServerHostTests : IDisposable
         Assert.True(body.ContainsKey("buildStamp")); // null outside a published build (slice 32b)
     }
 
-    [Fact]
-    public async Task OtherRoutesRejectMissingOrWrongToken()
+    // AITM holds no secret (the owner, 2026-09-26): the guard is the loopback bind, the Host check and the Origin
+    // refusal, never a token. A plain loopback call with no Authorization header is served.
+    [Theory]
+    [InlineData("127.0.0.1")]
+    [InlineData("localhost")]
+    public async Task ALoopbackCallWithoutAnyTokenIsServed(string hostName)
     {
-        string token = ServerToken.EnsureToken(_dataDir);
+        using WebApplicationFactory<Program> factory = Factory();
+        using HttpClient client = factory.CreateClient();
+        using HttpRequestMessage request = Request(HttpMethod.Post, "/hooks/NoSuchEvent", $"{hostName}:{Port}");
+        request.Content = new StringContent("{}", System.Text.Encoding.UTF8, "application/json");
+
+        HttpResponseMessage response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task AnAuthorizationHeaderIsIgnoredNotChecked()
+    {
+        using WebApplicationFactory<Program> factory = Factory();
+        using HttpClient client = factory.CreateClient();
+        using HttpRequestMessage request = Request(HttpMethod.Post, "/hooks/NoSuchEvent", _allowedHost, bearer: "left-over-from-an-old-client");
+        request.Content = new StringContent("{}", System.Text.Encoding.UTF8, "application/json");
+
+        HttpResponseMessage response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task WrongHostHeaderIsRefusedOnEveryRoute()
+    {
         using WebApplicationFactory<Program> factory = Factory();
         using HttpClient client = factory.CreateClient();
 
-        HttpResponseMessage noToken = await client.SendAsync(Request(HttpMethod.Get, "/anything", _allowedHost));
-        Assert.Equal(HttpStatusCode.Unauthorized, noToken.StatusCode);
+        foreach (string path in new[] { "/mcp", "/cli", "/hooks/PreCompact" })
+        {
+            HttpResponseMessage response = await client.SendAsync(Request(HttpMethod.Post, path, $"attacker.example:{Port}"));
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        }
+    }
 
-        HttpResponseMessage wrongToken = await client.SendAsync(Request(HttpMethod.Get, "/anything", _allowedHost, bearer: token + "x"));
-        Assert.Equal(HttpStatusCode.Unauthorized, wrongToken.StatusCode);
+    [Fact]
+    public async Task AnyOriginHeaderIsRefusedOnEveryRoute()
+    {
+        using WebApplicationFactory<Program> factory = Factory();
+        using HttpClient client = factory.CreateClient();
 
-        HttpResponseMessage rightToken = await client.SendAsync(Request(HttpMethod.Get, "/anything", _allowedHost, bearer: token));
-        Assert.NotEqual(HttpStatusCode.Unauthorized, rightToken.StatusCode);
+        foreach (string path in new[] { "/mcp", "/cli", "/hooks/PreCompact" })
+        {
+            HttpResponseMessage response = await client.SendAsync(Request(HttpMethod.Post, path, _allowedHost, addOrigin: true));
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        }
+    }
+
+    [Fact]
+    public void TheServerListensOnLoopbackOnly()
+    {
+        string program = File.ReadAllText(Path.Combine(Aitm.Layout.Tests.RepoPaths.Root, "src", "Aitm.Server", "Data", "Program.cs"));
+
+        Assert.Contains("builder.WebHost.UseUrls($\"http://127.0.0.1:{port}\");", program);
+        Assert.DoesNotContain("0.0.0.0", program);
+        Assert.DoesNotContain("ListenAnyIP", program);
     }
 
     [Fact]
@@ -89,20 +138,24 @@ public sealed class ServerHostTests : IDisposable
     }
 
     [Fact]
-    public void TokenFileIsUserOnlyAndStableAcrossRestarts()
+    public void StartingTheServerWritesNoTokenFile()
     {
-        string first = ServerToken.EnsureToken(_dataDir);
-        string second = ServerToken.EnsureToken(_dataDir); // simulates a restart reading the same file.
+        using WebApplicationFactory<Program> factory = Factory();
+        _ = factory.Server;
 
-        Assert.Equal(first, second);
+        Assert.False(File.Exists(Path.Combine(_dataDir, "server.token")), "the server wrote a token file");
+    }
 
-        string path = Path.Combine(_dataDir, ServerToken.FileName);
-        Assert.True(File.Exists(path));
-        if (!OperatingSystem.IsWindows())
-        {
-            UnixFileMode mode = File.GetUnixFileMode(path);
-            Assert.Equal(UnixFileMode.UserRead | UnixFileMode.UserWrite, mode);
-        }
+    // A server.token left by an older build is the user's file: ignored, never deleted.
+    [Fact]
+    public void AnOldTokenFileIsLeftAlone()
+    {
+        string path = Path.Combine(_dataDir, "server.token");
+        File.WriteAllText(path, "old-token");
+        using WebApplicationFactory<Program> factory = Factory();
+        _ = factory.Server;
+
+        Assert.Equal("old-token", File.ReadAllText(path));
     }
 
     public void Dispose()

@@ -56,37 +56,35 @@ public sealed class RequestProjectResolutionTests : IDisposable
         Assert.DoesNotContain(stores, s => s.Contains("envinst") || s.Contains("envdir"));
     }
 
-    private HttpRequestMessage Request(string path, string token, string? projectDirHeader, string? instanceHeader, object body)
+    private HttpRequestMessage Request(string path, string? projectDirHeader, string? instanceHeader, object body)
     {
         HttpRequestMessage request = new(HttpMethod.Post, path) { Headers = { Host = _allowedHost } };
-        request.Headers.TryAddWithoutValidation("Authorization", $"Bearer {token}");
         if (projectDirHeader is not null) request.Headers.TryAddWithoutValidation(RequestProjectResolver.ProjectDirHeader, projectDirHeader);
         if (instanceHeader is not null) request.Headers.TryAddWithoutValidation(RequestProjectResolver.InstanceHeader, instanceHeader);
         request.Content = new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json");
         return request;
     }
 
-    private async Task PostCli(HttpClient client, string token, string? projectDirHeader, string? instanceHeader, string cwd)
+    private async Task PostCli(HttpClient client, string? projectDirHeader, string? instanceHeader, string cwd)
     {
-        using HttpRequestMessage request = Request("/cli", token, projectDirHeader, instanceHeader,
+        using HttpRequestMessage request = Request("/cli", projectDirHeader, instanceHeader,
             new { args = new[] { "query", "anything" }, cwd });
         using HttpResponseMessage response = await client.SendAsync(request);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
-    private async Task PostHook(HttpClient client, string token, string? projectDirHeader, string? instanceHeader, string cwd)
+    private async Task PostHook(HttpClient client, string? projectDirHeader, string? instanceHeader, string cwd)
     {
-        using HttpRequestMessage request = Request("/hooks/PreCompact", token, projectDirHeader, instanceHeader,
+        using HttpRequestMessage request = Request("/hooks/PreCompact", projectDirHeader, instanceHeader,
             new { cwd, session_id = "resolve" });
         using HttpResponseMessage response = await client.SendAsync(request);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
-    private async Task CallMcp(HttpClient httpClient, string token, string? projectDirHeader)
+    private async Task CallMcp(HttpClient httpClient, string? projectDirHeader)
     {
         Dictionary<string, string> headers = new()
         {
-            ["Authorization"] = $"Bearer {token}",
             ["Host"] = _allowedHost,
         };
         if (projectDirHeader is not null) headers[RequestProjectResolver.ProjectDirHeader] = projectDirHeader;
@@ -99,10 +97,9 @@ public sealed class RequestProjectResolutionTests : IDisposable
     public async Task McpWithAProjectDirHeaderUsesTheHeaderNotTheServerEnv()
     {
         using WebApplicationFactory<Program> factory = Factory();
-        string token = ServerToken.EnsureToken(_dataDir);
         using HttpClient client = Client(factory);
 
-        await CallMcp(client, token, _projectDir);
+        await CallMcp(client, _projectDir);
 
         AssertOnlyStore(RequestProject);
     }
@@ -111,10 +108,9 @@ public sealed class RequestProjectResolutionTests : IDisposable
     public async Task McpWithoutHeadersUsesTheServerDirectoryNotTheServerEnv()
     {
         using WebApplicationFactory<Program> factory = Factory();
-        string token = ServerToken.EnsureToken(_dataDir);
         using HttpClient client = Client(factory);
 
-        await CallMcp(client, token, null);
+        await CallMcp(client, null);
 
         AssertOnlyStore(StoreConnection.ResolveInstance(null, null, Directory.GetCurrentDirectory()));
     }
@@ -123,10 +119,9 @@ public sealed class RequestProjectResolutionTests : IDisposable
     public async Task CliWithAProjectDirHeaderUsesTheHeaderNotTheServerEnv()
     {
         using WebApplicationFactory<Program> factory = Factory();
-        string token = ServerToken.EnsureToken(_dataDir);
         using HttpClient client = Client(factory);
 
-        await PostCli(client, token, _projectDir, null, Path.GetTempPath());
+        await PostCli(client, _projectDir, null, Path.GetTempPath());
 
         AssertOnlyStore(RequestProject);
     }
@@ -135,10 +130,9 @@ public sealed class RequestProjectResolutionTests : IDisposable
     public async Task CliWithoutHeadersUsesTheBodyCwdNotTheServerEnv()
     {
         using WebApplicationFactory<Program> factory = Factory();
-        string token = ServerToken.EnsureToken(_dataDir);
         using HttpClient client = Client(factory);
 
-        await PostCli(client, token, null, null, _projectDir);
+        await PostCli(client, null, null, _projectDir);
 
         AssertOnlyStore(RequestProject);
     }
@@ -147,10 +141,9 @@ public sealed class RequestProjectResolutionTests : IDisposable
     public async Task HookWithAProjectDirHeaderUsesTheHeaderNotTheServerEnv()
     {
         using WebApplicationFactory<Program> factory = Factory();
-        string token = ServerToken.EnsureToken(_dataDir);
         using HttpClient client = Client(factory);
 
-        await PostHook(client, token, _projectDir, null, Path.GetTempPath());
+        await PostHook(client, _projectDir, null, Path.GetTempPath());
 
         AssertOnlyStore(RequestProject);
     }
@@ -159,10 +152,9 @@ public sealed class RequestProjectResolutionTests : IDisposable
     public async Task HookWithoutHeadersUsesThePayloadCwdNotTheServerEnv()
     {
         using WebApplicationFactory<Program> factory = Factory();
-        string token = ServerToken.EnsureToken(_dataDir);
         using HttpClient client = Client(factory);
 
-        await PostHook(client, token, null, null, _projectDir);
+        await PostHook(client, null, null, _projectDir);
 
         AssertOnlyStore(RequestProject);
     }
@@ -174,15 +166,14 @@ public sealed class RequestProjectResolutionTests : IDisposable
     public async Task CliAndHooksResolveTheSameProjectForTheSameInputs(bool sendProjectDir, bool sendInstance)
     {
         using WebApplicationFactory<Program> factory = Factory();
-        string token = ServerToken.EnsureToken(_dataDir);
         using HttpClient client = Client(factory);
         string? projectDirHeader = sendProjectDir ? _projectDir : null;
         string? instanceHeader = sendInstance ? "test-headerinst" : null;
         string cwd = Path.GetTempPath();
 
-        await PostCli(client, token, projectDirHeader, instanceHeader, cwd);
+        await PostCli(client, projectDirHeader, instanceHeader, cwd);
         string[] afterCli = Stores();
-        await PostHook(client, token, projectDirHeader, instanceHeader, cwd);
+        await PostHook(client, projectDirHeader, instanceHeader, cwd);
         string[] afterHook = Stores();
 
         string expected = sendInstance ? "test-headerinst" : RequestProject;
