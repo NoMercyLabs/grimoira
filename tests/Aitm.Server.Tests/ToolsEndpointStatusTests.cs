@@ -64,7 +64,7 @@ public sealed class ToolsEndpointStatusTests : IDisposable
     [InlineData(typeof(ArgumentException))]
     public async Task AToolThatThrowsInsideItselfIsAnInternalErrorWithAOneLineBody(Type exceptionType)
     {
-        AIFunction[] tools = [Fake("boom", (string q) => (string)throw (Exception)Activator.CreateInstance(exceptionType, "inner\nsecond line")!)];
+        AIFunction[] tools = [Fake("boom", (string q) => Throw((Exception)Activator.CreateInstance(exceptionType, "inner\nsecond line")!))];
 
         (int status, string body) = Answer(await ToolsEndpoint.Call("boom", Request("{\"q\":\"x\"}"), tools));
 

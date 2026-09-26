@@ -13,8 +13,8 @@ namespace Aitm.Cli.Tools;
 /// (<c>AITM_INSTANCE</c>, <c>CLAUDE_PROJECT_DIR</c>, else the current directory). The answer's stdout and
 /// stderr are written as they are and its <c>exitCode</c> is returned.
 ///
-/// A server that refuses the connection is started once through <see cref="ServerAutoStart"/> and the call
-/// is sent once more. Only a refused connection counts: any later failure may mean the verb already ran,
+/// A server that refuses the connection is started through <see cref="ServerAutoStart"/> and the call
+/// is sent again, up to 3 times (<see cref="RefusedConnectionRetry"/>). Only a refused connection counts: any later failure may mean the verb already ran,
 /// so it is never resent. Still unreachable: one stderr line, exit 1.
 /// </summary>
 public static class ThinClient
@@ -33,27 +33,19 @@ public static class ThinClient
         using HttpClient client = PipeConnection.CreateClient(dataDir, ConnectTimeout, RequestTimeout);
         try
         {
-            HttpResponseMessage response;
-            try
+            // A refused connection starts the service and resends (RefusedConnectionRetry); nothing else is resent.
+            if (!RefusedConnectionRetry.TrySend(() => Send(client, args, cwd, instanceEnv, projectDirEnv), ensureServer, out HttpResponseMessage? response))
             {
-                response = Send(client, args, cwd, instanceEnv, projectDirEnv);
-            }
-            catch (HttpRequestException ex) when (ex.HttpRequestError == HttpRequestError.ConnectionError)
-            {
-                if (!ensureServer())
-                {
-                    string why = File.Exists(serverExe)
-                        ? $"started {serverExe}, but /health did not answer within {ServerAutoStart.DefaultMaxWait.TotalSeconds:0} s"
-                        : $"no server to start at {serverExe}";
-                    stderr.WriteLine($"error: the aitm server for {dataDir} is not running ({why}).");
-                    return 1;
-                }
-                response = Send(client, args, cwd, instanceEnv, projectDirEnv);
+                string why = File.Exists(serverExe)
+                    ? $"started {serverExe}, but /health did not answer within {ServerAutoStart.DefaultMaxWait.TotalSeconds:0} s"
+                    : $"no server to start at {serverExe}";
+                stderr.WriteLine($"error: the aitm server for {dataDir} is not running ({why}).");
+                return 1;
             }
 
             using (response)
             {
-                string body = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+                string body = response!.Content.ReadAsStringAsync().GetAwaiter().GetResult();
                 if (response.StatusCode != HttpStatusCode.OK)
                 {
                     stderr.WriteLine($"error: the aitm server for {dataDir} answered {(int)response.StatusCode}.");

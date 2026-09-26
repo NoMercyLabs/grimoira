@@ -9,7 +9,7 @@ namespace Aitm.Server.Data;
 /// tool method runs and always releases it afterwards, even when the call throws. This is the "one
 /// writer" half of RESTRUCTURE.md "Slice 26"; <see cref="ProjectStore"/> is the "one open store" half.
 /// </summary>
-internal sealed class LockingAIFunction(AIFunction inner, ProjectStore store, IHttpContextAccessor httpContextAccessor) : AIFunction
+internal sealed class LockingAIFunction(AIFunction inner, ProjectStore store, IHttpContextAccessor httpContextAccessor, TimeSpan? gateTimeout = null) : AIFunction
 {
     public override string Name => inner.Name;
     public override string Description => inner.Description;
@@ -21,7 +21,15 @@ internal sealed class LockingAIFunction(AIFunction inner, ProjectStore store, IH
     {
         string instance = RequestProjectResolver.Resolve(httpContextAccessor.HttpContext);
         ProjectHandle handle = store.Acquire(instance);
-        await handle.Gate.WaitAsync(cancellationToken);
+        if (gateTimeout is { } limit)
+        {
+            if (!await handle.Gate.WaitAsync(limit, cancellationToken))
+                throw new ProjectBusyException($"project busy: another call has held project '{instance}' for over {limit.TotalSeconds:0} s.");
+        }
+        else
+        {
+            await handle.Gate.WaitAsync(cancellationToken);
+        }
         try
         {
             return await inner.InvokeAsync(arguments, cancellationToken);
@@ -32,3 +40,6 @@ internal sealed class LockingAIFunction(AIFunction inner, ProjectStore store, IH
         }
     }
 }
+
+/// <summary>A tool call could not get its project's writer gate within the limit; /tools answers 503.</summary>
+public sealed class ProjectBusyException(string message) : Exception(message);

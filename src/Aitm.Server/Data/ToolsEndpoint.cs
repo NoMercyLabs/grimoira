@@ -22,32 +22,77 @@ public static class ToolsEndpoint
         AIFunction? tool = tools.FirstOrDefault(t => t.Name == name);
         if (tool is null) return Results.Text($"no such tool: {name}", statusCode: StatusCodes.Status404NotFound);
 
-        AIFunctionArguments arguments = new();
+        JsonElement body;
         try
         {
-            using JsonDocument body = await JsonDocument.ParseAsync(context.Request.Body, cancellationToken: context.RequestAborted);
-            if (body.RootElement.ValueKind == JsonValueKind.Object)
-                foreach (JsonProperty property in body.RootElement.EnumerateObject())
-                    arguments[property.Name] = property.Value.Clone();
+            using JsonDocument document = await JsonDocument.ParseAsync(context.Request.Body, cancellationToken: context.RequestAborted);
+            body = document.RootElement.Clone();
         }
         catch (JsonException ex)
         {
             return Results.Text($"the arguments are not valid JSON: {FirstLine(ex.Message)}", statusCode: StatusCodes.Status400BadRequest);
         }
 
+        // Binding is its own step: only an argument that does not fit the tool's parameters is a 400.
+        if (!TryBind(tool, body, out AIFunctionArguments arguments, out string bindError))
+            return Results.Text(bindError, statusCode: StatusCodes.Status400BadRequest);
+
         try
         {
             object? result = await tool.InvokeAsync(arguments, context.RequestAborted);
             return Results.Text(result?.ToString() ?? "");
         }
-        catch (Exception ex) when (ex is ArgumentException or JsonException or InvalidOperationException or FormatException)
+        catch (ProjectBusyException ex)
         {
-            return Results.Text($"{name}: bad arguments ({FirstLine(ex.Message)})", statusCode: StatusCodes.Status400BadRequest);
+            return Results.Text(FirstLine(ex.Message), statusCode: StatusCodes.Status503ServiceUnavailable);
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested)
         {
+            throw; // the client went away; there is nobody to answer
+        }
+        catch (Exception ex)
+        {
+            // Anything thrown while the tool runs is the tool's own failure, whatever its type.
             return Results.Text($"{name} failed ({ex.GetType().Name}: {FirstLine(ex.Message)})", statusCode: StatusCodes.Status500InternalServerError);
         }
+    }
+
+    private static bool TryBind(AIFunction tool, JsonElement body, out AIFunctionArguments arguments, out string error)
+    {
+        arguments = new AIFunctionArguments();
+        error = "";
+        Dictionary<string, JsonElement> byName = body.ValueKind == JsonValueKind.Object
+            ? body.EnumerateObject().ToDictionary(p => p.Name, p => p.Value, StringComparer.Ordinal)
+            : [];
+        if (tool.UnderlyingMethod is null)
+        {
+            foreach ((string key, JsonElement value) in byName) arguments[key] = value;
+            return true;
+        }
+
+        foreach (System.Reflection.ParameterInfo parameter in tool.UnderlyingMethod.GetParameters())
+        {
+            Type type = parameter.ParameterType;
+            if (type == typeof(Microsoft.Data.Sqlite.SqliteConnection) || type == typeof(CancellationToken)
+                || type == typeof(IServiceProvider) || type == typeof(AIFunctionArguments)) continue;
+            string parameterName = parameter.Name ?? "";
+            if (!byName.TryGetValue(parameterName, out JsonElement value))
+            {
+                if (parameter.HasDefaultValue || Nullable.GetUnderlyingType(type) is not null) continue;
+                error = $"missing argument '{parameterName}'";
+                return false;
+            }
+            try
+            {
+                arguments[parameterName] = JsonSerializer.Deserialize(value, type, AIJsonUtilities.DefaultOptions);
+            }
+            catch (Exception ex) when (ex is JsonException or InvalidOperationException or NotSupportedException or FormatException)
+            {
+                error = $"argument '{parameterName}' does not fit {type.Name}: {FirstLine(ex.Message)}";
+                return false;
+            }
+        }
+        return true;
     }
 
     private static string FirstLine(string text)

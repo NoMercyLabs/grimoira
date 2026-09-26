@@ -40,28 +40,30 @@ public static class HookForwarder
             using CancellationTokenSource deadlineSource = new(deadline);
             // No client timeout: the deadline token below covers the whole call.
             using HttpClient client = PipeConnection.CreateClient(dataDir, deadline < ConnectTimeout ? deadline : ConnectTimeout, Timeout.InfiniteTimeSpan);
-            using HttpRequestMessage request = new(HttpMethod.Post, $"/hooks/{Uri.EscapeDataString(eventName)}");
-            if (!string.IsNullOrWhiteSpace(projectDirEnv)) request.Headers.TryAddWithoutValidation("Claude-Project-Dir", projectDirEnv);
-            request.Content = new StringContent(payload, Encoding.UTF8, "application/json");
+            HttpRequestMessage NewRequest()
+            {
+                HttpRequestMessage request = new(HttpMethod.Post, $"/hooks/{Uri.EscapeDataString(eventName)}");
+                if (!string.IsNullOrWhiteSpace(projectDirEnv)) request.Headers.TryAddWithoutValidation("Claude-Project-Dir", projectDirEnv);
+                request.Content = new StringContent(payload, Encoding.UTF8, "application/json");
+                return request;
+            }
 
-            HttpResponseMessage response;
-            try
+            HttpResponseMessage Send()
             {
-                response = client.Send(request, deadlineSource.Token);
+                using HttpRequestMessage request = NewRequest();
+                return client.Send(request, deadlineSource.Token);
             }
-            catch (HttpRequestException ex) when (ex.HttpRequestError == HttpRequestError.ConnectionError && ensureServer is not null)
-            {
-                // Nobody home: start the service (silently, bounded) and send the payload once more.
-                if (!ensureServer()) return "";
-                using HttpRequestMessage again = new(HttpMethod.Post, request.RequestUri);
-                foreach (var h in request.Headers) again.Headers.TryAddWithoutValidation(h.Key, h.Value);
-                again.Content = new StringContent(payload, Encoding.UTF8, "application/json");
-                response = client.Send(again, deadlineSource.Token);
-            }
+
+            // Nobody home: start the service (silently, bounded) and send the payload again, up to 3 times
+            // (RefusedConnectionRetry). With no ensureServer the hook is sent once.
+            HttpResponseMessage? response;
+            if (ensureServer is null) response = Send();
+            else if (!RefusedConnectionRetry.TrySend(Send, ensureServer, out response)) return "";
+
             using (response)
             {
-            if (response.StatusCode != HttpStatusCode.OK) return "";
-            return response.Content.ReadAsStringAsync(deadlineSource.Token).GetAwaiter().GetResult();
+                if (response!.StatusCode != HttpStatusCode.OK) return "";
+                return response.Content.ReadAsStringAsync(deadlineSource.Token).GetAwaiter().GetResult();
             }
         }
         catch

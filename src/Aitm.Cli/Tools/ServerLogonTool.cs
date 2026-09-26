@@ -1,4 +1,3 @@
-using System.Xml.Linq;
 using Aitm.Brain.Data;
 
 namespace Aitm.Cli.Tools;
@@ -20,9 +19,8 @@ public sealed record WindowsLogonTaskDefinition(
     string WorkingDirectory);
 
 /// <summary>
-/// Builds the Task Scheduler definition for Aitm.Server. Runs only when the given user is logged on
-/// (LogonType InteractiveToken), not elevated (RunLevel LeastPrivilege), ~30s after logon, restarting
-/// up to 3 times 1 minute apart on failure, with no overall stop-after duration.
+/// The logon task definition for Aitm.Server: the data the launchd and systemd builders below share, and the
+/// task name `uninstall-logon` deletes.
 /// </summary>
 public static class WindowsLogonTask
 {
@@ -47,74 +45,16 @@ public static class WindowsLogonTask
         return dir.EndsWith(':') ? dir + "\\" : dir; // "C:\a.exe" -> "C:\", as on Windows
     }
 
-    /// <summary>The Task Scheduler XML (schema 1.2) for <paramref name="def"/>. A pure function: no
-    /// file or process I/O.</summary>
-    public static string BuildTaskXml(WindowsLogonTaskDefinition def)
-    {
-        XNamespace ns = "http://schemas.microsoft.com/windows/2004/02/mit/task";
-        XDocument doc = new(
-            new XElement(ns + "Task",
-                new XAttribute("version", "1.2"),
-                new XElement(ns + "Triggers",
-                    new XElement(ns + "LogonTrigger",
-                        new XElement(ns + "Enabled", "true"),
-                        new XElement(ns + "UserId", def.UserName),
-                        new XElement(ns + "Delay", $"PT{(int)def.Delay.TotalSeconds}S"))),
-                new XElement(ns + "Principals",
-                    new XElement(ns + "Principal",
-                        new XAttribute("id", "Author"),
-                        new XElement(ns + "UserId", def.UserName),
-                        new XElement(ns + "LogonType", "InteractiveToken"),
-                        new XElement(ns + "RunLevel", def.RunElevated ? "HighestAvailable" : "LeastPrivilege"))),
-                new XElement(ns + "Settings",
-                    new XElement(ns + "DisallowStartIfOnBatteries", "false"),
-                    new XElement(ns + "StopIfGoingOnBatteries", "false"),
-                    new XElement(ns + "ExecutionTimeLimit", "PT0S"),
-                    new XElement(ns + "RestartOnFailure",
-                        new XElement(ns + "Interval", $"PT{(int)def.RestartInterval.TotalMinutes}M"),
-                        new XElement(ns + "Count", def.RestartCount))),
-                new XElement(ns + "Actions",
-                    new XAttribute("Context", "Author"),
-                    new XElement(ns + "Exec",
-                        new XElement(ns + "Command", def.ExecutablePath),
-                        new XElement(ns + "WorkingDirectory", def.WorkingDirectory)))));
-        return doc.ToString(SaveOptions.DisableFormatting);
-    }
-
-    public static IReadOnlyList<string> BuildCreateArgs(string taskName, string xmlPath) =>
-        ["/Create", "/TN", taskName, "/XML", xmlPath, "/F"];
-
     public static IReadOnlyList<string> BuildDeleteArgs(string taskName) =>
         ["/Delete", "/TN", taskName, "/F"];
 }
 
 /// <summary>
-/// Installs and uninstalls the Aitm.Server logon task. `schtasks` is only ever reached through the
+/// Removes the Aitm.Server logon task an old install left (the service starts on demand now; nothing installs it). `schtasks` is only ever reached through the
 /// injected <see cref="IProcessRunner"/>; nothing here calls the real Task Scheduler.
 /// </summary>
 public static class ServerLogonCommand
 {
-    public static string DefaultXmlPath => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Aitm", "Aitm.Server.task.xml");
-
-    public static string DefaultUserName => $"{Environment.UserDomainName}\\{Environment.UserName}";
-
-    public static int Install(string executablePath, string userName, string xmlPath, IProcessRunner runner) =>
-        Install(executablePath, userName, xmlPath, runner, out _);
-
-    public static int Install(string executablePath, string userName, string xmlPath, IProcessRunner runner, out string error)
-    {
-        WindowsLogonTaskDefinition def = WindowsLogonTask.BuildDefinition(executablePath, userName);
-        string xml = WindowsLogonTask.BuildTaskXml(def);
-        string? dir = Path.GetDirectoryName(xmlPath);
-        if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
-        File.WriteAllText(xmlPath, xml);
-
-        (string _, string stderr, int exitCode) = runner.Run("schtasks", WindowsLogonTask.BuildCreateArgs(def.TaskName, xmlPath));
-        error = exitCode == 0 ? "" : $"schtasks failed to install the Aitm.Server logon task: {stderr.Trim()}";
-        return exitCode == 0 ? 0 : 1;
-    }
-
     public static int Uninstall(IProcessRunner runner) => Uninstall(runner, out _);
 
     public static int Uninstall(IProcessRunner runner, out string error)

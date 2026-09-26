@@ -97,22 +97,13 @@ public static class McpBridge
     private static List<Tool> FetchTools(HttpClient client, Func<bool> ensureServer, out string? failure)
     {
         failure = null;
-        string body;
-        try
+        if (!RefusedConnectionRetry.TrySend(() => client.GetStringAsync("/tools").GetAwaiter().GetResult(), ensureServer, out string? body))
         {
-            body = client.GetStringAsync("/tools").GetAwaiter().GetResult();
-        }
-        catch (HttpRequestException ex) when (ex.HttpRequestError == HttpRequestError.ConnectionError)
-        {
-            if (!ensureServer())
-            {
-                failure = "unreachable";
-                return [];
-            }
-            body = client.GetStringAsync("/tools").GetAwaiter().GetResult();
+            failure = "unreachable";
+            return [];
         }
 
-        using JsonDocument doc = JsonDocument.Parse(body);
+        using JsonDocument doc = JsonDocument.Parse(body!);
         return doc.RootElement.EnumerateArray().Select(t => new Tool
         {
             Name = t.GetProperty("name").GetString()!,
@@ -126,22 +117,16 @@ public static class McpBridge
     {
         try
         {
-            HttpResponseMessage response;
-            try
-            {
-                response = await SendAsync(client, name, arguments, projectDir, instanceEnv, cancellationToken);
-            }
-            catch (HttpRequestException ex) when (ex.HttpRequestError == HttpRequestError.ConnectionError)
-            {
-                // The service went away since the last call (an idle exit, a hand-over): start it once and resend.
-                // Only a refused connection is resent; any later failure may mean the tool already ran.
-                if (!ensureServer()) return Error($"the aitm server is not running and could not be started");
-                response = await SendAsync(client, name, arguments, projectDir, instanceEnv, cancellationToken);
-            }
+            // The service went away since the last call (an idle exit, a hand-over): start it and resend, up to
+            // 3 times (RefusedConnectionRetry). Only a refused connection is resent; any later failure may mean
+            // the tool already ran.
+            (bool reached, HttpResponseMessage? response) = await RefusedConnectionRetry.TrySendAsync(
+                () => SendAsync(client, name, arguments, projectDir, instanceEnv, cancellationToken), ensureServer, cancellationToken);
+            if (!reached) return Error("the aitm server is not running and could not be started");
 
             using (response)
             {
-                string text = await response.Content.ReadAsStringAsync(cancellationToken);
+                string text = await response!.Content.ReadAsStringAsync(cancellationToken);
                 return response.StatusCode == HttpStatusCode.OK
                     ? new CallToolResult { Content = [new TextContentBlock { Text = text }] }
                     : Error(text.Length > 0 ? text : $"the aitm server answered {(int)response.StatusCode}");

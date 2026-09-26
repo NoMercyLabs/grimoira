@@ -51,7 +51,7 @@ public static class McpToolFactory
     /// </summary>
     public static IReadOnlyList<AIFunction> BuildFunctions(
         ToolRegistry registry, ProjectStore store, IHttpContextAccessor httpContextAccessor,
-        string projectRoot, string dataDir)
+        string projectRoot, string dataDir, TimeSpan? gateTimeout = null)
     {
         IProcessRunner runner = new ProcessRunner();
         List<AIFunction> functions = [];
@@ -63,7 +63,7 @@ public static class McpToolFactory
                 IdPTokenTool idp => PlainFunction(idp.McpName!, idp.Help, IdPInvoker(idp, dataDir, runner)),
                 WorkspaceCapabilitiesTool capabilities => PlainFunction(capabilities.McpName!, capabilities.Help, CapabilitiesInvoker(capabilities, projectRoot, runner)),
                 WorkspaceSearchTool search => PlainFunction(search.McpName!, search.Help, SearchInvoker(search, projectRoot, runner)),
-                _ => BuildStoreBackedFunction(tool, store, httpContextAccessor),
+                _ => BuildStoreBackedFunction(tool, store, httpContextAccessor, gateTimeout ?? DefaultGateTimeout),
             });
         }
         return functions;
@@ -88,7 +88,10 @@ public static class McpToolFactory
         McpServerTool.Create(BuildStoreBackedFunction(tool, store, httpContextAccessor),
             new McpServerToolCreateOptions { Name = tool.McpName, Description = tool.Help });
 
-    private static AIFunction BuildStoreBackedFunction(ITool tool, ProjectStore store, IHttpContextAccessor httpContextAccessor)
+    /// <summary>How long /tools waits for a project gate before answering 503 (the same as /cli's default).</summary>
+    public static readonly TimeSpan DefaultGateTimeout = TimeSpan.FromSeconds(60);
+
+    private static AIFunction BuildStoreBackedFunction(ITool tool, ProjectStore store, IHttpContextAccessor httpContextAccessor, TimeSpan? gateTimeout = null)
     {
         MethodInfo method = tool.GetType().GetMethod("ExecuteMcp")
             ?? throw new InvalidOperationException($"{tool.GetType().Name} has McpName '{tool.McpName}' but no ExecuteMcp method.");
@@ -116,7 +119,7 @@ public static class McpToolFactory
         };
 
         AIFunction inner = AIFunctionFactory.Create(method, tool, options);
-        return new LockingAIFunction(inner, store, httpContextAccessor);
+        return new LockingAIFunction(inner, store, httpContextAccessor, gateTimeout);
     }
 
     private static McpServerTool BuildIdPTool(IdPTokenTool tool, string dataDir, IProcessRunner runner) =>

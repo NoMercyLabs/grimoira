@@ -101,21 +101,25 @@ IReadOnlyList<Microsoft.Extensions.AI.AIFunction> toolFunctions = McpToolFactory
 
 WebApplication app = builder.Build();
 
-// Stopped, not Stopping: Stopping fires before Kestrel drains, so a call still in flight would lose its store
-// (RESTRUCTURE.md slice 32b: the old server finishes its calls in flight, then exits).
-app.Lifetime.ApplicationStopped.Register(projectStore.Dispose);
-
 // On demand: the service exits when it has had no real call for the idle time. /health does not count.
 TimeSpan idleTime = IdleExit.ConfiguredIdle();
 IdleExit idleExit = new(idleTime, () => app.Lifetime.StopApplication());
+
+// Stopped, not Stopping: Stopping fires before Kestrel drains, so a call still in flight would lose its store
+// (RESTRUCTURE.md slice 32b: the old server finishes its calls in flight, then exits). A /cli verb that outlived
+// its timeout runs on its own thread with no request behind it, so the drain waits for it too.
+app.Lifetime.ApplicationStopped.Register(() =>
+{
+    idleExit.WaitForDrain(CliEndpoint.LongTimeout);
+    projectStore.Dispose();
+});
 app.Use(async (context, next) =>
 {
     if (context.Request.Path == "/health") { await next(context); return; }
     using (idleExit.Begin()) await next(context);
 });
-using Timer idleTimer = new(_ => idleExit.CheckAndStopIfIdle(), null,
-    TimeSpan.FromSeconds(1) < idleTime / 4 ? TimeSpan.FromSeconds(1) : idleTime / 4,
-    TimeSpan.FromSeconds(1) < idleTime / 4 ? TimeSpan.FromSeconds(1) : idleTime / 4);
+TimeSpan idleCheckInterval = TimeSpan.FromSeconds(1) < idleTime / 4 ? TimeSpan.FromSeconds(1) : idleTime / 4;
+using Timer idleTimer = new(_ => idleExit.CheckAndStopIfIdle(), null, idleCheckInterval, idleCheckInterval);
 
 app.MapGet("/health", () => Results.Json(new
 {
@@ -141,7 +145,7 @@ app.MapPost("/hooks/{event}", (string @event, HttpContext context) => HookEndpoi
 
 // RESTRUCTURE.md "Slice 29c": the CLI verbs; each runs on the project's one open connection under its
 // writer gate, with a timeout that answers exit 124 (CliEndpoint).
-app.MapPost("/cli", (Func<HttpContext, Task<IResult>>)(context => CliEndpoint.Handle(context, projectStore, dataDir)));
+app.MapPost("/cli", (Func<HttpContext, Task<IResult>>)(context => CliEndpoint.Handle(context, projectStore, dataDir, idleExit)));
 
 // RESTRUCTURE.md "Slice 32b": the SessionStart of a newer build asks this server to make way. It stops
 // taking new connections, finishes the calls in flight, and exits; that frees server.lock for the new build.

@@ -38,7 +38,15 @@ internal static class CliEndpoint
         "seed", "learn-batch", "tidy", "distill",
     };
 
-    public static async Task<IResult> Handle(HttpContext context, ProjectStore store, string dataDir)
+    /// <summary>Runs one verb on the project's open connection. A seam so a test can hold a verb past its timeout.</summary>
+    internal delegate int VerbRunner(string[] args, string cwd, TextWriter stdout, TextWriter stderr,
+        string instance, string dataDir, SqliteConnection connection);
+
+    public static Task<IResult> Handle(HttpContext context, ProjectStore store, string dataDir, IdleExit idleExit) =>
+        Handle(context, store, dataDir, idleExit, CliDispatch.RunOnStore, null);
+
+    internal static async Task<IResult> Handle(HttpContext context, ProjectStore store, string dataDir, IdleExit idleExit,
+        VerbRunner runVerb, TimeSpan? timeoutOverride)
     {
         try
         {
@@ -56,7 +64,7 @@ internal static class CliEndpoint
             if (instance.Length == 0 || instance is "." or ".." || instance.IndexOfAny(['/', '\\']) >= 0)
                 return Answer(2, "", $"error: bad instance name '{instance}'.");
 
-            TimeSpan timeout = TimeoutFor(args);
+            TimeSpan timeout = timeoutOverride ?? TimeoutFor(args);
             Stopwatch clock = Stopwatch.StartNew();
             ProjectHandle handle = store.Acquire(instance);
             if (!await handle.Gate.WaitAsync(timeout, context.RequestAborted))
@@ -66,12 +74,16 @@ internal static class CliEndpoint
             StringWriter stdout = new();
             StringWriter stderr = new();
             Task<int> work;
+            // The verb may outlive this request (exit 124 below) and keeps the gate and the store until it ends,
+            // so it counts as a call in flight of its own: the idle exit and the shutdown drain wait for it.
+            IDisposable orphanGuard = idleExit.Begin();
             try
             {
-                work = Task.Run(() => RunHoldingGate(handle, args, cwd, stdout, stderr, instance, dataDir));
+                work = Task.Run(() => RunHoldingGate(runVerb, handle, orphanGuard, args, cwd, stdout, stderr, instance, dataDir));
             }
             catch
             {
+                orphanGuard.Dispose();
                 handle.Gate.Release();
                 throw;
             }
@@ -95,12 +107,12 @@ internal static class CliEndpoint
     }
 
     /// <summary>Runs on a pool thread and releases the gate only when the verb has really ended.</summary>
-    private static int RunHoldingGate(ProjectHandle handle, string[] args, string cwd, StringWriter stdout, StringWriter stderr,
-        string instance, string dataDir)
+    private static int RunHoldingGate(VerbRunner runVerb, ProjectHandle handle, IDisposable orphanGuard, string[] args, string cwd,
+        StringWriter stdout, StringWriter stderr, string instance, string dataDir)
     {
         try
         {
-            return CliDispatch.RunOnStore(args, cwd, stdout, stderr, instance, dataDir, handle.Connection);
+            return runVerb(args, cwd, stdout, stderr, instance, dataDir, handle.Connection);
         }
         catch (Exception ex)
         {
@@ -120,6 +132,7 @@ internal static class CliEndpoint
             catch (SqliteException) { }
             catch (InvalidOperationException) { }
             handle.Gate.Release();
+            orphanGuard.Dispose();
         }
     }
 

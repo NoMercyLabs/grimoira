@@ -47,7 +47,7 @@ public static class ServiceCommand
             JsonElement root = doc.RootElement;
             string version = root.TryGetProperty("version", out JsonElement v) ? v.GetString() ?? "?" : "?";
             string build = root.TryGetProperty("buildStamp", out JsonElement b) && b.ValueKind == JsonValueKind.String ? b.GetString()! : "none";
-            int seconds = root.TryGetProperty("idleExitSeconds", out JsonElement i) ? i.GetInt32() : 1800;
+            int seconds = root.TryGetProperty("idleExitSeconds", out JsonElement i) ? i.GetInt32() : ServerAddress.DefaultIdleMinutes * 60;
             string idle = seconds % 60 == 0 ? $"{seconds / 60} min" : $"{seconds} s";
             return $"running (version {version}, build {build}, idle exit {idle})";
         }

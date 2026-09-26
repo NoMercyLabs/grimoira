@@ -40,5 +40,9 @@ public static class ServerAddress
 
     /// <summary>The Unix domain socket path for the given data directory: a file inside it, so it inherits
     /// the data directory's own user-only permissions (mode 0700, set by whoever creates the directory).</summary>
+    /// <summary>The service's idle exit when nothing configures one: the server's default and what
+    /// `aitm service status` assumes of a server that does not report it.</summary>
+    public const int DefaultIdleMinutes = 30;
+
     public static string SocketPath(string dataDir) => Path.Combine(dataDir, "server.sock");
 }
