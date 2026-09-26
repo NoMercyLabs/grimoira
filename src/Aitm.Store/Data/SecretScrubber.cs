@@ -25,19 +25,34 @@ public static partial class SecretScrubber
         ("slack", SlackToken()),
     ];
 
+    /// <summary>What replaces the whole text when a scrub pattern times out (see <see cref="Redact"/>).</summary>
+    public const string TimedOutMarker = "[redacted: scrub timed out]";
+
+    /// <summary>The counts key reported when a scrub pattern timed out.</summary>
+    public const string TimedOutKind = "scrub-timeout";
+
     /// <summary>Replaces every token-shaped string with <c>[redacted:&lt;kind&gt;]</c> and returns the
-    /// scrubbed text plus how many of each kind were found.</summary>
+    /// scrubbed text plus how many of each kind were found. Fails closed: when any pattern runs past the
+    /// shared match timeout, the whole text is replaced by <see cref="TimedOutMarker"/> and counted under
+    /// <see cref="TimedOutKind"/>, so text that could not be checked is never returned or stored.</summary>
     public static (string Text, IReadOnlyDictionary<string, int> Counts) Redact(string text)
     {
         Dictionary<string, int> counts = [];
         string result = text;
-        foreach ((string kind, Regex pattern) in Patterns)
+        try
         {
-            result = pattern.Replace(result, _ =>
+            foreach ((string kind, Regex pattern) in Patterns)
             {
-                counts[kind] = counts.GetValueOrDefault(kind) + 1;
-                return $"[redacted:{kind}]";
-            });
+                result = pattern.Replace(result, _ =>
+                {
+                    counts[kind] = counts.GetValueOrDefault(kind) + 1;
+                    return $"[redacted:{kind}]";
+                });
+            }
+        }
+        catch (RegexMatchTimeoutException)
+        {
+            return (TimedOutMarker, new Dictionary<string, int> { [TimedOutKind] = 1 });
         }
         return (result, counts);
     }
