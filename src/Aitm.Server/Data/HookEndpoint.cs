@@ -1,7 +1,6 @@
 using System.Text;
 using System.Text.Json.Nodes;
 using Aitm.Hooks.Tools;
-using Aitm.Store.Data;
 using Microsoft.AspNetCore.Http;
 
 namespace Aitm.Server.Data;
@@ -9,8 +8,8 @@ namespace Aitm.Server.Data;
 /// <summary>
 /// RESTRUCTURE.md "Slice 34: POST /hooks/{event} on the server." The body is the Claude Code hook JSON
 /// (the payload <c>aitm hook &lt;event&gt;</c> reads on stdin); the answer is the handler's stdout, 200.
-/// The project is resolved like /mcp (<see cref="McpInstanceContext"/>: the <c>Claude-Project-Dir</c>
-/// header, else the payload's <c>cwd</c>), and the handler runs under that project's one writer gate
+/// The project comes from <see cref="RequestProjectResolver"/> (the payload's <c>cwd</c> is the request's own
+/// cwd), the same rule as /mcp and /cli, and the handler runs under that project's one writer gate
 /// (<see cref="ProjectHandle.Gate"/>), the same gate every /mcp tool call takes.
 ///
 /// A hook must fail open: an unknown event, a malformed payload or a handler error all answer 200 with
@@ -42,22 +41,14 @@ internal static class HookEndpoint
             // cwd (HookPaths.ResolveInstance). The shared server has no per-session env, so the header
             // takes that place: it becomes the cwd the handler sees, and handler and gate agree on the
             // project.
-            string? projectDirHeader = context.Request.Headers[McpInstanceContext.ProjectDirHeader].FirstOrDefault();
-            string instance;
-            if (!string.IsNullOrWhiteSpace(projectDirHeader))
+            string? projectDirHeader = RequestProjectResolver.ProjectDirHeaderOf(context);
+            if (projectDirHeader is not null)
             {
                 payload["cwd"] = projectDirHeader;
                 body = payload.ToJsonString();
-                instance = McpInstanceContext.Resolve(context);
             }
-            else
-            {
-                string? cwd = payload["cwd"] is JsonValue cwdValue && cwdValue.TryGetValue(out string? s) ? s : null;
-                instance = StoreConnection.ResolveInstance(
-                    context.Request.Headers[McpInstanceContext.InstanceHeader].FirstOrDefault(),
-                    cwd,
-                    Directory.GetCurrentDirectory());
-            }
+            string? payloadCwd = payload["cwd"] is JsonValue cwdValue && cwdValue.TryGetValue(out string? s) ? s : null;
+            string instance = RequestProjectResolver.Resolve(context, requestCwd: payloadCwd);
 
             ProjectHandle handle = store.Acquire(instance);
             await handle.Gate.WaitAsync(context.RequestAborted);

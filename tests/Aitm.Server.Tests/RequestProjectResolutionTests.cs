@@ -60,8 +60,8 @@ public sealed class RequestProjectResolutionTests : IDisposable
     {
         HttpRequestMessage request = new(HttpMethod.Post, path) { Headers = { Host = _allowedHost } };
         request.Headers.TryAddWithoutValidation("Authorization", $"Bearer {token}");
-        if (projectDirHeader is not null) request.Headers.TryAddWithoutValidation(McpInstanceContext.ProjectDirHeader, projectDirHeader);
-        if (instanceHeader is not null) request.Headers.TryAddWithoutValidation(McpInstanceContext.InstanceHeader, instanceHeader);
+        if (projectDirHeader is not null) request.Headers.TryAddWithoutValidation(RequestProjectResolver.ProjectDirHeader, projectDirHeader);
+        if (instanceHeader is not null) request.Headers.TryAddWithoutValidation(RequestProjectResolver.InstanceHeader, instanceHeader);
         request.Content = new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json");
         return request;
     }
@@ -89,7 +89,7 @@ public sealed class RequestProjectResolutionTests : IDisposable
             ["Authorization"] = $"Bearer {token}",
             ["Host"] = _allowedHost,
         };
-        if (projectDirHeader is not null) headers[McpInstanceContext.ProjectDirHeader] = projectDirHeader;
+        if (projectDirHeader is not null) headers[RequestProjectResolver.ProjectDirHeader] = projectDirHeader;
         HttpClientTransportOptions options = new() { Endpoint = new Uri(httpClient.BaseAddress!, "/mcp"), AdditionalHeaders = headers };
         await using McpClient client = await McpClient.CreateAsync(new HttpClientTransport(options, httpClient));
         await client.CallToolAsync("fact", new Dictionary<string, object?> { ["query"] = "anything" });

@@ -55,8 +55,8 @@ public sealed class CliEndpointTests : IDisposable
     {
         using HttpRequestMessage request = new(HttpMethod.Post, "/cli") { Headers = { Host = _allowedHost } };
         if (token is not null) request.Headers.TryAddWithoutValidation("Authorization", $"Bearer {token}");
-        if (projectDir is not null) request.Headers.TryAddWithoutValidation(McpInstanceContext.ProjectDirHeader, projectDir);
-        if (instanceHeader is not null) request.Headers.TryAddWithoutValidation(McpInstanceContext.InstanceHeader, instanceHeader);
+        if (projectDir is not null) request.Headers.TryAddWithoutValidation(RequestProjectResolver.ProjectDirHeader, projectDir);
+        if (instanceHeader is not null) request.Headers.TryAddWithoutValidation(RequestProjectResolver.InstanceHeader, instanceHeader);
         request.Content = new StringContent(JsonSerializer.Serialize(new { args, cwd = cwd ?? projectDir ?? Path.GetTempPath() }),
             Encoding.UTF8, "application/json");
         using HttpResponseMessage response = await client.SendAsync(request);
@@ -222,7 +222,7 @@ public sealed class CliEndpointTests : IDisposable
             {
                 ["Authorization"] = $"Bearer {token}",
                 ["Host"] = _allowedHost,
-                [McpInstanceContext.InstanceHeader] = instance,
+                [RequestProjectResolver.InstanceHeader] = instance,
             },
         };
         await using McpClient mcp = await McpClient.CreateAsync(new HttpClientTransport(options, client));

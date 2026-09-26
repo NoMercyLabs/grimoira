@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using System.Text.Json;
-using Aitm.Store.Data;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Data.Sqlite;
 
@@ -10,10 +9,8 @@ namespace Aitm.Server.Data;
 /// RESTRUCTURE.md "Slice 29c: POST /cli on the server." Body <c>{ "args": [...], "cwd": "..." }</c>, answer
 /// <c>{ "exitCode": n, "stdout": "...", "stderr": "..." }</c>, always 200 once past the auth middleware.
 ///
-/// The project: an <c>--instance</c> in the args wins (as on the CLI), then the <c>Aitm-Instance</c> header,
-/// then the <c>Claude-Project-Dir</c> header, then the body <c>cwd</c>. Unlike <see cref="McpInstanceContext"/>
-/// the server's own AITM_INSTANCE / CLAUDE_PROJECT_DIR are never read, so a server started from one project
-/// cannot pin every request to it (the slice 34 gap). The verb runs through
+/// The project comes from <see cref="RequestProjectResolver"/> (an <c>--instance</c> in the args is the explicit
+/// instance, the body <c>cwd</c> the request's own cwd); the server's own env is never read. The verb runs through
 /// <see cref="CliDispatch.RunOnStore"/> on the project's one open connection, under its writer gate.
 ///
 /// Every exception becomes exit 1 with one short stderr line. A call that does not finish in time answers
@@ -51,13 +48,9 @@ internal static class CliEndpoint
                 ? cwdElement.GetString()
                 : null;
 
-            string? instanceHeader = context.Request.Headers[McpInstanceContext.InstanceHeader].FirstOrDefault();
-            string? projectDirHeader = context.Request.Headers[McpInstanceContext.ProjectDirHeader].FirstOrDefault();
             string cwd = !string.IsNullOrWhiteSpace(bodyCwd) ? bodyCwd
-                : !string.IsNullOrWhiteSpace(projectDirHeader) ? projectDirHeader
-                : Directory.GetCurrentDirectory();
-            string instance = FlagValue(args, "--instance")
-                ?? StoreConnection.ResolveInstance(instanceHeader, projectDirHeader, cwd);
+                : RequestProjectResolver.ProjectDirHeaderOf(context) ?? Directory.GetCurrentDirectory();
+            string instance = RequestProjectResolver.Resolve(context, CliDispatch.FlagValue(args, "--instance"), bodyCwd);
             if (instance.Length == 0 || instance is "." or ".." || instance.IndexOfAny(['/', '\\']) >= 0)
                 return Answer(2, "", $"error: bad instance name '{instance}'.");
 
@@ -136,13 +129,6 @@ internal static class CliEndpoint
         bool isLong = LongVerbs.Contains(verb)
             || (verb == "brain" && args.Skip(1).FirstOrDefault(s => !s.StartsWith("--", StringComparison.Ordinal)) is string sub && LongBrainVerbs.Contains(sub));
         return isLong ? LongTimeout : DefaultTimeout;
-    }
-
-    /// <summary>The same rule as CliDispatch's GetFlag: the token after the flag, whatever it is.</summary>
-    private static string? FlagValue(string[] args, string name)
-    {
-        int i = Array.IndexOf(args, name);
-        return i >= 0 && i + 1 < args.Length ? args[i + 1] : null;
     }
 
     private static string FirstLine(string text)

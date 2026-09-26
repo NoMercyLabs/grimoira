@@ -19,7 +19,7 @@ internal sealed class LockingAIFunction(AIFunction inner, ProjectStore store, IH
 
     protected override async ValueTask<object?> InvokeCoreAsync(AIFunctionArguments arguments, CancellationToken cancellationToken)
     {
-        string instance = McpInstanceContext.Resolve(httpContextAccessor.HttpContext);
+        string instance = RequestProjectResolver.Resolve(httpContextAccessor.HttpContext);
         ProjectHandle handle = store.Acquire(instance);
         await handle.Gate.WaitAsync(cancellationToken);
         try

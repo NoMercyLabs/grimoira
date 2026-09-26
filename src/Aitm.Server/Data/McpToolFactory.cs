@@ -71,7 +71,7 @@ public static class McpToolFactory
                 ? new AIFunctionFactoryOptions.ParameterBindingOptions
                 {
                     ExcludeFromSchema = true,
-                    BindParameter = (_, args) => store.Acquire(McpInstanceContext.Resolve(httpContextAccessor.HttpContext)).Connection,
+                    BindParameter = (_, args) => store.Acquire(RequestProjectResolver.Resolve(httpContextAccessor.HttpContext)).Connection,
                 }
                 : default,
         };

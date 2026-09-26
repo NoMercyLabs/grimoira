@@ -35,7 +35,7 @@ public sealed class McpEndpointTests : IDisposable
             {
                 ["Authorization"] = $"Bearer {token}",
                 ["Host"] = _allowedHost,
-                [McpInstanceContext.InstanceHeader] = instance,
+                [RequestProjectResolver.InstanceHeader] = instance,
             },
         };
         return await McpClient.CreateAsync(new HttpClientTransport(options, httpClient));

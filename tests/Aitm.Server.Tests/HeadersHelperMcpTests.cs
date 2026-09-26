@@ -41,7 +41,7 @@ public sealed class HeadersHelperMcpTests : IDisposable
     {
         Dictionary<string, string> headers = HelperHeaders();
         headers["Host"] = _allowedHost;
-        headers[McpInstanceContext.ProjectDirHeader] = projectDir;
+        headers[RequestProjectResolver.ProjectDirHeader] = projectDir;
         HttpClientTransportOptions options = new()
         {
             Endpoint = new Uri(httpClient.BaseAddress!, "/mcp"),

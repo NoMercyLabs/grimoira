@@ -36,6 +36,14 @@ public static class CliDispatch
         string instance, string dataDir, SqliteConnection connection)
         => new Dispatcher(args, cwd, stdout, stderr, instance, dataDir, connection).Dispatch();
 
+    /// <summary>The value of a <c>--flag value</c> pair: the token after the flag, whatever it is, or null
+    /// when the flag is absent or last. /cli reads <c>--instance</c> with the same rule the verbs use.</summary>
+    internal static string? FlagValue(string[] args, string name)
+    {
+        int i = Array.IndexOf(args, name);
+        return i >= 0 && i + 1 < args.Length ? args[i + 1] : null;
+    }
+
     private sealed class Dispatcher(string[] a, string cwd, TextWriter stdout, TextWriter stderr,
         string? fixedInstance, string? dataDir, SqliteConnection? shared)
     {
@@ -363,11 +371,9 @@ public static class CliDispatch
             return 0;
         }
 
-        private string? GetFlag(string name)
-        {
-            int i = Array.IndexOf(a, name);
-            return i >= 0 && i + 1 < a.Length ? a[i + 1] : null;
-        }
+        // One parsing rule with /cli (CliDispatch.FlagValue); the GetFlag("--x") call shape stays because
+        // the flag-audit guard reads the verbs' flags from it.
+        private string? GetFlag(string name) => FlagValue(a, name);
 
         // Generic instance resolution (explicit --instance already won at the call site): AITM_INSTANCE,
         // else the project dir (CLAUDE_PROJECT_DIR or cwd) basename — the same binary serves any repo, no config.

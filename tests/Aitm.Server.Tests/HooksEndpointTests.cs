@@ -46,7 +46,7 @@ public sealed class HooksEndpointTests : IDisposable
     {
         using HttpRequestMessage request = new(HttpMethod.Post, $"/hooks/{eventName}") { Headers = { Host = _allowedHost } };
         if (token is not null) request.Headers.TryAddWithoutValidation("Authorization", $"Bearer {token}");
-        if (sendProjectHeader) request.Headers.TryAddWithoutValidation(McpInstanceContext.ProjectDirHeader, _projectDir);
+        if (sendProjectHeader) request.Headers.TryAddWithoutValidation(RequestProjectResolver.ProjectDirHeader, _projectDir);
         request.Content = new StringContent(payload, Encoding.UTF8, "application/json");
         using HttpResponseMessage response = await client.SendAsync(request);
         return (response.StatusCode, await response.Content.ReadAsStringAsync());
@@ -241,7 +241,7 @@ public sealed class HooksEndpointTests : IDisposable
             {
                 ["Authorization"] = $"Bearer {token}",
                 ["Host"] = _allowedHost,
-                [McpInstanceContext.ProjectDirHeader] = _projectDir,
+                [RequestProjectResolver.ProjectDirHeader] = _projectDir,
             },
         };
         await using McpClient mcp = await McpClient.CreateAsync(new HttpClientTransport(options, client));
