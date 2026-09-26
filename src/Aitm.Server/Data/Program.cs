@@ -56,6 +56,22 @@ else
     try { File.Delete(unixSocketPath!); } catch (IOException) { /* nothing to remove */ }
     builder.WebHost.ConfigureKestrel(o => o.ListenUnixSocket(unixSocketPath!));
 }
+// Configuration (Kestrel:Endpoints, ASPNETCORE_URLS, HTTP_PORTS) can add a TCP endpoint behind the code
+// above. Refuse to start rather than open one: the service is reachable by the pipe/socket only.
+string[] tcpConfigured =
+[
+    .. new[] { "urls", "HTTP_PORTS", "HTTPS_PORTS" }.Where(k => !string.IsNullOrWhiteSpace(builder.Configuration[k])),
+    .. builder.Configuration.GetSection("Kestrel:Endpoints").GetChildren()
+        .Where(e => !string.IsNullOrWhiteSpace(e["Url"])).Select(e => "Kestrel:Endpoints:" + e.Key),
+];
+if (tcpConfigured.Length > 0)
+{
+    Console.Error.WriteLine(
+        "Aitm.Server listens on its local pipe/socket only and refuses a configured TCP endpoint: " +
+        string.Join(", ", tcpConfigured) + ". Remove it and start again.");
+    Environment.Exit(1);
+    return;
+}
 // RESTRUCTURE.md "Slice 32b": a stop (POST /shutdown, Ctrl+C, a logoff) lets every call in flight finish.
 // The longest call the server takes is a long /cli verb, so the drain waits that long, never the 30 s default.
 builder.Services.Configure<HostOptions>(options => options.ShutdownTimeout = CliEndpoint.LongTimeout);
@@ -107,6 +123,17 @@ app.MapPost("/shutdown", (IHostApplicationLifetime lifetime) =>
 });
 
 await app.StartAsync();
+// Kestrel reports a named pipe as http://pipe:/name and a Unix socket as http://unix:/path; those are ours.
+string[] tcpBound = [.. app.Urls.Where(u => u.StartsWith("http", StringComparison.OrdinalIgnoreCase)
+    && !u.StartsWith("http://pipe:", StringComparison.OrdinalIgnoreCase)
+    && !u.StartsWith("http://unix:", StringComparison.OrdinalIgnoreCase))];
+if (tcpBound.Length > 0)
+{
+    Console.Error.WriteLine("Aitm.Server bound a TCP address (" + string.Join(", ", tcpBound) + "); stopping.");
+    await app.StopAsync();
+    Environment.Exit(1);
+    return;
+}
 if (!OperatingSystem.IsWindows() && unixSocketPath is not null)
 {
     // The socket file only exists from here on: Kestrel creates it when the transport binds, which
