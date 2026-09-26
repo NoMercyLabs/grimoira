@@ -57,7 +57,9 @@ public static partial class SecretScrubber
         return (result, counts);
     }
 
-    [GeneratedRegex(@"-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----", RegexOptions.None, RegexTimeout.Milliseconds)]
+    // The body stops at the next header: an unbounded lazy body rescanned the whole remaining text from every
+    // footer-less header (quadratic), which a hostile chat line could use to outrun the match timeout.
+    [GeneratedRegex(@"-----BEGIN [A-Z ]*PRIVATE KEY-----(?:(?!-----BEGIN )[\s\S])*?-----END [A-Z ]*PRIVATE KEY-----", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex PrivateKeyBlock();
     [GeneratedRegex(@"Bearer\s+[A-Za-z0-9\-_.+/=]{10,}", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex BearerHeader();
