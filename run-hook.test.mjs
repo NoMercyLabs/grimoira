@@ -14,9 +14,10 @@ const events = ['UserPromptSubmit', 'PreCompact', 'SessionEnd'];
 const payload = JSON.stringify({ session_id: 'run-hook-test', cwd: join(tmpdir(), 'no-such-project'), prompt: 'hi' });
 
 function isolated(dataDir) {
-  // Never the live server: a port nothing listens on, and a throwaway store.
+  // Never the live service: a throwaway store has its own pipe. A hook starts the service on demand; it
+  // holds the store's files, so a test stops it before deleting them, and it also ends itself after 3 idle seconds.
   const store = mkdtempSync(join(tmpdir(), 'aitm-run-hook-store-'));
-  return { store, env: { ...process.env, CLAUDE_PLUGIN_DATA: dataDir, AITM_SERVER_PORT: '7696', AITM_DATA_DIR: store } };
+  return { store, env: { ...process.env, CLAUDE_PLUGIN_DATA: dataDir, AITM_DATA_DIR: store, AITM_IDLE_SECONDS: '3' } };
 }
 
 for (const event of events) {
@@ -54,8 +55,9 @@ for (const event of events) {
       } finally {
         // unlink removes only the link; a recursive delete must never reach the checkout behind it.
         try { unlinkSync(join(dataDir, 'current')); } catch { /* not created */ }
+        spawnSync('dotnet', [join(import.meta.dirname, 'bin-cli', 'aitm.dll'), 'service', 'stop'], { env, timeout: 30000 });
         rmSync(dataDir, { recursive: true, force: true });
-        rmSync(store, { recursive: true, force: true });
+        rmSync(store, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 });
       }
     });
 }
