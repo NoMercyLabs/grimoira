@@ -21,16 +21,18 @@ public static class McpBridge
     /// <summary>Above the service's longest tool time, so the service's own answer arrives first.</summary>
     public static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(960);
 
-    public static int RunDefault() => Run(
+    /// <summary>The real client: data dir, env and server path as Aitm.Server and the hooks use them. The
+    /// process streams are passed in by the entry point (Program.cs), the one file allowed to name Console.</summary>
+    public static int RunDefault(Stream stdin, Stream stdout, TextWriter stderr) => Run(
         ServerAutoStart.DefaultDataDir(),
         Directory.GetCurrentDirectory(),
         Environment.GetEnvironmentVariable("AITM_INSTANCE"),
         Environment.GetEnvironmentVariable("CLAUDE_PROJECT_DIR"),
         ServerAutoStart.EnsureRunning,
         ServerAutoStart.DefaultServerExe(),
-        Console.OpenStandardInput(),
-        Console.OpenStandardOutput(),
-        Console.Error);
+        stdin,
+        stdout,
+        stderr);
 
     public static int Run(string dataDir, string cwd, string? instanceEnv, string? projectDirEnv,
         Func<bool> ensureServer, string serverExe, Stream stdin, Stream stdout, TextWriter stderr)
