@@ -111,4 +111,29 @@ public sealed class PipeTransportRealProcessTests : IDisposable
         Assert.True(exited, "the server kept running although its pipe name was already taken");
         Assert.NotEqual(0, _server.ExitCode);
     }
+
+    // Configuration can add a TCP endpoint behind Program.cs's back (Kestrel:Endpoints, ASPNETCORE_URLS,
+    // HTTP_PORTS). The service must refuse to start rather than open one: fail loud, not ignore.
+    [Theory]
+    [InlineData("Kestrel__Endpoints__X__Url", "http://127.0.0.1:0")]
+    [InlineData("ASPNETCORE_URLS", "http://127.0.0.1:0")]
+    [InlineData("HTTP_PORTS", "0")]
+    public async Task AConfiguredTcpEndpointMakesTheServerRefuseToStart(string variable, string value)
+    {
+        Assert.True(File.Exists(ServerDll), $"Aitm.Server not built at {ServerDll}");
+        ProcessStartInfo psi = new("dotnet") { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true };
+        psi.ArgumentList.Add(ServerDll);
+        psi.Environment["AITM_DATA_DIR"] = _dataDir;
+        psi.Environment[variable] = value;
+        _server = Process.Start(psi)!;
+        Task<string> stderr = _server.StandardError.ReadToEndAsync();
+        Task<string> stdout = _server.StandardOutput.ReadToEndAsync();
+
+        bool exited = _server.WaitForExit(20000);
+
+        Assert.True(exited, $"the server kept running with {variable}={value}");
+        Assert.NotEqual(0, _server.ExitCode);
+        Assert.Contains("TCP", await stderr);
+        _ = stdout;
+    }
 }
