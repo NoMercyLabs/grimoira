@@ -17,6 +17,10 @@ public static class PipeConnection
     /// socket instead, but HttpClient needs a well-formed base address to resolve relative request URIs.</summary>
     public static readonly Uri BaseAddress = new("http://aitm-pipe.local/");
 
+    /// <summary>How the client opens the pipe. CurrentUserOnly makes the client refuse a pipe owned by another
+    /// user, so a squatter who created the pipe name first never receives a request.</summary>
+    public static readonly PipeOptions ClientPipeOptions = PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly;
+
     /// <summary>An HttpClient that reaches the service for <paramref name="dataDir"/> over a named pipe
     /// (Windows) or a Unix domain socket (macOS/Linux), never a TCP port. <paramref name="timeout"/> bounds
     /// both the connect and the whole call.</summary>
@@ -44,7 +48,7 @@ public static class PipeConnection
     {
         if (OperatingSystem.IsWindows())
         {
-            NamedPipeClientStream pipe = new(".", ServerAddress.PipeName(dataDir), PipeDirection.InOut, PipeOptions.Asynchronous);
+            NamedPipeClientStream pipe = new(".", ServerAddress.PipeName(dataDir), PipeDirection.InOut, ClientPipeOptions);
             try
             {
                 await pipe.ConnectAsync((int)timeout.TotalMilliseconds, cancellationToken);

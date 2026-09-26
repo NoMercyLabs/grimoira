@@ -104,6 +104,6 @@ public sealed class PipeConnectionTests : IDisposable
 
         await Assert.ThrowsAnyAsync<Exception>(() => client.GetAsync("/ping")); // the stand-in never speaks HTTP
 
-        Assert.True(accepted.Wait(2000), "the client never connected to the same-user pipe");
+        Assert.Same(accepted, await Task.WhenAny(accepted, Task.Delay(2000))); // the client connected to the same-user pipe
     }
 }
