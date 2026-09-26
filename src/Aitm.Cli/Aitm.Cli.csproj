@@ -1,6 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
+    <!-- Slice 29d: the built binary is the `aitm` command itself (aitm.exe / aitm), a thin client of POST /cli. -->
+    <AssemblyName>aitm</AssemblyName>
+    <RootNamespace>Aitm.Cli</RootNamespace>
   </PropertyGroup>
   <!-- Section 1: Cli "may depend on nothing in AITM except a small shared request contract, which it
        copies from Store at build time (a linked source file)." No ProjectReference is allowed here

@@ -16,18 +16,7 @@ public static class ServerHeadersCommand
 {
     public static int Run(string dataDir, TextWriter stdout)
     {
-        string token = "";
-        try
-        {
-            string path = Path.Combine(dataDir, "server.token");
-            if (File.Exists(path)) token = File.ReadAllText(path).Trim();
-        }
-        catch
-        {
-            // An unreadable file is the same as no token; say nothing that could carry it.
-            token = "";
-        }
-
+        string token = ReadToken(dataDir);
         if (token.Length == 0)
         {
             stdout.WriteLine("{}");
@@ -36,6 +25,22 @@ public static class ServerHeadersCommand
 
         stdout.WriteLine(JsonSerializer.Serialize(new Dictionary<string, string> { ["Authorization"] = $"Bearer {token}" }));
         return 0;
+    }
+
+    /// <summary>The token in <c>server.token</c> under <paramref name="dataDir"/>, or "" when it is missing or
+    /// unreadable. Shared with the thin client (slice 29d), which sends it on every /cli call.</summary>
+    public static string ReadToken(string dataDir)
+    {
+        try
+        {
+            string path = Path.Combine(dataDir, "server.token");
+            return File.Exists(path) ? File.ReadAllText(path).Trim() : "";
+        }
+        catch
+        {
+            // An unreadable file is the same as no token; say nothing that could carry it.
+            return "";
+        }
     }
 
     /// <summary>The data dir Aitm.Server uses: <c>AITM_DATA_DIR</c>, else <c>~/.aitm</c>.</summary>

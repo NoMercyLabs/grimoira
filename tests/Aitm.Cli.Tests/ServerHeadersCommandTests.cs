@@ -73,7 +73,7 @@ public sealed class ServerHeadersCommandTests : IDisposable
 
     internal static (string Stdout, string Stderr, int Exit) RunBuiltCli(string[] args, string dataDir, IDictionary<string, string>? extraEnv = null)
     {
-        string dll = Path.Combine(AppContext.BaseDirectory, "Aitm.Cli.dll");
+        string dll = Path.Combine(AppContext.BaseDirectory, "aitm.dll");
         ProcessStartInfo psi = new("dotnet")
         {
             RedirectStandardOutput = true,

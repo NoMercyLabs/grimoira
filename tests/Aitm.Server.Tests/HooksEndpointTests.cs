@@ -14,7 +14,7 @@ namespace Aitm.Server.Tests;
 
 // RESTRUCTURE.md "Slice 34: POST /hooks/{event} on the server." The body is the Claude Code hook JSON
 // (the payload `aitm hook <event>` reads on stdin); the answer is the handler's stdout, 200. The oracle
-// is what `aitm hook <event>` runs today: src/Aitm.Cli's Program.RunHook (Aitm.Cli.dll), spawned on the
+// is what `aitm hook <event>` runs today: src/Aitm.Cli's Program.RunHook (aitm.dll), spawned on the
 // same payload. The hook handlers keep their own ~/.aitm/<instance> layout (HookPaths), so each test
 // uses a unique test-* instance there and deletes it afterwards, the same way Aitm.Hooks.Tests does.
 public sealed class HooksEndpointTests : IDisposable
@@ -57,7 +57,7 @@ public sealed class HooksEndpointTests : IDisposable
     private string RunCliHook(string eventName, string payload)
     {
         string configuration = new DirectoryInfo(AppContext.BaseDirectory.TrimEnd('/', '\\')).Parent!.Name;
-        string dll = Path.Combine(RepoPaths.Root, "src", "Aitm.Cli", "bin", configuration, "net10.0", "Aitm.Cli.dll");
+        string dll = Path.Combine(RepoPaths.Root, "src", "Aitm.Cli", "bin", configuration, "net10.0", "aitm.dll");
         Assert.True(File.Exists(dll), $"Aitm.Cli not built at {dll}");
         ProcessStartInfo psi = new("dotnet")
         {

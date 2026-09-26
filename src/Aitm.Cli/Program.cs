@@ -49,7 +49,9 @@ public static class Program
             return exitCode;
         }
 
-        return 0;
+        // Slice 29d: every other verb runs on Aitm.Server through POST /cli (ThinClient). The verbs above
+        // stay local: hooks must answer with the server down, and `server headers` runs on every MCP connect.
+        return ThinClient.RunDefault(args, Console.Out, Console.Error);
     }
 
     private static void RunHook(string eventName)
