@@ -5,8 +5,8 @@ namespace Aitm.Cli.Tools;
 /// <summary>
 /// The one retry loop every client of the service shares (ThinClient, HookForwarder, McpBridge). The service
 /// exits by itself when idle, so a client can meet it half gone: the listener is closed but the process still
-/// holds server.lock. A refused connection is followed by <c>ensureServer</c> (which starts a service when none
-/// answers /health; a new service that meets the old one's lock exits at once, cleanly) and a resend, up to
+/// holds server.lock. A refused connection is followed by a wait and <c>ensureServer</c> (which starts a service when
+/// none answers /health; a new service that meets the old one's lock exits at once, cleanly) and a resend, up to
 /// <see cref="MaxResends"/> times, <see cref="Spacing"/> apart. Only a refused connection is resent: any other
 /// failure may mean the call already ran, so it is never sent twice.
 /// </summary>
@@ -33,8 +33,15 @@ public static class RefusedConnectionRetry
                     result = default;
                     return false;
                 }
-                ensureServer();
+                // Wait first: a service that is exiting frees server.lock within that time, so the start below
+                // does not meet it. A service that cannot be started (none installed, or it never answers)
+                // ends the loop; retrying it would only repeat the wait.
                 Thread.Sleep(Spacing);
+                if (!ensureServer())
+                {
+                    result = default;
+                    return false;
+                }
             }
         }
     }
@@ -51,8 +58,8 @@ public static class RefusedConnectionRetry
             catch (HttpRequestException ex) when (ex.HttpRequestError == HttpRequestError.ConnectionError)
             {
                 if (resend == MaxResends) return (false, default);
-                ensureServer();
                 await Task.Delay(Spacing, cancellationToken);
+                if (!ensureServer()) return (false, default);
             }
         }
     }

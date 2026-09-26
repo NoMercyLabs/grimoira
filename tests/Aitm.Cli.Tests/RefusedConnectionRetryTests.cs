@@ -42,6 +42,17 @@ public sealed class RefusedConnectionRetryTests
     }
 
     [Fact]
+    public void AServiceThatCannotBeStartedEndsTheLoopAtOnce()
+    {
+        int attempts = 0;
+
+        bool reached = RefusedConnectionRetry.TrySend<string>(() => { attempts++; throw Refused(); }, () => false, out _);
+
+        Assert.False(reached);
+        Assert.Equal(1, attempts);
+    }
+
+    [Fact]
     public void ResendsAreSpacedAtLeast200Ms()
     {
         System.Diagnostics.Stopwatch clock = System.Diagnostics.Stopwatch.StartNew();
