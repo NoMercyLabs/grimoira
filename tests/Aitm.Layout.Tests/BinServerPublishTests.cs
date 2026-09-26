@@ -1,6 +1,5 @@
 using System.Diagnostics;
-using System.Net;
-using System.Net.Sockets;
+using Aitm.Cli.Tools;
 using Xunit;
 
 namespace Aitm.Layout.Tests;
@@ -8,7 +7,8 @@ namespace Aitm.Layout.Tests;
 // RESTRUCTURE.md sub-card 29e (slice 28 open point (a)): "SessionStartServerCheck.cs expects
 // <plugin>/bin-server/Aitm.Server(.exe): make the name match exactly on Windows and Linux." build-server.ps1
 // publishes Aitm.Server there, beside bin-cli/ (build-cli.ps1) and bin/ (build-mcp.ps1), and bin-server/
-// is gitignored the same way. The published binary must actually start and answer /health.
+// is gitignored the same way. The published binary must actually start and answer /health, over its
+// local pipe/socket (Slice P1), never a TCP port.
 public class BinServerPublishTests
 {
     private static readonly string ExeName = OperatingSystem.IsWindows() ? "Aitm.Server.exe" : "Aitm.Server";
@@ -45,8 +45,6 @@ public class BinServerPublishTests
     {
         string exe = PublishedServerExe();
         string dataDir = Directory.CreateTempSubdirectory("aitm-bin-server-").FullName;
-        int port = FreePort();
-        Assert.NotEqual(7635, port);
 
         ProcessStartInfo psi = new(exe)
         {
@@ -56,19 +54,18 @@ public class BinServerPublishTests
             RedirectStandardError = true,
         };
         psi.Environment["AITM_DATA_DIR"] = dataDir;
-        psi.Environment["AITM_SERVER_PORT"] = port.ToString();
 
         using Process process = Process.Start(psi) ?? throw new InvalidOperationException($"could not start {exe}");
         try
         {
-            using HttpClient client = new() { Timeout = TimeSpan.FromSeconds(1) };
             bool healthy = false;
             Stopwatch sw = Stopwatch.StartNew();
             while (sw.Elapsed < TimeSpan.FromSeconds(15))
             {
                 try
                 {
-                    using HttpResponseMessage response = await client.GetAsync($"http://127.0.0.1:{port}/health");
+                    using HttpClient client = PipeConnection.CreateClient(dataDir, TimeSpan.FromSeconds(1));
+                    using HttpResponseMessage response = await client.GetAsync("/health");
                     if (response.IsSuccessStatusCode) { healthy = true; break; }
                 }
                 catch (Exception) when (!process.HasExited)
@@ -119,13 +116,4 @@ public class BinServerPublishTests
         if (process.ExitCode != 0) throw new InvalidOperationException($"publish failed:\n{stdout}\n{stderr}");
         return Path.Combine(outDir, ExeName);
     });
-
-    private static int FreePort()
-    {
-        TcpListener l = new(IPAddress.Loopback, 0);
-        l.Start();
-        int port = ((IPEndPoint)l.LocalEndpoint).Port;
-        l.Stop();
-        return port == 7635 ? FreePort() : port;
-    }
 }
