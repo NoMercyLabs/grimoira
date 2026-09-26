@@ -36,4 +36,39 @@ public sealed class ServerAddressMatchesAcrossCliAndServerTests
 
         Assert.NotEqual(a, b);
     }
+
+    // The same folder spelled differently must be the same realm, or a client and a server that resolved the
+    // path two ways would never find each other.
+    [Fact]
+    public void ATrailingSeparatorDoesNotChangeThePipeName()
+    {
+        string a = Aitm.Cli.Tools.ServerAddress.PipeName("C:/Users/test/.aitm");
+        string b = Aitm.Cli.Tools.ServerAddress.PipeName("C:/Users/test/.aitm/");
+        string c = Aitm.Server.Data.ServerAddress.PipeName("C:/Users/test/.aitm\\");
+
+        Assert.Equal(a, b);
+        Assert.Equal(a, c);
+    }
+
+    [Fact]
+    public void OnWindowsTheCaseOfThePathDoesNotChangeThePipeName()
+    {
+        if (!OperatingSystem.IsWindows()) return; // other file systems are case-sensitive: two realms
+
+        Assert.Equal(
+            Aitm.Cli.Tools.ServerAddress.PipeName("C:/Users/Test/.AITM"),
+            Aitm.Server.Data.ServerAddress.PipeName("c:/users/test/.aitm"));
+    }
+
+    [Theory]
+    [InlineData(null, "/home/u", "/home/u/.aitm")]
+    [InlineData("", "/home/u", "/home/u/.aitm")]
+    [InlineData("/data/x", "/home/u", "/data/x")]
+    public void TheDataDirRuleTreatsAnEmptyValueAsUnsetOnBothSides(string? configured, string home, string expected)
+    {
+        string want = Path.Combine(home, ".aitm");
+        if (expected != "/data/x") expected = want;
+        Assert.Equal(expected, Aitm.Cli.Tools.ServerAddress.ResolveDataDir(configured, home));
+        Assert.Equal(expected, Aitm.Server.Data.ServerAddress.ResolveDataDir(configured, home));
+    }
 }
