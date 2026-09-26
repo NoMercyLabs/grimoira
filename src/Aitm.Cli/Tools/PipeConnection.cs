@@ -32,7 +32,10 @@ public static class PipeConnection
         SocketsHttpHandler handler = new()
         {
             ConnectCallback = async (_, cancellationToken) => await ConnectAsync(dataDir, connectTimeout, cancellationToken),
-            ConnectTimeout = connectTimeout,
+            // The callback bounds the connect itself and reports a miss as an IOException, which the handler
+            // surfaces as HttpRequestError.ConnectionError. The handler's own ConnectTimeout would cancel the
+            // callback's token at the same moment and surface a TaskCanceledException instead, so it is left off.
+            ConnectTimeout = Timeout.InfiniteTimeSpan,
         };
         return new HttpClient(handler) { BaseAddress = BaseAddress, Timeout = overallTimeout };
     }
@@ -46,6 +49,11 @@ public static class PipeConnection
             {
                 await pipe.ConnectAsync((int)timeout.TotalMilliseconds, cancellationToken);
                 return pipe;
+            }
+            catch (TimeoutException ex)
+            {
+                pipe.Dispose();
+                throw new IOException($"nothing answers on the pipe for {dataDir}", ex);
             }
             catch
             {
