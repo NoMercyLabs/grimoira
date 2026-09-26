@@ -89,7 +89,7 @@ public partial class McpParameterParityTests
         return stdout;
     }
 
-    [GeneratedRegex(@"public static (?:async )?(?:Task<string>|string) (\w+)\s*\(([^)]*)\)", RegexOptions.Compiled)]
+    [GeneratedRegex(@"public static (?:async )?(?:Task<string>|string) (\w+)\s*\(([^)]*)\)")]
     private static partial Regex ToolMethodSignatureWithParameters();
     [GeneratedRegex(@"\s+")]
     private static partial Regex WhitespaceRun();

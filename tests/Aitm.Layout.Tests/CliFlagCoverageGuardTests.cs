@@ -161,11 +161,11 @@ public partial class CliFlagCoverageGuardTests
         return stdout;
     }
 
-    [GeneratedRegex(@"(?:GetFlag|HasFlag)\(\s*""(--[\w-]+)""\s*\)|\ba\.Contains\(\s*""(--[\w-]+)""\s*\)", RegexOptions.Compiled)]
+    [GeneratedRegex(@"(?:GetFlag|HasFlag)\(\s*""(--[\w-]+)""\s*\)|\ba\.Contains\(\s*""(--[\w-]+)""\s*\)")]
     private static partial Regex FlagLookup();
-    [GeneratedRegex(@"case\s+""([^""]+)""\s*:", RegexOptions.Compiled)]
+    [GeneratedRegex(@"case\s+""([^""]+)""\s*:")]
     private static partial Regex CaseLabel();
-    [GeneratedRegex(@"\b([A-Z][A-Za-z0-9_]*)\s*\(", RegexOptions.Compiled)]
+    [GeneratedRegex(@"\b([A-Z][A-Za-z0-9_]*)\s*\(")]
     private static partial Regex CalledMethodName();
     [GeneratedRegex(@"switch\s*\(cmd\)")]
     private static partial Regex SwitchOnCmd();

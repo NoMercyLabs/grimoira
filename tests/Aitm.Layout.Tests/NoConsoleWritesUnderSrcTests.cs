@@ -80,6 +80,6 @@ public partial class NoConsoleWritesUnderSrcTests
             + "Console — shrink the list:\n" + string.Join("\n", stale));
     }
 
-    [GeneratedRegex(@"Console\.(Write\w*|Out|Error)\b", RegexOptions.Compiled)]
+    [GeneratedRegex(@"Console\.(Write\w*|Out|Error)\b")]
     private static partial Regex ConsoleUsage();
 }

@@ -163,7 +163,7 @@ public sealed partial class IndexMemoryTool : ITool
     private static partial Regex MarkdownLink();
     [GeneratedRegex(@"\s{2,}")]
     private static partial Regex ConsecutiveWhitespace();
-    [GeneratedRegex(@"\b(very|really|just|actually|basically|simply|essentially|quite|somewhat|fairly|definitely|absolutely|literally|obviously|clearly|please|kindly)\b ?", RegexOptions.IgnoreCase, "nl-NL")]
+    [GeneratedRegex(@"\b(very|really|just|actually|basically|simply|essentially|quite|somewhat|fairly|definitely|absolutely|literally|obviously|clearly|please|kindly)\b ?", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex FillerWords();
     [GeneratedRegex(@"\p{Cs}")]
     private static partial Regex Surrogates();

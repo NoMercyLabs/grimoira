@@ -151,7 +151,7 @@ public sealed partial class ExtractEdgesTool : ITool
 
     [GeneratedRegex(@"_(\w)")]
     private static partial Regex SnakeCaseUnderscoreLetter();
-    [GeneratedRegex(@"@?\[?\b(JsonProperty|JsonPropertyName|SerialName|JsonInclude|DataMember|field|get|set|init|public|private|internal|val|var|let|const|readonly|required|override|string|String|int|Int|long|Long|bool|Boolean|number|Guid|Ulid)\b|[\[\]@(){}<>"":;,?=]", RegexOptions.IgnoreCase, "nl-NL")]
+    [GeneratedRegex(@"@?\[?\b(JsonProperty|JsonPropertyName|SerialName|JsonInclude|DataMember|field|get|set|init|public|private|internal|val|var|let|const|readonly|required|override|string|String|int|Int|long|Long|bool|Boolean|number|Guid|Ulid)\b|[\[\]@(){}<>"":;,?=]", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex DeclarationKeywordsAndAnnotations();
     [GeneratedRegex(@"\s+")]
     private static partial Regex AnyWhitespace();

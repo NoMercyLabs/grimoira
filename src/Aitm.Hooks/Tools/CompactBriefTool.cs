@@ -295,11 +295,11 @@ public static partial class CompactBriefTool
         return output;
     }
 
-    [GeneratedRegex(@"(^|[\\/])(scratchpad|\.?scratch|Temp|tmp)([\\/]|$)", RegexOptions.IgnoreCase, "nl-NL")]
+    [GeneratedRegex(@"(^|[\\/])(scratchpad|\.?scratch|Temp|tmp)([\\/]|$)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex ScratchPath();
     [GeneratedRegex(@"^(This session is being continued|Caveat: The messages below|\[Request interrupted)")]
     private static partial Regex ContinuedSummaryStart();
-    [GeneratedRegex("hook (feedback|additional context)", RegexOptions.IgnoreCase, "nl-NL")]
+    [GeneratedRegex("hook (feedback|additional context)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex HookFeedbackNotice();
     [GeneratedRegex(@"\s+")]
     private static partial Regex ConsecutiveWhitespace();

@@ -116,10 +116,10 @@ public sealed partial class HookDoctorTool : ITool
             ? v.GetString()
             : null;
 
-    [GeneratedRegex(@"[a-z0-9-]+\.mjs\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, "nl-NL")]
+    [GeneratedRegex(@"[a-z0-9-]+\.mjs\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex HookScriptName();
-    [GeneratedRegex(@"(^|[/\\])aitm[/\\]", RegexOptions.IgnoreCase | RegexOptions.Compiled, "nl-NL")]
+    [GeneratedRegex(@"(^|[/\\])aitm[/\\]", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex AitmInstallPath();
-    [GeneratedRegex("^aitm@", RegexOptions.IgnoreCase, "nl-NL")]
+    [GeneratedRegex("^aitm@", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex AitmPluginKey();
 }

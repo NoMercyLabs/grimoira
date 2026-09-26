@@ -280,15 +280,15 @@ public static partial class BrainSearchLib
         return picks;
     }
 
-    [GeneratedRegex(@"\\[a-zA-Z]", RegexOptions.Compiled)]
+    [GeneratedRegex(@"\\[a-zA-Z]")]
     private static partial Regex BackslashEscape();
-    [GeneratedRegex(@"[(){}\[\]|^$*+?.\\/'""`<>=!,;:#@&%~-]", RegexOptions.Compiled)]
+    [GeneratedRegex(@"[(){}\[\]|^$*+?.\\/'""`<>=!,;:#@&%~-]")]
     private static partial Regex QueryPunctuation();
-    [GeneratedRegex(@"_|(?<=[a-z0-9])(?=[A-Z])", RegexOptions.Compiled)]
+    [GeneratedRegex(@"_|(?<=[a-z0-9])(?=[A-Z])")]
     private static partial Regex IdentifierWordBoundary();
-    [GeneratedRegex(@"(^|[\\/])(tests?|spec|__tests__)[\\/]", RegexOptions.IgnoreCase | RegexOptions.Compiled, "nl-NL")]
+    [GeneratedRegex(@"(^|[\\/])(tests?|spec|__tests__)[\\/]", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex TestFilePath();
-    [GeneratedRegex(@"^(this session is being continued|<\?xml|summary:|caveat: the messages below)", RegexOptions.IgnoreCase | RegexOptions.Compiled, "nl-NL")]
+    [GeneratedRegex(@"^(this session is being continued|<\?xml|summary:|caveat: the messages below)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex TranscriptBoilerplateStart();
     [GeneratedRegex(@"\.[^.]+$")]
     private static partial Regex FileExtension();

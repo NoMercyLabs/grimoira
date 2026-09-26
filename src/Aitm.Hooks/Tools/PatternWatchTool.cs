@@ -238,16 +238,16 @@ public static partial class PatternWatchTool
             ? v.GetString()
             : null;
 
-    [GeneratedRegex(@"\.(mjs|cjs|js|ts|py|ps1|sh|bat|cmd|rb|pl)$", RegexOptions.IgnoreCase | RegexOptions.Compiled, "nl-NL")]
+    [GeneratedRegex(@"\.(mjs|cjs|js|ts|py|ps1|sh|bat|cmd|rb|pl)$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex ScriptFileExtension();
-    [GeneratedRegex(@"^[A-Za-z][\w.:-]*$", RegexOptions.Compiled)]
+    [GeneratedRegex(@"^[A-Za-z][\w.:-]*$")]
     private static partial Regex CommandWord();
-    [GeneratedRegex(@"^\d?>>?$|^<$|^\d?>&\d$", RegexOptions.Compiled)]
+    [GeneratedRegex(@"^\d?>>?$|^<$|^\d?>&\d$")]
     private static partial Regex ShellRedirect();
-    [GeneratedRegex(@"^\$?[\w.]+$", RegexOptions.Compiled)]
+    [GeneratedRegex(@"^\$?[\w.]+$")]
     private static partial Regex VariableAssignmentTarget();
     [GeneratedRegex(@"&&|\|\||;|\|")]
     private static partial Regex PipelineStageSeparators();
-    [GeneratedRegex(@"\.(exe|cmd)$", RegexOptions.IgnoreCase, "nl-NL")]
+    [GeneratedRegex(@"\.(exe|cmd)$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex WindowsExecutableSuffix();
 }
