@@ -17,10 +17,11 @@ public static class SessionStartServerCheck
         return 0;
     }
 
-    /// <summary>The real hook: the port and server path of <see cref="ServerAutoStart.EnsureRunning()"/>.</summary>
+    /// <summary>The real hook: the port and server path of <see cref="ServerAutoStart.EnsureRunning()"/>, and a
+    /// running server of another build hands over to this CLI's build (<see cref="ServerHandover"/>, slice 32b).</summary>
     public static int RunDefault()
     {
-        ServerAutoStart.EnsureRunning();
+        ServerHandover.RunDefault();
         return 0;
     }
 

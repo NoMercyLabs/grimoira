@@ -160,7 +160,8 @@ public sealed class ServerHandsOverToTheCurrentBuildTests : IClassFixture<Server
     {
         using HttpClient client = new() { Timeout = TimeSpan.FromSeconds(60) };
         using HttpRequestMessage request = new(HttpMethod.Post, $"http://127.0.0.1:{_port}/cli");
-        request.Headers.TryAddWithoutValidation("Authorization", $"Bearer {File.ReadAllText(Path.Combine(_dataDir, "server.token")).Trim()}");
+        string tokenFile = Path.Combine(_dataDir, "server.token"); // gone once the server drops its token
+        if (File.Exists(tokenFile)) request.Headers.TryAddWithoutValidation("Authorization", $"Bearer {File.ReadAllText(tokenFile).Trim()}");
         request.Headers.TryAddWithoutValidation("Claude-Project-Dir", _projectDir);
         request.Content = new StringContent(JsonSerializer.Serialize(new { args, cwd = _projectDir }), Encoding.UTF8, "application/json");
         using HttpResponseMessage response = client.Send(request);

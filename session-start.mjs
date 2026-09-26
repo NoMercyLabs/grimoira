@@ -8,8 +8,9 @@
 // - Build current: run `dotnet <data>/current/bin-cli/aitm.dll hook SessionStart`, stdin, stdout and the exit
 //   code passed straight through. The hook gets AITM_PLUGIN_ROOT, so a server it starts from the data folder
 //   still finds the files that ship in the plugin root (idp-impersonate.mjs, seeds/).
-// - A running server keeps the build it started from; the next SessionStart after it exits starts the server
-//   of the current build (ServerAutoStart reuses any server that answers /health).
+// - A running server keeps the build it started from. The CLI's SessionStart compares the build stamp in its
+//   /health with the current build's: on a mismatch the old server finishes its calls in flight and exits, and
+//   the server of the current build starts (ServerHandover, slice 32b).
 // - Missing or stale: start build-cli-and-server.mjs detached, print one line, exit 0. A lock file makes
 //   sure two sessions never build at once. The session goes on without AITM until the build is done.
 //

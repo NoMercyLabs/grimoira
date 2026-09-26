@@ -36,9 +36,13 @@ DateTime startedAt = DateTime.UtcNow;
 string version = Assembly.GetExecutingAssembly().GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
     ?? Assembly.GetExecutingAssembly().GetName().Version?.ToString()
     ?? "dev";
+string? buildStamp = BuildStamp.OfPublishedBuild(AppContext.BaseDirectory);
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 builder.WebHost.UseUrls($"http://127.0.0.1:{port}");
+// RESTRUCTURE.md "Slice 32b": a stop (POST /shutdown, Ctrl+C, a logoff) lets every call in flight finish.
+// The longest call the server takes is a long /cli verb, so the drain waits that long, never the 30 s default.
+builder.Services.Configure<HostOptions>(options => options.ShutdownTimeout = CliEndpoint.LongTimeout);
 
 // The one open store per project (RESTRUCTURE.md "Slice 26") and the accessor every store-backed tool
 // uses to resolve which project a request belongs to. Both are constructed here, not resolved from the
@@ -55,7 +59,9 @@ builder.Services.AddMcpServer().WithHttpTransport().WithTools(mcpTools);
 
 WebApplication app = builder.Build();
 
-app.Lifetime.ApplicationStopping.Register(projectStore.Dispose);
+// Stopped, not Stopping: Stopping fires before Kestrel drains, so a call still in flight would lose its store
+// (RESTRUCTURE.md slice 32b: the old server finishes its calls in flight, then exits).
+app.Lifetime.ApplicationStopped.Register(projectStore.Dispose);
 
 string[] allowedHosts = [$"127.0.0.1:{port}", $"localhost:{port}"];
 
@@ -78,8 +84,11 @@ app.Use(async (context, next) =>
         return;
     }
 
-    bool isHealth = string.Equals(context.Request.Path.Value, "/health", StringComparison.OrdinalIgnoreCase);
-    if (!isHealth)
+    // /shutdown (slice 32b) is as open as /health: the SessionStart hand-over sends no token, and the Host and
+    // Origin checks above already keep a browser page from reaching it.
+    bool isOpen = string.Equals(context.Request.Path.Value, "/health", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(context.Request.Path.Value, "/shutdown", StringComparison.OrdinalIgnoreCase);
+    if (!isOpen)
     {
         AuthenticationHeaderValue? auth = context.Request.Headers.Authorization.Count > 0
             && AuthenticationHeaderValue.TryParse(context.Request.Headers.Authorization.ToString(), out AuthenticationHeaderValue? parsed)
@@ -102,6 +111,7 @@ app.Use(async (context, next) =>
 app.MapGet("/health", () => Results.Json(new
 {
     version,
+    buildStamp,
     uptimeSeconds = (DateTime.UtcNow - startedAt).TotalSeconds,
     openStores = projectStore.OpenInstances,
 }));
@@ -116,6 +126,14 @@ app.MapPost("/hooks/{event}", (string @event, HttpContext context) => HookEndpoi
 // RESTRUCTURE.md "Slice 29c": the CLI verbs, behind the same auth middleware; each runs on the project's
 // one open connection under its writer gate, with a timeout that answers exit 124 (CliEndpoint).
 app.MapPost("/cli", (Func<HttpContext, Task<IResult>>)(context => CliEndpoint.Handle(context, projectStore, dataDir)));
+
+// RESTRUCTURE.md "Slice 32b": the SessionStart of a newer build asks this server to make way. It stops
+// taking new connections, finishes the calls in flight, and exits; that frees server.lock for the new build.
+app.MapPost("/shutdown", (IHostApplicationLifetime lifetime) =>
+{
+    lifetime.StopApplication();
+    return Results.Accepted();
+});
 
 app.Run();
 

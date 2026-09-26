@@ -46,6 +46,7 @@ public sealed class ServerHostTests : IDisposable
         Assert.True(body!.ContainsKey("version"));
         Assert.True(body.ContainsKey("uptimeSeconds"));
         Assert.True(body.ContainsKey("openStores"));
+        Assert.True(body.ContainsKey("buildStamp")); // null outside a published build (slice 32b)
     }
 
     [Fact]

@@ -34,4 +34,29 @@ public static class BuildStamp
     {
         File.WriteAllText(Path.Combine(binDir, StampFileName), SourceHash(sourceFile));
     }
+
+    /// <summary>
+    /// The stamp of the published build this server runs from: <c>&lt;build&gt;/bin-cli/build-stamp.txt</c>
+    /// beside <c>&lt;build&gt;/bin-server</c>, written by build-cli-and-server.mjs (RESTRUCTURE.md slice 32a).
+    /// Read once at start, so a server keeps reporting its own build after <c>current</c> moves on (slice
+    /// 32b). Null for a build with no stamp (a checkout's bin-server, a test build).
+    /// </summary>
+    public static string? OfPublishedBuild(string serverDirectory)
+    {
+        try
+        {
+            string stampFile = Path.Combine(serverDirectory, "..", "bin-cli", StampFileName);
+            if (!File.Exists(stampFile)) return null;
+            string stamp = File.ReadAllText(stampFile).Trim();
+            return stamp.Length > 0 ? stamp : null;
+        }
+        catch (IOException)
+        {
+            return null;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
 }
