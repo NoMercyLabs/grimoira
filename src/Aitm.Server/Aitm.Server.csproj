@@ -21,4 +21,7 @@
     <ProjectReference Include="../Aitm.Brain/Aitm.Brain.csproj" />
     <ProjectReference Include="../Aitm.Hooks/Aitm.Hooks.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Aitm.Server.Tests" />
+  </ItemGroup>
 </Project>
