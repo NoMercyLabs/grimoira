@@ -19,6 +19,7 @@ public class CodeStyleIsEnforcedInBuildTests
         "IDE0301", // empty collection -> []
         "IDE0305", // fluent .ToList()/.ToArray() -> collection expression
         "IDE0370", // unnecessary null-forgiving suppression
+        "SYSLIB1045", // hand-written Regex call -> [GeneratedRegex]
     ];
 
     private static string Read(string relative) => File.ReadAllText(Path.Combine(RepoPaths.Root, relative));
