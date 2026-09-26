@@ -57,4 +57,26 @@ public class BinCliIsThePublishedThinClientTests
         Assert.Contains("'bin-cli-old'", source);
         Assert.DoesNotContain("'bin-cli'", source);
     }
+
+    [Fact]
+    public void BuildCliScriptClearsBinCliBeforePublishingSoNoStaleDllsRemain()
+    {
+        string script = File.ReadAllText(Path.Combine(RepoPaths.Root, "build-cli.ps1"));
+        int removeIndex = script.IndexOf("Remove-Item", StringComparison.Ordinal);
+        int publishIndex = script.IndexOf(@"-o ""$PSScriptRoot/bin-cli""", StringComparison.Ordinal);
+        Assert.True(removeIndex >= 0,
+            "build-cli.ps1 never clears bin-cli/ before publishing into it, so an old aitm.cs build's DLLs remain beside the thin client.");
+        Assert.True(publishIndex >= 0, "the bin-cli publish line was not found; the assertion above needs updating to match its new shape.");
+        Assert.True(removeIndex < publishIndex, "bin-cli/ must be cleared before the publish that fills it back in, not after.");
+    }
+
+    [Theory]
+    [InlineData("tests/Aitm.Layout.Tests/BrainReadCliParityTests.cs")]
+    [InlineData("tests/Aitm.Layout.Tests/GraphCliParityTests.cs")]
+    public void ParityTestCommentsNameTheAitmCsBuildAsBinCliOldNotBinCli(string relative)
+    {
+        string source = File.ReadAllText(Path.Combine(RepoPaths.Root, relative));
+        Assert.DoesNotContain("today's bin-cli/aitm.dll", source);
+        Assert.Contains("today's bin-cli-old/aitm.dll", source);
+    }
 }

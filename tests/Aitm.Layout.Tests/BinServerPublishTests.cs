@@ -29,6 +29,25 @@ public class BinServerPublishTests
     }
 
     [Fact]
+    public void BuildServerScriptClearsBinServerBeforePublishingSoNoStaleFilesRemain()
+    {
+        string script = File.ReadAllText(Path.Combine(RepoPaths.Root, "build-server.ps1"));
+        int removeIndex = script.IndexOf("Remove-Item", StringComparison.Ordinal);
+        int publishIndex = script.IndexOf(@"-o ""$PSScriptRoot/bin-server""", StringComparison.Ordinal);
+        Assert.True(removeIndex >= 0,
+            "build-server.ps1 never clears bin-server/ before publishing into it, so a stale earlier build's files remain.");
+        Assert.True(publishIndex >= 0, "the bin-server publish line was not found; the assertion above needs updating to match its new shape.");
+        Assert.True(removeIndex < publishIndex, "bin-server/ must be cleared before the publish that fills it back in, not after.");
+    }
+
+    [Fact]
+    public void BuildServerScriptNoLongerNamesTheRetiredBinCliNext()
+    {
+        string script = File.ReadAllText(Path.Combine(RepoPaths.Root, "build-server.ps1"));
+        Assert.DoesNotContain("bin-cli-next", script);
+    }
+
+    [Fact]
     public async Task PublishedServerStartsAndAnswersHealthThenStops()
     {
         string exe = PublishedServerExe();
