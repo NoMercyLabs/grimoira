@@ -10,4 +10,8 @@
   <ItemGroup>
     <ProjectReference Include="../../src/Aitm.Cli/Aitm.Cli.csproj" />
   </ItemGroup>
+  <!-- Slice 29d: a stand-in POST /cli on an ephemeral port for the thin-client tests. -->
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
 </Project>
