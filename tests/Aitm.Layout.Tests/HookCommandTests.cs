@@ -96,4 +96,34 @@ public class HookCommandTests
 
         Assert.True(hook.GetProperty("async").GetBoolean());
     }
+
+    // A forwarded hook ends at its own deadline (HookForwarder.Deadlines), because an async command hook's
+    // timeout is not enforced in an interactive session. The deadline must never outlast the slot that runs
+    // the event's handlers: the slot whose args run `hook <event>`, else (PostToolUse, still node until its
+    // own card) the index-on-edit slot, the one handler the server runs for an edit.
+    [Fact]
+    public void EachForwardedHookDeadlineIsNotAboveItsSlotTimeout()
+    {
+        using JsonDocument doc = JsonDocument.Parse(File.ReadAllText(Path.Combine(RepoPaths.Root, "hooks", "hooks.json")));
+        Assert.NotEmpty(Aitm.Cli.Tools.HookForwarder.Deadlines);
+        foreach ((string eventName, TimeSpan deadline) in Aitm.Cli.Tools.HookForwarder.Deadlines)
+        {
+            JsonElement slot = doc.RootElement.GetProperty("hooks").GetProperty(eventName).EnumerateArray()
+                .SelectMany(group => group.GetProperty("hooks").EnumerateArray())
+                .Where(hook => RunsHookVerb(hook, eventName) || ArgsMention(hook, "index-on-edit.mjs"))
+                .Single();
+            int timeoutSeconds = slot.GetProperty("timeout").GetInt32();
+            Assert.True(deadline <= TimeSpan.FromSeconds(timeoutSeconds),
+                $"{eventName}: deadline {deadline.TotalSeconds} s is above its slot timeout {timeoutSeconds} s");
+        }
+    }
+
+    private static string[] ArgsOf(JsonElement hook) =>
+        hook.TryGetProperty("args", out JsonElement a) ? a.EnumerateArray().Select(x => x.GetString() ?? "").ToArray() : [];
+
+    private static bool RunsHookVerb(JsonElement hook, string eventName) =>
+        ArgsOf(hook) is [.., "hook", string last] && last == eventName;
+
+    private static bool ArgsMention(JsonElement hook, string script) =>
+        ArgsOf(hook).Any(arg => arg.EndsWith(script, StringComparison.Ordinal));
 }
