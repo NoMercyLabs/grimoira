@@ -73,6 +73,8 @@ public static class Program
             {
                 "PreCompact" => CompactBriefTool.Execute(stdin),
                 "UserPromptSubmit" => CompactRestoreTool.Execute(stdin),
+                // Slice 30: these handlers need Memory, Docs, Graph and Store, so the server runs them.
+                "SessionEnd" or "PostToolUse" => HookForwarder.ForwardDefault(eventName, stdin),
                 // Slice 28: start the server when /health does not answer; prints nothing, exits 0.
                 "SessionStart" => RunSessionStart(),
                 _ => "",
