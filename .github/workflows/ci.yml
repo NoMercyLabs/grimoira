@@ -34,7 +34,14 @@ jobs:
           node-version: '22'
 
       - name: Build CLI
-        run: dotnet build aitm.cs -c Release -o bin-cli
+        # bin-cli/ is the published Aitm.Cli, the thin client of the server's POST /cli. bin-cli-old/
+        # is the kept aitm.cs build: the rollback, and the oracle the parity tests compare against.
+        run: |
+          dotnet build aitm.cs -c Release -o bin-cli-old
+          dotnet publish src/Aitm.Cli/Aitm.Cli.csproj -c Release -o bin-cli -p:PublishAot=false
+
+      - name: Build server
+        run: dotnet publish src/Aitm.Server/Aitm.Server.csproj -c Release -o bin-server -p:PublishAot=false
 
       - name: Build MCP server
         run: dotnet build mcp.cs -c Release -o bin

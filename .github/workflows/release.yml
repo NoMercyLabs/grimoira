@@ -44,7 +44,9 @@ jobs:
 
       - name: Build
         run: |
-          dotnet build aitm.cs -c Release -o bin-cli
+          dotnet build aitm.cs -c Release -o bin-cli-old
+          dotnet publish src/Aitm.Cli/Aitm.Cli.csproj -c Release -o bin-cli -p:PublishAot=false
+          dotnet publish src/Aitm.Server/Aitm.Server.csproj -c Release -o bin-server -p:PublishAot=false
           dotnet build mcp.cs -c Release -o bin
 
       - name: Parse hooks
@@ -53,6 +55,8 @@ jobs:
       - name: Package
         run: |
           tar -czf aitm-cli-${{ steps.tag.outputs.value }}.tar.gz bin-cli
+          tar -czf aitm-cli-old-${{ steps.tag.outputs.value }}.tar.gz bin-cli-old
+          tar -czf aitm-server-${{ steps.tag.outputs.value }}.tar.gz bin-server
           tar -czf aitm-mcp-${{ steps.tag.outputs.value }}.tar.gz bin
 
       - uses: softprops/action-gh-release@v2
@@ -61,4 +65,6 @@ jobs:
           generate_release_notes: true
           files: |
             aitm-cli-${{ steps.tag.outputs.value }}.tar.gz
+            aitm-cli-old-${{ steps.tag.outputs.value }}.tar.gz
+            aitm-server-${{ steps.tag.outputs.value }}.tar.gz
             aitm-mcp-${{ steps.tag.outputs.value }}.tar.gz
