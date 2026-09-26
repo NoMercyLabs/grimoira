@@ -6,11 +6,12 @@ using Xunit;
 
 namespace Aitm.Server.Tests;
 
-// RESTRUCTURE.md "Slice 25: Aitm.Server host." — a Kestrel host bound to 127.0.0.1:7635 only, that
-// rejects a wrong Host header and any Origin header. It holds no secret and checks no token
+// RESTRUCTURE.md "Slice 25: Aitm.Server host", superseded by Slice P1 ("Phase 4, replaced"): the Host/Origin
+// guard is gone now that nothing is reachable over TCP. It holds no secret and checks no token
 // (the owner, 2026-09-26). These tests run the real Program pipeline through an in-process
-// TestServer (WebApplicationFactory<Program>), never a real socket bind on 7635 — Program reads its
-// data directory and port from AITM_DATA_DIR / AITM_SERVER_PORT so a test never touches ~/.aitm.
+// TestServer (WebApplicationFactory<Program>), which replaces Kestrel entirely and so never exercises the
+// pipe/socket transport itself (PipeOnlyTransportTests and PipeTransportRealProcessTests do) — Program
+// still reads AITM_DATA_DIR / AITM_SERVER_PORT so a test never touches ~/.aitm.
 public sealed class ServerHostTests : IDisposable
 {
     private readonly string _dataDir = Directory.CreateTempSubdirectory("aitm-server-host-").FullName;
@@ -66,76 +67,10 @@ public sealed class ServerHostTests : IDisposable
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
-    [Fact]
-    public async Task AnAuthorizationHeaderIsIgnoredNotChecked()
-    {
-        using WebApplicationFactory<Program> factory = Factory();
-        using HttpClient client = factory.CreateClient();
-        using HttpRequestMessage request = Request(HttpMethod.Post, "/hooks/NoSuchEvent", _allowedHost, bearer: "left-over-from-an-old-client");
-        request.Content = new StringContent("{}", System.Text.Encoding.UTF8, "application/json");
-
-        HttpResponseMessage response = await client.SendAsync(request);
-
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-    }
-
-    [Fact]
-    public async Task WrongHostHeaderIsRefusedOnEveryRoute()
-    {
-        using WebApplicationFactory<Program> factory = Factory();
-        using HttpClient client = factory.CreateClient();
-
-        foreach (string path in new[] { "/mcp", "/cli", "/hooks/PreCompact", "/shutdown" })
-        {
-            HttpResponseMessage response = await client.SendAsync(Request(HttpMethod.Post, path, $"attacker.example:{Port}"));
-            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        }
-    }
-
-    [Fact]
-    public async Task AnyOriginHeaderIsRefusedOnEveryRoute()
-    {
-        using WebApplicationFactory<Program> factory = Factory();
-        using HttpClient client = factory.CreateClient();
-
-        foreach (string path in new[] { "/mcp", "/cli", "/hooks/PreCompact", "/shutdown" })
-        {
-            HttpResponseMessage response = await client.SendAsync(Request(HttpMethod.Post, path, _allowedHost, addOrigin: true));
-            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        }
-    }
-
-    [Fact]
-    public void TheServerListensOnLoopbackOnly()
-    {
-        string program = File.ReadAllText(Path.Combine(Aitm.Layout.Tests.RepoPaths.Root, "src", "Aitm.Server", "Data", "Program.cs"));
-
-        Assert.Contains("builder.WebHost.UseUrls($\"http://127.0.0.1:{port}\");", program);
-        Assert.DoesNotContain("0.0.0.0", program);
-        Assert.DoesNotContain("ListenAnyIP", program);
-    }
-
-    [Fact]
-    public async Task WrongHostHeaderIsRefusedEvenForHealth()
-    {
-        using WebApplicationFactory<Program> factory = Factory();
-        using HttpClient client = factory.CreateClient();
-
-        HttpResponseMessage response = await client.SendAsync(Request(HttpMethod.Get, "/health", "evil.example"));
-
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-    }
-
-    [Fact]
-    public async Task AnyOriginHeaderIsRefusedEvenForHealth()
-    {
-        using WebApplicationFactory<Program> factory = Factory();
-        using HttpClient client = factory.CreateClient();
-
-        HttpResponseMessage response = await client.SendAsync(Request(HttpMethod.Get, "/health", _allowedHost, addOrigin: true));
-
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-    }
+    // RESTRUCTURE.md "Phase 4, replaced (the owner, 2026-09-26)": "No TCP port, no HTTP listener on the
+    // network, no token, no Host/Origin guard." The Host/Origin checks and the loopback-only assertion
+    // they protected are gone with the guard; PipeOnlyTransportTests covers the pipe/socket transport that
+    // replaces the loopback bind as the guard.
 
     [Fact]
     public void StartingTheServerWritesNoTokenFile()
