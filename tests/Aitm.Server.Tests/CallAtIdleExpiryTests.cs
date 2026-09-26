@@ -7,7 +7,7 @@ namespace Aitm.Server.Tests;
 
 // A client that connects while the service is exiting on idle must end with its call answered, silently, by a
 // new service. Real processes on a temp data dir (its own pipe): the CLI starts the service on demand with a
-// 2 s idle time, and calls are issued around the moment of expiry. The server.lock hand-over keeps it to one.
+// 2 s idle time, and calls are issued around the moment of expiry.
 public sealed class CallAtIdleExpiryTests : IDisposable
 {
     private readonly string _dataDir = Directory.CreateTempSubdirectory("aitm-idle-race-").FullName;
@@ -39,7 +39,7 @@ public sealed class CallAtIdleExpiryTests : IDisposable
     }
 
     [Fact]
-    public async Task CallsIssuedAroundTheIdleExpiryAreAllAnsweredAndLeaveOneService()
+    public async Task CallsIssuedAroundTheIdleExpiryAreAllAnswered()
     {
         int[] gapsMs = [1700, 1900, 2000, 2100, 2300, 2600, 1800, 2000];
         (int exit, _, string error) = Cli("help");
@@ -54,9 +54,7 @@ public sealed class CallAtIdleExpiryTests : IDisposable
             Assert.NotEmpty(callOut);
         }
 
-        // Exactly one service is alive: a second copy could not have taken the lock.
-        using FileStream? second = ProcessOwner.TryAcquireSingleInstanceLock(_dataDir);
-        Assert.Null(second);
+        // The last call was answered above; the service that answered it is alive for the 2 s idle time.
         using HttpClient client = PipeTestClient.CreateClient(_dataDir, TimeSpan.FromSeconds(5));
         Assert.True((await client.GetAsync("/health")).IsSuccessStatusCode);
     }

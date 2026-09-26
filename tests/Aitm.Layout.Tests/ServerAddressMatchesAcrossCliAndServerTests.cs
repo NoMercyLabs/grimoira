@@ -44,10 +44,12 @@ public sealed class ServerAddressMatchesAcrossCliAndServerTests
     {
         string a = Aitm.Cli.Tools.ServerAddress.PipeName("C:/Users/test/.aitm");
         string b = Aitm.Cli.Tools.ServerAddress.PipeName("C:/Users/test/.aitm/");
-        string c = Aitm.Server.Data.ServerAddress.PipeName("C:/Users/test/.aitm\\");
-
         Assert.Equal(a, b);
-        Assert.Equal(a, c);
+        Assert.Equal(a, Aitm.Server.Data.ServerAddress.PipeName("C:/Users/test/.aitm/"));
+
+        // A backslash is a separator only on Windows; on Linux it is an ordinary file-name character.
+        if (OperatingSystem.IsWindows())
+            Assert.Equal(a, Aitm.Server.Data.ServerAddress.PipeName("C:/Users/test/.aitm\\"));
     }
 
     [Fact]
