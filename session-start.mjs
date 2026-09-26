@@ -17,7 +17,7 @@
 // launch-mcp.mjs uses the checkout's bin/. build-cli.ps1 and build-server.ps1 own their freshness there, so
 // the step only builds when they are missing.
 
-import { closeSync, existsSync, mkdirSync, openSync, rmSync, statSync, writeSync } from 'node:fs';
+import { closeSync, existsSync, mkdirSync, openSync, renameSync, rmSync, statSync, writeFileSync, writeSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn, spawnSync } from 'node:child_process';
@@ -66,7 +66,23 @@ export function releaseLock(dataDir) {
   rmSync(join(dataDir, LOCK), { force: true });
 }
 
+/**
+ * Records the plugin root in <data>/plugin-root.txt, written to a temp file and renamed so a reader never sees
+ * half a path. A server started without this hook (the logon task, a thin client of another slot) has no
+ * AITM_PLUGIN_ROOT and finds idp-impersonate.mjs and seeds/ through this file (PluginFileLocator).
+ */
+export function recordPluginRoot(dataDir, root) {
+  mkdirSync(dataDir, { recursive: true });
+  const file = join(dataDir, 'plugin-root.txt');
+  const temp = `${file}.${process.pid}.tmp`;
+  writeFileSync(temp, root);
+  renameSync(temp, file);
+}
+
 export function sessionStart({ root, dataDir, pluginData, runHook, startBuild, write }) {
+  if (pluginData) {
+    try { recordPluginRoot(dataDir, root); } catch { /* best effort: the env var and the walk-up remain */ }
+  }
   if (isCurrent(root, dataDir, pluginData)) {
     return runHook(join(buildDir(dataDir, pluginData), 'bin-cli', 'aitm.dll'), { AITM_PLUGIN_ROOT: root });
   }
