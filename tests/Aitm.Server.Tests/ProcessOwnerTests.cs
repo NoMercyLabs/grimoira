@@ -11,6 +11,21 @@ public class ProcessOwnerTests
 {
     private static string TempRoot() => Directory.CreateTempSubdirectory("aitm-owner-").FullName;
 
+    // A killed child keeps its working directory open until the OS has finished tearing it down, so a
+    // delete right after Cancel() fails with "being used by another process" on a loaded machine.
+    // Wait for each child to be gone before the folder is removed.
+    private static void StopChildrenThenDelete(string root, params OwnedProcess?[] children)
+    {
+        foreach (OwnedProcess? child in children)
+        {
+            if (child is null) continue;
+            child.Cancel();
+            try { child.Process.WaitForExit(10_000); }
+            catch (InvalidOperationException) { /* never started (failed spawn) */ }
+        }
+        Directory.Delete(root, recursive: true);
+    }
+
     private static readonly bool IsWindows = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
     private static (string Command, string[] Args) ExitImmediately() =>
         IsWindows ? ("cmd.exe", ["/c", "exit 0"]) : ("/bin/sh", ["-c", "exit 0"]);
@@ -79,8 +94,7 @@ public class ProcessOwnerTests
         }
         finally
         {
-            run?.Cancel();
-            Directory.Delete(root, recursive: true);
+            StopChildrenThenDelete(root, run);
         }
     }
 
@@ -110,9 +124,7 @@ public class ProcessOwnerTests
         }
         finally
         {
-            first.Cancel();
-            second.Cancel();
-            Directory.Delete(root, recursive: true);
+            StopChildrenThenDelete(root, first, second);
         }
     }
 
