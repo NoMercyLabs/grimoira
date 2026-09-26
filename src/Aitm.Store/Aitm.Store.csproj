@@ -5,4 +5,7 @@
     <PackageReference Include="Microsoft.ML.Tokenizers" />
     <PackageReference Include="Microsoft.ML.Tokenizers.Data.O200kBase" />
   </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Aitm.Store.Tests" />
+  </ItemGroup>
 </Project>

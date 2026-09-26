@@ -25,7 +25,7 @@ public static partial class SecretScrubber
         ("slack", SlackToken()),
     ];
 
-    /// <summary>What replaces the whole text when a scrub pattern times out (see <see cref="Redact"/>).</summary>
+    /// <summary>What replaces the whole text when a scrub pattern times out (see <see cref="Redact(string)"/>).</summary>
     public const string TimedOutMarker = "[redacted: scrub timed out]";
 
     /// <summary>The counts key reported when a scrub pattern timed out.</summary>
@@ -35,13 +35,17 @@ public static partial class SecretScrubber
     /// scrubbed text plus how many of each kind were found. Fails closed: when any pattern runs past the
     /// shared match timeout, the whole text is replaced by <see cref="TimedOutMarker"/> and counted under
     /// <see cref="TimedOutKind"/>, so text that could not be checked is never returned or stored.</summary>
-    public static (string Text, IReadOnlyDictionary<string, int> Counts) Redact(string text)
+    public static (string Text, IReadOnlyDictionary<string, int> Counts) Redact(string text) => Redact(text, Patterns);
+
+    // The seam the tests use to inject a pattern that never finishes (Aitm.Store.Tests sees internals).
+    internal static (string Text, IReadOnlyDictionary<string, int> Counts) Redact(
+        string text, IReadOnlyList<(string Kind, Regex Pattern)> patterns)
     {
         Dictionary<string, int> counts = [];
         string result = text;
         try
         {
-            foreach ((string kind, Regex pattern) in Patterns)
+            foreach ((string kind, Regex pattern) in patterns)
             {
                 result = pattern.Replace(result, _ =>
                 {
