@@ -3,16 +3,10 @@ using Aitm.Server.Data;
 using Microsoft.AspNetCore.Server.Kestrel.Transport.NamedPipes;
 using ModelContextProtocol.Server;
 
-// RESTRUCTURE.md "Phase 4, replaced (the owner, 2026-09-26): one command, a service behind a local pipe, no
-// HTTP" (supersedes "Slice 25: Aitm.Server host"): "The service owns the store and is reached only through
-// a local pipe: a named pipe on Windows, a Unix domain socket on macOS/Linux, created so only the current
-// user can open it. No TCP port, no HTTP listener on the network, no token, no Host/Origin guard." The old
-// Host-header check and Origin refusal are removed with it: there is nothing on the network left for them
-// to guard. An old server.token file is ignored, never deleted (unrelated to this change; kept as-is).
-// Single instance per data directory via ProcessOwner.TryAcquireSingleInstanceLock.
-//
-// RESTRUCTURE.md "Slice 26: /mcp on the server, beside mcp.cs." Adds the 25 golden MCP tools at /mcp.
-// mcp.cs stays the working host for the live session (.mcp.json still starts it) until phase 3 switches over.
+// The service is reached only through a local pipe (Windows) or Unix socket, current user only: no TCP, no
+// token, no Host/Origin guard. Contract: docs/RESTRUCTURE.md, "Phase 4, replaced". One instance per data dir
+// (ProcessOwner). An old server.token file is ignored, never deleted. /mcp: mcp.cs stays the live host until
+// phase 3 switches over.
 
 string dataDir = ServerAddress.ResolveDataDir();
 string projectRoot = Environment.GetEnvironmentVariable("CLAUDE_PROJECT_DIR") ?? Directory.GetCurrentDirectory();
@@ -51,8 +45,21 @@ else
     // The socket file inherits the data directory's own permissions; the directory is set to user-only
     // (0700) below, and the socket file itself is set to 0600 right after Kestrel creates it (it does not
     // exist until the transport binds, so this cannot happen any earlier than after StartAsync).
+    if (System.Text.Encoding.UTF8.GetByteCount(unixSocketPath!) > 100)
+    {
+        // sun_path holds about 104 bytes; a longer path fails in the kernel with a raw exception.
+        Console.Error.WriteLine($"Aitm.Server: the socket path is too long ({unixSocketPath}); set AITM_DATA_DIR to a shorter folder.");
+        Environment.Exit(1);
+        return;
+    }
     try { File.SetUnixFileMode(dataDir, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute); }
-    catch (PlatformNotSupportedException) { /* already covered by the Windows branch above */ }
+    catch (Exception e) when (e is UnauthorizedAccessException or IOException)
+    {
+        // chmod fails when the folder belongs to another user: refuse rather than serve from a folder we cannot secure.
+        Console.Error.WriteLine($"Aitm.Server: {dataDir} is not owned by this user, so its socket cannot be made user-only ({e.Message}).");
+        Environment.Exit(1);
+        return;
+    }
     try { File.Delete(unixSocketPath!); } catch (IOException) { /* nothing to remove */ }
     builder.WebHost.ConfigureKestrel(o => o.ListenUnixSocket(unixSocketPath!));
 }

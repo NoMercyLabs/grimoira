@@ -37,8 +37,8 @@ public static class HookForwarder
         {
             // The deadline covers the whole call: connect, send, the server's work and reading the answer.
             using CancellationTokenSource deadlineSource = new(deadline);
-            using HttpClient client = PipeConnection.CreateClient(dataDir, deadline < ConnectTimeout ? deadline : ConnectTimeout);
-            client.Timeout = Timeout.InfiniteTimeSpan; // the deadline token below covers the whole call instead
+            // No client timeout: the deadline token below covers the whole call.
+            using HttpClient client = PipeConnection.CreateClient(dataDir, deadline < ConnectTimeout ? deadline : ConnectTimeout, Timeout.InfiniteTimeSpan);
             using HttpRequestMessage request = new(HttpMethod.Post, $"/hooks/{Uri.EscapeDataString(eventName)}");
             if (!string.IsNullOrWhiteSpace(projectDirEnv)) request.Headers.TryAddWithoutValidation("Claude-Project-Dir", projectDirEnv);
             request.Content = new StringContent(payload, Encoding.UTF8, "application/json");
