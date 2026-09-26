@@ -190,7 +190,7 @@ public static class CliDispatch
                     // SpineImport wrote to stderr, so the missing-file case has to be checked here to keep it on
                     // stderr (same trap as seed-edges above).
                     if (!File.Exists(spineImportFrom)) { stderr.WriteLine($"no spine file at {spineImportFrom}"); break; }
-                    stdout.WriteLine(new SpineImportTool().ExecuteCli(db, spineImportFrom));
+                    stdout.WriteLine(new SpineImportTool().ExecuteCli(db, spineImportFrom, stderr));
                     break;
                 }
                 case "project":
@@ -662,7 +662,7 @@ public static class CliDispatch
                 }
                 case "learn-batch":
                     stdout.WriteLine(new BrainLearnBatchTool().ExecuteCli(db,
-                        GetFlag("--from") ?? throw new ArgumentException("brain learn-batch needs --from <file>")));
+                        GetFlag("--from") ?? throw new ArgumentException("brain learn-batch needs --from <file>"), stderr));
                     break;
                 case "set-hard":
                     if (rargs.Count < 2) { stdout.WriteLine("usage: brain set-hard <node-key> <0|1>"); break; }
