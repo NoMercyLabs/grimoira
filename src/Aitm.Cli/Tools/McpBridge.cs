@@ -24,7 +24,7 @@ public static class McpBridge
     /// <summary>The real client: data dir, env and server path as Aitm.Server and the hooks use them. The
     /// process streams are passed in by the entry point (Program.cs), the one file allowed to name Console.</summary>
     public static int RunDefault(Stream stdin, Stream stdout, TextWriter stderr) => Run(
-        ServerAutoStart.DefaultDataDir(),
+        ServerAddress.ResolveDataDir(),
         Directory.GetCurrentDirectory(),
         Environment.GetEnvironmentVariable("AITM_INSTANCE"),
         Environment.GetEnvironmentVariable("CLAUDE_PROJECT_DIR"),
