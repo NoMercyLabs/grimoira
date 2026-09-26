@@ -41,7 +41,7 @@ public partial class BrainWriteVerbDispatchTests
         // stop at that inner break and miss the tool call after it. Bound the block by the next case/default
         // label instead, which still cannot cross into a different verb's block.
         int searchFrom = caseMatch.Index + caseMatch.Length;
-        Match next = MyRegex().Match(source[searchFrom..]);
+        Match next = NextCaseOrDefault().Match(source[searchFrom..]);
         int blockEnd = next.Success ? searchFrom + next.Index : source.Length;
         string block = source[caseMatch.Index..blockEnd];
         Assert.True(block.Contains($"new {toolType}", StringComparison.Ordinal),
@@ -52,5 +52,5 @@ public partial class BrainWriteVerbDispatchTests
         WiredVerbs.Select(v => new object[] { v.Verb, v.ToolType });
 
     [GeneratedRegex("case \"[^\"]+\":|default:")]
-    private static partial Regex MyRegex();
+    private static partial Regex NextCaseOrDefault();
 }

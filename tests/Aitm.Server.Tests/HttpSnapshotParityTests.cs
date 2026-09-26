@@ -350,7 +350,7 @@ public sealed partial class HttpSnapshotParityTests
     // and new store (two separate seed calls, milliseconds apart) even though the rest of the row is
     // identical; blank it out before comparing shape (same rule as McpSnapshotParityTests).
     private static string StripTimestamps(string text) =>
-        MyRegex().Replace(text, "<ts>");
+        IsoTimestamp().Replace(text, "<ts>");
 
     private static string FindRoot([System.Runtime.CompilerServices.CallerFilePath] string here = "")
     {
@@ -359,5 +359,5 @@ public sealed partial class HttpSnapshotParityTests
     }
 
     [GeneratedRegex(@"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z")]
-    private static partial Regex MyRegex();
+    private static partial Regex IsoTimestamp();
 }

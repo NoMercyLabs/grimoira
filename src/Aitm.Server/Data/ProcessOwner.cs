@@ -93,7 +93,7 @@ public static partial class ProcessOwner
             foreach (string filename in Directory.EnumerateFiles(directory).Take(1000))
             {
                 string name = Path.GetFileName(filename);
-                if (!MyRegex().IsMatch(name)) continue;
+                if (!ProcessRecordFileName().IsMatch(name)) continue;
                 try
                 {
                     using JsonDocument doc = JsonDocument.Parse(File.ReadAllText(filename));
@@ -212,7 +212,7 @@ public static partial class ProcessOwner
     {
         string directory = Directory_(root);
         if (!Directory.Exists(directory)) return (false, []);
-        string[] files = [.. Directory.EnumerateFiles(directory).Where(f => MyRegex().IsMatch(Path.GetFileName(f)))];
+        string[] files = [.. Directory.EnumerateFiles(directory).Where(f => ProcessRecordFileName().IsMatch(Path.GetFileName(f)))];
         List<Dictionary<string, object?>> records = [];
         foreach (string file in files.Take(limit))
         {
@@ -263,5 +263,5 @@ public static partial class ProcessOwner
     }
 
     [GeneratedRegex(@"^[a-f0-9-]{36}\.json$")]
-    private static partial Regex MyRegex();
+    private static partial Regex ProcessRecordFileName();
 }

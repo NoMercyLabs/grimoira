@@ -249,13 +249,13 @@ public partial class SelfTestCoverageTests
     public void SelftestVerbIsGoneFromAitmCs()
     {
         string source = File.ReadAllText(Path.Combine(RepoPaths.Root, "src", "Aitm.Server", "Data", "CliDispatch.cs"));
-        Assert.DoesNotMatch(MyRegex(), source);
-        Assert.Matches(MyRegex1(), source); // still a case, but as a removed-verb message
+        Assert.DoesNotMatch(SelfTestFunction(), source);
+        Assert.Matches(SelfTestCase(), source); // still a case, but as a removed-verb message
         Assert.Contains("removed in 0.4: aitm selftest is gone", source);
     }
 
     [GeneratedRegex(@"void\s+SelfTest\s*\(")]
-    private static partial Regex MyRegex();
+    private static partial Regex SelfTestFunction();
     [GeneratedRegex("case \"selftest\":")]
-    private static partial Regex MyRegex1();
+    private static partial Regex SelfTestCase();
 }

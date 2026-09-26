@@ -60,7 +60,7 @@ public partial class BrainReadVerbDispatchTests
     public void TopLevelBrainCaseStillDispatchesThroughBrainCmd()
     {
         string source = File.ReadAllText(Path.Combine(RepoPaths.Root, "src", "Aitm.Server", "Data", "CliDispatch.cs"));
-        Match caseMatch = MyRegex().Match(source);
+        Match caseMatch = BrainCase().Match(source);
         Assert.True(caseMatch.Success, "aitm.cs has no case for 'brain'");
         int blockEnd = source.IndexOf("break;", caseMatch.Index, StringComparison.Ordinal);
         string block = source[caseMatch.Index..blockEnd];
@@ -68,5 +68,5 @@ public partial class BrainReadVerbDispatchTests
     }
 
     [GeneratedRegex("case \"brain\":")]
-    private static partial Regex MyRegex();
+    private static partial Regex BrainCase();
 }

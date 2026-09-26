@@ -175,7 +175,7 @@ public sealed partial class GraphQueryTool : ITool
     {
         string name = symbol.ToLowerInvariant();
         HashSet<string> parts = new(StringComparer.OrdinalIgnoreCase) { name };
-        foreach (string part in MyRegex().Split(symbol))
+        foreach (string part in SymbolWordBoundary().Split(symbol))
             if (part.Length > 0) parts.Add(part.ToLowerInvariant());
         return toks.Any(t => parts.Contains(t));
     }
@@ -204,5 +204,5 @@ public sealed partial class GraphQueryTool : ITool
     private static string Clip(string s, int max) => s.Length <= max ? s : s[..max].TrimEnd() + "…";
 
     [GeneratedRegex("_|(?<=[a-z0-9])(?=[A-Z])")]
-    private static partial Regex MyRegex();
+    private static partial Regex SymbolWordBoundary();
 }

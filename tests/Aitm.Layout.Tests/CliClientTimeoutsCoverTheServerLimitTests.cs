@@ -18,7 +18,7 @@ public partial class CliClientTimeoutsCoverTheServerLimitTests
     private static int LongTimeoutSeconds()
     {
         string source = File.ReadAllText(Path.Combine(RepoPaths.Root, "src", "Aitm.Server", "Data", "CliEndpoint.cs"));
-        Match match = MyRegex().Match(source);
+        Match match = LongTimeoutDeclaration().Match(source);
         Assert.True(match.Success, "CliEndpoint.LongTimeout was not found; the regex needs updating to match its new shape.");
         return int.Parse(match.Groups[1].Value);
     }
@@ -26,7 +26,7 @@ public partial class CliClientTimeoutsCoverTheServerLimitTests
     private static int IndexChatTimeoutMs()
     {
         string source = File.ReadAllText(Path.Combine(RepoPaths.Root, "init.mjs"));
-        Match match = MyRegex1().Match(source);
+        Match match = IndexChatRunCliTimeout().Match(source);
         Assert.True(match.Success, "init.mjs's index-chat runCli call was not found; the regex needs updating to match its new shape.");
         return int.Parse(match.Groups[1].Value);
     }
@@ -54,7 +54,7 @@ public partial class CliClientTimeoutsCoverTheServerLimitTests
     }
 
     [GeneratedRegex(@"LongTimeout = TimeSpan\.FromSeconds\((\d+)\)")]
-    private static partial Regex MyRegex();
+    private static partial Regex LongTimeoutDeclaration();
     [GeneratedRegex(@"runCli\(\['index-chat',[^\]]*\],\s*(\d+)\)")]
-    private static partial Regex MyRegex1();
+    private static partial Regex IndexChatRunCliTimeout();
 }

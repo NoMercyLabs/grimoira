@@ -58,7 +58,7 @@ public partial class CliFlagCoverageGuardTests
     private static Dictionary<string, HashSet<string>> ExtractVerbFlags(string fullSource, string switchBody)
     {
         Dictionary<string, HashSet<string>> result = new(StringComparer.Ordinal);
-        MatchCollection caseMatches = MyRegex1().Matches(switchBody);
+        MatchCollection caseMatches = CaseLabel().Matches(switchBody);
         for (int i = 0; i < caseMatches.Count; i++)
         {
             Match m = caseMatches[i];
@@ -84,11 +84,11 @@ public partial class CliFlagCoverageGuardTests
     private static HashSet<string> FlagsIn(string block, string fullSource, HashSet<string> visited, int depth)
     {
         HashSet<string> flags = new(StringComparer.Ordinal);
-        foreach (Match fm in MyRegex().Matches(block))
+        foreach (Match fm in FlagLookup().Matches(block))
             flags.Add(fm.Groups[1].Success ? fm.Groups[1].Value : fm.Groups[2].Value);
 
         if (depth >= 3) return flags;
-        foreach (Match cm in MyRegex2().Matches(block))
+        foreach (Match cm in CalledMethodName().Matches(block))
         {
             string name = cm.Groups[1].Value;
             if (!visited.Add(name)) continue;
@@ -112,7 +112,7 @@ public partial class CliFlagCoverageGuardTests
 
     private static string FindTopLevelSwitchBody(string source)
     {
-        Match anchor = MyRegex3().Match(source);
+        Match anchor = SwitchOnCmd().Match(source);
         int openBrace = source.IndexOf('{', anchor.Index + anchor.Length);
         return ExtractBalanced(source, openBrace);
     }
@@ -123,7 +123,7 @@ public partial class CliFlagCoverageGuardTests
     {
         string? functionBody = FindFunctionBody(source, functionName)
             ?? throw new InvalidOperationException($"{functionName} not found in the given source");
-        Match anchor = MyRegex4().Match(functionBody);
+        Match anchor = SwitchOnSub().Match(functionBody);
         int openBrace = functionBody.IndexOf('{', anchor.Index + anchor.Length);
         return ExtractBalanced(functionBody, openBrace);
     }
@@ -162,13 +162,13 @@ public partial class CliFlagCoverageGuardTests
     }
 
     [GeneratedRegex(@"(?:GetFlag|HasFlag)\(\s*""(--[\w-]+)""\s*\)|\ba\.Contains\(\s*""(--[\w-]+)""\s*\)", RegexOptions.Compiled)]
-    private static partial Regex MyRegex();
+    private static partial Regex FlagLookup();
     [GeneratedRegex(@"case\s+""([^""]+)""\s*:", RegexOptions.Compiled)]
-    private static partial Regex MyRegex1();
+    private static partial Regex CaseLabel();
     [GeneratedRegex(@"\b([A-Z][A-Za-z0-9_]*)\s*\(", RegexOptions.Compiled)]
-    private static partial Regex MyRegex2();
+    private static partial Regex CalledMethodName();
     [GeneratedRegex(@"switch\s*\(cmd\)")]
-    private static partial Regex MyRegex3();
+    private static partial Regex SwitchOnCmd();
     [GeneratedRegex(@"switch\s*\(sub\)")]
-    private static partial Regex MyRegex4();
+    private static partial Regex SwitchOnSub();
 }

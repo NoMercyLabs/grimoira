@@ -27,7 +27,7 @@ public partial class StagingSpineEvalCliParityTests
     // ahead of an otherwise-identical line. Consuming the leading whitespace along with the number fixes
     // it. On top of the "(N.Nms)" shape other verbs use, so both need normalizing before a diff.
     private static string StripVolatile(string s) =>
-        MyRegex().Replace(MyRegex1().Replace(MyRegex2().Replace(s, "(<ms>)"), "<ts>"), "<ms>");
+        PaddedTimingMs().Replace(IsoTimestamp().Replace(ParenthesisedTimingMs().Replace(s, "(<ms>)"), "<ts>"), "<ms>");
 
     private static (string stdout, string stderr, int exitCode) RunNormalized(
         OldVsNewCli.Result result, string instance, string dbPath)
@@ -359,11 +359,11 @@ public partial class StagingSpineEvalCliParityTests
     }
 
     [GeneratedRegex(@"[ \t]*\d+[.,]\d+ms")]
-    private static partial Regex MyRegex();
+    private static partial Regex PaddedTimingMs();
 
     [GeneratedRegex(@"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z")]
-    private static partial Regex MyRegex1();
+    private static partial Regex IsoTimestamp();
 
     [GeneratedRegex(@"\(\d+[.,]\d+ms\)")]
-    private static partial Regex MyRegex2();
+    private static partial Regex ParenthesisedTimingMs();
 }

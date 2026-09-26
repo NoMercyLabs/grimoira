@@ -48,7 +48,7 @@ public partial class GraphVerbDispatchTests
         // Bound the block at the next top-level "case " or "default:" rather than the first "break;" —
         // a case whose body refuses early (seed-edges' missing-file guard, graph-path's usage guard)
         // has its own inner "break;" before the line that actually calls the tool class.
-        Match nextCase = MyRegex().Match(source[(caseMatch.Index + 1)..]);
+        Match nextCase = NextCaseOrDefaultAtDispatchIndent().Match(source[(caseMatch.Index + 1)..]);
         int blockEnd = nextCase.Success ? caseMatch.Index + 1 + nextCase.Index : source.Length;
         string block = source[caseMatch.Index..blockEnd];
         Assert.True(block.Contains($"new {toolType}", StringComparison.Ordinal),
@@ -59,5 +59,5 @@ public partial class GraphVerbDispatchTests
         WiredVerbs.Select(v => new object[] { v.Verb, v.ToolType });
 
     [GeneratedRegex("\\n    (case \"|default:)")]
-    private static partial Regex MyRegex();
+    private static partial Regex NextCaseOrDefaultAtDispatchIndent();
 }

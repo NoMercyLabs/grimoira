@@ -44,8 +44,8 @@ public partial class EvalToolTests
     // not; the mask must eat that optional pad (the same rule BinCliThinClientMatchesBinCliOldTests
     // already applies to eval's CLI output) or two runs that land on opposite sides of that 10ms boundary
     // mismatch on whitespace alone.
-    private static string StripTiming(string s) => MyRegex().Replace(s.Replace("\r\n", "\n"), "<MS>");
+    private static string StripTiming(string s) => PaddedTimingMs().Replace(s.Replace("\r\n", "\n"), "<MS>");
 
     [GeneratedRegex(@"[ \t]*\d+[.,]\d+ms")]
-    private static partial Regex MyRegex();
+    private static partial Regex PaddedTimingMs();
 }

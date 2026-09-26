@@ -56,7 +56,7 @@ public static partial class PatternWatchTool
         if (first is null) return null;
 
         List<string> words = [];
-        foreach (string rawStage in MyRegex4().Split(first))
+        foreach (string rawStage in PipelineStageSeparators().Split(first))
         {
             List<string> w = [.. rawStage.Trim().Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Select(t => t.Trim('"', '\''))];
             if (w.Count == 0) continue;
@@ -68,26 +68,26 @@ public static partial class PatternWatchTool
                 BodyKeywords.Contains(w[0].ToLowerInvariant())
                 || w[0].Contains('=')
                 || w[0] == "="
-                || (w.Count > 1 && w[1] == "=" && MyRegex3().IsMatch(w[0]))))
+                || (w.Count > 1 && w[1] == "=" && VariableAssignmentTarget().IsMatch(w[0]))))
             {
                 w = [.. w.Skip(1)];
             }
 
             if (w.Count == 0 || w[0].StartsWith('-') || w[0].StartsWith('$')) continue;
 
-            int redirect = w.FindIndex(t => MyRegex2().IsMatch(t));
+            int redirect = w.FindIndex(t => ShellRedirect().IsMatch(t));
             words = redirect > 0 ? [.. w.Take(redirect)] : w;
             break;
         }
         if (words.Count == 0) return null;
 
         string exeToken = words[0].Split('\\', '/').LastOrDefault() ?? words[0];
-        if (MyRegex().IsMatch(exeToken)) return null;
-        string exe = MyRegex5().Replace(exeToken, "").ToLowerInvariant();
+        if (ScriptFileExtension().IsMatch(exeToken)) return null;
+        string exe = WindowsExecutableSuffix().Replace(exeToken, "").ToLowerInvariant();
         if (exe.Length == 0 || exe.Length > 40) return null;
         if (Utilities.Contains(exe) && !Runners.Contains(exe) && !SubcommandLess.Contains(exe)) return null;
 
-        bool IsWord(string w) => MyRegex1().IsMatch(w);
+        bool IsWord(string w) => CommandWord().IsMatch(w);
 
         string sub = "";
         if (SubcommandLess.Contains(exe))
@@ -121,7 +121,7 @@ public static partial class PatternWatchTool
         if (sub.Length == 0 && Utilities.Contains(exe)) return null;
         string sig = sub.Length > 0 ? $"{exe} {sub}" : exe;
         if (Primitives.Contains(sig)) return null;
-        if (MyRegex().IsMatch(sub)) return null;
+        if (ScriptFileExtension().IsMatch(sub)) return null;
         return sig;
     }
 
@@ -239,15 +239,15 @@ public static partial class PatternWatchTool
             : null;
 
     [GeneratedRegex(@"\.(mjs|cjs|js|ts|py|ps1|sh|bat|cmd|rb|pl)$", RegexOptions.IgnoreCase | RegexOptions.Compiled, "nl-NL")]
-    private static partial Regex MyRegex();
+    private static partial Regex ScriptFileExtension();
     [GeneratedRegex(@"^[A-Za-z][\w.:-]*$", RegexOptions.Compiled)]
-    private static partial Regex MyRegex1();
+    private static partial Regex CommandWord();
     [GeneratedRegex(@"^\d?>>?$|^<$|^\d?>&\d$", RegexOptions.Compiled)]
-    private static partial Regex MyRegex2();
+    private static partial Regex ShellRedirect();
     [GeneratedRegex(@"^\$?[\w.]+$", RegexOptions.Compiled)]
-    private static partial Regex MyRegex3();
+    private static partial Regex VariableAssignmentTarget();
     [GeneratedRegex(@"&&|\|\||;|\|")]
-    private static partial Regex MyRegex4();
+    private static partial Regex PipelineStageSeparators();
     [GeneratedRegex(@"\.(exe|cmd)$", RegexOptions.IgnoreCase, "nl-NL")]
-    private static partial Regex MyRegex5();
+    private static partial Regex WindowsExecutableSuffix();
 }

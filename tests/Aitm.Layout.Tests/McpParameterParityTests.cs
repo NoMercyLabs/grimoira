@@ -55,7 +55,7 @@ public partial class McpParameterParityTests
         int index = 0;
         while ((index = source.IndexOf("[McpServerTool]", index, StringComparison.Ordinal)) >= 0)
         {
-            Match m = MyRegex().Match(source, index);
+            Match m = ToolMethodSignatureWithParameters().Match(source, index);
             Assert.True(m.Success, $"no method signature found after [McpServerTool] at offset {index}");
             found[m.Groups[1].Value] = Normalize(m.Groups[2].Value);
             index = m.Index + m.Length;
@@ -68,7 +68,7 @@ public partial class McpParameterParityTests
     private static string Normalize(string parameters) =>
         string.Join(", ", parameters
             .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Select(p => MyRegex1().Replace(p, " ")));
+            .Select(p => WhitespaceRun().Replace(p, " ")));
 
     private static string GitShow(string commit, string relativePath)
     {
@@ -90,7 +90,7 @@ public partial class McpParameterParityTests
     }
 
     [GeneratedRegex(@"public static (?:async )?(?:Task<string>|string) (\w+)\s*\(([^)]*)\)", RegexOptions.Compiled)]
-    private static partial Regex MyRegex();
+    private static partial Regex ToolMethodSignatureWithParameters();
     [GeneratedRegex(@"\s+")]
-    private static partial Regex MyRegex1();
+    private static partial Regex WhitespaceRun();
 }

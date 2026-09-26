@@ -37,7 +37,7 @@ public sealed partial class IndexMemoryTool : ITool
             string hook = Compact(fm.GetValueOrDefault("description", ""));
             string body = Compact(rawBody);
             if (hook.Length == 0) hook = body.Length <= 200 ? body : body[..200];
-            string links = string.Join(",", MyRegex().Matches(rawBody).Select(m => m.Groups[1].Value).Distinct());
+            string links = string.Join(",", WikiLink().Matches(rawBody).Select(m => m.Groups[1].Value).Distinct());
             bool hard = (title + " " + hook).Contains("hard rule", StringComparison.OrdinalIgnoreCase);
             if (hard) hardN++;
             UpsertMemory(connection, slug, type, title, hook, body, links, hard, "index-memory");
@@ -129,9 +129,9 @@ public sealed partial class IndexMemoryTool : ITool
             line = line.TrimStart('#', '>', '-', '*', '+', ' ', '\t');
             if (line.StartsWith("[ ] ")) line = line[4..];
             else if (line.StartsWith("[x] ", StringComparison.OrdinalIgnoreCase)) line = line[4..];
-            line = MyRegex1().Replace(line, "$1");
+            line = MarkdownLink().Replace(line, "$1");
             line = line.Replace("**", "").Replace("__", "").Replace("`", "").Replace("|", " ");
-            line = MyRegex2().Replace(line, " ").Trim();
+            line = ConsecutiveWhitespace().Replace(line, " ").Trim();
             if (line.Length > 0) sb.Append(line).Append('\n');
         }
         return StripFiller(sb.ToString().Trim());
@@ -152,21 +152,21 @@ public sealed partial class IndexMemoryTool : ITool
         };
         foreach ((string from, string to) in phrases)
             text = Regex.Replace(text, Regex.Escape(from), to, RegexOptions.IgnoreCase);
-        text = MyRegex3().Replace(text, "");
-        text = MyRegex4().Replace(text, "");
-        return MyRegex5().Replace(text, " ");
+        text = FillerWords().Replace(text, "");
+        text = Surrogates().Replace(text, "");
+        return RepeatedSpacesAndTabs().Replace(text, " ");
     }
 
     [GeneratedRegex(@"\[\[([^\]]+)\]\]")]
-    private static partial Regex MyRegex();
+    private static partial Regex WikiLink();
     [GeneratedRegex(@"\[([^\]]+)\]\([^)]+\)")]
-    private static partial Regex MyRegex1();
+    private static partial Regex MarkdownLink();
     [GeneratedRegex(@"\s{2,}")]
-    private static partial Regex MyRegex2();
+    private static partial Regex ConsecutiveWhitespace();
     [GeneratedRegex(@"\b(very|really|just|actually|basically|simply|essentially|quite|somewhat|fairly|definitely|absolutely|literally|obviously|clearly|please|kindly)\b ?", RegexOptions.IgnoreCase, "nl-NL")]
-    private static partial Regex MyRegex3();
+    private static partial Regex FillerWords();
     [GeneratedRegex(@"\p{Cs}")]
-    private static partial Regex MyRegex4();
+    private static partial Regex Surrogates();
     [GeneratedRegex(@"[ \t]{2,}")]
-    private static partial Regex MyRegex5();
+    private static partial Regex RepeatedSpacesAndTabs();
 }

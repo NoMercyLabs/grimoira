@@ -28,7 +28,7 @@ public sealed partial class HookDoctorTool : ITool
         foreach (JsonElement doc in new[] { user, project })
             foreach ((string name, bool value) in EnabledPlugins(doc))
                 enabled[name] = value;
-        bool pluginEnabledSetting = enabled.Any(kv => MyRegex2().IsMatch(kv.Key) && kv.Value);
+        bool pluginEnabledSetting = enabled.Any(kv => AitmPluginKey().IsMatch(kv.Key) && kv.Value);
 
         List<string> direct = [.. Hooks(user, directOnly: true), .. Hooks(project, directOnly: true)];
         HashSet<string> pluginSet = new(Hooks(plugin, directOnly: false), StringComparer.Ordinal);
@@ -96,7 +96,7 @@ public sealed partial class HookDoctorTool : ITool
                 foreach (JsonElement hook in hookList.EnumerateArray())
                 {
                     string command = GetString(hook, "command") ?? "";
-                    if (directOnly && !MyRegex1().IsMatch(command)) continue;
+                    if (directOnly && !AitmInstallPath().IsMatch(command)) continue;
 
                     List<string> parts = [command];
                     if (hook.ValueKind == JsonValueKind.Object && hook.TryGetProperty("args", out JsonElement args)
@@ -104,7 +104,7 @@ public sealed partial class HookDoctorTool : ITool
                         parts.AddRange(args.EnumerateArray().Select(a => a.ValueKind == JsonValueKind.String ? a.GetString() ?? "" : ""));
 
                     string joined = string.Join(" ", parts);
-                    foreach (Match m in MyRegex().Matches(joined))
+                    foreach (Match m in HookScriptName().Matches(joined))
                         yield return $"{@event}:{m.Value.ToLowerInvariant()}";
                 }
             }
@@ -117,9 +117,9 @@ public sealed partial class HookDoctorTool : ITool
             : null;
 
     [GeneratedRegex(@"[a-z0-9-]+\.mjs\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, "nl-NL")]
-    private static partial Regex MyRegex();
+    private static partial Regex HookScriptName();
     [GeneratedRegex(@"(^|[/\\])aitm[/\\]", RegexOptions.IgnoreCase | RegexOptions.Compiled, "nl-NL")]
-    private static partial Regex MyRegex1();
+    private static partial Regex AitmInstallPath();
     [GeneratedRegex("^aitm@", RegexOptions.IgnoreCase, "nl-NL")]
-    private static partial Regex MyRegex2();
+    private static partial Regex AitmPluginKey();
 }

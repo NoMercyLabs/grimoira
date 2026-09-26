@@ -14,8 +14,8 @@ public partial class BinCliIsThePublishedThinClientTests
     public void BuildCliScriptPublishesAitmCliToBinCliAndKeepsAitmCsAsBinCliOld()
     {
         string script = File.ReadAllText(Path.Combine(RepoPaths.Root, "build-cli.ps1"));
-        Assert.Matches(MyRegex(), script);
-        Assert.Matches(MyRegex1(), script);
+        Assert.Matches(PublishCliCommand(), script);
+        Assert.Matches(BuildOldCliCommand(), script);
         Assert.DoesNotContain("bin-cli-next", script);
     }
 
@@ -23,7 +23,7 @@ public partial class BinCliIsThePublishedThinClientTests
     public void BuildScriptNeverWritesTheAitmCsBuildOverBinCli()
     {
         string script = File.ReadAllText(Path.Combine(RepoPaths.Root, "build.ps1"));
-        Assert.DoesNotMatch(MyRegex2(), script);
+        Assert.DoesNotMatch(OldCliBuiltIntoBinCli(), script);
         Assert.Contains("build-cli.ps1", script);
     }
 
@@ -71,9 +71,9 @@ public partial class BinCliIsThePublishedThinClientTests
     }
 
     [GeneratedRegex(@"dotnet publish ""\$PSScriptRoot/src/Aitm\.Cli/Aitm\.Cli\.csproj"" -c Release -o ""\$PSScriptRoot/bin-cli""")]
-    private static partial Regex MyRegex();
+    private static partial Regex PublishCliCommand();
     [GeneratedRegex(@"dotnet build ""\$PSScriptRoot/aitm\.cs"" -c Release -o ""\$PSScriptRoot/bin-cli-old""")]
-    private static partial Regex MyRegex1();
+    private static partial Regex BuildOldCliCommand();
     [GeneratedRegex(@"aitm\.cs""[^\r\n]*-o ""\$root/bin-cli""")]
-    private static partial Regex MyRegex2();
+    private static partial Regex OldCliBuiltIntoBinCli();
 }

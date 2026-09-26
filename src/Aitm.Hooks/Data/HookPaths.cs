@@ -16,7 +16,7 @@ public static partial class HookPaths
     {
         string trimmed = ProjectDir(cwd, projectDir).TrimEnd('\\', '/');
         string name = Path.GetFileName(trimmed).ToLowerInvariant();
-        return MyRegex().Replace(name, "");
+        return NonSlugCharacters().Replace(name, "");
     }
 
     /// <summary>
@@ -49,5 +49,5 @@ public static partial class HookPaths
     public static string DbPath(string instance) => Path.Combine(InstanceDir(instance), "aitm.db");
 
     [GeneratedRegex("[^a-z0-9_-]")]
-    private static partial Regex MyRegex();
+    private static partial Regex NonSlugCharacters();
 }

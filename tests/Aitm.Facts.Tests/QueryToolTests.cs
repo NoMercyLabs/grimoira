@@ -344,8 +344,8 @@ public partial class QueryToolTests
 
     // The oracle and the new tool run at slightly different times, so the "(N.NNms)" tail never
     // matches byte for byte; strip it the same way ImportToolTests strips the trailing db path.
-    private static string StripTiming(string s) => MyRegex().Replace(s, "").TrimEnd();
+    private static string StripTiming(string s) => TrailingParenthesisedTimingMs().Replace(s, "").TrimEnd();
 
     [GeneratedRegex(@"\(\d+[.,]\d+ms\)\s*$")]
-    private static partial Regex MyRegex();
+    private static partial Regex TrailingParenthesisedTimingMs();
 }

@@ -18,7 +18,7 @@ public partial class StoreFactsCliParityTests
     // run to run by design, on the SAME binary, never mind two different ones, so neither is part of
     // what "identical behaviour" means here.
     private static string StripVolatile(string s) =>
-        MyRegex().Replace(MyRegex1().Replace(s, "(<ms>)"), "<ts>");
+        IsoTimestamp().Replace(ParenthesisedTimingMs().Replace(s, "(<ms>)"), "<ts>");
 
     private static (string stdout, string stderr, int exitCode) RunNormalized(
         OldVsNewCli.Result result, string instance, string dbPath)
@@ -304,8 +304,8 @@ public partial class StoreFactsCliParityTests
         AssertParity(["init"], "index-packages --root \"/no/such/directory/aitm-slice24-fixture\"");
 
     [GeneratedRegex(@"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z")]
-    private static partial Regex MyRegex();
+    private static partial Regex IsoTimestamp();
 
     [GeneratedRegex(@"\(\d+[.,]\d+ms\)")]
-    private static partial Regex MyRegex1();
+    private static partial Regex ParenthesisedTimingMs();
 }

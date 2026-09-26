@@ -26,7 +26,7 @@ namespace Aitm.Layout.Tests;
 public partial class BrainWriteCliParityTests
 {
     private static string StripVolatile(string s) =>
-        MyRegex().Replace(MyRegex1().Replace(s, "(<ms>)"), "<ts>");
+        IsoTimestamp().Replace(ParenthesisedTimingMs().Replace(s, "(<ms>)"), "<ts>");
 
     private static (string stdout, string stderr, int exitCode) RunNormalized(
         OldVsNewCli.Result result, string instance, string dbPath)
@@ -324,8 +324,8 @@ public partial class BrainWriteCliParityTests
     }
 
     [GeneratedRegex(@"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z")]
-    private static partial Regex MyRegex();
+    private static partial Regex IsoTimestamp();
 
     [GeneratedRegex(@"\(\d+[.,]\d+ms\)")]
-    private static partial Regex MyRegex1();
+    private static partial Regex ParenthesisedTimingMs();
 }

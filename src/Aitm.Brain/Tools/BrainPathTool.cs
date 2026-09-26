@@ -90,11 +90,11 @@ public sealed partial class BrainPathTool : ITool
             {
                 string name = repoLabel.Split('/').Last();
                 string g = gloss;
-                string lang = MyRegex().Match(g) is { Success: true } lm ? lm.Groups[1].Value : "-";
-                string vis = MyRegex1().IsMatch(g) ? "private" : "public";
-                string arch = MyRegex2().IsMatch(g) ? "  [ARCHIVED]" : "";
-                string fork = MyRegex3().IsMatch(g) ? "  [fork]" : "";
-                string pkg = MyRegex4().Match(g) is { Success: true } pm ? pm.Groups[1].Value : "";
+                string lang = RepoLanguage().Match(g) is { Success: true } lm ? lm.Groups[1].Value : "-";
+                string vis = PrivateRepoMarker().IsMatch(g) ? "private" : "public";
+                string arch = ArchivedMarker().IsMatch(g) ? "  [ARCHIVED]" : "";
+                string fork = ForkMarker().IsMatch(g) ? "  [fork]" : "";
+                string pkg = PublishedNpmPackage().Match(g) is { Success: true } pm ? pm.Groups[1].Value : "";
                 string clone = g.Contains("cloned at") ? "cloned" : "";
                 string desc = g.Split('.')[0];
                 lines.Add($"  {name.PadRight(34)} {lang.PadRight(12)} {vis.PadRight(8)} {clone.PadRight(7)}{arch}{fork}");
@@ -194,13 +194,13 @@ public sealed partial class BrainPathTool : ITool
     }
 
     [GeneratedRegex("language ([A-Za-z+#]+)")]
-    private static partial Regex MyRegex();
+    private static partial Regex RepoLanguage();
     [GeneratedRegex(@"\. private\.")]
-    private static partial Regex MyRegex1();
+    private static partial Regex PrivateRepoMarker();
     [GeneratedRegex("ARCHIVED")]
-    private static partial Regex MyRegex2();
+    private static partial Regex ArchivedMarker();
     [GeneratedRegex(@"\. fork\.")]
-    private static partial Regex MyRegex3();
+    private static partial Regex ForkMarker();
     [GeneratedRegex(@"publishes npm package (\S+?)\.")]
-    private static partial Regex MyRegex4();
+    private static partial Regex PublishedNpmPackage();
 }

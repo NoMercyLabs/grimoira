@@ -48,12 +48,12 @@ public partial class ReferenceDirectionTests
     {
         string csproj = Path.Combine(RepoPaths.Root, "src", project, $"{project}.csproj");
         string text = File.ReadAllText(csproj);
-        foreach (Match m in MyRegex().Matches(text))
+        foreach (Match m in ProjectReferenceInclude().Matches(text))
         {
             yield return Path.GetFileNameWithoutExtension(m.Groups[1].Value);
         }
     }
 
     [GeneratedRegex("ProjectReference Include=\"([^\"]+)\"")]
-    private static partial Regex MyRegex();
+    private static partial Regex ProjectReferenceInclude();
 }

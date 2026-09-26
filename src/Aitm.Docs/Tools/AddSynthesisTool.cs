@@ -80,12 +80,12 @@ public sealed partial class AddSynthesisTool : ITool
             "src", "content", "site", "docs", "doc", "md", "readme", "index", "app", "apps", "packages",
             "projects", "c", "entries", "reports", "claude", "work", "public", "assets", "pages",
         ];
-        IEnumerable<string> words = MyRegex().Split(fullPath)
+        IEnumerable<string> words = PathWordSeparators().Split(fullPath)
             .Select(w => w.Trim().ToLowerInvariant())
             .Where(w => w.Length > 1 && !w.All(char.IsDigit) && !generic.Contains(w));
         return string.Join(' ', words.Distinct());
     }
 
     [GeneratedRegex(@"[\\/\-_. ]+")]
-    private static partial Regex MyRegex();
+    private static partial Regex PathWordSeparators();
 }

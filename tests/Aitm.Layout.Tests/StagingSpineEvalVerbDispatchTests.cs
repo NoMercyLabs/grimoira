@@ -39,7 +39,7 @@ public partial class StagingSpineEvalVerbDispatchTests
         // nested inside the BrainCmd switch) keep an inline usage/flag check ahead of the tool call, so
         // a plain "first break;" search would stop at that inner break and miss the call after it.
         int searchFrom = caseMatch.Index + caseMatch.Length;
-        Match next = MyRegex().Match(source[searchFrom..]);
+        Match next = NextCaseOrDefault().Match(source[searchFrom..]);
         int blockEnd = next.Success ? searchFrom + next.Index : source.Length;
         string block = source[caseMatch.Index..blockEnd];
         Assert.True(block.Contains($"new {toolType}", StringComparison.Ordinal),
@@ -50,5 +50,5 @@ public partial class StagingSpineEvalVerbDispatchTests
         WiredVerbs.Select(v => new object[] { v.Verb, v.ToolType });
 
     [GeneratedRegex("case \"[^\"]+\":|default:")]
-    private static partial Regex MyRegex();
+    private static partial Regex NextCaseOrDefault();
 }

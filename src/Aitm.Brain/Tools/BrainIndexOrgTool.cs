@@ -145,8 +145,8 @@ public sealed partial class BrainIndexOrgTool : ITool
                 (string stdout, string _, int exitCode) = runner.Run("git", ["-C", dir, "remote", "get-url", "origin"]);
                 if (exitCode == 0)
                 {
-                    string url = MyRegex().Replace(stdout.Trim(), "");
-                    url = MyRegex1().Replace(url, "https://github.com/");
+                    string url = RemoteUrlGitSuffix().Replace(stdout.Trim(), "");
+                    url = GithubSshPrefix().Replace(url, "https://github.com/");
                     if (url.Length > 0) byRemote[url.ToLowerInvariant()] = dir.Replace('\\', '/');
                 }
             }
@@ -186,7 +186,7 @@ public sealed partial class BrainIndexOrgTool : ITool
         e.TryGetProperty(name, out JsonElement v) && v.ValueKind == JsonValueKind.True;
 
     [GeneratedRegex(@"\.git$")]
-    private static partial Regex MyRegex();
+    private static partial Regex RemoteUrlGitSuffix();
     [GeneratedRegex("^git@github\\.com:")]
-    private static partial Regex MyRegex1();
+    private static partial Regex GithubSshPrefix();
 }

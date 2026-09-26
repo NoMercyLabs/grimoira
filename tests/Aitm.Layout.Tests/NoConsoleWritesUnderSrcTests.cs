@@ -55,7 +55,7 @@ public partial class NoConsoleWritesUnderSrcTests
         {
             string relative = Path.GetRelativePath(srcRoot, path).Replace('\\', '/');
             if (AllowList.ContainsKey(relative)) continue;
-            if (MyRegex().IsMatch(File.ReadAllText(path))) offenders.Add(relative);
+            if (ConsoleUsage().IsMatch(File.ReadAllText(path))) offenders.Add(relative);
         }
 
         Assert.True(offenders.Count == 0,
@@ -72,7 +72,7 @@ public partial class NoConsoleWritesUnderSrcTests
         foreach (string relative in AllowList.Keys)
         {
             string full = Path.Combine(srcRoot, relative.Replace('/', Path.DirectorySeparatorChar));
-            if (!File.Exists(full) || !MyRegex().IsMatch(File.ReadAllText(full))) stale.Add(relative);
+            if (!File.Exists(full) || !ConsoleUsage().IsMatch(File.ReadAllText(full))) stale.Add(relative);
         }
 
         Assert.True(stale.Count == 0,
@@ -81,5 +81,5 @@ public partial class NoConsoleWritesUnderSrcTests
     }
 
     [GeneratedRegex(@"Console\.(Write\w*|Out|Error)\b", RegexOptions.Compiled)]
-    private static partial Regex MyRegex();
+    private static partial Regex ConsoleUsage();
 }

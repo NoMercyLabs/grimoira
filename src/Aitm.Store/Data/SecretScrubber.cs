@@ -16,13 +16,13 @@ public static partial class SecretScrubber
     // either of them is counted once, under the outer kind, not twice.
     private static readonly (string Kind, Regex Pattern)[] Patterns =
     [
-        ("private-key", MyRegex()),
-        ("bearer", MyRegex1()),
-        ("jwt", MyRegex2()),
-        ("github", MyRegex3()),
-        ("openai", MyRegex4()),
-        ("aws", MyRegex5()),
-        ("slack", MyRegex6()),
+        ("private-key", PrivateKeyBlock()),
+        ("bearer", BearerHeader()),
+        ("jwt", JsonWebToken()),
+        ("github", GithubToken()),
+        ("openai", OpenAiKey()),
+        ("aws", AwsAccessKeyId()),
+        ("slack", SlackToken()),
     ];
 
     /// <summary>Replaces every token-shaped string with <c>[redacted:&lt;kind&gt;]</c> and returns the
@@ -43,17 +43,17 @@ public static partial class SecretScrubber
     }
 
     [GeneratedRegex(@"-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----", RegexOptions.Compiled)]
-    private static partial Regex MyRegex();
+    private static partial Regex PrivateKeyBlock();
     [GeneratedRegex(@"Bearer\s+[A-Za-z0-9\-_.+/=]{10,}", RegexOptions.Compiled)]
-    private static partial Regex MyRegex1();
+    private static partial Regex BearerHeader();
     [GeneratedRegex(@"(?<![A-Za-z0-9_-])[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}(?![A-Za-z0-9_-])", RegexOptions.Compiled)]
-    private static partial Regex MyRegex2();
+    private static partial Regex JsonWebToken();
     [GeneratedRegex(@"\b(?:ghp_|gho_|github_pat_)[A-Za-z0-9_]{20,}\b", RegexOptions.Compiled)]
-    private static partial Regex MyRegex3();
+    private static partial Regex GithubToken();
     [GeneratedRegex(@"\bsk-[A-Za-z0-9]{20,}\b", RegexOptions.Compiled)]
-    private static partial Regex MyRegex4();
+    private static partial Regex OpenAiKey();
     [GeneratedRegex(@"\bAKIA[A-Z0-9]{12,}\b", RegexOptions.Compiled)]
-    private static partial Regex MyRegex5();
+    private static partial Regex AwsAccessKeyId();
     [GeneratedRegex(@"\bxox[baprs]-[A-Za-z0-9-]{10,}\b", RegexOptions.Compiled)]
-    private static partial Regex MyRegex6();
+    private static partial Regex SlackToken();
 }

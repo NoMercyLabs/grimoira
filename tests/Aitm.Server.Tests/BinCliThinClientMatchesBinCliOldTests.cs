@@ -106,7 +106,7 @@ public sealed partial class BinCliThinClientMatchesBinCliOldTests : IClassFixtur
     // time with one more space, so the pad is part of the mask), and the yyyyMMdd-HHmmssfff stamp in the
     // backup file name redact-chat prints.
     private static string Normalize(string s, string instance, string root) =>
-        MyRegex().Replace(MyRegex1().Replace(MyRegex2().Replace(s.Replace(root, "<root>").Replace(root.Replace('\\', '/'), "<root>").Replace(instance, "<instance>"), "<ms>"), "<ts>"), "<stamp>");
+        DateTimeRunId().Replace(IsoTimestamp().Replace(LooseTimingMs().Replace(s.Replace(root, "<root>").Replace(root.Replace('\\', '/'), "<root>").Replace(instance, "<instance>"), "<ms>"), "<ts>"), "<stamp>");
 
     private OldVsNewCli.Result Run(string dll, string instance, string arguments)
     {
@@ -181,11 +181,11 @@ public sealed partial class BinCliThinClientMatchesBinCliOldTests : IClassFixtur
     }
 
     [GeneratedRegex(@"\b\d{8}-\d{9}\b")]
-    private static partial Regex MyRegex();
+    private static partial Regex DateTimeRunId();
 
     [GeneratedRegex(@"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z")]
-    private static partial Regex MyRegex1();
+    private static partial Regex IsoTimestamp();
 
     [GeneratedRegex(@"[ \t]*\d+([.,]\d+)?\s?ms\b")]
-    private static partial Regex MyRegex2();
+    private static partial Regex LooseTimingMs();
 }

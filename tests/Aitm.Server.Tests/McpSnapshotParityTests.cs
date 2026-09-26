@@ -344,7 +344,7 @@ public partial class McpSnapshotParityTests
     // and new instance (two separate `aitm add` runs, milliseconds apart) even though the rest of the
     // row is identical; blank it out before comparing shape.
     private static string StripTimestamps(string text) =>
-        MyRegex().Replace(text, "<ts>");
+        IsoTimestamp().Replace(text, "<ts>");
 
     private static string MemoryKey(string label) => $"memory-fixture-{label}";
 
@@ -398,5 +398,5 @@ public partial class McpSnapshotParityTests
     }
 
     [GeneratedRegex(@"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z")]
-    private static partial Regex MyRegex();
+    private static partial Regex IsoTimestamp();
 }

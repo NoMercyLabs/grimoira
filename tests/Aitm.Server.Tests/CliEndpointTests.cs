@@ -129,7 +129,7 @@ public sealed partial class CliEndpointTests : IDisposable
         Assert.Equal(binQuery.ExitCode, routeQuery.ExitCode);
         Assert.Contains("a value seeded through slash cli", binQuery.Stdout);
         // query ends with its own elapsed time, "(0,32ms)", which differs run to run.
-        static string NoTiming(string text) => MyRegex().Replace(text, "(Tms)");
+        static string NoTiming(string text) => ParenthesisedTimingMs().Replace(text, "(Tms)");
         Assert.Equal(NoTiming(inProcQuery.stdout), NoTiming(routeQuery.Stdout));
         // The spawned binary writes its U+2022 bullet through the console code page (OEM 437 on Windows,
         // byte 0x07), which OldVsNewCli reads back as BEL; the route and the in-process run answer in UTF-8.
@@ -289,5 +289,5 @@ public sealed partial class CliEndpointTests : IDisposable
     }
 
     [GeneratedRegex(@"\(\d+[.,]\d+ms\)")]
-    private static partial Regex MyRegex();
+    private static partial Regex ParenthesisedTimingMs();
 }

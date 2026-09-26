@@ -108,7 +108,7 @@ public partial class McpDispatchTests
         string source = File.ReadAllText(Path.Combine(RepoPaths.Root, "mcp.cs"));
         string body = MethodBody(source, "idp_token");
         Assert.False(
-            MyRegex().IsMatch(body),
+            IdPTokenToolCall().IsMatch(body),
             "idp_token is the documented exception (RESTRUCTURE.md slice 28): it must stay inline, " +
             "returning the token itself, until slice 28 accepts the file-path-and-claims output change.");
     }
@@ -145,5 +145,5 @@ public partial class McpDispatchTests
     }
 
     [GeneratedRegex(@"new\s+IdPTokenTool\s*\(.*\)\s*\.\s*Execute\s*\(", RegexOptions.Singleline)]
-    private static partial Regex MyRegex();
+    private static partial Regex IdPTokenToolCall();
 }

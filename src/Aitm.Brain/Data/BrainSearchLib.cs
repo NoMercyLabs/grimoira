@@ -27,13 +27,13 @@ public static partial class BrainSearchLib
 
     public static List<string> Tokenize(string? raw, bool splitIdentifiers = true)
     {
-        string cleaned = MyRegex1().Replace(MyRegex().Replace(raw ?? "", " "), " ");
+        string cleaned = QueryPunctuation().Replace(BackslashEscape().Replace(raw ?? "", " "), " ");
         List<string> words = [];
         foreach (string chunk in cleaned.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries))
         {
             words.Add(chunk);
             if (splitIdentifiers)
-                foreach (string part in MyRegex2().Split(chunk))
+                foreach (string part in IdentifierWordBoundary().Split(chunk))
                     if (part.Length > 0 && part != chunk) words.Add(part);
         }
         return [.. words
@@ -134,7 +134,7 @@ public static partial class BrainSearchLib
         string name = (symbol ?? "").ToLowerInvariant();
         if (name.Length == 0) return false;
         HashSet<string> parts = new(StringComparer.Ordinal) { name };
-        foreach (string part in MyRegex2().Split(symbol ?? ""))
+        foreach (string part in IdentifierWordBoundary().Split(symbol ?? ""))
             if (part.Length > 0) parts.Add(part.ToLowerInvariant());
         return tokens.Any(parts.Contains);
     }
@@ -169,7 +169,7 @@ public static partial class BrainSearchLib
             int bodyCover = tokens.Count(t => !headHay.Contains(t) && bodyHay.Contains(t));
             double blobPenalty = (body.Length > 600 ? 1.5 : 0) + (head.Length == 0 && !r.Headless ? 2 : 0);
             double identity = r.Kind == "node" && IdentitySchemes.Contains(r.Scheme) ? 3 : 0;
-            double testPenalty = r.Kind == "code" && MyRegex3().IsMatch(r.Srcfile ?? "") ? 2.5 : 0;
+            double testPenalty = r.Kind == "code" && TestFilePath().IsMatch(r.Srcfile ?? "") ? 2.5 : 0;
             double baseScore = headCover * 3 + bodyCover + Math.Log2((r.Hits) + 1) * 0.5 + (r.Hard ? 2 : 0)
                 + identity - blobPenalty - testPenalty;
             int cover = headCover + bodyCover;
@@ -207,7 +207,7 @@ public static partial class BrainSearchLib
         string[] segs = norm.Split('/');
         string tail = string.Join("/", segs.Skip(Math.Max(0, segs.Length - 2)));
 
-        string stem = MyRegex5().Replace(baseName, "");
+        string stem = FileExtension().Replace(baseName, "");
         int humps = stem.Count(char.IsUpper);
         List<string> needles = [tail, baseName];
         if (stem.Length >= 10 || humps >= 2) needles.Add(stem);
@@ -269,7 +269,7 @@ public static partial class BrainSearchLib
         foreach (SearchHit r in literal.Concat(symbolic))
         {
             string body = (r.Body ?? "").Trim();
-            if (MyRegex4().IsMatch(body)) continue;
+            if (TranscriptBoilerplateStart().IsMatch(body)) continue;
             string key = (r.Head.Length > 0 ? r.Head : body).ToLowerInvariant();
             key = key.Length > 80 ? key[..80] : key;
             if (key.Length == 0 || seen.Contains(key)) continue;
@@ -281,15 +281,15 @@ public static partial class BrainSearchLib
     }
 
     [GeneratedRegex(@"\\[a-zA-Z]", RegexOptions.Compiled)]
-    private static partial Regex MyRegex();
+    private static partial Regex BackslashEscape();
     [GeneratedRegex(@"[(){}\[\]|^$*+?.\\/'""`<>=!,;:#@&%~-]", RegexOptions.Compiled)]
-    private static partial Regex MyRegex1();
+    private static partial Regex QueryPunctuation();
     [GeneratedRegex(@"_|(?<=[a-z0-9])(?=[A-Z])", RegexOptions.Compiled)]
-    private static partial Regex MyRegex2();
+    private static partial Regex IdentifierWordBoundary();
     [GeneratedRegex(@"(^|[\\/])(tests?|spec|__tests__)[\\/]", RegexOptions.IgnoreCase | RegexOptions.Compiled, "nl-NL")]
-    private static partial Regex MyRegex3();
+    private static partial Regex TestFilePath();
     [GeneratedRegex(@"^(this session is being continued|<\?xml|summary:|caveat: the messages below)", RegexOptions.IgnoreCase | RegexOptions.Compiled, "nl-NL")]
-    private static partial Regex MyRegex4();
+    private static partial Regex TranscriptBoilerplateStart();
     [GeneratedRegex(@"\.[^.]+$")]
-    private static partial Regex MyRegex5();
+    private static partial Regex FileExtension();
 }

@@ -88,7 +88,7 @@ public sealed partial class IndexDocsTool : ITool
             "src", "content", "site", "docs", "doc", "md", "readme", "index", "app", "apps", "packages",
             "projects", "c", "entries", "reports", "claude", "work", "public", "assets", "pages",
         ];
-        IEnumerable<string> words = MyRegex().Split(fullPath)
+        IEnumerable<string> words = PathWordSeparators().Split(fullPath)
             .Select(w => w.Trim().ToLowerInvariant())
             .Where(w => w.Length > 1 && !w.All(char.IsDigit) && !generic.Contains(w));
         return string.Join(' ', words.Distinct());
@@ -121,9 +121,9 @@ public sealed partial class IndexDocsTool : ITool
             line = line.TrimStart('#', '>', '-', '*', '+', ' ', '\t');
             if (line.StartsWith("[ ] ")) line = line[4..];
             else if (line.StartsWith("[x] ", StringComparison.OrdinalIgnoreCase)) line = line[4..];
-            line = MyRegex1().Replace(line, "$1");
+            line = MarkdownLink().Replace(line, "$1");
             line = line.Replace("**", "").Replace("__", "").Replace("`", "").Replace("|", " ");
-            line = MyRegex2().Replace(line, " ").Trim();
+            line = ConsecutiveWhitespace().Replace(line, " ").Trim();
             if (line.Length > 0) sb.Append(line).Append('\n');
         }
         return StripFiller(sb.ToString().Trim());
@@ -142,9 +142,9 @@ public sealed partial class IndexDocsTool : ITool
         ];
         foreach ((string from, string to) in phrases)
             text = Regex.Replace(text, Regex.Escape(from), to, RegexOptions.IgnoreCase);
-        text = MyRegex3().Replace(text, "");
-        text = MyRegex4().Replace(text, "");
-        return MyRegex5().Replace(text, " ");
+        text = FillerWords().Replace(text, "");
+        text = Surrogates().Replace(text, "");
+        return RepeatedSpacesAndTabs().Replace(text, " ");
     }
 
     private static bool IsOutdated(string title, string body)
@@ -207,15 +207,15 @@ public sealed partial class IndexDocsTool : ITool
     }
 
     [GeneratedRegex(@"[\\/\-_. ]+")]
-    private static partial Regex MyRegex();
+    private static partial Regex PathWordSeparators();
     [GeneratedRegex(@"\[([^\]]+)\]\([^)]+\)")]
-    private static partial Regex MyRegex1();
+    private static partial Regex MarkdownLink();
     [GeneratedRegex(@"\s{2,}")]
-    private static partial Regex MyRegex2();
+    private static partial Regex ConsecutiveWhitespace();
     [GeneratedRegex(@"\b(very|really|just|actually|basically|simply|essentially|quite|somewhat|fairly|definitely|absolutely|literally|obviously|clearly|please|kindly)\b ?", RegexOptions.IgnoreCase, "nl-NL")]
-    private static partial Regex MyRegex3();
+    private static partial Regex FillerWords();
     [GeneratedRegex(@"\p{Cs}")]
-    private static partial Regex MyRegex4();
+    private static partial Regex Surrogates();
     [GeneratedRegex(@"[ \t]{2,}")]
-    private static partial Regex MyRegex5();
+    private static partial Regex RepeatedSpacesAndTabs();
 }

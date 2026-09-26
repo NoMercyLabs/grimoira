@@ -112,7 +112,7 @@ public partial class GoldenListsTests
         // Descriptions carry arbitrary parentheses, so this walks forward from each attribute to the
         // next `public static` signature instead of matching the attribute block with one regex.
         List<string> found = [];
-        Regex signature = MyRegex();
+        Regex signature = ToolMethodSignature();
         int index = 0;
         while ((index = source.IndexOf("[McpServerTool]", index, StringComparison.Ordinal)) >= 0)
         {
@@ -130,5 +130,5 @@ public partial class GoldenListsTests
     }
 
     [GeneratedRegex(@"public static (?:async )?(?:Task<string>|string) (\w+)\s*\(")]
-    private static partial Regex MyRegex();
+    private static partial Regex ToolMethodSignature();
 }

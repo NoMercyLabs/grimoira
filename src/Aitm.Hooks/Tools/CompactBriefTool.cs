@@ -15,7 +15,7 @@ namespace Aitm.Hooks.Tools;
 /// </summary>
 public static partial class CompactBriefTool
 {
-    // MyRegex() files are deliberately throwaway; carrying them across a compaction makes the real edits
+    // Scratch files are deliberately throwaway; carrying them across a compaction makes the real edits
     // harder to see and invites the next turn to treat a temp script as project work.
 
     // An earlier compaction's summary is injected as a user turn. Quoting it back as a directive would
@@ -196,10 +196,10 @@ public static partial class CompactBriefTool
 
             string trimmed = text.Trim();
             if (trimmed.Length < 12 || trimmed.StartsWith('<') || trimmed.StartsWith("Caveat:", StringComparison.Ordinal)) continue;
-            if (MyRegex1().IsMatch(trimmed)) continue;
-            if (MyRegex2().IsMatch(trimmed[..Math.Min(60, trimmed.Length)])) continue;
+            if (ContinuedSummaryStart().IsMatch(trimmed)) continue;
+            if (HookFeedbackNotice().IsMatch(trimmed[..Math.Min(60, trimmed.Length)])) continue;
 
-            string cleaned = MyRegex3().Replace(trimmed, " ");
+            string cleaned = ConsecutiveWhitespace().Replace(trimmed, " ");
             said.Add(cleaned.Length > 400 ? cleaned[..400] : cleaned);
         }
         return said.Count > 4 ? said[^4..] : said;
@@ -216,7 +216,7 @@ public static partial class CompactBriefTool
             if (name is not ("Edit" or "Write" or "NotebookEdit")) continue;
             if (!b.TryGetProperty("input", out JsonElement input)) continue;
             string? fp = GetString(input, "file_path");
-            if (fp is null || MyRegex().IsMatch(fp)) continue;
+            if (fp is null || ScratchPath().IsMatch(fp)) continue;
             if (seen.Add(fp)) files.Add(fp);
         }
         return files;
@@ -296,11 +296,11 @@ public static partial class CompactBriefTool
     }
 
     [GeneratedRegex(@"(^|[\\/])(scratchpad|\.?scratch|Temp|tmp)([\\/]|$)", RegexOptions.IgnoreCase, "nl-NL")]
-    private static partial Regex MyRegex();
+    private static partial Regex ScratchPath();
     [GeneratedRegex(@"^(This session is being continued|Caveat: The messages below|\[Request interrupted)")]
-    private static partial Regex MyRegex1();
+    private static partial Regex ContinuedSummaryStart();
     [GeneratedRegex("hook (feedback|additional context)", RegexOptions.IgnoreCase, "nl-NL")]
-    private static partial Regex MyRegex2();
+    private static partial Regex HookFeedbackNotice();
     [GeneratedRegex(@"\s+")]
-    private static partial Regex MyRegex3();
+    private static partial Regex ConsecutiveWhitespace();
 }

@@ -133,12 +133,12 @@ public sealed partial class ExtractEdgesTool : ITool
     {
         string trimmed = line.Trim();
         if (trimmed.Length > 120) trimmed = trimmed[..120];
-        string camel = MyRegex().Replace(symbol, m => m.Groups[1].Value.ToUpperInvariant());
-        string residue = MyRegex1().Replace(trimmed,
+        string camel = SnakeCaseUnderscoreLetter().Replace(symbol, m => m.Groups[1].Value.ToUpperInvariant());
+        string residue = DeclarationKeywordsAndAnnotations().Replace(trimmed,
             "");
         residue = System.Text.RegularExpressions.Regex.Replace(residue, System.Text.RegularExpressions.Regex.Escape(symbol), "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
         residue = System.Text.RegularExpressions.Regex.Replace(residue, System.Text.RegularExpressions.Regex.Escape(camel), "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-        residue = MyRegex2().Replace(residue, "");
+        residue = AnyWhitespace().Replace(residue, "");
         return residue.Length <= 1 ? "" : trimmed; // nothing left but the symbol + decl syntax -> declaration, no usage
     }
 
@@ -150,9 +150,9 @@ public sealed partial class ExtractEdgesTool : ITool
         line.Contains($".{symbol}", StringComparison.Ordinal);
 
     [GeneratedRegex(@"_(\w)")]
-    private static partial Regex MyRegex();
+    private static partial Regex SnakeCaseUnderscoreLetter();
     [GeneratedRegex(@"@?\[?\b(JsonProperty|JsonPropertyName|SerialName|JsonInclude|DataMember|field|get|set|init|public|private|internal|val|var|let|const|readonly|required|override|string|String|int|Int|long|Long|bool|Boolean|number|Guid|Ulid)\b|[\[\]@(){}<>"":;,?=]", RegexOptions.IgnoreCase, "nl-NL")]
-    private static partial Regex MyRegex1();
+    private static partial Regex DeclarationKeywordsAndAnnotations();
     [GeneratedRegex(@"\s+")]
-    private static partial Regex MyRegex2();
+    private static partial Regex AnyWhitespace();
 }

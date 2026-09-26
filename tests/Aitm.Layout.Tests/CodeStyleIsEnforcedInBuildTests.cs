@@ -38,7 +38,7 @@ public partial class CodeStyleIsEnforcedInBuildTests
     public void Repo_root_editorconfig_is_the_root_and_covers_cs_files()
     {
         string text = Read(".editorconfig");
-        Assert.Matches(MyRegex(), text);
+        Assert.Matches(RootEditorconfigLine(), text);
         Assert.Contains("[*.cs]", text);
     }
 
@@ -47,7 +47,7 @@ public partial class CodeStyleIsEnforcedInBuildTests
     [InlineData("tests/Directory.Build.props")]
     public void Folder_turns_on_code_style_analysis_in_build(string props)
     {
-        Assert.Matches(MyRegex1(), Read(props));
+        Assert.Matches(EnforceCodeStyleSetting(), Read(props));
     }
 
     [Fact]
@@ -62,7 +62,7 @@ public partial class CodeStyleIsEnforcedInBuildTests
     }
 
     [GeneratedRegex(@"^root\s*=\s*true\s*$", RegexOptions.Multiline)]
-    private static partial Regex MyRegex();
+    private static partial Regex RootEditorconfigLine();
     [GeneratedRegex(@"<EnforceCodeStyleInBuild>\s*true\s*</EnforceCodeStyleInBuild>")]
-    private static partial Regex MyRegex1();
+    private static partial Regex EnforceCodeStyleSetting();
 }

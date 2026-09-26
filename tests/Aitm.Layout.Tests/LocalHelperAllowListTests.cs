@@ -44,7 +44,7 @@ public partial class LocalHelperAllowListTests
     public void EveryLocalFunctionInAitmCsIsOnTheAllowList()
     {
         string source = File.ReadAllText(Path.Combine(RepoPaths.Root, "aitm.cs"));
-        List<string> found = [.. MyRegex().Matches(source).Select(m => m.Groups[1].Value).Distinct(StringComparer.Ordinal)];
+        List<string> found = [.. AitmLocalFunctionDeclaration().Matches(source).Select(m => m.Groups[1].Value).Distinct(StringComparer.Ordinal)];
 
         List<string> unknown = [.. found.Where(n => !AitmAllowList.ContainsKey(n)).OrderBy(n => n, StringComparer.Ordinal)];
         Assert.True(unknown.Count == 0,
@@ -61,7 +61,7 @@ public partial class LocalHelperAllowListTests
     public void EveryPrivateHelperInMcpCsIsOnTheAllowList()
     {
         string source = File.ReadAllText(Path.Combine(RepoPaths.Root, "mcp.cs"));
-        List<string> found = [.. MyRegex1().Matches(source).Select(m => m.Groups[1].Value).Distinct(StringComparer.Ordinal)];
+        List<string> found = [.. McpPrivateHelperDeclaration().Matches(source).Select(m => m.Groups[1].Value).Distinct(StringComparer.Ordinal)];
 
         List<string> unknown = [.. found.Where(n => !McpAllowList.ContainsKey(n)).OrderBy(n => n, StringComparer.Ordinal)];
         Assert.True(unknown.Count == 0,
@@ -75,7 +75,7 @@ public partial class LocalHelperAllowListTests
     }
 
     [GeneratedRegex(@"(?m)^(?:void|string\??|long|int|bool|double|List<[\w<>,\?\s]+>|IEnumerable<[\w<>,\?\s]+>)\s+([A-Za-z_]\w*)\s*\(", RegexOptions.Compiled)]
-    private static partial Regex MyRegex();
+    private static partial Regex AitmLocalFunctionDeclaration();
     [GeneratedRegex(@"(?m)^ {4}private static (?:async\s+)?[\w<>\?\[\],\s]+?\s+([A-Za-z_]\w*)\s*\(", RegexOptions.Compiled)]
-    private static partial Regex MyRegex1();
+    private static partial Regex McpPrivateHelperDeclaration();
 }
