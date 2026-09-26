@@ -95,6 +95,9 @@ builder.Services.AddSingleton<Microsoft.AspNetCore.Http.IHttpContextAccessor>(ht
 IReadOnlyList<McpServerTool> mcpTools = McpToolFactory.BuildTools(
     AllMcpTools.BuildRegistry(), projectStore, httpContextAccessor, projectRoot, dataDir);
 builder.Services.AddMcpServer().WithHttpTransport().WithTools(mcpTools);
+// RESTRUCTURE.md Slice P1: the same tools as plain functions, for /tools (what `aitm mcp` forwards to).
+IReadOnlyList<Microsoft.Extensions.AI.AIFunction> toolFunctions = McpToolFactory.BuildFunctions(
+    AllMcpTools.BuildRegistry(), projectStore, httpContextAccessor, projectRoot, dataDir);
 
 WebApplication app = builder.Build();
 
@@ -126,6 +129,11 @@ app.MapGet("/health", () => Results.Json(new
 
 // The 25 golden MCP tools. Reachable only over the pipe/socket above (no Host/Origin guard needed).
 app.MapMcp("/mcp");
+
+// RESTRUCTURE.md Slice P1: the tool list and one tool call for `aitm mcp` (ToolsEndpoint); same project
+// resolution and writer gate as /mcp.
+app.MapGet("/tools", () => ToolsEndpoint.List(toolFunctions));
+app.MapPost("/tools/{name}", (string name, HttpContext context) => ToolsEndpoint.Call(name, context, toolFunctions));
 
 // RESTRUCTURE.md "Slice 34": Claude Code http hooks; runs the slice 20-22 handlers under the same
 // per-project writer gate as /mcp (HookEndpoint).

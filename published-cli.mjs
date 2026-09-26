@@ -26,3 +26,14 @@ export function runCliHook(cli, event, pluginRoot) {
     { stdio: 'inherit', windowsHide: true, env: { ...process.env, AITM_PLUGIN_ROOT: pluginRoot } });
   return hook.error ? 0 : (hook.status ?? 0);
 }
+
+/**
+ * Runs `dotnet <cli> mcp` (the stdio MCP server) with stdin, stdout and stderr inherited: stdout is the MCP
+ * protocol stream, so nothing else may be written to it. Returns the server's exit code; a dotnet that cannot
+ * start ends quietly (0), so the MCP connection just does not appear.
+ */
+export function runCliMcp(cli, pluginRoot) {
+  const server = spawnSync('dotnet', [cli, 'mcp'],
+    { stdio: 'inherit', windowsHide: true, env: { ...process.env, AITM_PLUGIN_ROOT: pluginRoot } });
+  return server.error ? 0 : (server.status ?? 0);
+}

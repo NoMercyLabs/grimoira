@@ -49,6 +49,14 @@ internal sealed class RunningServer : IDisposable
         throw new InvalidOperationException("the test server never answered /health over the pipe");
     }
 
+    /// <summary>Creates the project's store (schema included) under <paramref name="dataDir"/> and runs <paramref name="seed"/> on it.</summary>
+    public static void SeedInstance(string dataDir, string instance, Action<Microsoft.Data.Sqlite.SqliteConnection> seed)
+    {
+        using (Aitm.Server.Data.ProjectStore bootstrap = new(dataDir)) bootstrap.Acquire(instance);
+        HttpSnapshotParityTests.Seed(Path.Combine(dataDir, instance, "aitm.db"), seed);
+        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+    }
+
     public HttpClient CreateClient() => PipeTestClient.CreateClient(DataDir, TimeSpan.FromSeconds(30));
 
     public void Dispose()

@@ -26,6 +26,9 @@ public static class Program
         if (args.Length >= 1 && args[0] == "service")
             return ServiceCommand.RunDefault(args, Console.Out, Console.Error);
 
+        // Slice P1: Claude Code's MCP server over stdio; forwards every tool call to the service.
+        if (args.Length >= 1 && args[0] == "mcp") return McpBridge.RunDefault();
+
         if (args.Length >= 2 && args[0] == "server" && args[1] == "uninstall-logon")
         {
             int exitCode = ServerLogonCommand.Uninstall(new ProcessRunner(), out string error);

@@ -1,11 +1,8 @@
 {
   "mcpServers": {
     "aitm": {
-      "type": "http",
-      "url": "http://127.0.0.1:7635/mcp",
-      "headers": {
-        "Claude-Project-Dir": "${CLAUDE_PROJECT_DIR}"
-      }
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/run-mcp.mjs"]
     }
   }
 }

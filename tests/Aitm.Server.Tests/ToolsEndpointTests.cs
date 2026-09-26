@@ -47,10 +47,7 @@ public sealed class ToolsEndpointTests : IDisposable
     public async Task PostToolReturnsTheSameTextAsTheMcpEndpointForTheSameCall()
     {
         const string instance = "tools-parity";
-        string dbPath = Path.Combine(_dataDir, instance, "aitm.db");
-        Directory.CreateDirectory(Path.GetDirectoryName(dbPath)!);
-        HttpSnapshotParityTests.Seed(dbPath, c => new AddTool().Execute(c, "tools-term", "", "manual", "tools-answer", "src", "", "stated"));
-        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+        RunningServer.SeedInstance(_dataDir, instance, c => new AddTool().Execute(c, "tools-term", "", "manual", "tools-answer", "src", "", "stated"));
         using RunningServer server = RunningServer.Start(_dataDir);
         using HttpClient client = server.CreateClient();
         HttpClientTransportOptions options = new()
@@ -62,10 +59,10 @@ public sealed class ToolsEndpointTests : IDisposable
 
         foreach (string query in new[] { "tools-term", "nothing-ever-matches-this-term-at-all" })
         {
-            CallToolResult viaMcp = await mcp.CallToolAsync("fact", new Dictionary<string, object?> { ["query"] = query });
-            using HttpRequestMessage request = new(HttpMethod.Post, "/tools/fact")
+            CallToolResult viaMcp = await mcp.CallToolAsync("history", new Dictionary<string, object?> { ["term"] = query });
+            using HttpRequestMessage request = new(HttpMethod.Post, "/tools/history")
             {
-                Content = new StringContent(JsonSerializer.Serialize(new { query }), Encoding.UTF8, "application/json"),
+                Content = new StringContent(JsonSerializer.Serialize(new { term = query }), Encoding.UTF8, "application/json"),
             };
             request.Headers.Add("Aitm-Instance", instance);
             using HttpResponseMessage viaTools = await client.SendAsync(request);
@@ -80,21 +77,18 @@ public sealed class ToolsEndpointTests : IDisposable
     {
         string projectDir = Path.Combine(Path.GetTempPath(), $"test-tools-project-{Guid.NewGuid():N}");
         string instance = StoreConnection.ResolveInstance(null, projectDir, Directory.GetCurrentDirectory());
-        string dbPath = Path.Combine(_dataDir, instance, "aitm.db");
-        Directory.CreateDirectory(Path.GetDirectoryName(dbPath)!);
-        HttpSnapshotParityTests.Seed(dbPath, c => new AddTool().Execute(c, "dir-term", "", "manual", "dir-answer", "src", "", "stated"));
-        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+        RunningServer.SeedInstance(_dataDir, instance, c => new AddTool().Execute(c, "dir-term", "", "manual", "dir-answer", "src", "", "stated"));
         using RunningServer server = RunningServer.Start(_dataDir);
         using HttpClient client = server.CreateClient();
 
-        using HttpRequestMessage request = new(HttpMethod.Post, "/tools/fact")
+        using HttpRequestMessage request = new(HttpMethod.Post, "/tools/history")
         {
-            Content = new StringContent("{\"query\":\"dir-term\"}", Encoding.UTF8, "application/json"),
+            Content = new StringContent("{\"term\":\"dir-term\"}", Encoding.UTF8, "application/json"),
         };
         request.Headers.Add("Claude-Project-Dir", projectDir);
         using HttpResponseMessage response = await client.SendAsync(request);
 
-        Assert.Contains("dir-answer", await response.Content.ReadAsStringAsync());
+        Assert.Contains("dir-term", await response.Content.ReadAsStringAsync());
     }
 
     [Fact]
@@ -104,7 +98,7 @@ public sealed class ToolsEndpointTests : IDisposable
         using HttpClient client = server.CreateClient();
 
         using HttpResponseMessage unknown = await client.PostAsync("/tools/no_such_tool", new StringContent("{}", Encoding.UTF8, "application/json"));
-        using HttpResponseMessage bad = await client.PostAsync("/tools/fact", new StringContent("{\"query\": [1,2]}", Encoding.UTF8, "application/json"));
+        using HttpResponseMessage bad = await client.PostAsync("/tools/history", new StringContent("{\"term\": [1,2]}", Encoding.UTF8, "application/json"));
 
         Assert.Equal(HttpStatusCode.NotFound, unknown.StatusCode);
         Assert.False(bad.IsSuccessStatusCode);

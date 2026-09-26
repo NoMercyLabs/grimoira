@@ -41,10 +41,7 @@ public sealed class AitmMcpStdioTests : IDisposable
 
     private void SeedFact()
     {
-        string dbPath = Path.Combine(_dataDir, Instance, "aitm.db");
-        Directory.CreateDirectory(Path.GetDirectoryName(dbPath)!);
-        HttpSnapshotParityTests.Seed(dbPath, c => new AddTool().Execute(c, "stdio-term", "", "manual", "stdio-answer", "src", "", "stated"));
-        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+        RunningServer.SeedInstance(_dataDir, Instance, c => new AddTool().Execute(c, "stdio-term", "", "manual", "stdio-answer", "src", "", "stated"));
     }
 
     [Fact]
@@ -55,11 +52,11 @@ public sealed class AitmMcpStdioTests : IDisposable
         await using McpClient client = await ConnectAsync();
 
         IList<McpClientTool> tools = await client.ListToolsAsync();
-        CallToolResult result = await client.CallToolAsync("fact", new Dictionary<string, object?> { ["query"] = "stdio-term" });
+        CallToolResult result = await client.CallToolAsync("history", new Dictionary<string, object?> { ["term"] = "stdio-term" });
 
         Assert.Equal(GoldenListsTests.GoldenMcpTools.OrderBy(n => n), tools.Select(t => t.Name).OrderBy(n => n));
         Assert.NotEqual(true, result.IsError);
-        Assert.Contains("stdio-answer", ((TextContentBlock)result.Content[0]).Text);
+        Assert.Contains("stdio-term", ((TextContentBlock)result.Content[0]).Text);
         Assert.All(tools, t => Assert.Equal(JsonValueKind.Object, t.JsonSchema.ValueKind));
     }
 
@@ -70,8 +67,8 @@ public sealed class AitmMcpStdioTests : IDisposable
         using RunningServer server = RunningServer.Start(_dataDir);
         await using McpClient client = await ConnectAsync();
 
-        CallToolResult bad = await client.CallToolAsync("fact", new Dictionary<string, object?> { ["query"] = new[] { 1, 2 } });
-        CallToolResult good = await client.CallToolAsync("fact", new Dictionary<string, object?> { ["query"] = "stdio-term" });
+        CallToolResult bad = await client.CallToolAsync("history", new Dictionary<string, object?> { ["term"] = new[] { 1, 2 } });
+        CallToolResult good = await client.CallToolAsync("history", new Dictionary<string, object?> { ["term"] = "stdio-term" });
 
         Assert.True(bad.IsError);
         Assert.NotEqual(true, good.IsError);
@@ -97,7 +94,7 @@ public sealed class AitmMcpStdioTests : IDisposable
         await cli.StandardInput.WriteLineAsync("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2025-06-18\",\"capabilities\":{},\"clientInfo\":{\"name\":\"t\",\"version\":\"1\"}}}");
         await cli.StandardInput.WriteLineAsync("{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\"}");
         await cli.StandardInput.WriteLineAsync("{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/list\"}");
-        await cli.StandardInput.WriteLineAsync("{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"tools/call\",\"params\":{\"name\":\"fact\",\"arguments\":{\"query\":[1]}}}");
+        await cli.StandardInput.WriteLineAsync("{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"tools/call\",\"params\":{\"name\":\"history\",\"arguments\":{\"term\":[1]}}}");
         await cli.StandardInput.WriteLineAsync("{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"tools/call\",\"params\":{\"name\":\"no_such_tool\",\"arguments\":{}}}");
         await cli.StandardInput.FlushAsync();
 

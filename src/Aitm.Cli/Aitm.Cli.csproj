@@ -11,6 +11,9 @@
        are compiled into Aitm.Cli the same way: linked source, not a project reference. Aitm.Hooks still
        owns and tests them; this is a build-time copy of the same file. -->
   <ItemGroup>
+    <PackageReference Include="ModelContextProtocol" />
+  </ItemGroup>
+  <ItemGroup>
     <Compile Include="../Aitm.Hooks/Data/HookPaths.cs" Link="Hooks/HookPaths.cs" />
     <Compile Include="../Aitm.Hooks/Tools/CompactBriefTool.cs" Link="Hooks/CompactBriefTool.cs" />
     <Compile Include="../Aitm.Hooks/Tools/CompactRestoreTool.cs" Link="Hooks/CompactRestoreTool.cs" />

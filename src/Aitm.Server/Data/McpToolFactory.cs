@@ -44,12 +44,51 @@ public static class McpToolFactory
     }
 
     /// <summary>
+    /// The same 25 tools as plain <see cref="AIFunction"/>s (name, description, input schema, invoke) for the
+    /// service routes <c>/tools</c> (RESTRUCTURE.md Slice P1), which `aitm mcp` forwards to. Store-backed tools
+    /// share <see cref="BuildStoreBackedFunction"/> with <see cref="BuildTools"/>, so both routes run under the
+    /// one per-project writer gate; the three handover tools share their invoke delegates with it too.
+    /// </summary>
+    public static IReadOnlyList<AIFunction> BuildFunctions(
+        ToolRegistry registry, ProjectStore store, IHttpContextAccessor httpContextAccessor,
+        string projectRoot, string dataDir)
+    {
+        IProcessRunner runner = new ProcessRunner();
+        List<AIFunction> functions = [];
+        foreach (ITool tool in registry.Tools)
+        {
+            if (tool.McpName is null) continue;
+            functions.Add(tool switch
+            {
+                IdPTokenTool idp => PlainFunction(idp.McpName!, idp.Help, IdPInvoker(idp, dataDir, runner)),
+                WorkspaceCapabilitiesTool capabilities => PlainFunction(capabilities.McpName!, capabilities.Help, CapabilitiesInvoker(capabilities, projectRoot, runner)),
+                WorkspaceSearchTool search => PlainFunction(search.McpName!, search.Help, SearchInvoker(search, projectRoot, runner)),
+                _ => BuildStoreBackedFunction(tool, store, httpContextAccessor),
+            });
+        }
+        return functions;
+    }
+
+    private static AIFunction PlainFunction(string name, string description, Delegate invoke) =>
+        AIFunctionFactory.Create(invoke, new AIFunctionFactoryOptions
+        {
+            Name = name,
+            Description = description,
+            ExcludeResultSchema = true,
+            MarshalResult = (result, _, _) => new ValueTask<object?>(result),
+        });
+
+    /// <summary>
     /// The generic path for the 22 store-backed tools. Uses the real <c>ExecuteMcp</c>
     /// <see cref="MethodInfo"/> so the generated JSON schema keeps the tool's own parameter names and
     /// defaults; the leading <see cref="SqliteConnection"/> parameter is excluded from that schema and
     /// bound at call time from the requesting session's project store instead.
     /// </summary>
-    private static McpServerTool BuildStoreBackedTool(ITool tool, ProjectStore store, IHttpContextAccessor httpContextAccessor)
+    private static McpServerTool BuildStoreBackedTool(ITool tool, ProjectStore store, IHttpContextAccessor httpContextAccessor) =>
+        McpServerTool.Create(BuildStoreBackedFunction(tool, store, httpContextAccessor),
+            new McpServerToolCreateOptions { Name = tool.McpName, Description = tool.Help });
+
+    private static AIFunction BuildStoreBackedFunction(ITool tool, ProjectStore store, IHttpContextAccessor httpContextAccessor)
     {
         MethodInfo method = tool.GetType().GetMethod("ExecuteMcp")
             ?? throw new InvalidOperationException($"{tool.GetType().Name} has McpName '{tool.McpName}' but no ExecuteMcp method.");
@@ -77,11 +116,22 @@ public static class McpToolFactory
         };
 
         AIFunction inner = AIFunctionFactory.Create(method, tool, options);
-        AIFunction locking = new LockingAIFunction(inner, store, httpContextAccessor);
-        return McpServerTool.Create(locking, new McpServerToolCreateOptions { Name = tool.McpName, Description = tool.Help });
+        return new LockingAIFunction(inner, store, httpContextAccessor);
     }
 
-    private static McpServerTool BuildIdPTool(IdPTokenTool tool, string dataDir, IProcessRunner runner)
+    private static McpServerTool BuildIdPTool(IdPTokenTool tool, string dataDir, IProcessRunner runner) =>
+        McpServerTool.Create(IdPInvoker(tool, dataDir, runner),
+            new McpServerToolCreateOptions { Name = tool.McpName, Description = tool.Help });
+
+    private static McpServerTool BuildWorkspaceCapabilitiesTool(WorkspaceCapabilitiesTool tool, string projectRoot, IProcessRunner runner) =>
+        McpServerTool.Create(CapabilitiesInvoker(tool, projectRoot, runner),
+            new McpServerToolCreateOptions { Name = tool.McpName, Description = tool.Help });
+
+    private static McpServerTool BuildWorkspaceSearchTool(WorkspaceSearchTool tool, string projectRoot, IProcessRunner runner) =>
+        McpServerTool.Create(SearchInvoker(tool, projectRoot, runner),
+            new McpServerToolCreateOptions { Name = tool.McpName, Description = tool.Help });
+
+    private static Func<string, string, string> IdPInvoker(IdPTokenTool tool, string dataDir, IProcessRunner runner)
     {
         string Invoke(string subject, string realm = "dev")
         {
@@ -89,23 +139,20 @@ public static class McpToolFactory
             string? engineScriptPath = EnginePath();
             return tool.Execute(subject, realm, engineScriptPath ?? "", dataDir, mintAllowed, runner);
         }
-        return McpServerTool.Create((Func<string, string, string>)Invoke,
-            new McpServerToolCreateOptions { Name = tool.McpName, Description = tool.Help });
+        return Invoke;
     }
 
-    private static McpServerTool BuildWorkspaceCapabilitiesTool(WorkspaceCapabilitiesTool tool, string projectRoot, IProcessRunner runner)
+    private static Func<string, string> CapabilitiesInvoker(WorkspaceCapabilitiesTool tool, string projectRoot, IProcessRunner runner)
     {
         string Invoke(string query) => tool.Execute(query, projectRoot, runner);
-        return McpServerTool.Create((Func<string, string>)Invoke,
-            new McpServerToolCreateOptions { Name = tool.McpName, Description = tool.Help });
+        return Invoke;
     }
 
-    private static McpServerTool BuildWorkspaceSearchTool(WorkspaceSearchTool tool, string projectRoot, IProcessRunner runner)
+    private static Func<string, string, string, bool, string> SearchInvoker(WorkspaceSearchTool tool, string projectRoot, IProcessRunner runner)
     {
         string Invoke(string repository, string pattern, string path = "", bool names = false) =>
             tool.Execute(repository, pattern, path, names, projectRoot, runner);
-        return McpServerTool.Create((Func<string, string, string, bool, string>)Invoke,
-            new McpServerToolCreateOptions { Name = tool.McpName, Description = tool.Help });
+        return Invoke;
     }
 
     // Mirrors mcp.cs's EnginePath(): locates idp-impersonate.mjs at AITM_HOME when set, in the plugin root
