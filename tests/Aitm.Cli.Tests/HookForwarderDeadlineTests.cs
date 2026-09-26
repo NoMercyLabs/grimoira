@@ -41,7 +41,9 @@ public class HookForwarderDeadlineTests
 
             Assert.True(finished, "the forwarded hook was still waiting 10 s after a 1 s deadline");
             Assert.Equal("", await call);
-            Assert.True(elapsedMs < deadline.TotalMilliseconds + 1000, $"the forwarded hook took {elapsedMs} ms against a 1 s deadline");
+            // The margin covers the first HTTP call's start-up on a cold CI runner (2.4 s seen on Linux), not the
+            // deadline itself: a forwarder that ignores the deadline hangs until the 10 s guard above.
+            Assert.True(elapsedMs < deadline.TotalMilliseconds + 5000, $"the forwarded hook took {elapsedMs} ms against a 1 s deadline");
         }
         finally
         {
