@@ -1,0 +1,96 @@
+#!/usr/bin/env node
+// The SessionStart hook of the installed plugin (RESTRUCTURE.md slice 32a).
+//
+// Build output is gitignored and every plugin version installs into a new cache folder, so right after an
+// install or update there is no bin-cli/ or bin-server/. The published CLI and server therefore live in
+// CLAUDE_PLUGIN_DATA (kept across plugin updates), guarded by a build stamp like launch-mcp.mjs.
+//
+// - Build current: run `dotnet <data>/bin-cli/aitm.dll hook SessionStart`, stdin, stdout and the exit code
+//   passed straight through.
+// - Missing or stale: start build-cli-and-server.mjs detached, print one line, exit 0. A lock file makes
+//   sure two sessions never build at once. The session goes on without AITM until the build is done.
+//
+// With no CLAUDE_PLUGIN_DATA (run from a checkout) the checkout's own bin-cli/ and bin-server/ are used, as
+// launch-mcp.mjs uses the checkout's bin/. build-cli.ps1 and build-server.ps1 own their freshness there, so
+// the step only builds when they are missing.
+
+import { closeSync, existsSync, openSync, rmSync, statSync, writeSync } from 'node:fs';
+import { join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { spawn, spawnSync } from 'node:child_process';
+import { readStamp, treeHash } from './build-stamp.mjs';
+
+/** Every input of `dotnet publish` for the CLI and the server: all project sources and the shared build files. */
+export const BUILD_INPUTS = ['src', 'Directory.Build.props', 'Directory.Packages.props', 'global.json'];
+
+const LOCK = 'build.lock';
+/** Longer than any real build; a lock this old was left by a build that died. */
+const LOCK_EXPIRY_MS = 30 * 60 * 1000;
+
+export const BUILDING_LINE = 'AITM is building its CLI and server in the background (first session after an install or update); it is ready in a few minutes.';
+
+export function isCurrent(root, dataDir, checkStamp) {
+  const cliDir = join(dataDir, 'bin-cli');
+  if (!existsSync(join(cliDir, 'aitm.dll')) || !existsSync(join(dataDir, 'bin-server', 'Aitm.Server.dll'))) return false;
+  return !checkStamp || readStamp(cliDir) === treeHash(root, BUILD_INPUTS);
+}
+
+/** Takes the build lock; false when another session holds it. */
+export function takeLock(dataDir) {
+  const lock = join(dataDir, LOCK);
+  try {
+    if (Date.now() - statSync(lock).mtimeMs > LOCK_EXPIRY_MS) rmSync(lock, { force: true });
+  } catch { /* no lock yet */ }
+  try {
+    const fd = openSync(lock, 'wx');
+    writeSync(fd, String(Date.now()));
+    closeSync(fd);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function releaseLock(dataDir) {
+  rmSync(join(dataDir, LOCK), { force: true });
+}
+
+export function sessionStart({ root, dataDir, checkStamp, runHook, startBuild, write }) {
+  if (isCurrent(root, dataDir, checkStamp)) return runHook(join(dataDir, 'bin-cli', 'aitm.dll'));
+  if (takeLock(dataDir)) {
+    try {
+      startBuild(dataDir);
+    } catch {
+      releaseLock(dataDir);
+    }
+  }
+  write(BUILDING_LINE);
+  return 0;
+}
+
+// The build must not hold the hook's stdout/stderr pipes: the hook runner reads them to the end, so a child
+// that keeps them waits the session for the whole build (slice 29d waited 380 s on a server that did this).
+// Node marks its own stdio handles non-inheritable at startup, and stdio 'ignore' gives the child none of them.
+export function startDetached(script, args) {
+  const child = spawn(process.execPath, [script, ...args], { detached: true, stdio: 'ignore', windowsHide: true });
+  child.unref();
+}
+
+function main() {
+  const root = import.meta.dirname;
+  const pluginData = process.env.CLAUDE_PLUGIN_DATA;
+  const code = sessionStart({
+    root,
+    dataDir: pluginData || root,
+    checkStamp: Boolean(pluginData),
+    runHook: cli => {
+      const hook = spawnSync('dotnet', [cli, 'hook', 'SessionStart'], { stdio: 'inherit', windowsHide: true });
+      return hook.status ?? 0; // a hook that could not start fails open, like the CLI's own hook
+    },
+    startBuild: dataDir => startDetached(join(root, 'build-cli-and-server.mjs'), [dataDir]),
+    write: line => process.stdout.write(`${line}\n`),
+  });
+  process.exitCode = code;
+}
+
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main();

@@ -6,7 +6,7 @@
       "headers": {
         "Claude-Project-Dir": "${CLAUDE_PROJECT_DIR}"
       },
-      "headersHelper": "dotnet \"${CLAUDE_PLUGIN_ROOT}/bin-cli/aitm.dll\" server headers"
+      "headersHelper": "dotnet \"${CLAUDE_PLUGIN_DATA}/bin-cli/aitm.dll\" server headers"
     }
   }
 }

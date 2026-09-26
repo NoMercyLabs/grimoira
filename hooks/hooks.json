@@ -5,8 +5,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "dotnet",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/bin-cli/aitm.dll", "hook", "SessionStart"],
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/session-start.mjs"],
             "timeout": 15
           }
         ]
@@ -43,7 +43,7 @@
           {
             "type": "command",
             "command": "dotnet",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/bin-cli/aitm.dll", "hook", "UserPromptSubmit"],
+            "args": ["${CLAUDE_PLUGIN_DATA}/bin-cli/aitm.dll", "hook", "UserPromptSubmit"],
             "timeout": 10
           }
         ]
@@ -79,7 +79,7 @@
           {
             "type": "command",
             "command": "dotnet",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/bin-cli/aitm.dll", "hook", "PreCompact"],
+            "args": ["${CLAUDE_PLUGIN_DATA}/bin-cli/aitm.dll", "hook", "PreCompact"],
             "timeout": 20,
             "statusMessage": "Saving anchors before compaction…"
           }
@@ -92,7 +92,7 @@
           {
             "type": "command",
             "command": "dotnet",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/bin-cli/aitm.dll", "hook", "SessionEnd"],
+            "args": ["${CLAUDE_PLUGIN_DATA}/bin-cli/aitm.dll", "hook", "SessionEnd"],
             "timeout": 390,
             "async": true
           }
