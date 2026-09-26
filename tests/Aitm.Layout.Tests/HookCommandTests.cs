@@ -101,9 +101,13 @@ public class HookCommandTests
         JsonElement group = Assert.Single(doc.RootElement.GetProperty("hooks").GetProperty(eventName).EnumerateArray());
         JsonElement hook = Assert.Single(group.GetProperty("hooks").EnumerateArray());
 
-        Assert.Equal("dotnet", hook.GetProperty("command").GetString());
+        // Slice 32a: through run-hook.mjs, which prints nothing and exits 0 while there is no build yet (a direct
+        // `dotnet <missing dll>` printed dotnet's error block and exited 1 on every prompt), and otherwise runs
+        // `hook <event>` from ${CLAUDE_PLUGIN_DATA}/current/bin-cli.
+        Assert.Equal("node", hook.GetProperty("command").GetString());
         string[] args = hook.GetProperty("args").EnumerateArray().Select(a => a.GetString()!).ToArray();
-        Assert.Equal(["${CLAUDE_PLUGIN_DATA}/current/bin-cli/aitm.dll", "hook", eventName], args);
+        Assert.Equal(["${CLAUDE_PLUGIN_ROOT}/run-hook.mjs", eventName], args);
+        Assert.True(File.Exists(Path.Combine(RepoPaths.Root, "run-hook.mjs")));
     }
 
     // The SessionEnd handlers index for seconds. Claude Code gives SessionEnd hooks a shared 1.5 s budget
@@ -142,7 +146,8 @@ public class HookCommandTests
         hook.TryGetProperty("args", out JsonElement a) ? a.EnumerateArray().Select(x => x.GetString() ?? "").ToArray() : [];
 
     private static bool RunsHookVerb(JsonElement hook, string eventName) =>
-        ArgsOf(hook) is [.., "hook", string last] && last == eventName;
+        (ArgsOf(hook) is [.., "hook", string last] && last == eventName)
+        || (ArgsOf(hook) is [string script, string only] && script.EndsWith("/run-hook.mjs", StringComparison.Ordinal) && only == eventName);
 
     private static bool ArgsMention(JsonElement hook, string script) =>
         ArgsOf(hook).Any(arg => arg.EndsWith(script, StringComparison.Ordinal));
