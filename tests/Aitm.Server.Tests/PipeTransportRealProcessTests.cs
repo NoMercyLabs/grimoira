@@ -136,4 +136,39 @@ public sealed class PipeTransportRealProcessTests : IDisposable
         Assert.Contains("TCP", await stderr);
         _ = stdout;
     }
+
+    // "Only the current user may open it", asserted on a LIVE pipe, not on source text. I cannot run as another
+    // OS user, so this reads the pipe's real security descriptor and asserts who is allowed in.
+    [Fact]
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
+    public async Task TheLivePipeAllowsOnlyTheCurrentUser()
+    {
+        if (!OperatingSystem.IsWindows()) return; // the Unix twin below checks modes on a live socket
+        await StartServerAsync();
+        using System.IO.Pipes.NamedPipeClientStream client = new(".", Aitm.Server.Data.ServerAddress.PipeName(_dataDir),
+            System.IO.Pipes.PipeDirection.InOut, System.IO.Pipes.PipeOptions.CurrentUserOnly);
+        await client.ConnectAsync(5000);
+
+        System.IO.Pipes.PipeSecurity security = System.IO.Pipes.PipesAclExtensions.GetAccessControl(client);
+        string me = System.Security.Principal.WindowsIdentity.GetCurrent().User!.Value;
+        string[] seen = [.. security.GetAccessRules(true, false, typeof(System.Security.Principal.SecurityIdentifier))
+            .Cast<System.IO.Pipes.PipeAccessRule>()
+            .Where(r => r.AccessControlType == System.Security.AccessControl.AccessControlType.Allow)
+            .Select(r => ((System.Security.Principal.SecurityIdentifier)r.IdentityReference).Value)
+            .Distinct()];
+
+        // Observed on the live pipe (Windows 10, .NET 10): exactly one Allow rule, the current user, FullControl.
+        // Kestrel adds no SYSTEM or Administrators entry, so nothing beyond the user is tolerated.
+        Assert.True(seen.SequenceEqual([me]), "the pipe allows more than the current user: " + string.Join(", ", seen));
+    }
+
+    [Fact]
+    public async Task TheLiveUnixSocketIsUserOnly()
+    {
+        if (OperatingSystem.IsWindows()) return; // Windows has no modes; the ACL test above covers it
+        await StartServerAsync();
+
+        Assert.Equal(UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute, File.GetUnixFileMode(_dataDir));
+        Assert.Equal(UnixFileMode.UserRead | UnixFileMode.UserWrite, File.GetUnixFileMode(Aitm.Server.Data.ServerAddress.SocketPath(_dataDir)));
+    }
 }
