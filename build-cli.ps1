@@ -10,6 +10,10 @@
 dotnet build "$PSScriptRoot/aitm.cs" -c Release -o "$PSScriptRoot/bin-cli-old"
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+# Cleared first: dotnet publish never removes a file it no longer produces, so an old aitm.cs DLL
+# from before bin-cli/ became the thin client's own output would otherwise sit beside it forever.
+if (Test-Path "$PSScriptRoot/bin-cli") { Remove-Item "$PSScriptRoot/bin-cli" -Recurse -Force }
+
 # PublishAot=false: the same choice as build-server.ps1; AOT is its own decision, not this one.
 dotnet publish "$PSScriptRoot/src/Aitm.Cli/Aitm.Cli.csproj" -c Release -o "$PSScriptRoot/bin-cli" -p:PublishAot=false
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

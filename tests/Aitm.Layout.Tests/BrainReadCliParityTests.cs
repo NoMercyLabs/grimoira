@@ -7,7 +7,7 @@ namespace Aitm.Layout.Tests;
 // RESTRUCTURE.md slice 24, CLI lane part 4a: proves the 10 Brain-read sub-verbs (nested under `brain`,
 // plus the bare `brain` dispatcher itself) behave exactly as they did before the wiring, by running each
 // one on a fresh temp instance against the frozen "before" binary (OldVsNewCli.OracleDll, built from the
-// commit slice 24 started at) and against today's bin-cli/aitm.dll, and diffing stdout, stderr and exit
+// commit slice 24 started at) and against today's bin-cli-old/aitm.dll, and diffing stdout, stderr and exit
 // code. Every wired sub-verb gets at least a bare/error run; the read verbs that need real graph data
 // (scope, common, place, why, verify, audit) get a shared fixture seeded through `brain learn` — the old
 // binary's own verb, run identically on both instances, exactly as MemoryDocsCliParityTests seeds

@@ -21,7 +21,9 @@ internal static class CliEndpoint
 {
     public const int TimeoutExitCode = 124;
     public static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(60);
-    public static readonly TimeSpan LongTimeout = TimeSpan.FromSeconds(600);
+    // init.mjs waits 900 s for a large chat import (index-chat); this must never be shorter than that,
+    // or the server answers exit 124 for an import the caller was still willing to wait out.
+    public static readonly TimeSpan LongTimeout = TimeSpan.FromSeconds(900);
 
     /// <summary>The verbs in CliDispatch that walk a tree, a transcript directory, another store or the
     /// whole store, and can run for minutes (the SessionEnd doc indexer has run for minutes).</summary>

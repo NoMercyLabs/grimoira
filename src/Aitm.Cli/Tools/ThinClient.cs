@@ -18,8 +18,8 @@ namespace Aitm.Cli.Tools;
 /// </summary>
 public static class ThinClient
 {
-    /// <summary>Above the server's longest verb timeout (600 s), so the server's own 124 answer arrives first.</summary>
-    public static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(660);
+    /// <summary>Above the server's longest verb timeout (900 s), so the server's own 124 answer arrives first.</summary>
+    public static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(960);
 
     public static int Run(string[] args, string cwd, int port, string dataDir, string? instanceEnv, string? projectDirEnv,
         Func<bool> ensureServer, string serverExe, TextWriter stdout, TextWriter stderr)

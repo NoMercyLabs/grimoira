@@ -9,7 +9,7 @@ namespace Aitm.Layout.Tests;
 
 // RESTRUCTURE.md slice 24, CLI lane part 3: proves the 12 Aitm.Graph verbs behave exactly as they did
 // before the wiring, by running each one on a fresh temp instance against the frozen "before" binary
-// (OldVsNewCli.OracleDll, built from the commit slice 24 started at) and against today's bin-cli/aitm.dll,
+// (OldVsNewCli.OracleDll, built from the commit slice 24 started at) and against today's bin-cli-old/aitm.dll,
 // and diffing stdout, stderr and exit code. None of these 12 verbs print a timestamp or an elapsed time,
 // so — unlike part 1's query/history/stats — no output needs normalizing before the comparison.
 public class GraphCliParityTests
