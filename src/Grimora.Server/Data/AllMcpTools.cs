@@ -10,9 +10,9 @@ using Grimora.Store.Tools;
 namespace Grimora.Server.Data;
 
 /// <summary>
-/// The 25 golden MCP tools (tests/Grimora.Layout.Tests/GoldenListsTests.cs), gathered into one
+/// The 24 golden MCP tools (tests/Grimora.Layout.Tests/GoldenListsTests.cs), gathered into one
 /// <see cref="ToolRegistry"/> so <see cref="McpToolFactory"/> maps them through a single path rather
-/// than 25 hand-written endpoints (RESTRUCTURE.md "Slice 26"). Every entry is an already-moved
+/// than 24 hand-written endpoints (RESTRUCTURE.md "Slice 26"). Every entry is an already-moved
 /// <see cref="ITool"/> class; nothing here re-implements a tool's behaviour.
 /// </summary>
 public static class AllMcpTools
@@ -44,7 +44,6 @@ public static class AllMcpTools
         new BrainGapsTool(),
         new BrainStageTool(),
         new BrainFlushTool(),
-        new IdPTokenTool(),
         new WorkspaceCapabilitiesTool(),
         new WorkspaceSearchTool(),
         ]);

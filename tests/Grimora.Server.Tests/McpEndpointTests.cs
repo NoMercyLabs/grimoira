@@ -8,7 +8,7 @@ using Xunit;
 
 namespace Grimora.Server.Tests;
 
-// RESTRUCTURE.md "Slice 26: /mcp on the server, beside mcp.cs." The 25 golden MCP tools served over the
+// RESTRUCTURE.md "Slice 26: /mcp on the server, beside mcp.cs." The 24 golden MCP tools served over the
 // real ASP.NET pipeline (WebApplicationFactory<Program>), behind the same bearer-auth middleware
 // ServerHostTests already proves for every non-/health route.
 public sealed class McpEndpointTests : IDisposable

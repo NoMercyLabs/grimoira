@@ -15,7 +15,7 @@ using System.Text.RegularExpressions;
 namespace Grimora.Server.Tests;
 
 /// <summary>
-/// RESTRUCTURE.md "Slice 26b: every MCP tool over HTTP equals the old mcp.dll." For each of the 25
+/// RESTRUCTURE.md "Slice 26b: every MCP tool over HTTP equals the old mcp.dll." For each of the 24
 /// golden MCP tools (<see cref="Grimora.Layout.Tests.GoldenListsTests.GoldenMcpTools"/>), seeds two
 /// identical fresh stores — one under a temp <c>GRIMORA_DATA_DIR</c> for the real <c>/mcp</c> HTTP endpoint
 /// (<see cref="WebApplicationFactory{TEntryPoint}"/>, the <see cref="RequestProjectResolver.InstanceHeader"/>
@@ -24,11 +24,7 @@ namespace Grimora.Server.Tests;
 /// one normal call and one error/miss call. Seeding calls each feature's own tool class directly against
 /// the two stores' raw sqlite files, the same shape the CLI verb that seeds it would leave behind.
 ///
-/// Exception (see <see cref="ToolCases"/>'s <c>idp_token</c> case): its output changed on purpose at
-/// slice 23c (a file path + claims instead of the raw token), applied to the live host at slice 28, so
-/// the snapshot's shape is not required — this test only proves the HTTP call never leaks a token because
-/// no real login driver ever runs (the tool's own <c>GRIMORA_ALLOW_TOKEN_MINT</c> gate, off by default, is
-/// the fake-runner seam here: neither side ever spawns node/python). <c>workspace_capabilities</c> and
+/// <c>workspace_capabilities</c> and
 /// <c>workspace_search</c> use the same non-execution path: this repo carries no
 /// <c>scripts/workspace-*.py</c>, so both oracles hit the safe "unavailable" branch before any process
 /// would run.
@@ -61,18 +57,12 @@ public sealed partial class HttpSnapshotParityTests
     [Theory]
     [MemberData(nameof(ToolCases))]
     public async Task HttpToolMatchesTheSnapshotMcpDll(
-        string toolName, Action<SqliteConnection> seed, object normalArgs, object errorArgs, bool checkShape)
+        string toolName, Action<SqliteConnection> seed, object normalArgs, object errorArgs)
     {
         string oldDll = McpSnapshotHarness.EnsureBuilt(RepoRoot);
         string oldInstance = GrimoraCliRunner.NewTestInstance($"http-parity-{toolName}");
         string newDataDir = Directory.CreateTempSubdirectory("grimora-http-parity-").FullName;
         const string newInstance = "new";
-        // Handover tools never run a real login driver: force the idp_token mint gate off for the
-        // duration of this call, regardless of what the developer's own shell has set, so neither the
-        // stdio child (inherits this process's environment) nor the HTTP tool (reads it per request)
-        // ever shells out to node/idp-impersonate.mjs.
-        string? previousMint = Environment.GetEnvironmentVariable("GRIMORA_ALLOW_TOKEN_MINT");
-        Environment.SetEnvironmentVariable("GRIMORA_ALLOW_TOKEN_MINT", "0");
         try
         {
             GrimoraCliRunner.Run($"init --instance {oldInstance}");
@@ -113,7 +103,7 @@ public sealed partial class HttpSnapshotParityTests
             string normalText = await CallText(client, toolName, normalArgs);
             string errorText = await CallText(client, toolName, errorArgs);
 
-            if (checkShape && toolName == "brain_flush")
+            if (toolName == "brain_flush")
             {
                 // Finding (brain-flush-timing investigation): the pre-slice-24 oracle (McpSnapshotHarness's
                 // pinned mcp.dll@bbb9b4d) is driven over stdio by McpProcess.Run, which sends every
@@ -133,21 +123,10 @@ public sealed partial class HttpSnapshotParityTests
                 Assert.Equal("flushed 1 learning(s) into the brain.", StripTimestamps(normalText));
                 Assert.Equal("nothing staged.", StripTimestamps(errorText));
             }
-            else if (checkShape)
+            else
             {
                 Assert.Equal(StripTimestamps(oldResults[0]), StripTimestamps(normalText));
                 Assert.Equal(StripTimestamps(oldResults[1]), StripTimestamps(errorText));
-            }
-            else
-            {
-                // idp_token: the snapshot's shape is not required (slice 23c changed the output on
-                // purpose); prove instead that the gated HTTP call never runs a real login driver or
-                // leaks token text — the fake runner seam is the tool's own GRIMORA_ALLOW_TOKEN_MINT gate,
-                // left unset here, which both oracles must refuse on before ever touching node/python.
-                Assert.Contains("refused", normalText, StringComparison.OrdinalIgnoreCase);
-                Assert.Contains("refused", errorText, StringComparison.OrdinalIgnoreCase);
-                Assert.DoesNotContain("eyJ", normalText, StringComparison.Ordinal);
-                Assert.DoesNotContain("eyJ", errorText, StringComparison.Ordinal);
             }
         }
         finally
@@ -155,7 +134,6 @@ public sealed partial class HttpSnapshotParityTests
             GrimoraCliRunner.DeleteInstance(oldInstance);
             Environment.SetEnvironmentVariable("GRIMORA_DATA_DIR", null);
             Environment.SetEnvironmentVariable("GRIMORA_SERVER_PORT", null);
-            Environment.SetEnvironmentVariable("GRIMORA_ALLOW_TOKEN_MINT", previousMint);
             try { Directory.Delete(newDataDir, recursive: true); } catch { /* best effort cleanup */ }
         }
     }
@@ -253,10 +231,6 @@ public sealed partial class HttpSnapshotParityTests
             c => new BrainStageTool().ExecuteMcp(c, "node", "parity-flush-node", "concept", "Parity Flush Label"),
             new { }, new { });
 
-        yield return CaseNoShape("idp_token",
-            _ => { },
-            new { subject = "parity-subject", realm = "dev" }, new { subject = "", realm = "dev" });
-
         yield return Case("workspace_capabilities",
             _ => { },
             new { query = "parity, hyphen-checking task" }, new { query = "" });
@@ -267,10 +241,7 @@ public sealed partial class HttpSnapshotParityTests
     }
 
     private static object[] Case(string name, Action<SqliteConnection> seed, object normalArgs, object errorArgs) =>
-        [name, seed, normalArgs, errorArgs, true];
-
-    private static object[] CaseNoShape(string name, Action<SqliteConnection> seed, object normalArgs, object errorArgs) =>
-        [name, seed, normalArgs, errorArgs, false];
+        [name, seed, normalArgs, errorArgs];
 
     internal static void WaitForNonEmptyFile(string path)
     {

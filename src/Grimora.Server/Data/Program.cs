@@ -96,11 +96,11 @@ builder.Services.AddSingleton(projectStore);
 builder.Services.AddSingleton<Microsoft.AspNetCore.Http.IHttpContextAccessor>(httpContextAccessor);
 
 IReadOnlyList<McpServerTool> mcpTools = McpToolFactory.BuildTools(
-    AllMcpTools.BuildRegistry(), projectStore, httpContextAccessor, projectRoot, dataDir);
+    AllMcpTools.BuildRegistry(), projectStore, httpContextAccessor, projectRoot);
 builder.Services.AddMcpServer().WithHttpTransport().WithTools(mcpTools);
 // RESTRUCTURE.md Slice P1: the same tools as plain functions, for /tools (what `grimora mcp` forwards to).
 IReadOnlyList<Microsoft.Extensions.AI.AIFunction> toolFunctions = McpToolFactory.BuildFunctions(
-    AllMcpTools.BuildRegistry(), projectStore, httpContextAccessor, projectRoot, dataDir);
+    AllMcpTools.BuildRegistry(), projectStore, httpContextAccessor, projectRoot);
 
 WebApplication app = builder.Build();
 
@@ -134,7 +134,7 @@ app.MapGet("/health", () => Results.Json(new
     openStores = projectStore.OpenInstances,
 }));
 
-// The 25 golden MCP tools. Reachable only over the pipe/socket above (no Host/Origin guard needed).
+// The 24 golden MCP tools. Reachable only over the pipe/socket above (no Host/Origin guard needed).
 app.MapMcp("/mcp");
 
 // RESTRUCTURE.md Slice P1: the tool list and one tool call for `grimora mcp` (ToolsEndpoint); same project

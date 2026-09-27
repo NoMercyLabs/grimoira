@@ -83,10 +83,6 @@ Use the CLI `add` / `index-memory` commands instead if the MCP server is unavail
 - `workspace_capabilities` — find an existing NoMercy tool by purpose (browser login, native code search, CI watching, process ownership) instead of writing a new one. Read-only discovery; does not run anything.
 - `workspace_search` — search fixed text or filenames in one registered repository. Requires an explicit repo path (`.` means the root). File and line locations only, no source values, excludes credential paths. Search one repo at a time; never recurse the whole monorepo root.
 
-## Auth (gated, rare)
-
-- `idp_token` — mint a real IdP token for a subject, for automated test/API/SignalR calls. The only sanctioned way to authenticate for automated work; never weaken or bypass auth instead. Gated behind `GRIMORA_ALLOW_TOKEN_MINT=1`; when gated, run the sibling script directly instead of the tool.
-
 ## Rules
 
 - Query before you guess. A refusal from `fact` or `rule` is not evidence the answer doesn't exist elsewhere — it is evidence this channel doesn't have it yet.

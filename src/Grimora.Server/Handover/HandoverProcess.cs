@@ -4,7 +4,7 @@ namespace Grimora.Server.Handover;
 
 /// <summary>
 /// Shared plumbing for the handover tools that shell out to a subprocess
-/// (<see cref="WorkspaceSearchTool"/>, <see cref="WorkspaceCapabilitiesTool"/>, <see cref="IdPTokenTool"/>).
+/// (<see cref="WorkspaceSearchTool"/>, <see cref="WorkspaceCapabilitiesTool"/>).
 /// Ported from mcp.cs's <c>RunWorkspacePython</c> (mcp.cs:338), including its timeout/kill handling
 /// (mcp.cs:356) — <see cref="RunWithTimeout"/> bounds the wait itself with a background task, so the
 /// timeout applies even against a runner (fake or real) that never returns, not only a cooperating one.

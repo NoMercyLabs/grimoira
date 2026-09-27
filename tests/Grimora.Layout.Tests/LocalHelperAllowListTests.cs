@@ -31,14 +31,12 @@ public partial class LocalHelperAllowListTests
 
     // mcp.cs: every [McpServerTool] method opens its own connection then delegates to a tool class: Open
     // (+ its MaybeMaintain piggyback) and instance resolution are the plumbing that has to run first.
-    // EnginePath is idp_token's own support, and idp_token stays inline in mcp.cs until slice 28.
     private static readonly Dictionary<string, string> McpAllowList = new(StringComparer.Ordinal)
     {
         ["Open"] = "dispatch plumbing: opens the per-instance connection every tool method delegates through",
         ["MaybeMaintain"] = "dispatch plumbing: time-gated maintenance piggybacked on every Open() call",
         ["ResolveInstance"] = "instance resolution: same role as grimora.cs's copy, scoped to the MCP host",
         ["Slug"] = "instance resolution: normalizes ResolveInstance's raw text, same role as grimora.cs's copy",
-        ["EnginePath"] = "idp_token support: locates the token-exchange script (inline until slice 28)",
     };
 
     [Fact]

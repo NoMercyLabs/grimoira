@@ -9,13 +9,12 @@ using ModelContextProtocol.Server;
 namespace Grimora.Server.Data;
 
 /// <summary>
-/// Maps the 25 golden MCP tools onto <see cref="McpServerTool"/> through one path (RESTRUCTURE.md
-/// "Slice 26": "Map them through one registry, not 25 hand-written endpoints"). The 22 store-backed
+/// Maps the 24 golden MCP tools onto <see cref="McpServerTool"/> through one path (RESTRUCTURE.md
+/// "Slice 26": "Map them through one registry, not 24 hand-written endpoints"). The 22 store-backed
 /// tools (an <c>ExecuteMcp(SqliteConnection, ...)</c> method) go through the same
 /// <see cref="BuildStoreBackedTool"/> reflection path, which resolves the connection parameter from the
 /// calling project's <see cref="ProjectStore"/> instead of the JSON arguments and serialises every call
-/// through <see cref="LockingAiFunction"/>. The 3 handover tools (<see cref="IdPTokenTool"/>,
-/// <see cref="WorkspaceCapabilitiesTool"/>, <see cref="WorkspaceSearchTool"/>) hold no project store —
+/// through <see cref="LockingAiFunction"/>. The 2 handover tools (<see cref="WorkspaceCapabilitiesTool"/>, <see cref="WorkspaceSearchTool"/>) hold no project store —
 /// they take server-level dependencies (a process runner, the data/project directories) instead of a
 /// connection, so they are wired directly to their own <c>Execute</c> overload.
 /// </summary>
@@ -23,7 +22,7 @@ public static class McpToolFactory
 {
     public static IReadOnlyList<McpServerTool> BuildTools(
         ToolRegistry registry, ProjectStore store, IHttpContextAccessor httpContextAccessor,
-        string projectRoot, string dataDir)
+        string projectRoot)
     {
         IProcessRunner runner = new ProcessRunner();
         List<McpServerTool> tools = [];
@@ -32,7 +31,6 @@ public static class McpToolFactory
             if (tool.McpName is null) continue;
             McpServerTool built = tool switch
             {
-                IdPTokenTool idp => BuildIdPTool(idp, dataDir, runner),
                 WorkspaceCapabilitiesTool capabilities => BuildWorkspaceCapabilitiesTool(capabilities, projectRoot, runner),
                 WorkspaceSearchTool search => BuildWorkspaceSearchTool(search, projectRoot, runner),
                 _ => BuildStoreBackedTool(tool, store, httpContextAccessor),
@@ -43,14 +41,14 @@ public static class McpToolFactory
     }
 
     /// <summary>
-    /// The same 25 tools as plain <see cref="AIFunction"/>s (name, description, input schema, invoke) for the
+    /// The same 24 tools as plain <see cref="AIFunction"/>s (name, description, input schema, invoke) for the
     /// service routes <c>/tools</c> (RESTRUCTURE.md Slice P1), which `grimora mcp` forwards to. Store-backed tools
     /// share <see cref="BuildStoreBackedFunction"/> with <see cref="BuildTools"/>, so both routes run under the
-    /// one per-project writer gate; the three handover tools share their invoke delegates with it too.
+    /// one per-project writer gate; the two handover tools share their invoke delegates with it too.
     /// </summary>
     public static IReadOnlyList<AIFunction> BuildFunctions(
         ToolRegistry registry, ProjectStore store, IHttpContextAccessor httpContextAccessor,
-        string projectRoot, string dataDir, TimeSpan? gateTimeout = null)
+        string projectRoot, TimeSpan? gateTimeout = null)
     {
         IProcessRunner runner = new ProcessRunner();
         List<AIFunction> functions = [];
@@ -59,7 +57,6 @@ public static class McpToolFactory
             if (tool.McpName is null) continue;
             functions.Add(tool switch
             {
-                IdPTokenTool idp => PlainFunction(idp.McpName, idp.Help, IdPInvoker(idp, dataDir, runner)),
                 WorkspaceCapabilitiesTool capabilities => PlainFunction(capabilities.McpName, capabilities.Help, CapabilitiesInvoker(capabilities, projectRoot, runner)),
                 WorkspaceSearchTool search => PlainFunction(search.McpName, search.Help, SearchInvoker(search, projectRoot, runner)),
                 _ => BuildStoreBackedFunction(tool, store, httpContextAccessor, gateTimeout ?? DefaultGateTimeout),
@@ -121,10 +118,6 @@ public static class McpToolFactory
         return new LockingAiFunction(inner, store, httpContextAccessor, gateTimeout);
     }
 
-    private static McpServerTool BuildIdPTool(IdPTokenTool tool, string dataDir, IProcessRunner runner) =>
-        McpServerTool.Create(IdPInvoker(tool, dataDir, runner),
-            new McpServerToolCreateOptions { Name = tool.McpName, Description = tool.Help });
-
     private static McpServerTool BuildWorkspaceCapabilitiesTool(WorkspaceCapabilitiesTool tool, string projectRoot, IProcessRunner runner) =>
         McpServerTool.Create(CapabilitiesInvoker(tool, projectRoot, runner),
             new McpServerToolCreateOptions { Name = tool.McpName, Description = tool.Help });
@@ -132,17 +125,6 @@ public static class McpToolFactory
     private static McpServerTool BuildWorkspaceSearchTool(WorkspaceSearchTool tool, string projectRoot, IProcessRunner runner) =>
         McpServerTool.Create(SearchInvoker(tool, projectRoot, runner),
             new McpServerToolCreateOptions { Name = tool.McpName, Description = tool.Help });
-
-    private static Func<string, string, string> IdPInvoker(IdPTokenTool tool, string dataDir, IProcessRunner runner)
-    {
-        string Invoke(string subject, string realm = "dev")
-        {
-            bool mintAllowed = Environment.GetEnvironmentVariable("GRIMORA_ALLOW_TOKEN_MINT") == "1";
-            string? engineScriptPath = EnginePath();
-            return tool.Execute(subject, realm, engineScriptPath ?? "", dataDir, mintAllowed, runner);
-        }
-        return Invoke;
-    }
 
     private static Func<string, string> CapabilitiesInvoker(WorkspaceCapabilitiesTool tool, string projectRoot, IProcessRunner runner)
     {
@@ -156,10 +138,4 @@ public static class McpToolFactory
             tool.Execute(repository, pattern, path, names, projectRoot, runner);
         return Invoke;
     }
-
-    // Mirrors mcp.cs's EnginePath(): locates idp-impersonate.mjs at GRIMORA_HOME when set, in the plugin root
-    // (slice 32a: the installed server runs from the data folder), or beside the running binary. Returns null
-    // (never throws) so IdPTokenTool reports the same "cannot locate" message it always has for a missing engine.
-    private static string? EnginePath() => PluginFileLocator.FindEngine("idp-impersonate.mjs",
-        Environment.GetEnvironmentVariable("GRIMORA_HOME"), PluginFileLocator.PluginRoot(), AppContext.BaseDirectory);
 }

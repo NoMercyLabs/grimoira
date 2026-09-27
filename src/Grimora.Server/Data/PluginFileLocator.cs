@@ -20,33 +20,6 @@ public static class PluginFileLocator
     public static string? PluginRoot() =>
         Environment.GetEnvironmentVariable(PluginRootVariable) is { Length: > 0 } root ? root : null;
 
-    /// <summary>
-    /// A script such as idp-impersonate.mjs: <paramref name="home"/> (GRIMORA_HOME) when set, then the plugin
-    /// root, then up to six folders up from <paramref name="baseDirectory"/>. Null when none has it.
-    /// </summary>
-    public static string? FindEngine(string fileName, string? home, string? pluginRoot, string baseDirectory)
-    {
-        pluginRoot = ResolvePluginRoot(pluginRoot, baseDirectory);
-        if (!string.IsNullOrEmpty(home))
-        {
-            string p = Path.Combine(home, fileName);
-            return File.Exists(p) ? p : null;
-        }
-        if (!string.IsNullOrEmpty(pluginRoot))
-        {
-            string p = Path.Combine(pluginRoot, fileName);
-            if (File.Exists(p)) return p;
-        }
-        string? dir = baseDirectory;
-        for (int i = 0; i < 6 && dir != null; i++)
-        {
-            string p = Path.Combine(dir, fileName);
-            if (File.Exists(p)) return p;
-            dir = Path.GetDirectoryName(dir.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
-        }
-        return null;
-    }
-
     /// <summary>The default spine seed: <c>&lt;plugin root&gt;/seeds/spine.json</c>, else beside the checkout build.</summary>
     public static string SeedPath(string? pluginRoot, string baseDirectory) =>
         ResolvePluginRoot(pluginRoot, baseDirectory) is { } root

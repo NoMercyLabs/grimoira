@@ -10,7 +10,7 @@ using Xunit;
 
 namespace Grimora.Server.Tests;
 
-// RESTRUCTURE.md Slice P1: "`grimora mcp` is a stdio MCP server that serves the same 25 tools by forwarding each
+// RESTRUCTURE.md Slice P1: "`grimora mcp` is a stdio MCP server that serves the same 24 tools by forwarding each
 // call to the service over the pipe". The service side: GET /tools lists the registry, POST /tools/{name}
 // runs one tool under the same project resolution and store gate as /mcp.
 public sealed class ToolsEndpointTests : IDisposable
@@ -34,7 +34,7 @@ public sealed class ToolsEndpointTests : IDisposable
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         JsonElement[] tools = [.. doc.RootElement.EnumerateArray()];
-        Assert.Equal(25, tools.Length);
+        Assert.Equal(24, tools.Length);
         Assert.Equal(GoldenListsTests.GoldenMcpTools.OrderBy(n => n), tools.Select(t => t.GetProperty("name").GetString()!).OrderBy(n => n));
         Assert.All(tools, t =>
         {

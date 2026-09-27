@@ -4,8 +4,8 @@ using Xunit;
 
 namespace Grimora.Layout.Tests;
 
-// RESTRUCTURE.md section 1: "The golden MCP list is `tools/list` from today's `mcp.cs` (25 names with
-// their parameters). The golden CLI list is the 70 kept verbs." Section 5, versioning: "the 25 MCP
+// RESTRUCTURE.md section 1: "The golden MCP list is `tools/list` from today's `mcp.cs` (24 names with
+// their parameters). The golden CLI list is the 70 kept verbs." Section 5, versioning: "the 24 MCP
 // tool names and their parameter names stay. The 70 kept CLI verbs and their flags stay ... The
 // golden-list test fails when a name disappears."
 //
@@ -40,7 +40,7 @@ public partial class GoldenListsTests
         "spine-export", "spine-import", "shed-node", "eval",
     ];
 
-    // Section 2.2: 1 + 3 + 3 + 1 + 4 + 10 + 3 = 25 of 25.
+    // Section 2.2: 1 + 3 + 3 + 1 + 4 + 10 + 2 = 24 of 24.
     public static readonly string[] GoldenMcpTools =
     [
         "history",
@@ -50,7 +50,7 @@ public partial class GoldenListsTests
         "impact", "graph_query", "graph_path", "graph_explain",
         "brain_core", "brain_scope", "brain_common", "brain_place", "brain_recall", "brain_impact",
         "brain_learn", "brain_gaps", "brain_stage", "brain_flush",
-        "idp_token", "workspace_capabilities", "workspace_search",
+        "workspace_capabilities", "workspace_search",
     ];
 
     [Fact]
@@ -61,10 +61,10 @@ public partial class GoldenListsTests
     }
 
     [Fact]
-    public void GoldenMcpListHas25UniqueTools()
+    public void GoldenMcpListHas24UniqueTools()
     {
-        Assert.Equal(25, GoldenMcpTools.Length);
-        Assert.Equal(25, GoldenMcpTools.Distinct(StringComparer.Ordinal).Count());
+        Assert.Equal(24, GoldenMcpTools.Length);
+        Assert.Equal(24, GoldenMcpTools.Distinct(StringComparer.Ordinal).Count());
     }
 
     [Fact]
@@ -107,7 +107,7 @@ public partial class GoldenListsTests
     }
 
     [Fact]
-    public void Every25McpToolStillExistsInMcpCs()
+    public void Every24McpToolStillExistsInMcpCs()
     {
         string source = File.ReadAllText(Path.Combine(RepoPaths.Root, "mcp.cs"));
         // Descriptions carry arbitrary parentheses, so this walks forward from each attribute to the
@@ -123,7 +123,7 @@ public partial class GoldenListsTests
             index = m.Index + m.Length;
         }
 
-        Assert.Equal(25, found.Count);
+        Assert.Equal(24, found.Count);
         foreach (string tool in GoldenMcpTools)
         {
             Assert.Contains(tool, found);

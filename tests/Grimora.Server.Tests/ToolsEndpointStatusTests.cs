@@ -91,7 +91,7 @@ public sealed class ToolsEndpointStatusTests : IDisposable
         using ProjectStore store = new(_dataDir);
         HttpContextAccessor accessor = new();
         IReadOnlyList<AIFunction> tools = McpToolFactory.BuildFunctions(
-            AllMcpTools.BuildRegistry(), store, accessor, _dataDir, _dataDir, gateTimeout: TimeSpan.FromMilliseconds(300));
+            AllMcpTools.BuildRegistry(), store, accessor, _dataDir, gateTimeout: TimeSpan.FromMilliseconds(300));
         DefaultHttpContext context = Request("{\"term\":\"anything\"}");
         context.Request.Headers[RequestProjectResolver.InstanceHeader] = "busy-project";
         accessor.HttpContext = context;

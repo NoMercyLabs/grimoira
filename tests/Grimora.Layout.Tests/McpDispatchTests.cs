@@ -97,27 +97,9 @@ public partial class McpDispatchTests
             $"mcp.cs's {mcpName}() must call new {toolClass}(...).Execute(...) instead of holding its own inline logic.\n---\n{body}");
     }
 
-    // idp_token is the ONE exception (RESTRUCTURE.md slice 24 MCP part 2 card): the new
-    // IdPTokenTool writes the token to a file and returns path + claims (slice 23c), while
-    // mcp.cs's inline idp_token still returns the token itself — a planned output change that
-    // does not land until RESTRUCTURE.md slice 28. Wiring it here would silently change behaviour a
-    // client can see, so it stays inline until that slice, and this test documents the exemption
-    // instead of asserting dispatch for it.
+    // All 24 golden MCP tools together: every one is in one of the three wired lists above.
     [Fact]
-    public void IdPTokenStaysInlineUntilSlice28()
-    {
-        string source = File.ReadAllText(Path.Combine(RepoPaths.Root, "mcp.cs"));
-        string body = MethodBody(source, "idp_token");
-        Assert.False(
-            IdPTokenToolCall().IsMatch(body),
-            "idp_token is the documented exception (RESTRUCTURE.md slice 28): it must stay inline, " +
-            "returning the token itself, until slice 28 accepts the file-path-and-claims output change.");
-    }
-
-    // All 25 golden MCP tools together: every one is either in one of the three wired lists above, or
-    // is the one documented exception.
-    [Fact]
-    public void AllTwentyFiveToolsAreAccountedFor()
+    public void AllTwentyFourToolsAreAccountedFor()
     {
         HashSet<string> wired =
         [
@@ -125,9 +107,8 @@ public partial class McpDispatchTests
 ,
             .. GraphAndBrainTools.Select(t => t.McpName),
             .. HandoverExecuteTools.Select(t => t.McpName),
-            "idp_token",
         ];
-        Assert.Equal(25, wired.Count);
+        Assert.Equal(24, wired.Count);
     }
 
     // Extracts the body of `public static string <name>(...) { ... }` in mcp.cs, from its opening
@@ -147,7 +128,4 @@ public partial class McpDispatchTests
         }
         return source[start..(i - 1)];
     }
-
-    [GeneratedRegex(@"new\s+IdPTokenTool\s*\(.*\)\s*\.\s*Execute\s*\(", RegexOptions.Singleline, RegexTimeout.Milliseconds)]
-    private static partial Regex IdPTokenToolCall();
 }

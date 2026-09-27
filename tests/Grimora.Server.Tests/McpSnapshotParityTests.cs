@@ -28,7 +28,8 @@ public partial class McpSnapshotParityTests
             (IReadOnlyList<string> oldTools, _) = McpProcess.Run(oldDll, instance, []);
             (IReadOnlyList<string> newTools, _) = McpProcess.Run(newDll, instance, []);
 
-            Assert.Equal(oldTools.OrderBy(t => t, StringComparer.Ordinal), newTools.OrderBy(t => t, StringComparer.Ordinal));
+            // idp_token was removed on purpose (Grimora holds no secrets); the pinned snapshot still lists it.
+            Assert.Equal(oldTools.Where(t => t != "idp_token").OrderBy(t => t, StringComparer.Ordinal), newTools.OrderBy(t => t, StringComparer.Ordinal));
             Assert.Contains("fact", newTools);
             Assert.Contains("history", newTools);
         }
@@ -193,10 +194,7 @@ public partial class McpSnapshotParityTests
         ];
 
         // RESTRUCTURE.md slice 24, MCP lane part 2: the remaining 17 tools — Grimora.Graph (4), Grimora.Brain
-        // (10), and 2 of the 3 Handover tools. idp_token (the 3rd Handover tool) is the one
-        // documented exception: it stays inline in both the snapshot and today's mcp.cs, so its case
-        // below still proves parity (identical code, identical answer) without exercising the change
-        // slice 28 plans.
+        // (10), and the 2 Handover tools.
         yield return
         [
             "impact",
@@ -314,14 +312,6 @@ public partial class McpSnapshotParityTests
             new { repository = ".", pattern = "no-mercy's-pattern" },
             new { repository = "", pattern = "" },
         ];
-
-        // idp_token is deliberately NOT exercised here: RESTRUCTURE.md ("Handover tools must never
-        // run the real Python or login drivers in tests") — and on this box GRIMORA_ALLOW_TOKEN_MINT=1 is
-        // set in the ambient environment (the testbed convention the card's Handover note refers to),
-        // so ANY call here would run the real node idp-impersonate.mjs against a live IdP
-        // realm. It stays inline and unchanged (see IdPTokenStaysInlineUntilSlice28 in
-        // McpDispatchTests, and the earlier tools/list equality check, which already proves both sides
-        // still expose it under the same name).
     }
 
     // Inserts one row into `edges` (the table impact/graph_query/graph_path/graph_explain/brain_impact
