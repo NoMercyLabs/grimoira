@@ -15,7 +15,7 @@ namespace Grimora.Cli.Tools;
 ///
 /// A server that refuses the connection is started through <see cref="ServerAutoStart"/> and the call
 /// is sent again, up to 3 times (<see cref="RefusedConnectionRetry"/>). Any later failure may mean the verb already ran, so it is
-/// resent only when the service proved it never ran (its clean-exit record covers the call). Still unreachable: one stderr line, exit 1.
+/// resent only when the exiting service proved it never started it (its clean-exit record, by call id). Still unreachable: one stderr line, exit 1.
 /// </summary>
 public static class ThinClient
 {
@@ -33,10 +33,10 @@ public static class ThinClient
         using HttpClient client = PipeConnection.CreateClient(dataDir, ConnectTimeout, RequestTimeout);
         try
         {
-            // A refused connection, or a call the exiting service proved it never ran, starts the service and
-            // resends (RefusedConnectionRetry); nothing else is resent.
-            if (!RefusedConnectionRetry.TrySend(() => Send(client, args, cwd, instanceEnv, projectDirEnv), ensureServer, out HttpResponseMessage? response,
-                RefusedConnectionRetry.LostCallNeverRan(dataDir), RefusedConnectionRetry.PriorServiceGone(dataDir)))
+            // A refused connection, or a call the exiting service proved it never started, starts the service and
+            // resends (RefusedConnectionRetry) with the same call id; nothing else is resent.
+            LostCallGuard guard = new(dataDir, RefusedConnectionRetry.DefaultWaitBudget);
+            if (!RefusedConnectionRetry.TrySend(() => Send(client, args, cwd, instanceEnv, projectDirEnv, guard.CallId), ensureServer, out HttpResponseMessage? response, guard))
             {
                 string why = File.Exists(serverExe)
                     ? $"started {serverExe}, but /health did not answer within {ServerAutoStart.DefaultMaxWait.TotalSeconds:0} s"
@@ -79,13 +79,15 @@ public static class ThinClient
         stderr);
 
     private static HttpResponseMessage Send(HttpClient client, string[] args, string cwd,
-        string? instanceEnv, string? projectDirEnv)
+        string? instanceEnv, string? projectDirEnv, string callId)
     {
         using HttpRequestMessage request = new(HttpMethod.Post, "/cli");
+        request.Headers.TryAddWithoutValidation(RefusedConnectionRetry.CallIdHeader, callId);
         request.Headers.TryAddWithoutValidation("Claude-Project-Dir", string.IsNullOrWhiteSpace(projectDirEnv) ? cwd : projectDirEnv);
         if (!string.IsNullOrWhiteSpace(instanceEnv)) request.Headers.TryAddWithoutValidation("Grimora-Instance", instanceEnv);
         request.Content = new StringContent(JsonSerializer.Serialize(new { args, cwd }), Encoding.UTF8, "application/json");
-        return client.Send(request);
+        // Headers only: a failure after the answer began is outside the retry, so it is never resent.
+        return client.Send(request, HttpCompletionOption.ResponseHeadersRead);
     }
 
     private static string FirstLine(string text)

@@ -68,7 +68,8 @@ public sealed class ConnectionAcceptedAtStopTests : IDisposable
             // The service is gone once its single-instance lock is free.
             using (FileStream? held = WaitForFreeLock()) Assert.NotNull(held);
             string rec = File.Exists(Path.Combine(_dataDir, CleanExitRecord.FileName)) ? File.ReadAllText(Path.Combine(_dataDir, CleanExitRecord.FileName)) : "none";
-            Assert.True(CleanExitRecord.Covers(_dataDir, sentAt), $"the service exited without a clean-exit record covering the dropped call (record: {rec}, sent {sentAt.Ticks})");
+            Assert.True(CleanExitRecord.Judge(CleanExitRecord.Read(_dataDir), sentAt, "an-id-the-service-never-read") == LostCallVerdict.NeverRan,
+                $"the service exited without a clean-exit record proving the dropped call never ran (record: {rec}, sent {sentAt.Ticks})");
         }
     }
 
@@ -82,5 +83,16 @@ public sealed class ConnectionAcceptedAtStopTests : IDisposable
             Thread.Sleep(50);
         }
         return null;
+    }
+
+    [Fact]
+    public void ARecordFromAnEarlierRunIsRemovedWhenTheServiceStarts()
+    {
+        DateTime earlier = DateTime.UtcNow.AddMinutes(-5);
+        new CleanExitRecord(earlier, earlier.AddMinutes(1), Clean: true, Wrapped: false, earlier, []).Write(_dataDir);
+
+        using RunningServer server = RunningServer.Start(_dataDir);
+
+        Assert.False(File.Exists(Path.Combine(_dataDir, CleanExitRecord.FileName)), "the running service kept an earlier run's exit record");
     }
 }

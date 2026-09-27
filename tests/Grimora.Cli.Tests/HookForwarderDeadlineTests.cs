@@ -45,6 +45,29 @@ public class HookForwarderDeadlineTests
         }
     }
 
+    [Fact]
+    public void AHookWhoseServiceIsGoneButStillHoldsItsLockEndsAtItsDeadline()
+    {
+        string dataDir = Directory.CreateTempSubdirectory("grimora-hook-stalled-").FullName;
+        // The old service: nothing listens any more, but server.lock stays held; the start of a new one stalls.
+        FileStream held = new(Path.Combine(dataDir, "server.lock"), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+        try
+        {
+            TimeSpan deadline = TimeSpan.FromSeconds(1);
+            Stopwatch sw = Stopwatch.StartNew();
+
+            string output = HookForwarder.Forward("SessionEnd", "{}", dataDir, null, deadline, () => { Thread.Sleep(TimeSpan.FromSeconds(15)); return false; });
+
+            Assert.Equal("", output);
+            Assert.True(sw.Elapsed < deadline + TimeSpan.FromSeconds(2), $"the hook took {sw.ElapsedMilliseconds} ms against a 1 s deadline");
+        }
+        finally
+        {
+            held.Dispose();
+            Directory.Delete(dataDir, recursive: true);
+        }
+    }
+
     private static async Task AcceptForeverOnNamedPipeAsync(string dataDir, CancellationToken cancellationToken)
     {
         try

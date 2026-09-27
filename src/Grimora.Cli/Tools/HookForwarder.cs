@@ -40,9 +40,12 @@ public static class HookForwarder
             using CancellationTokenSource deadlineSource = new(deadline);
             // No client timeout: the deadline token below covers the whole call.
             using HttpClient client = PipeConnection.CreateClient(dataDir, deadline < ConnectTimeout ? deadline : ConnectTimeout, Timeout.InfiniteTimeSpan);
+            // All waits share the hook's deadline; the whole flow is also bounded by it below.
+            LostCallGuard guard = new(dataDir, deadline);
             HttpRequestMessage NewRequest()
             {
                 HttpRequestMessage request = new(HttpMethod.Post, $"/hooks/{Uri.EscapeDataString(eventName)}");
+                request.Headers.TryAddWithoutValidation(RefusedConnectionRetry.CallIdHeader, guard.CallId);
                 if (!string.IsNullOrWhiteSpace(projectDirEnv)) request.Headers.TryAddWithoutValidation("Claude-Project-Dir", projectDirEnv);
                 request.Content = new StringContent(payload, Encoding.UTF8, "application/json");
                 return request;
@@ -51,21 +54,28 @@ public static class HookForwarder
             HttpResponseMessage Send()
             {
                 using HttpRequestMessage request = NewRequest();
-                return client.Send(request, deadlineSource.Token);
+                return client.Send(request, HttpCompletionOption.ResponseHeadersRead, deadlineSource.Token);
             }
 
             // Nobody home: start the service (silently, bounded) and send the payload again, up to 3 times
             // (RefusedConnectionRetry). With no ensureServer the hook is sent once.
-            HttpResponseMessage? response;
-            if (ensureServer is null) response = Send();
-            else if (!RefusedConnectionRetry.TrySend(Send, ensureServer, out response, RefusedConnectionRetry.LostCallNeverRan(dataDir),
-                RefusedConnectionRetry.PriorServiceGone(dataDir))) return "";
-
-            using (response)
+            string Flow()
             {
-                if (response!.StatusCode != HttpStatusCode.OK) return "";
-                return response.Content.ReadAsStringAsync(deadlineSource.Token).GetAwaiter().GetResult();
+                HttpResponseMessage? response;
+                if (ensureServer is null) response = Send();
+                else if (!RefusedConnectionRetry.TrySend(Send, ensureServer, out response, guard)) return "";
+
+                using (response)
+                {
+                    if (response!.StatusCode != HttpStatusCode.OK) return "";
+                    return response.Content.ReadAsStringAsync(deadlineSource.Token).GetAwaiter().GetResult();
+                }
             }
+
+            // The start of a new service and the waits for the old one do not take the token, so the whole flow runs
+            // on its own task and the hook ends at its deadline whatever it is waiting on.
+            Task<string> flow = Task.Run(Flow);
+            return flow.Wait(deadline) ? flow.Result : "";
         }
         catch
         {

@@ -26,6 +26,8 @@ if (instanceLock is null)
     return;
 }
 
+// A record left by an earlier run must never be read as this run's (CleanExitRecord).
+CleanExitRecord.DeleteStale(dataDir);
 DateTime startedAt = DateTime.UtcNow;
 string version = Assembly.GetExecutingAssembly().GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
     ?? Assembly.GetExecutingAssembly().GetName().Version?.ToString()
@@ -84,7 +86,9 @@ if (tcpConfigured.Length > 0)
 }
 // RESTRUCTURE.md "Slice 32b": a stop (POST /shutdown, Ctrl+C, a logoff) lets every call in flight finish.
 // The longest call the server takes is a long /cli verb, so the drain waits that long, never the 30 s default.
-builder.Services.Configure<HostOptions>(options => options.ShutdownTimeout = CliEndpoint.LongTimeout);
+// The host's own limit sits 30 s beyond it, so a drain that ran past LongTimeout is seen as such (not clean) before
+// the host cuts the calls off.
+builder.Services.Configure<HostOptions>(options => options.ShutdownTimeout = CliEndpoint.LongTimeout + TimeSpan.FromSeconds(30));
 
 // The one open store per project (RESTRUCTURE.md "Slice 26") and the accessor every store-backed tool
 // uses to resolve which project a request belongs to. Both are constructed here, not resolved from the
@@ -111,24 +115,27 @@ IdleExit idleExit = new(idleTime, () => app.Lifetime.StopApplication());
 // Stopped, not Stopping: Stopping fires before Kestrel drains, so a call still in flight would lose its store
 // (RESTRUCTURE.md slice 32b: the old server finishes its calls in flight, then exits). A /cli verb that outlived
 // its timeout runs on its own thread with no request behind it, so the drain waits for it too.
-// A clean stop (every call drained, none cut off by the shutdown timeout) leaves CleanExitRecord before the
-// process frees server.lock: a call whose connection the stop closed unread then provably never ran, so the
-// client resends it (RefusedConnectionRetry).
+// Every stop leaves CleanExitRecord before the process frees server.lock: the ids of the calls this run started
+// and whether it drained them within LongTimeout. A call whose connection the stop closed unread then provably never
+// ran, so the client resends it (RefusedConnectionRetry); any other lost call is reported, never repeated.
+CallRing startedCalls = new();
 System.Diagnostics.Stopwatch stopClock = new();
 app.Lifetime.ApplicationStopping.Register(stopClock.Start);
 app.Lifetime.ApplicationStopped.Register(() =>
 {
-    bool drained = idleExit.WaitForDrain(CliEndpoint.LongTimeout);
+    TimeSpan left = CliEndpoint.LongTimeout - stopClock.Elapsed;
+    bool clean = left > TimeSpan.Zero && idleExit.WaitForDrain(left);
     projectStore.Dispose();
-    if (drained && stopClock.Elapsed < CliEndpoint.LongTimeout)
-    {
-        try { CleanExitRecord.Write(dataDir, startedAt, DateTime.UtcNow); }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { /* no record: a lost call is not resent */ }
-    }
+    (IReadOnlyList<string> ids, bool wrapped, DateTime oldestKept) = startedCalls.Snapshot();
+    try { new CleanExitRecord(startedAt, DateTime.UtcNow, clean, wrapped, oldestKept, ids).Write(dataDir); }
+    catch (Exception e) when (e is IOException or UnauthorizedAccessException) { /* no record: a lost call is not resent */ }
 });
 app.Use(async (context, next) =>
 {
     if (context.Request.Path == "/health") { await next(context); return; }
+    // Recorded before any work, so a call that may have run is always in the ring (CleanExitRecord).
+    string? callId = context.Request.Headers["X-Grimora-Call"];
+    if (!string.IsNullOrEmpty(callId)) startedCalls.Record(callId);
     using (idleExit.Begin()) await next(context);
 });
 TimeSpan idleCheckInterval = TimeSpan.FromSeconds(1) < idleTime / 4 ? TimeSpan.FromSeconds(1) : idleTime / 4;

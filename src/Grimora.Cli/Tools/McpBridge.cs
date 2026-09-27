@@ -39,13 +39,11 @@ public static class McpBridge
     {
         using HttpClient client = PipeConnection.CreateClient(dataDir, ThinClient.ConnectTimeout, RequestTimeout);
         string projectDir = string.IsNullOrWhiteSpace(projectDirEnv) ? cwd : projectDirEnv;
-        Func<DateTime, bool> lostCallNeverRan = RefusedConnectionRetry.LostCallNeverRan(dataDir);
-        Func<bool> priorServiceGone = RefusedConnectionRetry.PriorServiceGone(dataDir);
 
         List<Tool> tools;
         try
         {
-            tools = FetchTools(client, ensureServer, lostCallNeverRan, priorServiceGone, out string? failure);
+            tools = FetchTools(client, dataDir, ensureServer, out string? failure);
             if (failure is not null)
             {
                 string why = File.Exists(serverExe)
@@ -71,7 +69,7 @@ public static class McpBridge
                 CallToolHandler = async (context, cancellationToken) =>
                 {
                     string name = context.Params?.Name ?? "";
-                    return await CallAsync(client, ensureServer, lostCallNeverRan, priorServiceGone, name, context.Params?.Arguments, projectDir, instanceEnv, cancellationToken);
+                    return await CallAsync(client, dataDir, ensureServer, name, context.Params?.Arguments, projectDir, instanceEnv, cancellationToken);
                 },
             },
         };
@@ -96,16 +94,26 @@ public static class McpBridge
     }
 
     /// <summary>The service's tool list; <paramref name="failure"/> is set when it never answered, even after a start.</summary>
-    private static List<Tool> FetchTools(HttpClient client, Func<bool> ensureServer, Func<DateTime, bool> lostCallNeverRan, Func<bool> priorServiceGone, out string? failure)
+    private static List<Tool> FetchTools(HttpClient client, string dataDir, Func<bool> ensureServer, out string? failure)
     {
         failure = null;
-        if (!RefusedConnectionRetry.TrySend(() => client.GetStringAsync("/tools").GetAwaiter().GetResult(), ensureServer, out string? body, lostCallNeverRan, priorServiceGone))
+        LostCallGuard guard = new(dataDir, RefusedConnectionRetry.DefaultWaitBudget);
+        HttpResponseMessage List()
+        {
+            using HttpRequestMessage request = new(HttpMethod.Get, "/tools");
+            request.Headers.TryAddWithoutValidation(RefusedConnectionRetry.CallIdHeader, guard.CallId);
+            return client.Send(request, HttpCompletionOption.ResponseHeadersRead);
+        }
+        if (!RefusedConnectionRetry.TrySend(List, ensureServer, out HttpResponseMessage? response, guard))
         {
             failure = "unreachable";
             return [];
         }
 
-        using JsonDocument doc = JsonDocument.Parse(body!);
+        string body;
+        using (response) body = response!.EnsureSuccessStatusCode().Content.ReadAsStringAsync().GetAwaiter().GetResult();
+
+        using JsonDocument doc = JsonDocument.Parse(body);
         return [.. doc.RootElement.EnumerateArray().Select(t => new Tool
         {
             Name = t.GetProperty("name").GetString()!,
@@ -114,16 +122,17 @@ public static class McpBridge
         })];
     }
 
-    private static async Task<CallToolResult> CallAsync(HttpClient client, Func<bool> ensureServer, Func<DateTime, bool> lostCallNeverRan, Func<bool> priorServiceGone, string name,
+    private static async Task<CallToolResult> CallAsync(HttpClient client, string dataDir, Func<bool> ensureServer, string name,
         IDictionary<string, JsonElement>? arguments, string projectDir, string? instanceEnv, CancellationToken cancellationToken)
     {
         try
         {
             // The service went away since the last call (an idle exit, a hand-over): start it and resend, up to
             // 3 times (RefusedConnectionRetry). A refused connection is resent; any later failure only when the
-            // service proved it never ran the tool (its clean-exit record covers the call).
+            // exiting service proved it never started the tool (its clean-exit record, by call id).
+            LostCallGuard guard = new(dataDir, RefusedConnectionRetry.DefaultWaitBudget);
             (bool reached, HttpResponseMessage? response) = await RefusedConnectionRetry.TrySendAsync(
-                () => SendAsync(client, name, arguments, projectDir, instanceEnv, cancellationToken), ensureServer, cancellationToken, lostCallNeverRan, priorServiceGone);
+                () => SendAsync(client, name, arguments, projectDir, instanceEnv, guard.CallId, cancellationToken), ensureServer, cancellationToken, guard);
             if (!reached) return Error("the grimora server is not running and could not be started");
 
             using (response)
@@ -145,13 +154,14 @@ public static class McpBridge
     }
 
     private static Task<HttpResponseMessage> SendAsync(HttpClient client, string name, IDictionary<string, JsonElement>? arguments,
-        string projectDir, string? instanceEnv, CancellationToken cancellationToken)
+        string projectDir, string? instanceEnv, string callId, CancellationToken cancellationToken)
     {
         HttpRequestMessage request = new(HttpMethod.Post, $"/tools/{Uri.EscapeDataString(name)}");
+        request.Headers.TryAddWithoutValidation(RefusedConnectionRetry.CallIdHeader, callId);
         request.Headers.TryAddWithoutValidation("Claude-Project-Dir", projectDir);
         if (!string.IsNullOrWhiteSpace(instanceEnv)) request.Headers.TryAddWithoutValidation("Grimora-Instance", instanceEnv);
         request.Content = new StringContent(JsonSerializer.Serialize(arguments ?? new Dictionary<string, JsonElement>()), Encoding.UTF8, "application/json");
-        return client.SendAsync(request, cancellationToken);
+        return client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
     }
 
     private static CallToolResult Error(string message) =>
