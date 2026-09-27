@@ -276,7 +276,11 @@ void PointCurrent(string link, string target)
     }
 
     Directory.CreateSymbolicLink(next, target);
-    File.Move(next, link, true); // atomic replace
+    // File.Move cannot do this: .NET follows the link, sees a directory and refuses. rename(2) replaces atomically.
+    if (Native.rename(next, link) != 0)
+    {
+        throw new IOException($"rename {next} to {link} failed (errno {System.Runtime.InteropServices.Marshal.GetLastPInvokeError()})");
+    }
 }
 
 void RemoveOldBuilds(string buildsDir, string?[] keep)
@@ -360,4 +364,10 @@ string? ReadStamp(string binDir)
 {
     string file = Path.Combine(binDir, "build-stamp.txt");
     return File.Exists(file) ? File.ReadAllText(file).Trim() : null;
+}
+
+static class Native
+{
+    [System.Runtime.InteropServices.DllImport("libc", SetLastError = true)]
+    internal static extern int rename(string oldPath, string newPath);
 }
