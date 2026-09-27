@@ -26,7 +26,7 @@ public static class OldVsNewCli
     private static readonly string RepoRoot = FindRepoRoot();
     private static readonly string SnapshotDir =
         Path.Combine(Path.GetTempPath(), "aitm-slice24-oracle-" + OracleCommit[..12]);
-    private static readonly object BuildLock = new();
+    private static readonly Lock BuildLock = new();
 
     public readonly record struct Result(string Stdout, string Stderr, int ExitCode);
 

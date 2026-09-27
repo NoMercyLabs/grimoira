@@ -298,14 +298,12 @@ public partial class BrainWriteCliParityTests
         string dir = MakeTempDir("aitm-slice24-learnbatch-fixture");
         string file = Path.Combine(dir, "batch.txt");
         File.WriteAllText(file, string.Join('\n',
-        [
             "node | p4b:batch-a | fact | a batch label | a batch gloss | 0 | test",
             "node | p4b:batch-b | fact | another batch label | | 0 |",
             "triple | p4b:batch-a | related | p4b:batch-b | a batch reason",
             "slot | p4b:batch-a | name | value | text | 0",
             "# a comment line",
-            "malformed line with no pipes",
-        ]) + "\n");
+            "malformed line with no pipes") + "\n");
         try
         {
             AssertParityAndRows(["init"], $"brain learn-batch --from \"{file}\"",

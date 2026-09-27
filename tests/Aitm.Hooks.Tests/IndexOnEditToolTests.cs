@@ -221,6 +221,7 @@ public class IndexOnEditToolTests
             finally
             {
                 lockTx.Rollback();
+                // ReSharper disable once DisposeOnUsingVariable (the lock must be released before the elapsed time is read)
                 locker.Dispose();
             }
             TimeSpan elapsed = DateTime.UtcNow - start;

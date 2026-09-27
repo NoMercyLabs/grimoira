@@ -43,11 +43,11 @@ public sealed partial class HttpSnapshotParityTests
     // '<tool>'."). A fresh ephemeral port per test, the same FreePort() convention already used by
     // ThinClientAgainstTheRunningServerTests, HookVerbAgainstTheRunningServerTests and
     // BinCliThinClientMatchesBinCliOldTests, removes the collision instead of widening a timeout around it.
-    private readonly string Port = FreePort().ToString();
+    private readonly string _port = FreePort().ToString();
     private readonly string _allowedHost;
     private static readonly string RepoRoot = FindRoot();
 
-    public HttpSnapshotParityTests() => _allowedHost = $"127.0.0.1:{Port}";
+    public HttpSnapshotParityTests() => _allowedHost = $"127.0.0.1:{_port}";
 
     private static int FreePort()
     {
@@ -104,7 +104,7 @@ public sealed partial class HttpSnapshotParityTests
                 McpProcess.Run(oldDll, oldInstance, [(toolName, normalArgs), (toolName, errorArgs)]);
 
             Environment.SetEnvironmentVariable("AITM_DATA_DIR", newDataDir);
-            Environment.SetEnvironmentVariable("AITM_SERVER_PORT", Port);
+            Environment.SetEnvironmentVariable("AITM_SERVER_PORT", _port);
             using WebApplicationFactory<Program> factory = new();
             using HttpClient httpClient = factory.CreateClient(
                 new WebApplicationFactoryClientOptions { BaseAddress = new Uri($"http://{_allowedHost}") });
@@ -250,7 +250,7 @@ public sealed partial class HttpSnapshotParityTests
             new { kind = "not-a-kind", key = "x", a = "", b = "", c = "", because = "", hard = false });
 
         yield return Case("brain_flush",
-            c => new BrainStageTool().ExecuteMcp(c, "node", "parity-flush-node", "concept", "Parity Flush Label", "", "", false),
+            c => new BrainStageTool().ExecuteMcp(c, "node", "parity-flush-node", "concept", "Parity Flush Label"),
             new { }, new { });
 
         yield return CaseNoShape("idp_token",

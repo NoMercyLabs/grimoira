@@ -125,7 +125,7 @@ public static class AitmCliRunner
     private const uint Utf8CodePage = 65001;
 
     [DllImport("kernel32.dll", SetLastError = true)]
-    private static extern bool SetConsoleOutputCP(uint wCodePageID);
+    private static extern bool SetConsoleOutputCP(uint wCodePageId);
 
     private static string FindAitmDll()
     {

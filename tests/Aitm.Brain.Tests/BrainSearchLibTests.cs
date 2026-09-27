@@ -68,7 +68,7 @@ public class BrainSearchLibTests
                 "the player is body-level at z-1199 so overlays must teleport too");
 
             List<string> tokens = BrainSearchLib.Tokenize("teleport overlay fullscreen player");
-            List<BrainSearchLib.SearchHit> picks = BrainSearchLib.Search(c, tokens, 5);
+            List<BrainSearchLib.SearchHit> picks = BrainSearchLib.Search(c, tokens);
 
             Assert.True(picks.Count > 0);
             Assert.Contains("teleport", picks[0].Head, StringComparison.OrdinalIgnoreCase);
@@ -86,7 +86,7 @@ public class BrainSearchLibTests
         {
             InsertChat(c, "c1", "we decided the encoder must stream copy when the codec already matches the target");
             List<BrainSearchLib.SearchHit> picks = BrainSearchLib.Search(c,
-                BrainSearchLib.Tokenize("encoder stream copy codec matches target"), 5);
+                BrainSearchLib.Tokenize("encoder stream copy codec matches target"));
             Assert.Contains(picks, p => p.KindTag == "chat");
         }
         finally { c.Dispose(); AitmCliRunner.DeleteInstance(instance); }
@@ -100,11 +100,11 @@ public class BrainSearchLibTests
         try
         {
             InsertEdge(c, "aChromeCanTakeOverAndTheTrackerStandsDown", "p", "/x/a.kt", 1, "kotlin declaration");
-            List<BrainSearchLib.SearchHit> standPicks = BrainSearchLib.Search(c, BrainSearchLib.Tokenize("what does aitm stand for"), 5);
+            List<BrainSearchLib.SearchHit> standPicks = BrainSearchLib.Search(c, BrainSearchLib.Tokenize("what does aitm stand for"));
             Assert.DoesNotContain(standPicks, p => p.KindTag == "code");
 
             InsertEdge(c, "VideoPlaylistItem", "video-player", "/x/types.ts", 65, "ts declaration");
-            List<BrainSearchLib.SearchHit> symPicks = BrainSearchLib.Search(c, BrainSearchLib.Tokenize("VideoPlaylistItem"), 5);
+            List<BrainSearchLib.SearchHit> symPicks = BrainSearchLib.Search(c, BrainSearchLib.Tokenize("VideoPlaylistItem"));
             Assert.Contains(symPicks, p => p.KindTag == "code");
         }
         finally { c.Dispose(); AitmCliRunner.DeleteInstance(instance); }
@@ -119,11 +119,11 @@ public class BrainSearchLibTests
         {
             InsertMemory(c, "smartcopy", "Encoder must stream-copy when the source matches the target",
                 "wired via PlanStage.ApplySmartCopyDowngrade into StreamActionResolver");
-            List<BrainSearchLib.SearchHit> hist = BrainSearchLib.HistoryFor(c, "c:/repo/src/Pipeline/Stages/PlanStage.cs", 4);
+            List<BrainSearchLib.SearchHit> hist = BrainSearchLib.HistoryFor(c, "c:/repo/src/Pipeline/Stages/PlanStage.cs");
             Assert.Contains(hist, h => (h.Head + h.Body).Contains("stream-copy", StringComparison.OrdinalIgnoreCase));
 
             InsertMemory(c, "desktopfiles", "Never write files to the owner's Desktop", "unrelated to any view");
-            List<BrainSearchLib.SearchHit> deskHist = BrainSearchLib.HistoryFor(c, "c:/repo/src/views/Watch/Desktop.vue", 4);
+            List<BrainSearchLib.SearchHit> deskHist = BrainSearchLib.HistoryFor(c, "c:/repo/src/views/Watch/Desktop.vue");
             Assert.DoesNotContain(deskHist, h => h.Head.Contains("Never write files", StringComparison.OrdinalIgnoreCase));
         }
         finally { c.Dispose(); AitmCliRunner.DeleteInstance(instance); }
@@ -140,7 +140,7 @@ public class BrainSearchLibTests
             InsertEdge(c, "AudioTrackState", "music-player", "/repo/music/types.ts", 12, "ts declaration");
             InsertEdge(c, "LocalOnly", "video-player", "/repo/video/types.ts", 20, "ts declaration");
 
-            List<BrainGraphLib.BlastRow> blast = BrainGraphLib.BlastRadius(c, "/repo/video/types.ts", 5);
+            List<BrainGraphLib.BlastRow> blast = BrainGraphLib.BlastRadius(c, "/repo/video/types.ts");
             Assert.Contains(blast, b => b is { Symbol: "AudioTrackState", Projects: > 1 });
             Assert.DoesNotContain(blast, b => b.Symbol == "LocalOnly");
         }

@@ -28,7 +28,7 @@ public class BrainStaleToolTests
             BrainTestFixtures.InsertNode(newDb, "concept:fresh", "concept", "Fresh", "just learned");
 
             using SqliteConnection connection = StoreConnection.Open(newDb);
-            string actual = new BrainStaleTool().Execute(connection, 30).Trim();
+            string actual = new BrainStaleTool().Execute(connection).Trim();
 
             Assert.Equal(expected, actual);
             Assert.Contains("0 node(s) older than 30d", actual);

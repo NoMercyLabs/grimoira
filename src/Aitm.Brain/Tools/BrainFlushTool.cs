@@ -84,7 +84,7 @@ public sealed class BrainFlushTool : ITool
                 {
                     "node" => _learn.ExecuteMcp(connection, "node", JStr(e, "key"), JStr(e, "kind"), JStr(e, "label"), JStr(e, "gloss"), "", JBool(e, "hard")),
                     "triple" => _learn.ExecuteMcp(connection, "triple", JStr(e, "s"), JStr(e, "p"), JStr(e, "o"), "", JStr(e, "because"), JBool(e, "hard")),
-                    "slot" => _learn.ExecuteMcp(connection, "slot", JStr(e, "frame"), JStr(e, "name"), JStr(e, "value"), "", JStr(e, "because"), false),
+                    "slot" => _learn.ExecuteMcp(connection, "slot", JStr(e, "frame"), JStr(e, "name"), JStr(e, "value"), "", JStr(e, "because")),
                     _ => "skip (unknown kind).",
                 };
                 bool rejected = res.StartsWith("rejected", StringComparison.Ordinal) || res.StartsWith("unknown", StringComparison.Ordinal) || res.StartsWith("skip", StringComparison.Ordinal);

@@ -43,12 +43,12 @@ public static class CliDispatch
     private sealed class Dispatcher(string[] a, string cwd, TextWriter stdout, TextWriter stderr,
         string? fixedInstance, string? dataDir, SqliteConnection? shared)
     {
-        private string instance = "";
-        private string root = "";
-        private string dbPath = "";
-        private SqliteConnection db = null!;
+        private string _instance = "";
+        private string _root = "";
+        private string _dbPath = "";
+        private SqliteConnection _db = null!;
 
-        private readonly HashSet<string> stop = new(StringComparer.OrdinalIgnoreCase)
+        private readonly HashSet<string> _stop = new(StringComparer.OrdinalIgnoreCase)
         {
             "the", "is", "a", "an", "of", "to", "in", "on", "for", "and", "or", "what", "how", "are", "does",
             "do", "it", "its", "be", "this", "that", "with", "as", "at", "by", "my", "i", "you", "we", "there",
@@ -58,16 +58,16 @@ public static class CliDispatch
         public int Dispatch()
         {
             string cmd = a.Length > 0 ? a[0] : "help";
-            instance = fixedInstance ?? GetFlag("--instance") ?? ResolveInstance();
-            root = Path.Combine(dataDir ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".aitm"), instance);
-            Directory.CreateDirectory(root);
-            dbPath = Path.Combine(root, "aitm.db");
+            _instance = fixedInstance ?? GetFlag("--instance") ?? ResolveInstance();
+            _root = Path.Combine(dataDir ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".aitm"), _instance);
+            Directory.CreateDirectory(_root);
+            _dbPath = Path.Combine(_root, "aitm.db");
 
             // The server passes the project's open connection (pragmas already applied by StoreConnection.Open);
             // it is the gate's, so it is not disposed here. The CLI opens and owns its own, as before.
-            using SqliteConnection? owned = shared is null ? new($"Data Source={dbPath};Foreign Keys=True") : null;
-            db = shared ?? owned!;
-            if (owned is not null) db.Open();
+            using SqliteConnection? owned = shared is null ? new($"Data Source={_dbPath};Foreign Keys=True") : null;
+            _db = shared ?? owned!;
+            if (owned is not null) _db.Open();
             // SQLite serialises writers, and Init/InitBrain below are DDL, so even `query` takes the write lock.
             // Without a busy timeout a momentary writer (session indexer, MCP server, a second CLI) makes the
             // command throw SQLITE_BUSY and the process hard-crash, so callers read the store as broken and fall
@@ -97,262 +97,262 @@ public static class CliDispatch
 
             try
             {
-            switch (cmd)
-            {
-                case "init":
-                    stdout.WriteLine(new InitTool().Execute(instance, dbPath));
-                    break;
-                case "import":
-                    stdout.WriteLine(new ImportTool().Execute(db,
-                        GetFlag("--from") ?? throw new ArgumentException("import needs --from <sqlite path>"), dbPath));
-                    break;
-                case "query":
-                    stdout.WriteLine(new QueryTool(new UsageSignal()).ExecuteCli(db, string.Join(' ', Positionals().Skip(1))));
-                    break;
-                case "index-chat":
-                    stdout.WriteLine(new IndexChatTool().Execute(db,
-                        GetFlag("--from") ?? throw new ArgumentException("index-chat needs --from <session.jsonl | transcript dir>")));
-                    break;
-                case "index-packages":
-                    // --from is what every other index-* command takes; accepting only --root here silently
-                    // indexed the current directory instead of the one that was asked for.
-                    stdout.WriteLine(new IndexPackagesTool().Execute(db, GetFlag("--root") ?? GetFlag("--from") ?? cwd));
-                    break;
-                case "index-docs":
-                    stdout.WriteLine(new IndexDocsTool().Execute(db,
-                        GetFlag("--from") ?? throw new ArgumentException("index-docs needs --from <dir|file.md>"), GetFlag("--category") ?? "doc"));
-                    break;
-                case "doc":
-                    stdout.WriteLine(new DocTool().ExecuteCli(db, string.Join(' ', Positionals().Skip(1))));
-                    break;
-                case "index-memory":
-                    stdout.WriteLine(new IndexMemoryTool().Execute(db,
-                        GetFlag("--from") ?? throw new ArgumentException("index-memory needs --from <memory dir>")));
-                    break;
-                case "mem":
-                    stdout.WriteLine(new MemTool(new UsageSignal()).ExecuteCli(db, string.Join(' ', Positionals().Skip(1)), a.Contains("--hard")));
-                    break;
-                case "brain":
-                    BrainCmd([.. Positionals().Skip(1)]);
-                    break;
-                case "shed-doc":
-                    stdout.WriteLine(new ShedDocTool().Execute(db, GetFlag("--path") ?? throw new ArgumentException("shed-doc needs --path <substring>")));
-                    break;
-                case "shed-synthesis":
-                    stdout.WriteLine(new ShedSynthesisTool().Execute(db, GetFlag("--path") ?? throw new ArgumentException("shed-synthesis needs --path <source dir>")));
-                    break;
-                case "add-synthesis":
-                    stdout.WriteLine(new AddSynthesisTool().Execute(db,
-                        GetFlag("--path") ?? throw new ArgumentException("add-synthesis needs --path <source dir>"),
-                        GetFlag("--from") ?? throw new ArgumentException("add-synthesis needs --from <file>"),
-                        GetFlag("--title") ?? "",
-                        GetFlag("--sources") ?? ""));
-                    break;
-                case "shed-memory":
-                    stdout.WriteLine(new ShedMemoryTool().ExecuteCli(db, GetFlag("--key") ?? throw new ArgumentException("shed-memory needs --key <slug>")));
-                    break;
-                case "shed-fact":
-                    stdout.WriteLine(new ShedFactTool().Execute(db, GetFlag("--key") ?? throw new ArgumentException("shed-fact needs --key <term>")));
-                    break;
-                case "recompact-docs":
-                    stdout.WriteLine(new RecompactDocsTool().Execute(db));
-                    break;
-                case "recall":
-                    stdout.WriteLine(new RecallTool().ExecuteCli(db, string.Join(' ', Positionals().Skip(1))));
-                    break;
-                case "redact-chat":
-                    stdout.WriteLine(new RedactChatTool().Execute(db, root, a.Contains("--dry-run")));
-                    break;
-                case "eval":
-                    stdout.WriteLine(new EvalTool().ExecuteCli(db));
-                    break;
-                case "add":
+                switch (cmd)
                 {
-                    string term = GetFlag("--term") ?? throw new ArgumentException("add needs --term");
-                    string prov = (GetFlag("--provenance") ?? "unverified").ToLowerInvariant();
-                    stdout.WriteLine(new AddTool().Execute(db, term, GetFlag("--aliases") ?? "[]", GetFlag("--category") ?? "manual",
-                        GetFlag("--value") ?? "", GetFlag("--source") ?? "", GetFlag("--notes") ?? "", prov, GetFlag("--why") ?? "manual"));
-                    break;
-                }
-                case "history":
-                    stdout.WriteLine(new HistoryTool().ExecuteCli(db, string.Join(' ', Positionals().Skip(1))));
-                    break;
-                case "seed-edges":
-                {
-                    string seedPath = GetFlag("--from") ?? PluginFileLocator.SeedPath();
-                    // SeedEdgesTool.Execute returns the same "no spine file at ..." text the old inline SeedEdges
-                    // wrote to stderr, so the missing-file case has to be checked here to keep it on stderr.
-                    if (!File.Exists(seedPath)) { stderr.WriteLine($"no spine file at {Path.GetFullPath(seedPath)}"); break; }
-                    stdout.WriteLine(new SeedEdgesTool().Execute(db, seedPath));
-                    break;
-                }
-                case "spine-export":
-                    stdout.WriteLine(new SpineExportTool().ExecuteCli(db,
-                        GetFlag("--to") ?? PluginFileLocator.SeedPath()));
-                    break;
-                // Same gap forget-project had: the graph could gain a node but never lose one, so anything indexed
-                // by mistake or moved out of scope stayed live forever. Retires on the timeline rather than
-                // deleting, because "indexed once, now out of scope" is a different fact from "never existed".
-                case "shed-node":
-                {
-                    string nk = GetFlag("--key") ?? throw new ArgumentException("shed-node needs --key");
-                    stdout.WriteLine(new ShedNodeTool().Execute(db, root, nk));
-                    break;
-                }
-                case "spine-import":
-                {
-                    string spineImportFrom = GetFlag("--from") ?? throw new ArgumentException("spine-import needs --from <spine.json>");
-                    // SpineImportTool.ExecuteCli returns the same "no spine file at ..." text the old inline
-                    // SpineImport wrote to stderr, so the missing-file case has to be checked here to keep it on
-                    // stderr (same trap as seed-edges above).
-                    if (!File.Exists(spineImportFrom)) { stderr.WriteLine($"no spine file at {spineImportFrom}"); break; }
-                    stdout.WriteLine(new SpineImportTool().ExecuteCli(db, spineImportFrom, stderr));
-                    break;
-                }
-                case "project":
-                    stdout.WriteLine(new ProjectTool().Execute(db,
-                        GetFlag("--name") ?? throw new ArgumentException("project needs --name"),
-                        GetFlag("--root") ?? throw new ArgumentException("project needs --root"),
-                        GetFlag("--lang") ?? "", GetFlag("--globs") ?? "*.ts,*.tsx,*.vue,*.kt,*.cs"));
-                    break;
-                case "projects":
-                    stdout.WriteLine(new ProjectsTool().Execute(db));
-                    break;
-                // Registration without deregistration left roots that no longer exist on disk still answering
-                // questions with paths that are gone, which is worse than not knowing.
-                case "forget-project":
-                    stdout.WriteLine(new ForgetProjectTool().Execute(db, root,
-                        GetFlag("--name") ?? throw new ArgumentException("forget-project needs --name")));
-                    break;
-                case "extract-edges":
-                    stdout.WriteLine(new ExtractEdgesTool().Execute(db,
-                        GetFlag("--symbol") ?? throw new ArgumentException("extract-edges needs --symbol"), GetFlag("--contract") ?? ""));
-                    break;
-                case "candidates":
-                    stdout.WriteLine(new CandidatesTool().Execute(db, GetFlag("--symbol")));
-                    break;
-                case "promote":
-                    stdout.WriteLine(new PromoteTool().Execute(db, int.Parse(Pos1(), CultureInfo.InvariantCulture)));
-                    break;
-                case "promote-all":
-                    stdout.WriteLine(new PromoteAllTool().Execute(db, root,
-                        GetFlag("--symbol") ?? throw new ArgumentException("promote-all needs --symbol")));
-                    break;
-                case "impact":
-                    stdout.WriteLine(new ImpactTool().ExecuteCli(db, string.Join(' ', Positionals().Skip(1))));
-                    break;
-                case "graph-query":
-                    stdout.WriteLine(new GraphQueryTool().ExecuteCli(db, string.Join(' ', Positionals().Skip(1))));
-                    break;
-                case "graph-path":
-                {
-                    List<string> gp = [.. Positionals().Skip(1)];
-                    if (gp.Count < 2) { stdout.WriteLine("usage: aitm graph-path <A> <B>"); break; }
-                    stdout.WriteLine(new GraphPathTool().ExecuteCli(db, gp[0], gp[1]));
-                    break;
-                }
-                case "graph-explain":
-                    stdout.WriteLine(new GraphExplainTool().ExecuteCli(db, Pos1()));
-                    break;
-                case "todo":
-                    stdout.WriteLine(new TodoTool().Execute(db, GetFlag("--title") ?? Pos1(), GetFlag("--why") ?? ""));
-                    break;
-                case "todos":
-                    stdout.WriteLine(new TodosTool().Execute(db));
-                    break;
-                case "done":
-                    stdout.WriteLine(new DoneTool().Execute(db, int.Parse(Pos1(), CultureInfo.InvariantCulture)));
-                    break;
-                case "finding":
-                    stdout.WriteLine(new FindingTool().ExecuteCli(db, GetFlag("--title") ?? Pos1(), GetFlag("--detail") ?? "", GetFlag("--source") ?? ""));
-                    break;
-                case "findings":
-                    stdout.WriteLine(new FindingsTool().ExecuteCli(db));
-                    break;
-                case "resolve":
-                    stdout.WriteLine(new ResolveTool().Execute(db, int.Parse(Pos1(), CultureInfo.InvariantCulture)));
-                    break;
-                case "stats":
-                    stdout.WriteLine(a.Contains("--tokens")
-                        ? new StatsTool().ExecuteTokens(db, instance)
-                        : new StatsTool().Execute(db, instance, dbPath));
-                    break;
-                case "backup":
-                    stdout.WriteLine(new BackupTool().Execute(db, root, GetFlag("--to")));
-                    break;
-                case "loop":
-                    // Removed in phase 2 (RESTRUCTURE.md section 2.1, drop 4 of 4): loop only ever wrote
-                    // loop-state.json for loop-guard.mjs and session-continue.mjs, both dropped in the same
-                    // pass; the NoMercy task record's stop-check does this job now. start/tick/clear existed
-                    // only as loop's own sub-verbs, so this one message covers all three call shapes.
-                    stderr.WriteLine("error: removed in 0.4: aitm loop is gone; the NoMercy task record replaces it.\n");
-                    return 2;
-                case "stage":
-                    stdout.WriteLine(new BrainStageTool().ExecuteCli(db, Positionals().Skip(1).ToList(),
-                        GetFlag("--gloss") ?? "", GetFlag("--scheme") ?? "", GetFlag("--facet") ?? "text",
-                        GetFlag("--because") ?? "", a.Contains("--hard"), a.Contains("--multi")));
-                    break;
-                case "flush":
-                    stdout.WriteLine(new BrainFlushTool().ExecuteCli(db));
-                    break;
-                case "selftest":
-                    // Removed in phase 2 (RESTRUCTURE.md section 2.1, drop 3 of 4): all 63 checks now have a C#
-                    // test-project equivalent (SelfTestCoverageTests), so the inline TDD harness is gone.
-                    stderr.WriteLine("error: removed in 0.4: aitm selftest is gone; its 63 checks now live in the test projects.\n");
-                    return 2;
-                default:
-                    // One command per line so adding/removing a command is a one-line diff, not a rewrite of the whole string.
-                    string[] usage =
-                    [
-                        "init                                create/open the instance",
-                        "import --from <db>                  merge another aitm.db into this one",
-                        "add [--provenance stated|inferred]  add a fact (provenance: who established it)",
-                        "query <terms>                       look up a verified fact",
-                        "recall <terms>                      search past chat history",
-                        "index-chat --from <path>            ingest session transcript(s) into chat",
-                        "index-packages [--root <dir>]       index package.json identities",
-                        "index-docs --from <dir>             absorb AI-meta docs, chunked by section",
-                        "doc <terms>                         search absorbed docs",
-                        "shed-doc --path <s>                 drop absorbed doc sections by path",
-                        "add-synthesis --path <dir> --from <f>  file an answer distilled from a source set",
-                        "shed-memory --key <slug>            forget one memory by key",
-                        "shed-fact --key <term>             forget one fact by key (its term)",
-                        "index-memory --from <dir>           migrate MEMORY.md files into the memory channel",
-                        "mem <terms> | mem --hard            recall rules; --hard lists the always-on core",
-                        "eval                                run the retrieval eval set",
-                        "history <term>                      show the cold mutation log for an entity",
-                        "seed-edges                          sync the curated cross-project edge seed",
-                 "spine-export [--to <f>]             dump the curated spine to JSON",
-                 "spine-import --from <f>             load a curated spine from JSON",
-                 "shed-node --key <k>                 retire a node and its links",
-                        "project --name <n> --root <dir>     register a project root",
-                        "projects                            list registered projects",
-                 "forget-project --name <n>           unregister a project and drop its edges",
-                        "extract-edges --symbol <s>          grep edge candidates for a symbol",
-                        "candidates [--symbol <s>]           list edge candidates",
-                        "promote <id>                        promote one candidate into the graph",
-                        "promote-all --symbol <s>            authoritative replace of a symbol's edges",
-                        "impact <symbol>                     show consumers + contract sites of a symbol",
-                        "graph-query <question>              relevant symbols/files/docs for a question, 1-hop neighbors",
-                        "graph-path <A> <B>                  shortest code-graph path between two symbols/files (depth <=6)",
-                        "graph-explain <symbol>              what a symbol is, who uses it, docs/rules that mention it",
-                        "todo | todos | done <id>            manage todos",
-                        "finding | findings | resolve <id>   manage findings",
-                        "stats                               channel counts for the instance",
-                    ];
-                    string usageText = "aitm <command> [--instance <name>]\n\n" + string.Join("\n", usage);
-                    if (cmd is "help" or "--help" or "-h")
+                    case "init":
+                        stdout.WriteLine(new InitTool().Execute(_instance, _dbPath));
+                        break;
+                    case "import":
+                        stdout.WriteLine(new ImportTool().Execute(_db,
+                            GetFlag("--from") ?? throw new ArgumentException("import needs --from <sqlite path>"), _dbPath));
+                        break;
+                    case "query":
+                        stdout.WriteLine(new QueryTool(new UsageSignal()).ExecuteCli(_db, string.Join(' ', Positionals().Skip(1))));
+                        break;
+                    case "index-chat":
+                        stdout.WriteLine(new IndexChatTool().Execute(_db,
+                            GetFlag("--from") ?? throw new ArgumentException("index-chat needs --from <session.jsonl | transcript dir>")));
+                        break;
+                    case "index-packages":
+                        // --from is what every other index-* command takes; accepting only --_root here silently
+                        // indexed the current directory instead of the one that was asked for.
+                        stdout.WriteLine(new IndexPackagesTool().Execute(_db, GetFlag("--root") ?? GetFlag("--from") ?? cwd));
+                        break;
+                    case "index-docs":
+                        stdout.WriteLine(new IndexDocsTool().Execute(_db,
+                            GetFlag("--from") ?? throw new ArgumentException("index-docs needs --from <dir|file.md>"), GetFlag("--category") ?? "doc"));
+                        break;
+                    case "doc":
+                        stdout.WriteLine(new DocTool().ExecuteCli(_db, string.Join(' ', Positionals().Skip(1))));
+                        break;
+                    case "index-memory":
+                        stdout.WriteLine(new IndexMemoryTool().Execute(_db,
+                            GetFlag("--from") ?? throw new ArgumentException("index-memory needs --from <memory dir>")));
+                        break;
+                    case "mem":
+                        stdout.WriteLine(new MemTool(new UsageSignal()).ExecuteCli(_db, string.Join(' ', Positionals().Skip(1)), a.Contains("--hard")));
+                        break;
+                    case "brain":
+                        BrainCmd([.. Positionals().Skip(1)]);
+                        break;
+                    case "shed-doc":
+                        stdout.WriteLine(new ShedDocTool().Execute(_db, GetFlag("--path") ?? throw new ArgumentException("shed-doc needs --path <substring>")));
+                        break;
+                    case "shed-synthesis":
+                        stdout.WriteLine(new ShedSynthesisTool().Execute(_db, GetFlag("--path") ?? throw new ArgumentException("shed-synthesis needs --path <source dir>")));
+                        break;
+                    case "add-synthesis":
+                        stdout.WriteLine(new AddSynthesisTool().Execute(_db,
+                            GetFlag("--path") ?? throw new ArgumentException("add-synthesis needs --path <source dir>"),
+                            GetFlag("--from") ?? throw new ArgumentException("add-synthesis needs --from <file>"),
+                            GetFlag("--title") ?? "",
+                            GetFlag("--sources") ?? ""));
+                        break;
+                    case "shed-memory":
+                        stdout.WriteLine(new ShedMemoryTool().ExecuteCli(_db, GetFlag("--key") ?? throw new ArgumentException("shed-memory needs --key <slug>")));
+                        break;
+                    case "shed-fact":
+                        stdout.WriteLine(new ShedFactTool().Execute(_db, GetFlag("--key") ?? throw new ArgumentException("shed-fact needs --key <term>")));
+                        break;
+                    case "recompact-docs":
+                        stdout.WriteLine(new RecompactDocsTool().Execute(_db));
+                        break;
+                    case "recall":
+                        stdout.WriteLine(new RecallTool().ExecuteCli(_db, string.Join(' ', Positionals().Skip(1))));
+                        break;
+                    case "redact-chat":
+                        stdout.WriteLine(new RedactChatTool().Execute(_db, _root, a.Contains("--dry-run")));
+                        break;
+                    case "eval":
+                        stdout.WriteLine(new EvalTool().ExecuteCli(_db));
+                        break;
+                    case "add":
                     {
-                        stdout.WriteLine(usageText);
+                        string term = GetFlag("--term") ?? throw new ArgumentException("add needs --term");
+                        string prov = (GetFlag("--provenance") ?? "unverified").ToLowerInvariant();
+                        stdout.WriteLine(new AddTool().Execute(_db, term, GetFlag("--aliases") ?? "[]", GetFlag("--category") ?? "manual",
+                            GetFlag("--value") ?? "", GetFlag("--source") ?? "", GetFlag("--notes") ?? "", prov, GetFlag("--why") ?? "manual"));
                         break;
                     }
-                    // A caller that gets the help text back with exit 0 reads it as success while nothing ran.
-                    stderr.WriteLine(cmd.StartsWith("-")
-                        ? $"error: unknown command '{cmd}': the command comes first, flags go after the command.\n"
-                        : $"error: unknown command '{cmd}'.\n");
-                    stderr.WriteLine(usageText);
-                    return 2;
-            }
+                    case "history":
+                        stdout.WriteLine(new HistoryTool().ExecuteCli(_db, string.Join(' ', Positionals().Skip(1))));
+                        break;
+                    case "seed-edges":
+                    {
+                        string seedPath = GetFlag("--from") ?? PluginFileLocator.SeedPath();
+                        // SeedEdgesTool.Execute returns the same "no spine file at ..." text the old inline SeedEdges
+                        // wrote to stderr, so the missing-file case has to be checked here to keep it on stderr.
+                        if (!File.Exists(seedPath)) { stderr.WriteLine($"no spine file at {Path.GetFullPath(seedPath)}"); break; }
+                        stdout.WriteLine(new SeedEdgesTool().Execute(_db, seedPath));
+                        break;
+                    }
+                    case "spine-export":
+                        stdout.WriteLine(new SpineExportTool().ExecuteCli(_db,
+                            GetFlag("--to") ?? PluginFileLocator.SeedPath()));
+                        break;
+                    // Same gap forget-project had: the graph could gain a node but never lose one, so anything indexed
+                    // by mistake or moved out of scope stayed live forever. Retires on the timeline rather than
+                    // deleting, because "indexed once, now out of scope" is a different fact from "never existed".
+                    case "shed-node":
+                    {
+                        string nk = GetFlag("--key") ?? throw new ArgumentException("shed-node needs --key");
+                        stdout.WriteLine(new ShedNodeTool().Execute(_db, _root, nk));
+                        break;
+                    }
+                    case "spine-import":
+                    {
+                        string spineImportFrom = GetFlag("--from") ?? throw new ArgumentException("spine-import needs --from <spine.json>");
+                        // SpineImportTool.ExecuteCli returns the same "no spine file at ..." text the old inline
+                        // SpineImport wrote to stderr, so the missing-file case has to be checked here to keep it on
+                        // stderr (same trap as seed-edges above).
+                        if (!File.Exists(spineImportFrom)) { stderr.WriteLine($"no spine file at {spineImportFrom}"); break; }
+                        stdout.WriteLine(new SpineImportTool().ExecuteCli(_db, spineImportFrom, stderr));
+                        break;
+                    }
+                    case "project":
+                        stdout.WriteLine(new ProjectTool().Execute(_db,
+                            GetFlag("--name") ?? throw new ArgumentException("project needs --name"),
+                            GetFlag("--root") ?? throw new ArgumentException("project needs --root"),
+                            GetFlag("--lang") ?? "", GetFlag("--globs") ?? "*.ts,*.tsx,*.vue,*.kt,*.cs"));
+                        break;
+                    case "projects":
+                        stdout.WriteLine(new ProjectsTool().Execute(_db));
+                        break;
+                    // Registration without deregistration left roots that no longer exist on disk still answering
+                    // questions with paths that are gone, which is worse than not knowing.
+                    case "forget-project":
+                        stdout.WriteLine(new ForgetProjectTool().Execute(_db, _root,
+                            GetFlag("--name") ?? throw new ArgumentException("forget-project needs --name")));
+                        break;
+                    case "extract-edges":
+                        stdout.WriteLine(new ExtractEdgesTool().Execute(_db,
+                            GetFlag("--symbol") ?? throw new ArgumentException("extract-edges needs --symbol"), GetFlag("--contract") ?? ""));
+                        break;
+                    case "candidates":
+                        stdout.WriteLine(new CandidatesTool().Execute(_db, GetFlag("--symbol")));
+                        break;
+                    case "promote":
+                        stdout.WriteLine(new PromoteTool().Execute(_db, int.Parse(Pos1(), CultureInfo.InvariantCulture)));
+                        break;
+                    case "promote-all":
+                        stdout.WriteLine(new PromoteAllTool().Execute(_db, _root,
+                            GetFlag("--symbol") ?? throw new ArgumentException("promote-all needs --symbol")));
+                        break;
+                    case "impact":
+                        stdout.WriteLine(new ImpactTool().ExecuteCli(_db, string.Join(' ', Positionals().Skip(1))));
+                        break;
+                    case "graph-query":
+                        stdout.WriteLine(new GraphQueryTool().ExecuteCli(_db, string.Join(' ', Positionals().Skip(1))));
+                        break;
+                    case "graph-path":
+                    {
+                        List<string> gp = [.. Positionals().Skip(1)];
+                        if (gp.Count < 2) { stdout.WriteLine("usage: aitm graph-path <A> <B>"); break; }
+                        stdout.WriteLine(new GraphPathTool().ExecuteCli(_db, gp[0], gp[1]));
+                        break;
+                    }
+                    case "graph-explain":
+                        stdout.WriteLine(new GraphExplainTool().ExecuteCli(_db, Pos1()));
+                        break;
+                    case "todo":
+                        stdout.WriteLine(new TodoTool().Execute(_db, GetFlag("--title") ?? Pos1(), GetFlag("--why") ?? ""));
+                        break;
+                    case "todos":
+                        stdout.WriteLine(new TodosTool().Execute(_db));
+                        break;
+                    case "done":
+                        stdout.WriteLine(new DoneTool().Execute(_db, int.Parse(Pos1(), CultureInfo.InvariantCulture)));
+                        break;
+                    case "finding":
+                        stdout.WriteLine(new FindingTool().ExecuteCli(_db, GetFlag("--title") ?? Pos1(), GetFlag("--detail") ?? "", GetFlag("--source") ?? ""));
+                        break;
+                    case "findings":
+                        stdout.WriteLine(new FindingsTool().ExecuteCli(_db));
+                        break;
+                    case "resolve":
+                        stdout.WriteLine(new ResolveTool().Execute(_db, int.Parse(Pos1(), CultureInfo.InvariantCulture)));
+                        break;
+                    case "stats":
+                        stdout.WriteLine(a.Contains("--tokens")
+                            ? new StatsTool().ExecuteTokens(_db, _instance)
+                            : new StatsTool().Execute(_db, _instance, _dbPath));
+                        break;
+                    case "backup":
+                        stdout.WriteLine(new BackupTool().Execute(_db, _root, GetFlag("--to")));
+                        break;
+                    case "loop":
+                        // Removed in phase 2 (RESTRUCTURE.md section 2.1, drop 4 of 4): loop only ever wrote
+                        // loop-state.json for loop-guard.mjs and session-continue.mjs, both dropped in the same
+                        // pass; the NoMercy task record's _stop-check does this job now. start/tick/clear existed
+                        // only as loop's own sub-verbs, so this one message covers all three call shapes.
+                        stderr.WriteLine("error: removed in 0.4: aitm loop is gone; the NoMercy task record replaces it.\n");
+                        return 2;
+                    case "stage":
+                        stdout.WriteLine(new BrainStageTool().ExecuteCli(_db, Positionals().Skip(1).ToList(),
+                            GetFlag("--gloss") ?? "", GetFlag("--scheme") ?? "", GetFlag("--facet") ?? "text",
+                            GetFlag("--because") ?? "", a.Contains("--hard"), a.Contains("--multi")));
+                        break;
+                    case "flush":
+                        stdout.WriteLine(new BrainFlushTool().ExecuteCli(_db));
+                        break;
+                    case "selftest":
+                        // Removed in phase 2 (RESTRUCTURE.md section 2.1, drop 3 of 4): all 63 checks now have a C#
+                        // test-project equivalent (SelfTestCoverageTests), so the inline TDD harness is gone.
+                        stderr.WriteLine("error: removed in 0.4: aitm selftest is gone; its 63 checks now live in the test projects.\n");
+                        return 2;
+                    default:
+                        // One command per line so adding/removing a command is a one-line diff, not a rewrite of the whole string.
+                        string[] usage =
+                        [
+                            "init                                create/open the instance",
+                            "import --from <db>                  merge another aitm.db into this one",
+                            "add [--provenance stated|inferred]  add a fact (provenance: who established it)",
+                            "query <terms>                       look up a verified fact",
+                            "recall <terms>                      search past chat history",
+                            "index-chat --from <path>            ingest session transcript(s) into chat",
+                            "index-packages [--root <dir>]       index package.json identities",
+                            "index-docs --from <dir>             absorb AI-meta docs, chunked by section",
+                            "doc <terms>                         search absorbed docs",
+                            "shed-doc --path <s>                 drop absorbed doc sections by path",
+                            "add-synthesis --path <dir> --from <f>  file an answer distilled from a source set",
+                            "shed-memory --key <slug>            forget one memory by key",
+                            "shed-fact --key <term>             forget one fact by key (its term)",
+                            "index-memory --from <dir>           migrate MEMORY.md files into the memory channel",
+                            "mem <terms> | mem --hard            recall rules; --hard lists the always-on core",
+                            "eval                                run the retrieval eval set",
+                            "history <term>                      show the cold mutation log for an entity",
+                            "seed-edges                          sync the curated cross-project edge seed",
+                     "spine-export [--to <f>]             dump the curated spine to JSON",
+                     "spine-import --from <f>             load a curated spine from JSON",
+                     "shed-node --key <k>                 retire a node and its links",
+                            "project --name <n> --root <dir>     register a project root",
+                            "projects                            list registered projects",
+                     "forget-project --name <n>           unregister a project and drop its edges",
+                            "extract-edges --symbol <s>          grep edge candidates for a symbol",
+                            "candidates [--symbol <s>]           list edge candidates",
+                            "promote <id>                        promote one candidate into the graph",
+                            "promote-all --symbol <s>            authoritative replace of a symbol's edges",
+                            "impact <symbol>                     show consumers + contract sites of a symbol",
+                            "graph-query <question>              relevant symbols/files/docs for a question, 1-hop neighbors",
+                            "graph-path <A> <B>                  shortest code-graph path between two symbols/files (depth <=6)",
+                            "graph-explain <symbol>              what a symbol is, who uses it, docs/rules that mention it",
+                            "todo | todos | done <id>            manage todos",
+                            "finding | findings | resolve <id>   manage findings",
+                            "stats                               channel counts for the instance",
+                        ];
+                        string usageText = "aitm <command> [--instance <name>]\n\n" + string.Join("\n", usage);
+                        if (cmd is "help" or "--help" or "-h")
+                        {
+                            stdout.WriteLine(usageText);
+                            break;
+                        }
+                        // A caller that gets the help text back with exit 0 reads it as success while nothing ran.
+                        stderr.WriteLine(cmd.StartsWith("-")
+                            ? $"error: unknown command '{cmd}': the command comes first, flags go after the command.\n"
+                            : $"error: unknown command '{cmd}'.\n");
+                        stderr.WriteLine(usageText);
+                        return 2;
+                }
             }
             catch (ArgumentException argEx)
             {
@@ -371,7 +371,7 @@ public static class CliDispatch
         // the flag-audit guard reads the verbs' flags from it.
         private string? GetFlag(string name) => FlagValue(a, name);
 
-        // Generic instance resolution (explicit --instance already won at the call site): AITM_INSTANCE,
+        // Generic _instance resolution (explicit --_instance already won at the call site): AITM_INSTANCE,
         // else the project dir (CLAUDE_PROJECT_DIR or cwd) basename — the same binary serves any repo, no config.
         private string ResolveInstance()
         {
@@ -401,7 +401,7 @@ public static class CliDispatch
 
         private void Exec(string sql)
         {
-            using SqliteCommand c = db.CreateCommand();
+            using SqliteCommand c = _db.CreateCommand();
             c.CommandText = sql;
             c.ExecuteNonQuery();
         }
@@ -415,7 +415,7 @@ public static class CliDispatch
 
         private void Run(string sql, params (string name, object? val)[] ps)
         {
-            using SqliteCommand c = db.CreateCommand();
+            using SqliteCommand c = _db.CreateCommand();
             c.CommandText = sql;
             foreach ((string name, object? val) in ps) c.Parameters.AddWithValue(name, val ?? DBNull.Value);
             c.ExecuteNonQuery();
@@ -617,7 +617,7 @@ public static class CliDispatch
 
         private long ScalarLong(string sql, params (string name, object? val)[] ps)
         {
-            using SqliteCommand c = db.CreateCommand();
+            using SqliteCommand c = _db.CreateCommand();
             c.CommandText = sql;
             foreach ((string name, object? val) in ps) c.Parameters.AddWithValue(name, val ?? DBNull.Value);
             return (long)(c.ExecuteScalar() ?? 0L);
@@ -625,7 +625,7 @@ public static class CliDispatch
 
         private string? ScalarText(string sql, params (string name, object? val)[] ps)
         {
-            using SqliteCommand c = db.CreateCommand();
+            using SqliteCommand c = _db.CreateCommand();
             c.CommandText = sql;
             foreach ((string name, object? val) in ps) c.Parameters.AddWithValue(name, val ?? DBNull.Value);
             object? result = c.ExecuteScalar();
@@ -639,7 +639,7 @@ public static class CliDispatch
         private List<string> Tokens(string terms) =>
             [.. terms.ToLowerInvariant()
                 .Split(" \t\r\n-_./\\,;:()[]{}<>\"'`|!?*+=&#@~%$^".ToCharArray(), StringSplitOptions.RemoveEmptyEntries)
-                .Where(t => t.All(char.IsLetterOrDigit) && t.Length > 1 && !stop.Contains(t))
+                .Where(t => t.All(char.IsLetterOrDigit) && t.Length > 1 && !_stop.Contains(t))
                 .Distinct()];
 
         // Store an answer that was distilled from a set of source files.
@@ -660,50 +660,50 @@ public static class CliDispatch
             List<string> rargs = [.. rest.Skip(1)];
             switch (sub)
             {
-                case "core": stdout.WriteLine(new BrainCoreTool().ExecuteCli(db)); break;
-                case "scope": stdout.WriteLine(new BrainScopeTool().ExecuteCli(db, rargs)); break;
-                case "common": stdout.WriteLine(new BrainCommonTool().ExecuteCli(db, rargs)); break;
-                case "place": stdout.WriteLine(new BrainPlaceTool().ExecuteCli(db, rargs.FirstOrDefault() ?? "")); break;
+                case "core": stdout.WriteLine(new BrainCoreTool().ExecuteCli(_db)); break;
+                case "scope": stdout.WriteLine(new BrainScopeTool().ExecuteCli(_db, rargs)); break;
+                case "common": stdout.WriteLine(new BrainCommonTool().ExecuteCli(_db, rargs)); break;
+                case "place": stdout.WriteLine(new BrainPlaceTool().ExecuteCli(_db, rargs.FirstOrDefault() ?? "")); break;
                 case "recall": BrainRecall(string.Join(' ', rargs)); break;
                 case "impact": BrainImpact(string.Join(' ', rargs)); break;
                 case "learn":
                 {
-                    string learnResult = new BrainLearnTool().ExecuteCli(db, rargs, GetFlag("--gloss") ?? "",
+                    string learnResult = new BrainLearnTool().ExecuteCli(_db, rargs, GetFlag("--gloss") ?? "",
                         GetFlag("--scheme") ?? "", GetFlag("--facet") ?? "text", GetFlag("--because") ?? "", a.Contains("--hard"), a.Contains("--multi"));
                     if (learnResult.Length > 0) stdout.WriteLine(learnResult);
                     break;
                 }
                 case "learn-batch":
-                    stdout.WriteLine(new BrainLearnBatchTool().ExecuteCli(db,
+                    stdout.WriteLine(new BrainLearnBatchTool().ExecuteCli(_db,
                         GetFlag("--from") ?? throw new ArgumentException("brain learn-batch needs --from <file>"), stderr));
                     break;
                 case "set-hard":
                     if (rargs.Count < 2) { stdout.WriteLine("usage: brain set-hard <node-key> <0|1>"); break; }
-                    stdout.WriteLine(new BrainSetHardTool().Execute(db, rargs[0], rargs[1] == "1"));
+                    stdout.WriteLine(new BrainSetHardTool().Execute(_db, rargs[0], rargs[1] == "1"));
                     break;
-                case "export": stdout.WriteLine(new BrainExportTool().ExecuteCli(db, GetFlag("--to") ?? Path.Combine(root, "brain-export.txt"))); break;
-                case "audit": stdout.WriteLine(new BrainAuditTool().Execute(db, instance)); break;
-                case "tidy": stdout.WriteLine(new BrainTidyTool().Execute(db, root)); break;
+                case "export": stdout.WriteLine(new BrainExportTool().ExecuteCli(_db, GetFlag("--to") ?? Path.Combine(_root, "brain-export.txt"))); break;
+                case "audit": stdout.WriteLine(new BrainAuditTool().Execute(_db, _instance)); break;
+                case "tidy": stdout.WriteLine(new BrainTidyTool().Execute(_db, _root)); break;
                 case "why":
-                    stdout.WriteLine(rargs.Count < 1 ? "usage: brain why <node-key>" : new BrainWhyTool().Execute(db, rargs[0]));
+                    stdout.WriteLine(rargs.Count < 1 ? "usage: brain why <node-key>" : new BrainWhyTool().Execute(_db, rargs[0]));
                     break;
                 case "merge":
                     if (rargs.Count < 2) { stdout.WriteLine("usage: brain merge <from-key> <into-key>"); break; }
-                    stdout.WriteLine(new BrainMergeTool().Execute(db, root, rargs[0], rargs[1]));
+                    stdout.WriteLine(new BrainMergeTool().Execute(_db, _root, rargs[0], rargs[1]));
                     break;
                 case "verify":
-                    stdout.WriteLine(rargs.Count < 1 ? "usage: brain verify <node-key>" : new BrainVerifyTool().Execute(db, rargs[0]));
+                    stdout.WriteLine(rargs.Count < 1 ? "usage: brain verify <node-key>" : new BrainVerifyTool().Execute(_db, rargs[0]));
                     break;
                 case "forget":
                     if (rargs.Count < 1) { stdout.WriteLine("usage: brain forget <node-key>"); break; }
-                    stdout.WriteLine(new BrainForgetTool().Execute(db, root, rargs[0]));
+                    stdout.WriteLine(new BrainForgetTool().Execute(_db, _root, rargs[0]));
                     break;
                 case "unlink":
                     if (rargs.Count < 3) { stdout.WriteLine("usage: brain unlink <subject> <predicate> <object>"); break; }
-                    stdout.WriteLine(new BrainUnlinkTool().Execute(db, root, rargs[0], rargs[1], rargs[2]));
+                    stdout.WriteLine(new BrainUnlinkTool().Execute(_db, _root, rargs[0], rargs[1], rargs[2]));
                     break;
-                case "stale": stdout.WriteLine(new BrainStaleTool().Execute(db, int.TryParse(GetFlag("--days"), out int sd) ? sd : 30)); break;
-                case "distill": stdout.WriteLine(new BrainDistillTool().Execute(db, root)); break;
+                case "stale": stdout.WriteLine(new BrainStaleTool().Execute(_db, int.TryParse(GetFlag("--days"), out int sd) ? sd : 30)); break;
+                case "distill": stdout.WriteLine(new BrainDistillTool().Execute(_db, _root)); break;
                 case "seed":
                 {
                     string brainSeedFrom = GetFlag("--from") ?? PluginFileLocator.SeedPath();
@@ -715,11 +715,11 @@ public static class CliDispatch
                         stderr.WriteLine($"no spine file at {Path.GetFullPath(brainSeedFrom)} — run `aitm spine-export` on an instance that already has one, or write the file by hand (see README).");
                         break;
                     }
-                    stdout.WriteLine(new BrainSeedTool().ExecuteCli(db, brainSeedFrom));
+                    stdout.WriteLine(new BrainSeedTool().ExecuteCli(_db, brainSeedFrom));
                     break;
                 }
                 case "stats": BrainStats(); break;
-                case "gaps": stdout.WriteLine(new BrainGapsTool().ExecuteCli(db)); break;
+                case "gaps": stdout.WriteLine(new BrainGapsTool().ExecuteCli(_db)); break;
                 default:
                     stdout.WriteLine("brain <core|scope <proj…>|common <proj…>|place <codekind>|recall <text>|impact <symbol>|learn …|gaps|distill|stats>");
                     break;
@@ -764,7 +764,7 @@ public static class CliDispatch
             List<string> toks = Tokens(text);
             if (toks.Count == 0) { stdout.WriteLine("  (no usable terms)"); return; }
             string rawList = string.Join(",", toks.Select((_, i) => $"($q{i})"));
-            using SqliteCommand c = db.CreateCommand();
+            using SqliteCommand c = _db.CreateCommand();
             c.CommandText = $@"WITH q(raw) AS (VALUES {rawList}),
                 expanded AS (
                   SELECT raw AS term FROM q
@@ -799,7 +799,7 @@ public static class CliDispatch
             if (hits.Count == 0)
             {
                 // FTS + synonyms missed — substring fallback over label/gloss so a real query rarely comes up empty.
-                using SqliteCommand fb = db.CreateCommand();
+                using SqliteCommand fb = _db.CreateCommand();
                 string likeClauses = string.Join(" OR ", toks.Select((_, i) => $"label LIKE $l{i} OR gloss LIKE $l{i}"));
                 fb.CommandText = $"SELECT k, kind, label, gloss FROM node_now WHERE {likeClauses} LIMIT 8";
                 for (int i = 0; i < toks.Count; i++) fb.Parameters.AddWithValue($"$l{i}", "%" + toks[i] + "%");
@@ -815,7 +815,7 @@ public static class CliDispatch
         private void BrainImpact(string term)
         {
             if (term.Trim().Length == 0) { stdout.WriteLine("usage: brain impact <symbol-or-contract>"); return; }
-            using SqliteCommand c = db.CreateCommand();
+            using SqliteCommand c = _db.CreateCommand();
             c.CommandText = @"SELECT s AS project, o AS contract_symbol, file, line, hardcoded
                 FROM legacy_consumes WHERE o LIKE $like
                 UNION ALL
@@ -836,7 +836,7 @@ public static class CliDispatch
             stdout.WriteLine($"  coverage  seams {ScalarLong("SELECT count(*) FROM node_now n WHERE kind='seam' AND EXISTS(SELECT 1 FROM triple_now WHERE o=n.k AND p='consumes')")}/{ScalarLong("SELECT count(*) FROM node_now WHERE kind='seam'")} consumed, codekinds {ScalarLong("SELECT count(*) FROM node_now n WHERE kind='codekind' AND EXISTS(SELECT 1 FROM slot_now WHERE frame_k=n.k)")}/{ScalarLong("SELECT count(*) FROM node_now WHERE kind='codekind'")} placed");
             stdout.WriteLine($"  fresh   {ScalarLong("SELECT count(*) FROM node_now n JOIN usage u ON u.node_k=n.k WHERE u.verified_at IS NOT NULL")}/{ScalarLong("SELECT count(*) FROM node_now")} confirmed against code");
             stdout.WriteLine($"  gaps    {ScalarLong("SELECT count(*) FROM gaps WHERE status='open'")} open / {ScalarLong("SELECT count(*) FROM gaps")} total (unanswerable lookups awaiting a learn)");
-            using SqliteCommand c = db.CreateCommand();
+            using SqliteCommand c = _db.CreateCommand();
             c.CommandText = "SELECT kind, count(*) FROM node_now GROUP BY kind ORDER BY 2 DESC";
             using SqliteDataReader r = c.ExecuteReader();
             while (r.Read()) stdout.WriteLine($"    {r.GetString(0),-12} {r.GetInt32(1)}");

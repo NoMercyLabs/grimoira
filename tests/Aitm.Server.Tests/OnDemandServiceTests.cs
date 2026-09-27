@@ -74,11 +74,11 @@ public sealed class OnDemandServiceTests : IDisposable
     [Fact]
     public void ManySimultaneousFirstCallsStartExactlyOneServerAndEveryCallIsAnswered()
     {
-        const int Calls = 6;
-        (int Exit, string Stdout, string Stderr)[] results = new (int, string, string)[Calls];
-        Parallel.For(0, Calls, new ParallelOptions { MaxDegreeOfParallelism = Calls }, i => results[i] = RunCli(["help"]));
+        const int calls = 6;
+        (int Exit, string Stdout, string Stderr)[] results = new (int, string, string)[calls];
+        Parallel.For(0, calls, new ParallelOptions { MaxDegreeOfParallelism = calls }, i => results[i] = RunCli(["help"]));
 
-        for (int i = 0; i < Calls; i++)
+        for (int i = 0; i < calls; i++)
         {
             Assert.True(results[i].Exit == 0, $"call {i}: exit {results[i].Exit}; stderr {results[i].Stderr}");
             Assert.Contains("aitm <command>", results[i].Stdout);
@@ -89,7 +89,7 @@ public sealed class OnDemandServiceTests : IDisposable
         using JsonDocument health = Health() ?? throw new InvalidOperationException("no server answers");
         int servingPid = health.RootElement.GetProperty("pid").GetInt32();
         List<int> mine = [.. ServerPids().Where(pid => !_serversBefore.Contains(pid))];
-        _output.WriteLine($"{Calls} first calls -> new Aitm.Server processes alive: [{string.Join(",", mine)}], serving pid {servingPid}");
+        _output.WriteLine($"{calls} first calls -> new Aitm.Server processes alive: [{string.Join(",", mine)}], serving pid {servingPid}");
         Assert.Equal([servingPid], mine);
     }
 

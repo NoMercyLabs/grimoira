@@ -83,7 +83,7 @@ public static class ToolsEndpoint
             }
             try
             {
-                arguments[parameterName] = JsonSerializer.Deserialize(value, type, AIJsonUtilities.DefaultOptions);
+                arguments[parameterName] = value.Deserialize(type, AIJsonUtilities.DefaultOptions);
             }
             catch (Exception ex) when (ex is JsonException or InvalidOperationException or NotSupportedException or FormatException)
             {

@@ -25,7 +25,7 @@ public class InitFullTests : IDisposable
     }
 
     [Fact]
-    public void DetectsACSharpProjectByCsprojWhenNoNamedManifestMatches()
+    public void DetectsACsharpProjectByCsprojWhenNoNamedManifestMatches()
     {
         File.WriteAllText(Path.Combine(_dir, "Widget.csproj"), "<Project />");
 

@@ -56,15 +56,15 @@ public class GraphFileRelSchemaTests
             using SqliteCommand cmd = check.CreateCommand();
             cmd.CommandText = "SELECT file, file_rel FROM edges WHERE file_rel IS NOT NULL";
             using SqliteDataReader r = cmd.ExecuteReader();
-            int checked_ = 0;
+            int checkedCount = 0;
             while (r.Read())
             {
                 string file = r.GetString(0);
                 string fileRel = r.GetString(1);
                 Assert.Equal(file.Replace('\\', '/'), Path.Combine(root, fileRel).Replace('\\', '/'));
-                checked_++;
+                checkedCount++;
             }
-            Assert.True(checked_ > 0);
+            Assert.True(checkedCount > 0);
         }
         finally { Cleanup(dbPath, backupDir, root); }
     }
