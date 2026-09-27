@@ -4,7 +4,7 @@ namespace Grimora.Server.Data;
 
 /// <summary>
 /// Decides whether the tool server must be rebuilt before launch. Ported verbatim from
-/// build-stamp.mjs: launch-mcp.mjs built bin/ only when mcp.dll was missing. The plugin build lives
+/// the earlier Node build helper built bin/ only when mcp.dll was missing. The plugin build lives
 /// in CLAUDE_PLUGIN_DATA, which survives a plugin update, so an update never rebuilt it: a new tool
 /// shipped in a release and a session on the updated plugin still ran the old server without it. The
 /// stamp is a hash of the server's source; a different hash means the build is stale. Reported by the

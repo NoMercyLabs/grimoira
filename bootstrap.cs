@@ -1,6 +1,6 @@
 // The SessionStart step of the installed plugin, a .NET file-based app: `dotnet ${CLAUDE_PLUGIN_ROOT}/bootstrap.cs`.
-// It uses the BCL only, so the plugin needs nothing but `dotnet`. It replaces session-start.mjs and
-// build-cli-and-server.mjs (RESTRUCTURE.md slice 32a keeps the design).
+// It uses the BCL only, so the plugin needs nothing but `dotnet`. It replaces the earlier Node launch scripts (design in
+// RESTRUCTURE.md slice 32a).
 //
 // Build output is gitignored and every plugin version installs into a new cache folder, so right after an
 // install or update there is no published CLI. The published CLI and server live in CLAUDE_PLUGIN_DATA (kept
