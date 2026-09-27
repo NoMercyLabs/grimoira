@@ -73,4 +73,31 @@ public class CliDispatchTests
             GrimoraCliRunner.DeleteInstance(instance);
         }
     }
+
+    // grimora/issues/2: "grimora index-code <instance>" reads like the same shape as "graph-path <A> <B>"
+    // or "impact <symbol>" above — a bare positional naming the subject — but index-code has none; only
+    // --instance (global) and --project select anything. Before this fix that stray word was silently
+    // dropped, _instance fell back to ResolveInstance(), and the run quietly indexed the wrong (usually
+    // project-less) instance while printing an ordinary-looking "total new edges: 0" for the typo'd one.
+    [Fact]
+    public void IndexCodeRejectsAStrayPositionalArgumentInsteadOfSilentlyPickingTheWrongInstance()
+    {
+        string realInstance = GrimoraCliRunner.NewTestInstance("clidispatch-index-code-real");
+        try
+        {
+            using StringWriter stdout = new();
+            using StringWriter stderr = new();
+            // The exact issue #2 repro shape: a bare word after the verb, no --instance flag at all.
+            int exit = CliDispatch.Run(["index-code", realInstance], Directory.GetCurrentDirectory(), stdout, stderr);
+
+            Assert.Equal(1, exit);
+            Assert.Contains($"got '{realInstance}'", stderr.ToString());
+            Assert.Contains($"--instance {realInstance}", stderr.ToString());
+            Assert.Equal("", stdout.ToString());
+        }
+        finally
+        {
+            GrimoraCliRunner.DeleteInstance(realInstance);
+        }
+    }
 }

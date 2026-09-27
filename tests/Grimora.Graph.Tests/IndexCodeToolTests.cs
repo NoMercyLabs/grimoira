@@ -68,6 +68,41 @@ public class IndexCodeToolTests
         value.Replace(root.Replace('\\', '/'), "<root>", StringComparison.OrdinalIgnoreCase)
             .Replace(root, "<root>", StringComparison.OrdinalIgnoreCase);
 
+    // grimora/issues/2: a run against an instance with zero registered projects (a fresh instance, or a
+    // wrong/typo'd one — see CliDispatchTests.IndexCodeRejectsAStrayPositionalArgument...) must not print
+    // the same "total new edges: 0" a real, already-fully-indexed instance prints. Otherwise the two
+    // cases are indistinguishable from the output alone, which is exactly how issue #2 went unnoticed.
+    [Fact]
+    public void ReportsClearlyWhenNoProjectsAreRegisteredInsteadOfAPlainZero()
+    {
+        string instance = GrimoraCliRunner.NewTestInstance("index-code-no-projects");
+        try
+        {
+            string dbPath = GrimoraCliRunner.InstanceDbPath(instance);
+            Directory.CreateDirectory(Path.GetDirectoryName(dbPath)!);
+            string backupDir = Path.Combine(Path.GetTempPath(), $"grimora-index-code-backups-{Guid.NewGuid():N}");
+
+            string result;
+            using (SqliteConnection connection = StoreConnection.Open(dbPath))
+            {
+                // StoreSchema first (schema_steps, which RecordStep needs) then bare GraphSchema, no
+                // ProjectTool call: this instance genuinely has zero registered projects, the case this
+                // test is about.
+                Grimora.Store.Schema.SchemaRunResult setup = Grimora.Store.Schema.SchemaRunner.Run(
+                    connection, [new Grimora.Store.Schema.StoreSchema(), new Grimora.Graph.Schema.GraphSchema()], backupDir);
+                Assert.True(setup.Success, setup.Error);
+                result = new IndexCodeTool().Execute(connection, null, backupDir);
+            }
+
+            Assert.Contains("no registered projects for this instance", result);
+            Assert.DoesNotContain("total new edges: 0", result);
+        }
+        finally
+        {
+            GrimoraCliRunner.DeleteInstance(instance);
+        }
+    }
+
     private static string MakeFixtureProject(string label)
     {
         string dir = Path.Combine(Path.GetTempPath(), $"grimora-{label}-{Guid.NewGuid():N}");

@@ -130,6 +130,17 @@ public sealed partial class IndexCodeTool : ITool
             }
         }
 
+        // Zero registered projects (a fresh/empty instance, a typo'd --instance, or an --project name
+        // that matches nothing) must not look the same as "ran fine, nothing new to add" (issue #2):
+        // without this, both cases print the identical "total new edges: 0" and the caller has no way
+        // to tell a wrong-instance silent no-op from real, already-indexed idempotency.
+        if (projects.Count == 0)
+        {
+            return onlyProject is not null
+                ? $"no registered project named '{onlyProject}' for this instance — nothing indexed."
+                : "no registered projects for this instance — nothing indexed. Run `grimora project --name <n> --root <dir>` first.";
+        }
+
         HashSet<string> known = new(StringComparer.Ordinal);
         using (SqliteCommand c = connection.CreateCommand())
         {

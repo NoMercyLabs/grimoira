@@ -112,6 +112,20 @@ public static class CliDispatch
                         stdout.WriteLine(new InitTool().Execute(_instance, _dbPath));
                         break;
                     case "index-code":
+                        // index-code takes no positional argument (only --project and the global
+                        // --instance) — unlike query/recall/impact/graph-* below, whose first positional
+                        // *is* their subject. A bare `grimora index-code <instance>` looks like it should
+                        // select the instance the same way, but that word is silently discarded here and
+                        // _instance falls back to ResolveInstance() (issue #2): the run then succeeds
+                        // against the wrong (often project-less) instance and reports a misleadingly
+                        // ordinary "total new edges: 0", instead of failing on the typo.
+                        if (a.Length > 1 && !a[1].StartsWith("--", StringComparison.Ordinal))
+                        {
+                            stderr.WriteLine(
+                                $"error: index-code takes no positional argument (got '{a[1]}'). " +
+                                "Did you mean `--instance " + a[1] + "`? Use: index-code [--project <name>] [--instance <name>]");
+                            return 1;
+                        }
                         stdout.WriteLine(new IndexCodeTool().Execute(_db, GetFlag("--project"), Path.Combine(_root, "index-code-backups")));
                         break;
                     case "hooks-doctor":
