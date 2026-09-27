@@ -1,0 +1,4 @@
+{"header":"GOLDEN written by the oracle bin-cli-old (grimora.cs at commit 0b2bb70, the last file-based build); never by the new code"}
+{"Member":"MatchesTodaysCliOutputAndInsertsAnOpenTodo","Args":"init --instance test-todo-old-<GUID>","Stdout":"instance 'test-todo-old-5fb01921bc9c427b9b4c2d4725916d39' ready at <HOME><SEP>.grimora<SEP>test-todo-old-5fb01921bc9c427b9b4c2d4725916d39<SEP>grimora.db<NL>","Stderr":"","ExitCode":0}
+{"Member":"MatchesTodaysCliOutputAndInsertsAnOpenTodo","Args":"todo --instance test-todo-old-<GUID> --title todo-fixture --why because","Stdout":"todo added.<NL>","Stderr":"","ExitCode":0}
+{"Member":"MatchesTodaysCliOutputAndInsertsAnOpenTodo","Args":"init --instance test-todo-new-<GUID>","Stdout":"instance 'test-todo-new-91d52868ef8549a185999f64333eb93e' ready at <HOME><SEP>.grimora<SEP>test-todo-new-91d52868ef8549a185999f64333eb93e<SEP>grimora.db<NL>","Stderr":"","ExitCode":0}
