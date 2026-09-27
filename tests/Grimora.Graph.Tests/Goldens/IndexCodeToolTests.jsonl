@@ -1,0 +1,2 @@
+{"header":"GOLDEN written by the oracle bin-cli-old (grimora.cs at commit 0b2bb70, the last file-based build); never by the new code"}
+{"Member":"MatchesTheFrozenIndexCodeEdgeRows","Args":"init --instance test-index-code-new-<GUID>","Stdout":"instance 'test-index-code-new-c8c7b9283ddf41a7a490597f8e360fca' ready at <HOME><SEP>.grimora<SEP>test-index-code-new-c8c7b9283ddf41a7a490597f8e360fca<SEP>grimora.db<NL>","Stderr":"","ExitCode":0}
