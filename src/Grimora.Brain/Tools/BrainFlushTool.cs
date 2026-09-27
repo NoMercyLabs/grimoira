@@ -22,9 +22,15 @@ namespace Grimora.Brain.Tools;
 /// took a session id, every session sharing one instance shared one ledger file, so this flush committed
 /// the whole file — including another session's still-uncommitted staged entries, never asked for by
 /// whoever called flush. Both methods here now take the caller's own <c>session</c>/<c>sessionId</c> (the
-/// MCP bridge/thin client mint and forward one per Claude Code session) and flush only that session's own
-/// ledger; an empty session (no session context at all) keeps flushing the original shared file exactly as
+/// MCP bridge/thin client mint and forward one per Claude Code session) and flush that session's own
+/// ledger first; an empty session (no session context at all) flushes the original shared file exactly as
 /// before, so nothing that never mentions a session changes behaviour.
+///
+/// A session's own ledger empty but the legacy shared one not (an entry staged before this session existed,
+/// or by a caller that never got a session id at all — an old cached bridge, a bare CLI stage) falls back
+/// to flushing the shared ledger instead: brain_flush must never leave a real staged entry stuck forever
+/// just because the session asking to flush is not the one that staged it, or the durability guarantee
+/// (see StopFlushTool) is broken the same way session-unsafe flushing was.
 /// </summary>
 public sealed class BrainFlushTool : ITool
 {
@@ -40,7 +46,13 @@ public sealed class BrainFlushTool : ITool
 
     public string ExecuteCli(SqliteConnection connection, string session = "")
     {
-        string ledger = BrainStageTool.LedgerPath(connection, session);
+        string result = FlushOneLedgerCli(connection, BrainStageTool.LedgerPath(connection, session));
+        if (result != "nothing staged." || string.IsNullOrEmpty(session)) return result;
+        return FlushOneLedgerCli(connection, BrainStageTool.LedgerPath(connection));
+    }
+
+    private static string FlushOneLedgerCli(SqliteConnection connection, string ledger)
+    {
         // See LedgerFileLock's own comment: a second `grimora stage`/`grimora flush` process (or an MCP call)
         // targeting this same ledger must not interleave with this read-modify-write — held for the whole
         // read/commit/delete so a stage landing between the read and the delete is never wiped by it.
@@ -69,7 +81,13 @@ public sealed class BrainFlushTool : ITool
 
     public string ExecuteMcp(SqliteConnection connection, string sessionId = "")
     {
-        string ledger = BrainStageTool.LedgerPath(connection, sessionId);
+        string result = FlushOneLedgerMcp(connection, BrainStageTool.LedgerPath(connection, sessionId));
+        if (result != "nothing staged." || string.IsNullOrEmpty(sessionId)) return result;
+        return FlushOneLedgerMcp(connection, BrainStageTool.LedgerPath(connection));
+    }
+
+    private string FlushOneLedgerMcp(SqliteConnection connection, string ledger)
+    {
         // See LedgerFileLock's own comment: a pipelined brain_stage/brain_flush (or a second concurrent
         // brain_flush from another process entirely) targeting this same ledger must not interleave with
         // this read-modify-write.

@@ -90,6 +90,40 @@ public class SessionSafeStagingLedgerTests
     }
 
     [Fact]
+    public void AFlushWithASessionIdStillFindsAnEntryStagedWithNoSessionAtAll()
+    {
+        // Regression: once a real caller (McpBridge) mints a session id on every call, a session's own
+        // ledger is always fresh and empty the first time it flushes. If brain_flush only ever looked at
+        // its own session's file, an entry staged before session keying existed (or by a caller that
+        // never got a session id — an old cached bridge, a bare `grimora stage`) would be stuck in the
+        // shared ledger forever: no session would ever look there again. brain_flush must fall back to the
+        // shared ledger when its own is empty, so a stray legacy entry still gets flushed.
+        string instance = GrimoraCliRunner.NewTestInstance("session-safe-fallback");
+        try
+        {
+            GrimoraCliRunner.Seed($"init --instance {instance}");
+            using SqliteConnection connection = StoreConnection.Open(GrimoraCliRunner.InstanceDbPath(instance));
+
+            // No sessionId: lands in the legacy shared ledger.
+            new BrainStageTool().ExecuteMcp(connection, "node", "legacy-shared-node", "fact", "staged with no session");
+
+            // A brand-new session, with its own (empty) ledger, flushes with no argument the caller
+            // controls other than its own session id.
+            string result = new BrainFlushTool().ExecuteMcp(connection, sessionId: "a-fresh-session-that-staged-nothing");
+
+            Assert.Equal("flushed 1 learning(s) into the brain.", result);
+            using SqliteCommand count = connection.CreateCommand();
+            count.CommandText = "SELECT count(*) FROM node WHERE k='legacy-shared-node'";
+            Assert.Equal(1L, (long)count.ExecuteScalar()!);
+            Assert.False(File.Exists(BrainStageTool.LedgerPath(connection)), "the shared ledger should be cleared once flushed");
+        }
+        finally
+        {
+            GrimoraCliRunner.DeleteInstance(instance);
+        }
+    }
+
+    [Fact]
     public void NoSessionIdKeepsTheOriginalSharedLedgerUnchanged()
     {
         // Backward compatibility: a caller that never mentions a session (an older bridge, a bare CLI

@@ -18,10 +18,12 @@ namespace Grimora.Hooks.Tools;
 /// a hook must never block or crash a session — but "fail open" here means "warn and let the session end
 /// anyway", not "say nothing".
 ///
-/// Since <see cref="BrainStageTool.LedgerPath"/> keys a ledger by session, Stop only ever flushes two
-/// files: this session's own (from the hook payload's <c>session_id</c>) and the legacy shared ledger any
-/// session-unaware caller (a bare CLI stage with no <c>--session</c>) still writes to — never another
-/// still-running session's own ledger, which is exactly the isolation the session keying exists for.
+/// Since <see cref="BrainStageTool.LedgerPath"/> keys a ledger by session, <see cref="BrainFlushTool.ExecuteCli"/>
+/// (given this session's own id, from the hook payload's <c>session_id</c>) already checks this session's
+/// own ledger first and falls back to the legacy shared one any session-unaware caller (a bare CLI stage
+/// with no <c>--session</c>, or an entry staged before this session existed) still writes to — never
+/// another still-running session's own ledger, which is exactly the isolation the session keying exists
+/// for. This tool only decides whether the outcome is worth reporting.
 /// </summary>
 public static class StopFlushTool
 {
@@ -53,34 +55,20 @@ public static class StopFlushTool
 
         try
         {
-            string dbPath = HookPaths.DbPath(instance);
-
-            // Two ledgers to account for: this session's own (BrainStageTool.LedgerPath keys it by
-            // session_id, same as MCP's brain_stage/brain_flush), and the legacy shared one any caller
-            // with no session context (an older bridge, a bare `grimora stage` with no --session) still
-            // writes to. Stop only knows its own session, so it can only ever flush its own ledger plus
-            // that shared one — never another session's still-open ledger, which is exactly the isolation
-            // brain_flush's own session keying now guarantees.
-            string ownLedger = Grimora.Brain.Tools.BrainStageTool.LedgerPath(FakeConnectionFor(dbPath), sessionId);
-            string sharedLedger = Grimora.Brain.Tools.BrainStageTool.LedgerPath(FakeConnectionFor(dbPath));
-
-            (int pendingOwn, string[] ownLines) = ReadPending(ownLedger);
-            (int pendingShared, string[] sharedLines) = string.IsNullOrWhiteSpace(sessionId) ? (0, []) : ReadPending(sharedLedger);
-            int pending = pendingOwn + pendingShared;
+            string ownLedger = HookLedgerPath(instance, sessionId);
+            string sharedLedger = HookLedgerPath(instance, "");
+            int pending = PendingCount(ownLedger) + (string.IsNullOrWhiteSpace(sessionId) ? 0 : PendingCount(sharedLedger));
             if (pending == 0) return "";
 
+            string dbPath = HookPaths.DbPath(instance);
             if (!File.Exists(dbPath))
                 return Warn(pending, ownLedger, "the instance has no store yet, so there is nothing to flush into");
 
             using SqliteConnection connection = HookStore.Open(dbPath);
-            List<string> messages = [];
-            List<string> warnings = [];
-            if (ownLines.Length > 0) Flush(connection, sessionId, ownLedger, messages, warnings);
-            if (sharedLines.Length > 0) Flush(connection, "", sharedLedger, messages, warnings);
-
-            return warnings.Count > 0
-                ? string.Join('\n', warnings)
-                : $"grimora: {string.Join(' ', messages)}";
+            string result = new BrainFlushTool().ExecuteCli(connection, sessionId);
+            return result.StartsWith("flushed ", StringComparison.Ordinal)
+                ? $"grimora: {result}"
+                : Warn(pending, ownLedger, result);
         }
         catch (Exception ex)
         {
@@ -91,25 +79,15 @@ public static class StopFlushTool
         }
     }
 
-    private static (int count, string[] lines) ReadPending(string ledger)
-    {
-        if (!File.Exists(ledger)) return (0, []);
-        string[] lines = [.. File.ReadAllLines(ledger).Where(l => l.Trim().Length > 0)];
-        return (lines.Length, lines);
-    }
-
-    private static void Flush(SqliteConnection connection, string sessionId, string ledger, List<string> messages, List<string> warnings)
-    {
-        string result = new BrainFlushTool().ExecuteCli(connection, sessionId);
-        if (result.StartsWith("flushed ", StringComparison.Ordinal)) messages.Add(result);
-        else warnings.Add(Warn(1, ledger, result));
-    }
-
     /// <summary>BrainStageTool.LedgerPath only ever reads <see cref="SqliteConnection.DataSource"/> — it
-    /// never opens the connection — so a throwaway, unopened one pointed at the real db path is enough to
-    /// derive the ledger path without paying for a real open this method may not need (the ledger might
-    /// not even exist).</summary>
-    private static SqliteConnection FakeConnectionFor(string dbPath) => new($"Data Source={dbPath}");
+    /// never opens the connection — so a throwaway, unopened one pointed at the instance's db path is
+    /// enough to derive the ledger path without paying for a real open (the store may not even exist
+    /// yet).</summary>
+    private static string HookLedgerPath(string instance, string sessionId) =>
+        BrainStageTool.LedgerPath(new SqliteConnection($"Data Source={HookPaths.DbPath(instance)}"), sessionId);
+
+    private static int PendingCount(string ledger) =>
+        File.Exists(ledger) ? File.ReadAllLines(ledger).Count(l => l.Trim().Length > 0) : 0;
 
     private static string Warn(int count, string ledger, string reason) =>
         $"grimora WARNING: {count} staged learning(s) in {ledger} were not flushed ({reason}). " +
