@@ -1,0 +1,2 @@
+{"header":"GOLDEN written by the oracle bin-cli-old (grimora.cs at commit 0b2bb70, the last file-based build); never by the new code"}
+{"Member":"PinsTheEvalAccuracyOnAFixtureTunedToEveryBuiltInQuestion","Args":"init --instance test-retrieval-eval-<GUID>","Stdout":"instance 'test-retrieval-eval-118017d7356b4b85bfb586fd58e4ae7d' ready at <HOME><SEP>.grimora<SEP>test-retrieval-eval-118017d7356b4b85bfb586fd58e4ae7d<SEP>grimora.db<NL>","Stderr":"","ExitCode":0}
