@@ -732,19 +732,17 @@ public static class CliDispatch
         {
             List<string> keys = [];
             int n = 0;
-            using (SqliteDataReader r = c.ExecuteReader())
+            using SqliteDataReader r = c.ExecuteReader();
+            while (r.Read())
             {
-                while (r.Read())
-                {
-                    List<string> cols = [];
-                    for (int i = 0; i < r.FieldCount; i++)
-                        cols.Add(r.IsDBNull(i) ? "" : Convert.ToString(r.GetValue(i), CultureInfo.InvariantCulture) ?? "");
-                    if (cols.Count > 0) keys.Add(cols[0]);
-                    stdout.WriteLine("  " + string.Join("  |  ", cols));
-                    n++;
-                }
-                if (n == 0 && announceEmpty) stdout.WriteLine("  (nothing)");
+                List<string> cols = [];
+                for (int i = 0; i < r.FieldCount; i++)
+                    cols.Add(r.IsDBNull(i) ? "" : Convert.ToString(r.GetValue(i), CultureInfo.InvariantCulture) ?? "");
+                if (cols.Count > 0) keys.Add(cols[0]);
+                stdout.WriteLine("  " + string.Join("  |  ", cols));
+                n++;
             }
+            if (n == 0 && announceEmpty) stdout.WriteLine("  (nothing)");
             return keys;
         }
 

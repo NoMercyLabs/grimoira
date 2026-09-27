@@ -166,7 +166,7 @@ public static partial class BrainSearchLib
             }
             string headHay = head.ToLowerInvariant();
             string bodyHay = body.Length > 500 ? body[..500].ToLowerInvariant() : body.ToLowerInvariant();
-            int headCover = tokens.Count(t => headHay.Contains(t));
+            int headCover = tokens.Count(headHay.Contains);
             int bodyCover = tokens.Count(t => !headHay.Contains(t) && bodyHay.Contains(t));
             double blobPenalty = (body.Length > 600 ? 1.5 : 0) + (head.Length == 0 && !r.Headless ? 2 : 0);
             double identity = r.Kind == "node" && IdentitySchemes.Contains(r.Scheme) ? 3 : 0;

@@ -17,7 +17,7 @@ public static class BrainProjects
         using SqliteCommand command = connection.CreateCommand();
         command.CommandText = "SELECT k FROM proj_alias WHERE short=$s";
         command.Parameters.AddWithValue("$s", t);
-        return command.ExecuteScalar() is string k ? k : "proj:" + t;
+        return command.ExecuteScalar() as string ?? "proj:" + t;
     }
 
     /// <summary>Splits a space/comma/semicolon-separated project list. Copied verbatim from mcp.cs's

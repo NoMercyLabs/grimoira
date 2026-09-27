@@ -117,7 +117,7 @@ public sealed partial class BrainIndexOrgTool : ITool
 
     private static List<JsonElement> ReposOf(string org, IProcessRunner runner)
     {
-        (string stdout, string stderr, int exitCode) = runner.Run("gh", ["repo", "list", org, "--limit", "500", "--json", Fields]);
+        (string stdout, _, int exitCode) = runner.Run("gh", ["repo", "list", org, "--limit", "500", "--json", Fields]);
         if (exitCode != 0) return [];
         try
         {

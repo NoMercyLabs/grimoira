@@ -251,7 +251,7 @@ public sealed partial class IndexCodeTool : ITool
         if (file.EndsWith(".vue", StringComparison.OrdinalIgnoreCase) || file.EndsWith(".svelte", StringComparison.OrdinalIgnoreCase))
         {
             string comp = Path.GetFileNameWithoutExtension(file);
-            if (comp.Length >= 3 && !found.ContainsKey(comp)) { found[comp] = 1; order.Add(comp); }
+            if (comp.Length >= 3 && found.TryAdd(comp, 1)) order.Add(comp);
         }
 
         foreach (string name in order) yield return (name, found[name]);

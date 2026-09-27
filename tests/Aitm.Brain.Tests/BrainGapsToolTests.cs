@@ -40,7 +40,6 @@ public class BrainGapsToolTests
         string newInstance = AitmCliRunner.NewTestInstance("brain-gaps-cli-new");
         try
         {
-            string oldDb = AitmCliRunner.InstanceDbPath(oldInstance);
             AitmCliRunner.Run($"init --instance {oldInstance}");
             AitmCliRunner.Run($"query --instance {oldInstance} nothing-ever-matches-this-term-here");
             (string stdout, int exitCode) = AitmCliRunner.Run($"brain gaps --instance {oldInstance}");

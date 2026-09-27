@@ -102,7 +102,7 @@ public sealed class BrainStageTool : ITool
     /// finds its sibling file.</summary>
     public static string LedgerPath(SqliteConnection connection)
     {
-        string? dataSource = connection.DataSource;
+        string dataSource = connection.DataSource;
         string dir = string.IsNullOrEmpty(dataSource) ? "." : Path.GetDirectoryName(Path.GetFullPath(dataSource)) ?? ".";
         return Path.Combine(dir, "pending-learn.jsonl");
     }

@@ -36,7 +36,7 @@ public sealed class ProcessRunner : IProcessRunner
         process.StandardInput.Close();
         Task<string> stdoutTask = process.StandardOutput.ReadToEndAsync();
         Task<string> stderrTask = process.StandardError.ReadToEndAsync();
-        if (timeout is TimeSpan t)
+        if (timeout is { } t)
         {
             if (!process.WaitForExit((int)t.TotalMilliseconds))
             {

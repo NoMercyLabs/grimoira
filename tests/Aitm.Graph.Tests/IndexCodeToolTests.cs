@@ -61,9 +61,9 @@ public class IndexCodeToolTests
             RedirectStandardError = true,
             UseShellExecute = false,
             WorkingDirectory = RepoRoot(),
+            // Explicit per the card: never let a real dev shell's project-skip list leak into the oracle run.
+            EnvironmentVariables = { ["AITM_SKIP_PROJECTS"] = "" },
         };
-        // Explicit per the card: never let a real dev shell's project-skip list leak into the oracle run.
-        psi.EnvironmentVariables["AITM_SKIP_PROJECTS"] = "";
         using Process process = Process.Start(psi) ?? throw new InvalidOperationException("could not start node");
         string stdout = process.StandardOutput.ReadToEnd();
         string stderr = process.StandardError.ReadToEnd();

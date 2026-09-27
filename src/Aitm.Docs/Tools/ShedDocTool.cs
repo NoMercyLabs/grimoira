@@ -52,7 +52,7 @@ public sealed class ShedDocTool : ITool
     /// the read gate's synthesis cache.</summary>
     internal static void ForgetSynthesisIndex(SqliteConnection connection, string pathFragment)
     {
-        string? dataSource = connection.DataSource;
+        string dataSource = connection.DataSource;
         if (string.IsNullOrEmpty(dataSource)) return;
         string? root = Path.GetDirectoryName(Path.GetFullPath(dataSource));
         if (root is null) return;

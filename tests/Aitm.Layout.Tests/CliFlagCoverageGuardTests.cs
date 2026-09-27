@@ -122,7 +122,7 @@ public partial class CliFlagCoverageGuardTests
     // function's own body first.
     private static string FindNestedSwitchBody(string source, string functionName)
     {
-        string? functionBody = FindFunctionBody(source, functionName)
+        string functionBody = FindFunctionBody(source, functionName)
             ?? throw new InvalidOperationException($"{functionName} not found in the given source");
         Match anchor = SwitchOnSub().Match(functionBody);
         int openBrace = functionBody.IndexOf('{', anchor.Index + anchor.Length);

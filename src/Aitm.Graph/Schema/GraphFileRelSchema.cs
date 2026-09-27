@@ -19,18 +19,13 @@ namespace Aitm.Graph.Schema;
 /// <c>meta</c> record. So the column-exists check happens once, at construction, against the connection
 /// this instance will run against, and <see cref="Statements"/> is empty on every call after the first.
 /// </summary>
-public sealed class GraphFileRelSchema : ISchemaProvider
+public sealed class GraphFileRelSchema(SqliteConnection connection) : ISchemaProvider
 {
     public string Name => "GraphFileRel";
 
-    public IReadOnlyList<string> Statements { get; }
-
-    public GraphFileRelSchema(SqliteConnection connection)
-    {
-        Statements = HasColumn(connection, "edges", "file_rel")
-            ? Array.Empty<string>()
-            : ["ALTER TABLE edges ADD COLUMN file_rel TEXT"];
-    }
+    public IReadOnlyList<string> Statements { get; } = HasColumn(connection, "edges", "file_rel")
+        ? Array.Empty<string>()
+        : ["ALTER TABLE edges ADD COLUMN file_rel TEXT"];
 
     public static bool HasColumn(SqliteConnection connection, string table, string column)
     {

@@ -44,7 +44,8 @@ public sealed class HooksEndpointTests : IDisposable
 
     private async Task<(HttpStatusCode status, string body)> PostHook(HttpClient client, string eventName, string payload, bool sendProjectHeader = true)
     {
-        using HttpRequestMessage request = new(HttpMethod.Post, $"/hooks/{eventName}") { Headers = { Host = _allowedHost } };
+        using HttpRequestMessage request = new(HttpMethod.Post, $"/hooks/{eventName}");
+        request.Headers.Host = _allowedHost;
         if (sendProjectHeader) request.Headers.TryAddWithoutValidation(RequestProjectResolver.ProjectDirHeader, _projectDir);
         request.Content = new StringContent(payload, Encoding.UTF8, "application/json");
         using HttpResponseMessage response = await client.SendAsync(request);

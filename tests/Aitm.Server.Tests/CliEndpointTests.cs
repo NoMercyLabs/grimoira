@@ -55,7 +55,8 @@ public sealed partial class CliEndpointTests : IDisposable
     private async Task<CliAnswer> PostCli(HttpClient client, string[] args,
         string? projectDir = null, string? instanceHeader = null, string? cwd = null)
     {
-        using HttpRequestMessage request = new(HttpMethod.Post, "/cli") { Headers = { Host = _allowedHost } };
+        using HttpRequestMessage request = new(HttpMethod.Post, "/cli");
+        request.Headers.Host = _allowedHost;
         if (projectDir is not null) request.Headers.TryAddWithoutValidation(RequestProjectResolver.ProjectDirHeader, projectDir);
         if (instanceHeader is not null) request.Headers.TryAddWithoutValidation(RequestProjectResolver.InstanceHeader, instanceHeader);
         request.Content = new StringContent(JsonSerializer.Serialize(new { args, cwd = cwd ?? projectDir ?? Path.GetTempPath() }),

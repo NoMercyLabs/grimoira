@@ -59,9 +59,9 @@ public static class McpToolFactory
             if (tool.McpName is null) continue;
             functions.Add(tool switch
             {
-                IdPTokenTool idp => PlainFunction(idp.McpName!, idp.Help, IdPInvoker(idp, dataDir, runner)),
-                WorkspaceCapabilitiesTool capabilities => PlainFunction(capabilities.McpName!, capabilities.Help, CapabilitiesInvoker(capabilities, projectRoot, runner)),
-                WorkspaceSearchTool search => PlainFunction(search.McpName!, search.Help, SearchInvoker(search, projectRoot, runner)),
+                IdPTokenTool idp => PlainFunction(idp.McpName, idp.Help, IdPInvoker(idp, dataDir, runner)),
+                WorkspaceCapabilitiesTool capabilities => PlainFunction(capabilities.McpName, capabilities.Help, CapabilitiesInvoker(capabilities, projectRoot, runner)),
+                WorkspaceSearchTool search => PlainFunction(search.McpName, search.Help, SearchInvoker(search, projectRoot, runner)),
                 _ => BuildStoreBackedFunction(tool, store, httpContextAccessor, gateTimeout ?? DefaultGateTimeout),
             });
         }

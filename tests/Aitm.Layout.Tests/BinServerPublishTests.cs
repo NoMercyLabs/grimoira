@@ -52,8 +52,8 @@ public class BinServerPublishTests
             CreateNoWindow = true,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
+            Environment = { ["AITM_DATA_DIR"] = dataDir },
         };
-        psi.Environment["AITM_DATA_DIR"] = dataDir;
 
         using Process process = Process.Start(psi) ?? throw new InvalidOperationException($"could not start {exe}");
         try

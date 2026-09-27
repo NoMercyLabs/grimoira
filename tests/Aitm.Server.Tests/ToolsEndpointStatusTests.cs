@@ -22,10 +22,11 @@ public sealed class ToolsEndpointStatusTests : IDisposable
 
     private static DefaultHttpContext Request(string json, CancellationToken aborted = default)
     {
-        DefaultHttpContext context = new();
-        context.Request.Body = new MemoryStream(Encoding.UTF8.GetBytes(json));
-        context.RequestAborted = aborted;
-        return context;
+        return new DefaultHttpContext
+        {
+            Request = { Body = new MemoryStream(Encoding.UTF8.GetBytes(json)) },
+            RequestAborted = aborted,
+        };
     }
 
     private static string Throw(Exception exception) => throw exception;

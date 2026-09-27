@@ -176,7 +176,7 @@ public sealed partial class GraphQueryTool : ITool
         HashSet<string> parts = new(StringComparer.OrdinalIgnoreCase) { name };
         foreach (string part in SymbolWordBoundary().SplitOrWhole(symbol))
             if (part.Length > 0) parts.Add(part.ToLowerInvariant());
-        return toks.Any(t => parts.Contains(t));
+        return toks.Any(parts.Contains);
     }
 
     private static string CapLines(List<string> lines, int max = 40)

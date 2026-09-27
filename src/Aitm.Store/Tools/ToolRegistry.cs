@@ -4,11 +4,9 @@ namespace Aitm.Store.Tools;
 /// Finds a tool by the name a caller already has: the CLI verb it typed, or the MCP tool name the
 /// client asked for. Holds no knowledge of what a tool does — that stays inside the tool.
 /// </summary>
-public sealed class ToolRegistry
+public sealed class ToolRegistry(IEnumerable<ITool> tools)
 {
-    private readonly List<ITool> _tools;
-
-    public ToolRegistry(IEnumerable<ITool> tools) => _tools = [.. tools];
+    private readonly List<ITool> _tools = [.. tools];
 
     public IReadOnlyList<ITool> Tools => _tools;
 

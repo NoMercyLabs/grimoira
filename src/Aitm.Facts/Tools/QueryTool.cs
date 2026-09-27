@@ -14,7 +14,7 @@ namespace Aitm.Facts.Tools;
 /// keeps 3, never de-duplicates, and reinforces the usage signal) — kept as separate paths rather than
 /// unified, the same way <c>HistoryTool</c> keeps its CLI and MCP shapes apart.
 /// </summary>
-public sealed class QueryTool : ITool
+public sealed class QueryTool(IUsageSignal usageSignal) : ITool
 {
     // Calibrated on real data (aitm.cs:58-64): on-target queries score <= -8.6, generic single-token
     // noise scores >= -2.2; -3.0 sits cleanly in the gap. Only trusted once the corpus is large enough
@@ -36,10 +36,6 @@ public sealed class QueryTool : ITool
         "does", "do", "it", "its", "be", "this", "that", "with", "as", "at", "by", "my", "i", "you",
         "we", "there", "was", "were", "which", "when", "where", "name", "called", "get", "got",
     };
-
-    private readonly IUsageSignal _usageSignal;
-
-    public QueryTool(IUsageSignal usageSignal) => _usageSignal = usageSignal;
 
     public string Name => "query";
     public string CliVerb => "query";
@@ -95,7 +91,7 @@ public sealed class QueryTool : ITool
         }
         if (sb.Length == 0)
             return $"no confident answer for \"{query}\" — not in the knowledge base (refusing rather than guessing).{McpLogGap(connection, query)}";
-        _usageSignal.Reinforce(connection, "facts", hitKeys);
+        usageSignal.Reinforce(connection, "facts", hitKeys);
         return OutputBudget.Clip(sb.ToString());
     }
 

@@ -129,7 +129,6 @@ public class BrainFlushToolTests
         string? previousInstanceEnv = Environment.GetEnvironmentVariable("AITM_INSTANCE");
         try
         {
-            string oldDb = AitmCliRunner.InstanceDbPath(oldInstance);
             AitmCliRunner.Run($"init --instance {oldInstance}");
             Environment.SetEnvironmentVariable("AITM_INSTANCE", oldInstance);
             McpDll.Invoke("brain_stage", "node", "flush:mcp-n1", "fact", "a widget", "widget gloss", "", false);

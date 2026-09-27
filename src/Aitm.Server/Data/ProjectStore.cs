@@ -16,13 +16,10 @@ namespace Aitm.Server.Data;
 /// <see cref="ProjectHandle"/>, so two sessions writing to the same project never open a second
 /// connection to the same file (the "database is locked" fix).
 /// </summary>
-public sealed class ProjectStore : IDisposable
+public sealed class ProjectStore(string dataDir) : IDisposable
 {
-    private readonly string _dataDir;
     private readonly Dictionary<string, ProjectHandle> _handles = new(StringComparer.Ordinal);
     private readonly Lock _gate = new();
-
-    public ProjectStore(string dataDir) => _dataDir = dataDir;
 
     /// <summary>The schema every project store is built from — the same providers
     /// <c>InitFull</c> applies, plus <see cref="BrainSchema"/> (node/ref/usage) which the brain_* tools
@@ -39,7 +36,7 @@ public sealed class ProjectStore : IDisposable
         {
             if (_handles.TryGetValue(instance, out ProjectHandle? existing)) return existing;
 
-            string projectDir = Path.Combine(_dataDir, instance);
+            string projectDir = Path.Combine(dataDir, instance);
             Directory.CreateDirectory(projectDir);
             string dbPath = Path.Combine(projectDir, "aitm.db");
             SqliteConnection connection = StoreConnection.Open(dbPath);

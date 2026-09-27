@@ -24,10 +24,14 @@ public sealed class CliVerbOutlivingItsTimeoutTests : IDisposable
 
     private DefaultHttpContext Request()
     {
-        DefaultHttpContext context = new();
-        context.Request.Body = new MemoryStream(Encoding.UTF8.GetBytes("{\"args\":[\"slow\"],\"cwd\":" + System.Text.Json.JsonSerializer.Serialize(_projectDir) + "}"));
-        context.Request.Headers[RequestProjectResolver.ProjectDirHeader] = _projectDir;
-        return context;
+        return new DefaultHttpContext
+        {
+            Request =
+            {
+                Body = new MemoryStream(Encoding.UTF8.GetBytes("{\"args\":[\"slow\"],\"cwd\":" + System.Text.Json.JsonSerializer.Serialize(_projectDir) + "}")),
+                Headers = { [RequestProjectResolver.ProjectDirHeader] = _projectDir },
+            },
+        };
     }
 
     private int BlockingVerb(string[] args, string cwd, TextWriter stdout, TextWriter stderr, string instance, string dataDir, Microsoft.Data.Sqlite.SqliteConnection connection)

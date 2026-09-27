@@ -65,13 +65,11 @@ public class SchemaRunnerEmptyStoreTests
         string backupDir = Path.Combine(Path.GetTempPath(), $"aitm-store-tests-backups-{Guid.NewGuid():N}");
         try
         {
-            using (SqliteConnection connection = StoreConnection.Open(dbPath))
-            {
-                Exec(connection, "PRAGMA user_version=3");
-                SchemaRunResult result = SchemaRunner.Run(connection, AllProviders(), backupDir);
-                Assert.True(result.Success, result.Error);
-                Assert.Equal(3L, ScalarLong(connection, "PRAGMA user_version"));
-            }
+            using SqliteConnection connection = StoreConnection.Open(dbPath);
+            Exec(connection, "PRAGMA user_version=3");
+            SchemaRunResult result = SchemaRunner.Run(connection, AllProviders(), backupDir);
+            Assert.True(result.Success, result.Error);
+            Assert.Equal(3L, ScalarLong(connection, "PRAGMA user_version"));
         }
         finally
         {

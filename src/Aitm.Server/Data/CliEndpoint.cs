@@ -141,7 +141,7 @@ internal static class CliEndpoint
             return TimeSpan.FromSeconds(seconds);
         string verb = args.Length > 0 ? args[0] : "help";
         bool isLong = LongVerbs.Contains(verb)
-            || (verb == "brain" && args.Skip(1).FirstOrDefault(s => !s.StartsWith("--", StringComparison.Ordinal)) is string sub && LongBrainVerbs.Contains(sub));
+            || (verb == "brain" && args.Skip(1).FirstOrDefault(s => !s.StartsWith("--", StringComparison.Ordinal)) is { } sub && LongBrainVerbs.Contains(sub));
         return isLong ? LongTimeout : DefaultTimeout;
     }
 

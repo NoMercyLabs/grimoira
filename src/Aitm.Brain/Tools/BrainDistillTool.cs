@@ -55,7 +55,7 @@ public sealed class BrainDistillTool : ITool
         HashSet<string> memKeys = [.. mems.Select(m => m.k)];
         int memN = 0, factN = 0, symN = 0, relN = 0, unresolved = 0;
 
-        foreach ((string k, string title, string hook, string body, string links, long hard) in mems)
+        foreach ((string k, string title, string hook, string body, _, long hard) in mems)
         {
             string nk = "rule:" + k;
             BrainWriters.AddNode(connection, nk, "rule", title.Length > 0 ? title : k, hook, "", hard == 1, "distill:memory");
@@ -64,7 +64,7 @@ public sealed class BrainDistillTool : ITool
                 ("$n", nk), ("$sf", "memory:" + k), ("$h", Hash(hook + "|" + body)), ("$d", body));
             memN++;
         }
-        foreach ((string k, string title, string hook, string body, string links, long hard) in mems)
+        foreach ((string k, _, _, _, string links, _) in mems)
         {
             if (links.Length == 0) continue;
             string sk = "rule:" + k;
@@ -97,7 +97,7 @@ public sealed class BrainDistillTool : ITool
         }
         foreach ((string project, string contract, string symbol) in edges.Select(e => (e.project, e.contract, e.symbol)).Distinct())
             BrainWriters.AddTriple(connection, BrainProjects.Normalize(connection, project), "consumes", $"contract:{contract}.{symbol}", "", "distill:edges", false, "distill:edges");
-        foreach ((long id, string project, string contract, string symbol) in edges)
+        foreach ((long id, _, string contract, string symbol) in edges)
             Run(connection, "INSERT OR IGNORE INTO ref(node_k,channel,payload_k,role) VALUES($n,'edges',$p,'site')", ("$n", $"contract:{contract}.{symbol}"), ("$p", id.ToString(System.Globalization.CultureInfo.InvariantCulture)));
 
         using (SqliteCommand rebuildNode = connection.CreateCommand()) { rebuildNode.CommandText = "INSERT INTO node_fts(node_fts) VALUES('rebuild')"; rebuildNode.ExecuteNonQuery(); }

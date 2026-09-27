@@ -60,10 +60,8 @@ public sealed class ToolsEndpointTests : IDisposable
         foreach (string query in new[] { "tools-term", "nothing-ever-matches-this-term-at-all" })
         {
             CallToolResult viaMcp = await mcp.CallToolAsync("history", new Dictionary<string, object?> { ["term"] = query });
-            using HttpRequestMessage request = new(HttpMethod.Post, "/tools/history")
-            {
-                Content = new StringContent(JsonSerializer.Serialize(new { term = query }), Encoding.UTF8, "application/json"),
-            };
+            using HttpRequestMessage request = new(HttpMethod.Post, "/tools/history");
+            request.Content = new StringContent(JsonSerializer.Serialize(new { term = query }), Encoding.UTF8, "application/json");
             request.Headers.Add("Aitm-Instance", instance);
             using HttpResponseMessage viaTools = await client.SendAsync(request);
 
@@ -81,10 +79,8 @@ public sealed class ToolsEndpointTests : IDisposable
         using RunningServer server = RunningServer.Start(_dataDir);
         using HttpClient client = server.CreateClient();
 
-        using HttpRequestMessage request = new(HttpMethod.Post, "/tools/history")
-        {
-            Content = new StringContent("{\"term\":\"dir-term\"}", Encoding.UTF8, "application/json"),
-        };
+        using HttpRequestMessage request = new(HttpMethod.Post, "/tools/history");
+        request.Content = new StringContent("{\"term\":\"dir-term\"}", Encoding.UTF8, "application/json");
         request.Headers.Add("Claude-Project-Dir", projectDir);
         using HttpResponseMessage response = await client.SendAsync(request);
 

@@ -18,18 +18,16 @@ public class PromoteAndSeedEdgesFileRelTests
         (string dbPath, string root) = NewFixture();
         try
         {
-            using (SqliteConnection connection = StoreConnection.Open(dbPath))
-            {
-                SchemaRunner.Apply(connection, [new Aitm.Store.Schema.StoreSchema(), new GraphSchema()]);
-                RegisterProject(connection, "web", root);
-                int id = InsertCandidate(connection, "Widget", "web", "widget.ts", 1);
+            using SqliteConnection connection = StoreConnection.Open(dbPath);
+            SchemaRunner.Apply(connection, [new Aitm.Store.Schema.StoreSchema(), new GraphSchema()]);
+            RegisterProject(connection, "web", root);
+            int id = InsertCandidate(connection, "Widget", "web", "widget.ts", 1);
 
-                string message = new Aitm.Graph.Tools.PromoteTool().Execute(connection, id);
+            string message = new Aitm.Graph.Tools.PromoteTool().Execute(connection, id);
 
-                Assert.Contains("promoted", message);
-                Assert.False(GraphFileRelSchema.HasColumn(connection, "edges", "file_rel"));
-                Assert.Equal(1L, ScalarLong(connection, "SELECT count(*) FROM edges WHERE symbol='Widget'"));
-            }
+            Assert.Contains("promoted", message);
+            Assert.False(GraphFileRelSchema.HasColumn(connection, "edges", "file_rel"));
+            Assert.Equal(1L, ScalarLong(connection, "SELECT count(*) FROM edges WHERE symbol='Widget'"));
         }
         finally { Cleanup(dbPath, root); }
     }

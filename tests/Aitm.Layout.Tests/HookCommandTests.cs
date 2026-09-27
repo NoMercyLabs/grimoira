@@ -145,8 +145,8 @@ public class HookCommandTests
         hook.TryGetProperty("args", out JsonElement a) ? [.. a.EnumerateArray().Select(x => x.GetString() ?? "")] : [];
 
     private static bool RunsHookVerb(JsonElement hook, string eventName) =>
-        (ArgsOf(hook) is [.., "hook", string last] && last == eventName)
-        || (ArgsOf(hook) is [string script, string only] && script.EndsWith("/run-hook.mjs", StringComparison.Ordinal) && only == eventName);
+        ArgsOf(hook) is [.., "hook", { } last] && last == eventName
+        || ArgsOf(hook) is [{ } script, { } only] && script.EndsWith("/run-hook.mjs", StringComparison.Ordinal) && only == eventName;
 
     private static bool ArgsMention(JsonElement hook, string script) =>
         ArgsOf(hook).Any(arg => arg.EndsWith(script, StringComparison.Ordinal));

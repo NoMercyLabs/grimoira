@@ -110,7 +110,7 @@ public sealed partial class IndexMemoryTool : ITool
             if (colon <= 0) continue;
             string key = line[..colon].Trim();
             string val = line[(colon + 1)..].Trim().Trim('"', '\'');
-            if (val.Length > 0 && !fm.ContainsKey(key)) fm[key] = val;
+            if (val.Length > 0) fm.TryAdd(key, val);
         }
         string body = text[(end + 4)..].TrimStart('\n', '-', ' ').Trim();
         return (fm, body);

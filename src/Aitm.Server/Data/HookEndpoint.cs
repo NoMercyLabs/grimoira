@@ -22,7 +22,7 @@ internal static class HookEndpoint
 {
     public static async Task<IResult> Handle(string eventName, HttpContext context, ProjectStore store)
     {
-        string output = "";
+        string output;
         try
         {
             string body;

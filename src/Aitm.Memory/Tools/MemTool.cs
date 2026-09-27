@@ -11,7 +11,7 @@ namespace Aitm.Memory.Tools;
 /// aitm.cs's <c>MemCmd</c> (aitm.cs:1275, plus the <c>--hard</c> branch that lists the always-on core),
 /// <c>ExecuteMcp</c> from mcp.cs's <c>rule</c> (mcp.cs:507).
 /// </summary>
-public sealed class MemTool : ITool
+public sealed class MemTool(IUsageSignal usageSignal) : ITool
 {
     private const int CellCap = 240;
 
@@ -30,10 +30,6 @@ public sealed class MemTool : ITool
         "does", "do", "it", "its", "be", "this", "that", "with", "as", "at", "by", "my", "i", "you",
         "we", "there", "was", "were", "which", "when", "where", "name", "called", "get", "got",
     };
-
-    private readonly IUsageSignal _usageSignal;
-
-    public MemTool(IUsageSignal usageSignal) => _usageSignal = usageSignal;
 
     public string Name => "mem";
     public string CliVerb => "mem";
@@ -125,7 +121,7 @@ public sealed class MemTool : ITool
             }
             if (sb.Length == 0)
                 return $"no rule matches \"{query}\".{McpLogGap(connection, query)}";
-            _usageSignal.Reinforce(connection, "memory", hitKeys);
+            usageSignal.Reinforce(connection, "memory", hitKeys);
             return OutputBudget.Clip(sb.ToString());
         }
         catch (SqliteException)

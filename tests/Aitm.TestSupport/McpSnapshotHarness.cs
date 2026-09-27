@@ -24,8 +24,8 @@ public static class McpProcess
             RedirectStandardError = true,
             UseShellExecute = false,
             StandardOutputEncoding = System.Text.Encoding.UTF8,
+            Environment = { ["AITM_INSTANCE"] = instance },
         };
-        psi.Environment["AITM_INSTANCE"] = instance;
 
         using Process process = Process.Start(psi) ?? throw new InvalidOperationException($"could not start dotnet {dllPath}");
 
