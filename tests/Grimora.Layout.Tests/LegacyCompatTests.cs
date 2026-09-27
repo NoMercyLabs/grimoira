@@ -1,3 +1,5 @@
+extern alias cli;
+
 using Grimora.Store.Data;
 using Xunit;
 
@@ -29,8 +31,8 @@ public sealed class LegacyCompatTests : IDisposable
         Assert.Equal("/old/dir", Grimora.Server.Data.ServerAddress.ResolveDataDir());
 
         Environment.SetEnvironmentVariable("GRIMORA_DATA_DIR", null);
-        Grimora.Cli.Tools.LegacyEnvironment.Promote();
-        Assert.Equal("/old/dir", Grimora.Cli.Tools.ServerAddress.ResolveDataDir());
+        cli::Grimora.Cli.Tools.LegacyEnvironment.Promote();
+        Assert.Equal("/old/dir", cli::Grimora.Cli.Tools.ServerAddress.ResolveDataDir());
     }
 
     [Fact]
@@ -39,9 +41,9 @@ public sealed class LegacyCompatTests : IDisposable
         Environment.SetEnvironmentVariable("AITM_DATA_DIR", "/old/dir");
         Environment.SetEnvironmentVariable("GRIMORA_DATA_DIR", "/new/dir");
         LegacyEnvironment.Promote();
-        Grimora.Cli.Tools.LegacyEnvironment.Promote();
+        cli::Grimora.Cli.Tools.LegacyEnvironment.Promote();
         Assert.Equal("/new/dir", Grimora.Server.Data.ServerAddress.ResolveDataDir());
-        Assert.Equal("/new/dir", Grimora.Cli.Tools.ServerAddress.ResolveDataDir());
+        Assert.Equal("/new/dir", cli::Grimora.Cli.Tools.ServerAddress.ResolveDataDir());
     }
 
     [Fact]

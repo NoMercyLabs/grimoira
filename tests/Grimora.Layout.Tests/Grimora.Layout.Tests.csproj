@@ -17,7 +17,11 @@
     <ProjectReference Include="../../src/Grimora.Graph/Grimora.Graph.csproj" />
     <!-- CliClientTimeoutsCoverTheServerLimitTests reads ThinClient.RequestTimeout itself. Private: Grimora.Server.Tests
          references this project, and the thin client's types would clash with Grimora.Brain's there. -->
-    <ProjectReference Include="../../src/Grimora.Cli/Grimora.Cli.csproj" PrivateAssets="all" />
+    <!-- Aliased "cli": Grimora.Cli links Grimora.Hooks.Data.HookPaths.cs verbatim under its own assembly
+         (CliReferencesNothingInGrimora forbids a ProjectReference), so the type name collides with the real
+         Grimora.Hooks assembly this project also references (HooksResolveTheSameInstanceAsCliAndServerTests
+         needs both, to prove the two copies agree). -->
+    <ProjectReference Include="../../src/Grimora.Cli/Grimora.Cli.csproj" PrivateAssets="all" Aliases="cli" />
     <!-- ServerAddressMatchesAcrossCliAndServerTests (Slice P1): the pipe/socket-name derivation is
          duplicated in Grimora.Cli.Tools and Grimora.Server.Data (the two projects cannot reference each
          other; ReferenceDirectionTests), so this test project needs both to catch drift. -->

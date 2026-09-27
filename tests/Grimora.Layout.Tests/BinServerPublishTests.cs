@@ -1,5 +1,7 @@
+extern alias cli;
+
 using System.Diagnostics;
-using Grimora.Cli.Tools;
+using cli::Grimora.Cli.Tools;
 using Xunit;
 
 namespace Grimora.Layout.Tests;

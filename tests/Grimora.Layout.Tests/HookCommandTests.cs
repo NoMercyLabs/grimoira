@@ -1,3 +1,5 @@
+extern alias cli;
+
 using System.Text.Json;
 using Xunit;
 
@@ -126,8 +128,8 @@ public class HookCommandTests
     public void EachForwardedHookDeadlineIsNotAboveItsSlotTimeout()
     {
         using JsonDocument doc = JsonDocument.Parse(File.ReadAllText(Path.Combine(RepoPaths.Root, "hooks", "hooks.json")));
-        Assert.NotEmpty(Grimora.Cli.Tools.HookForwarder.Deadlines);
-        foreach ((string eventName, TimeSpan deadline) in Grimora.Cli.Tools.HookForwarder.Deadlines)
+        Assert.NotEmpty(cli::Grimora.Cli.Tools.HookForwarder.Deadlines);
+        foreach ((string eventName, TimeSpan deadline) in cli::Grimora.Cli.Tools.HookForwarder.Deadlines)
         {
             JsonElement slot = doc.RootElement.GetProperty("hooks").GetProperty(eventName).EnumerateArray()
                 .SelectMany(group => group.GetProperty("hooks").EnumerateArray())

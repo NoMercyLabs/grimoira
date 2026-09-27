@@ -12,7 +12,7 @@ Argument: `$ARGUMENTS` — the verb name, plus whatever flags that verb needs.
 ## Before running anything
 
 1. Locate the built CLI: `bin-cli/grimora.exe` under this plugin's own checkout (`${CLAUDE_PLUGIN_ROOT}` when running as an installed plugin, otherwise the grimora repo root). If it is missing, run `./build-cli.ps1` first.
-2. Resolve the instance: use `--instance nomercy` unless the user names a different one.
+2. Resolve the instance the same way every other Grimora entry point does: an explicit `--instance` the user names, else `GRIMORA_INSTANCE`, else the current workspace's folder name. Do not hardcode a default instance — a different workspace has a different one.
 3. If the requested verb is destructive (`shed-*`, `forget-project`) and the user gave no explicit key/name/path, ask for it — do not guess an argument that deletes data.
 
 ## Supported verbs
@@ -35,7 +35,7 @@ Argument: `$ARGUMENTS` — the verb name, plus whatever flags that verb needs.
 Build the command as:
 
 ```
-bin-cli/grimora.exe <verb> --instance nomercy [flags from the table above]
+bin-cli/grimora.exe <verb> --instance <resolved instance> [flags from the table above]
 ```
 
 Run it, capture stdout/stderr, and report:
@@ -43,6 +43,6 @@ Run it, capture stdout/stderr, and report:
 - Whether it exited 0.
 - The tool's own output (row counts, before/after, or the error message).
 
-A `shed-*` or `forget-project` verb changes the store irreversibly — after running one, suggest `grimora stats --instance nomercy` so the user can see the effect, rather than assuming it worked from exit code alone.
+A `shed-*` or `forget-project` verb changes the store irreversibly — after running one, suggest `grimora stats --instance <resolved instance>` so the user can see the effect, rather than assuming it worked from exit code alone.
 
 If `$ARGUMENTS` names a verb not in this table, say so and list the supported verbs instead of guessing a flag shape.

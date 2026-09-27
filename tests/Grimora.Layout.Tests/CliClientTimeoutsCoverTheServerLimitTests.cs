@@ -1,6 +1,8 @@
+extern alias cli;
+
 using Grimora.Store.Data;
 using System.Text.RegularExpressions;
-using Grimora.Cli.Tools;
+using cli::Grimora.Cli.Tools;
 using Xunit;
 
 namespace Grimora.Layout.Tests;

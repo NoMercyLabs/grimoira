@@ -1,3 +1,5 @@
+extern alias cli;
+
 using Xunit;
 
 namespace Grimora.Layout.Tests;
@@ -17,7 +19,7 @@ public sealed class ServerAddressMatchesAcrossCliAndServerTests
     [InlineData("C:/Users/test/.grimora-other-realm")]
     public void PipeNameIsIdenticalOnBothSides(string dataDir)
     {
-        Assert.Equal(Grimora.Cli.Tools.ServerAddress.PipeName(dataDir), Grimora.Server.Data.ServerAddress.PipeName(dataDir));
+        Assert.Equal(cli::Grimora.Cli.Tools.ServerAddress.PipeName(dataDir), Grimora.Server.Data.ServerAddress.PipeName(dataDir));
     }
 
     [Theory]
@@ -25,14 +27,14 @@ public sealed class ServerAddressMatchesAcrossCliAndServerTests
     [InlineData("/home/test/.grimora")]
     public void SocketPathIsIdenticalOnBothSides(string dataDir)
     {
-        Assert.Equal(Grimora.Cli.Tools.ServerAddress.SocketPath(dataDir), Grimora.Server.Data.ServerAddress.SocketPath(dataDir));
+        Assert.Equal(cli::Grimora.Cli.Tools.ServerAddress.SocketPath(dataDir), Grimora.Server.Data.ServerAddress.SocketPath(dataDir));
     }
 
     [Fact]
     public void DifferentDataDirsGetDifferentPipeNames()
     {
-        string a = Grimora.Cli.Tools.ServerAddress.PipeName("C:/Users/test/.grimora");
-        string b = Grimora.Cli.Tools.ServerAddress.PipeName("C:/Users/test/.grimora-other-realm");
+        string a = cli::Grimora.Cli.Tools.ServerAddress.PipeName("C:/Users/test/.grimora");
+        string b = cli::Grimora.Cli.Tools.ServerAddress.PipeName("C:/Users/test/.grimora-other-realm");
 
         Assert.NotEqual(a, b);
     }
@@ -42,8 +44,8 @@ public sealed class ServerAddressMatchesAcrossCliAndServerTests
     [Fact]
     public void ATrailingSeparatorDoesNotChangeThePipeName()
     {
-        string a = Grimora.Cli.Tools.ServerAddress.PipeName("C:/Users/test/.grimora");
-        string b = Grimora.Cli.Tools.ServerAddress.PipeName("C:/Users/test/.grimora/");
+        string a = cli::Grimora.Cli.Tools.ServerAddress.PipeName("C:/Users/test/.grimora");
+        string b = cli::Grimora.Cli.Tools.ServerAddress.PipeName("C:/Users/test/.grimora/");
         Assert.Equal(a, b);
         Assert.Equal(a, Grimora.Server.Data.ServerAddress.PipeName("C:/Users/test/.grimora/"));
 
@@ -58,7 +60,7 @@ public sealed class ServerAddressMatchesAcrossCliAndServerTests
         if (!OperatingSystem.IsWindows()) return; // other file systems are case-sensitive: two realms
 
         Assert.Equal(
-            Grimora.Cli.Tools.ServerAddress.PipeName("C:/Users/Test/.Grimora"),
+            cli::Grimora.Cli.Tools.ServerAddress.PipeName("C:/Users/Test/.Grimora"),
             Grimora.Server.Data.ServerAddress.PipeName("c:/users/test/.grimora"));
     }
 
@@ -70,7 +72,7 @@ public sealed class ServerAddressMatchesAcrossCliAndServerTests
     {
         string want = Path.Combine(home, ".grimora");
         if (expected != "/data/x") expected = want;
-        Assert.Equal(expected, Grimora.Cli.Tools.ServerAddress.ResolveDataDir(configured, home));
+        Assert.Equal(expected, cli::Grimora.Cli.Tools.ServerAddress.ResolveDataDir(configured, home));
         Assert.Equal(expected, Grimora.Server.Data.ServerAddress.ResolveDataDir(configured, home));
     }
 }

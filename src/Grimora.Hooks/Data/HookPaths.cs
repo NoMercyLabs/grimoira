@@ -1,24 +1,39 @@
-using Grimora.Store.Data;
-using System.Text.RegularExpressions;
-
 namespace Grimora.Hooks.Data;
 
 /// <summary>
 /// Where a hook's per-instance, per-session files live. Ported verbatim from brain-lib.mjs's
 /// <c>resolveInstance</c> and <c>briefPath</c> (RESTRUCTURE.md slice 20): compact-brief.mjs writes here
 /// and compact-restore.mjs reads the same path back, so the two must compute it identically.
+///
+/// Instance and data-dir resolution here duplicates (not references — this file is also linked verbatim
+/// into Grimora.Cli, which per CliReferencesNothingInGrimora may not take a ProjectReference on
+/// Grimora.Store or anything else in Grimora) <see cref="Grimora.Store.Data.StoreConnection.ResolveInstance()"/>
+/// and <see cref="Grimora.Store.Data.StoreConnection.ResolveDataDir()"/>: honour <c>GRIMORA_INSTANCE</c> and
+/// <c>GRIMORA_DATA_DIR</c> first, same as every other entry point (the CLI's ServerAddress/ServerAutoStart,
+/// the server's RequestProjectResolver). A hook run with those env vars set must land in the same instance
+/// directory as a CLI or MCP call made with the same env vars, not silently fall back to the project folder
+/// name or a hardcoded <c>~/.grimora</c>. See HooksResolveTheSameInstanceAsCliAndServerTests.
 /// </summary>
-public static partial class HookPaths
+public static class HookPaths
 {
     public static string ResolveInstance(string? cwd) => ResolveInstance(cwd, projectDir: null);
 
-    /// <summary>The instance of <see cref="ProjectDir"/>.</summary>
+    /// <summary>The instance of <see cref="ProjectDir"/>, or of <c>GRIMORA_INSTANCE</c> when it is set.</summary>
     public static string ResolveInstance(string? cwd, string? projectDir)
     {
+        string? instanceEnv = Environment.GetEnvironmentVariable("GRIMORA_INSTANCE");
+        if (!string.IsNullOrWhiteSpace(instanceEnv)) return Slug(instanceEnv);
+
         string trimmed = ProjectDir(cwd, projectDir).TrimEnd('\\', '/');
-        string name = Path.GetFileName(trimmed).ToLowerInvariant();
-        return NonSlugCharacters().ReplaceOrKeep(name, "");
+        string name = Path.GetFileName(trimmed);
+        string slug = Slug(name);
+        return string.IsNullOrWhiteSpace(slug) ? "default" : slug;
     }
+
+    /// <summary>Same slugging rule as <see cref="Grimora.Store.Data.StoreConnection.Slug"/>: lowercase,
+    /// letters/digits/-/_ only.</summary>
+    private static string Slug(string text) =>
+        new([.. text.ToLowerInvariant().Where(ch => char.IsLetterOrDigit(ch) || ch is '-' or '_')]);
 
     /// <summary>
     /// The project a hook works for: <paramref name="projectDir"/> when the caller already resolved it, else
@@ -36,19 +51,26 @@ public static partial class HookPaths
     {
         string sid = string.IsNullOrEmpty(sessionId) ? "x" : sessionId;
         if (sid.Length > 64) sid = sid[..64];
-        string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        return Path.Combine(home, ".grimora", instance, "compact", $"{sid}.md");
+        return Path.Combine(InstanceDir(instance), "compact", $"{sid}.md");
     }
 
-    /// <summary>Where an instance's own directory lives, same layout as grimora.cs and the other hooks
-    /// (RESTRUCTURE.md slice 21): <c>~/.grimora/&lt;instance&gt;</c>.</summary>
-    public static string InstanceDir(string instance) =>
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".grimora", instance);
+    /// <summary>Where an instance's own directory lives, same layout as grimora.cs and the other hosts
+    /// (RESTRUCTURE.md slice 21): <c>&lt;data dir&gt;/&lt;instance&gt;</c>, where the data dir honours
+    /// <c>GRIMORA_DATA_DIR</c> the same way the CLI and server do, instead of always hardcoding
+    /// <c>~/.grimora</c>.</summary>
+    public static string InstanceDir(string instance) => Path.Combine(ResolveDataDir(), instance);
+
+    /// <summary>The data directory ("realm"): <c>GRIMORA_DATA_DIR</c>, else <c>~/.grimora</c>. An empty
+    /// value counts as unset. Duplicates <see cref="Grimora.Store.Data.StoreConnection.ResolveDataDir()"/>
+    /// for the same linked-into-Cli reason as <see cref="Slug"/> above.</summary>
+    private static string ResolveDataDir()
+    {
+        string? configured = Environment.GetEnvironmentVariable("GRIMORA_DATA_DIR");
+        if (!string.IsNullOrEmpty(configured)) return configured;
+        return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".grimora");
+    }
 
     /// <summary>Where an instance's store lives. The SessionEnd/PostToolUse hooks check this exists
     /// before opening a connection, same as the .mjs files' <c>existsSync(... 'grimora.db')</c> guard.</summary>
     public static string DbPath(string instance) => Path.Combine(InstanceDir(instance), "grimora.db");
-
-    [GeneratedRegex("[^a-z0-9_-]", RegexOptions.None, RegexTimeout.Milliseconds)]
-    private static partial Regex NonSlugCharacters();
 }
