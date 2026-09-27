@@ -75,7 +75,7 @@ public sealed record CleanExitRecord(DateTime StartedUtc, DateTime ExitedUtc, bo
         if (record is null) return LostCallVerdict.MayHaveRun;
         if (sentUtc < record.StartedUtc || sentUtc > record.ExitedUtc) return LostCallVerdict.MayHaveRun;
         if (!record.Clean || record.CallIds.Contains(callId)) return LostCallVerdict.MayHaveRun;
-        if (record.Wrapped && sentUtc < record.OldestKeptStartUtc) return LostCallVerdict.MayHaveRun;
+        if (record.Wrapped && sentUtc <= record.OldestKeptStartUtc) return LostCallVerdict.MayHaveRun;
         return LostCallVerdict.NeverRan;
     }
 }
