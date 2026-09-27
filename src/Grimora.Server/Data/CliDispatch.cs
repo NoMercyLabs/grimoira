@@ -311,10 +311,11 @@ public static class CliDispatch
                     case "stage":
                         stdout.WriteLine(new BrainStageTool().ExecuteCli(_db, Positionals().Skip(1).ToList(),
                             GetFlag("--gloss") ?? "", GetFlag("--scheme") ?? "", GetFlag("--facet") ?? "text",
-                            GetFlag("--because") ?? "", a.Contains("--hard"), a.Contains("--multi")));
+                            GetFlag("--because") ?? "", a.Contains("--hard"), a.Contains("--multi"),
+                            GetFlag("--session") ?? ""));
                         break;
                     case "flush":
-                        stdout.WriteLine(new BrainFlushTool().ExecuteCli(_db));
+                        stdout.WriteLine(new BrainFlushTool().ExecuteCli(_db, GetFlag("--session") ?? ""));
                         break;
                     case "selftest":
                         // Removed in phase 2 (RESTRUCTURE.md section 2.1, drop 3 of 4): all 63 checks now have a C#

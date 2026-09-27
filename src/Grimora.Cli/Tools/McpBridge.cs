@@ -21,6 +21,21 @@ public static class McpBridge
     /// <summary>Above the service's longest tool time, so the service's own answer arrives first.</summary>
     public static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(960);
 
+    /// <summary>
+    /// This bridge process's own session identity, sent as the <c>Grimora-Session</c> header on every
+    /// forwarded call so the service can key a staged learning's ledger by session
+    /// (<c>Grimora.Server.Data.RequestSessionResolver</c>, <c>BrainStageTool.LedgerPath</c>) instead of one
+    /// ledger shared by every session on the instance. `grimora mcp` runs once per Claude Code session (one
+    /// process, stdio-piped for the session's lifetime), so a GUID minted once here at process start is
+    /// already the right scope — no session id needs to come from Claude Code itself. CLAUDE_SESSION_ID is
+    /// preferred when Claude Code does set it, so a hook (which gets the same id in its payload) and this
+    /// bridge agree on one session's identity instead of each minting its own.
+    /// </summary>
+    private static readonly string SessionId =
+        Environment.GetEnvironmentVariable("CLAUDE_SESSION_ID") is { Length: > 0 } fromEnv
+            ? fromEnv
+            : Guid.NewGuid().ToString("N");
+
     /// <summary>The real client: data dir, env and server path as Grimora.Server and the hooks use them. The
     /// process streams are passed in by the entry point (Program.cs), the one file allowed to name Console.</summary>
     public static int RunDefault(Stream stdin, Stream stdout, TextWriter stderr) => Run(
@@ -160,6 +175,7 @@ public static class McpBridge
         request.Headers.TryAddWithoutValidation(RefusedConnectionRetry.CallIdHeader, callId);
         request.Headers.TryAddWithoutValidation("Claude-Project-Dir", projectDir);
         if (!string.IsNullOrWhiteSpace(instanceEnv)) request.Headers.TryAddWithoutValidation("Grimora-Instance", instanceEnv);
+        request.Headers.TryAddWithoutValidation("Grimora-Session", SessionId);
         request.Content = new StringContent(JsonSerializer.Serialize(arguments ?? new Dictionary<string, JsonElement>()), Encoding.UTF8, "application/json");
         return client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
     }

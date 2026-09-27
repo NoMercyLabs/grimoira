@@ -111,7 +111,18 @@ public static class McpToolFactory
                     ExcludeFromSchema = true,
                     BindParameter = (_, args) => store.Acquire(RequestProjectResolver.Resolve(httpContextAccessor.HttpContext)).Connection,
                 }
-                : default,
+                : parameter.ParameterType == typeof(string) && parameter.Name is "sessionId" or "session"
+                    // brain_stage/brain_flush's session id must come from the transport, never from the
+                    // caller's own JSON arguments (a caller could otherwise name any session's ledger and
+                    // flush it) — same reasoning as the SqliteConnection binding above: excluded from the
+                    // tool's schema entirely and bound from the one place a session identity can come
+                    // from, the request's own "Grimora-Session" header (RequestSessionResolver).
+                    ? new AIFunctionFactoryOptions.ParameterBindingOptions
+                    {
+                        ExcludeFromSchema = true,
+                        BindParameter = (_, args) => RequestSessionResolver.Resolve(httpContextAccessor.HttpContext),
+                    }
+                    : default,
         };
 
         AIFunction inner = AIFunctionFactory.Create(method, tool, options);

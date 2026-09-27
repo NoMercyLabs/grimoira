@@ -17,6 +17,14 @@ namespace Grimora.Brain.Tools;
 /// rejects (supersession no-op, unknown kind, dangling ref) are reported and dropped; retrying them would
 /// loop forever. Re-uses <see cref="BrainLearnTool"/> for each MCP line, exactly as mcp.cs's brain_flush
 /// re-uses brain_learn.
+///
+/// Reviewer finding (chatgpt/codex/gemini/vscode-chat, 2026-09-27): before <see cref="BrainStageTool.LedgerPath"/>
+/// took a session id, every session sharing one instance shared one ledger file, so this flush committed
+/// the whole file — including another session's still-uncommitted staged entries, never asked for by
+/// whoever called flush. Both methods here now take the caller's own <c>session</c>/<c>sessionId</c> (the
+/// MCP bridge/thin client mint and forward one per Claude Code session) and flush only that session's own
+/// ledger; an empty session (no session context at all) keeps flushing the original shared file exactly as
+/// before, so nothing that never mentions a session changes behaviour.
 /// </summary>
 public sealed class BrainFlushTool : ITool
 {
@@ -30,9 +38,9 @@ public sealed class BrainFlushTool : ITool
         "clear the ledger. MCP brain_flush(): same job; a line rejected on a transient DB lock is kept " +
         "in the ledger for the next flush to retry instead of being dropped.";
 
-    public string ExecuteCli(SqliteConnection connection)
+    public string ExecuteCli(SqliteConnection connection, string session = "")
     {
-        string ledger = BrainStageTool.LedgerPath(connection);
+        string ledger = BrainStageTool.LedgerPath(connection, session);
         // See LedgerFileLock's own comment: a second `grimora stage`/`grimora flush` process (or an MCP call)
         // targeting this same ledger must not interleave with this read-modify-write — held for the whole
         // read/commit/delete so a stage landing between the read and the delete is never wiped by it.
@@ -59,9 +67,9 @@ public sealed class BrainFlushTool : ITool
         return $"flushed {n} learning(s) into the brain.";
     }
 
-    public string ExecuteMcp(SqliteConnection connection)
+    public string ExecuteMcp(SqliteConnection connection, string sessionId = "")
     {
-        string ledger = BrainStageTool.LedgerPath(connection);
+        string ledger = BrainStageTool.LedgerPath(connection, sessionId);
         // See LedgerFileLock's own comment: a pipelined brain_stage/brain_flush (or a second concurrent
         // brain_flush from another process entirely) targeting this same ledger must not interleave with
         // this read-modify-write.

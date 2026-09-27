@@ -96,22 +96,46 @@ public sealed class BrainStageTool : ITool
         "without writing it (`grimora flush` / brain_flush commits the batch). " +
         "MCP brain_stage(kind,key,a,b,c,because,hard): same args as brain_learn.";
 
-    /// <summary>The ledger sits next to the store, exactly where grimora.cs's <c>root</c> and mcp.cs's
-    /// <c>LedgerPath()</c> both put it (<c>~/.grimora/&lt;instance&gt;/pending-learn.jsonl</c>) — derived
-    /// here from the open connection's own file, the same way <c>ShedDocTool.ForgetSynthesisIndex</c>
-    /// finds its sibling file.</summary>
-    public static string LedgerPath(SqliteConnection connection)
+    /// <summary>
+    /// The ledger sits next to the store, derived from the open connection's own file, the same way
+    /// <c>ShedDocTool.ForgetSynthesisIndex</c> finds its sibling file.
+    ///
+    /// Reviewer finding (chatgpt/codex/gemini/vscode-chat, 2026-09-27): every session targeting one
+    /// instance used to share the single file <c>~/.grimora/&lt;instance&gt;/pending-learn.jsonl</c>
+    /// (grimora.cs's <c>root</c> and mcp.cs's old <c>LedgerPath()</c>), so one session's <c>brain_flush</c>
+    /// committed every OTHER session's uncommitted staged entries too — never what either session asked
+    /// for. When a caller names its own <paramref name="sessionId"/> (the MCP bridge/thin client now mint
+    /// one per Claude Code session — see McpToolFactory's binding and the "Grimora-Session" header), its
+    /// ledger moves to <c>&lt;instance&gt;/pending/&lt;slug(sessionId)&gt;.jsonl</c>, so a flush only ever
+    /// touches the calling session's own rows. A caller with no session context at all (an empty
+    /// <paramref name="sessionId"/>: a bare CLI invocation with no <c>--session</c>, or an older bridge)
+    /// keeps the original single shared path exactly as before — no behaviour change for anything not
+    /// yet passing a session, and every existing caller/test that never mentions a session keeps working
+    /// unmodified.
+    /// </summary>
+    public static string LedgerPath(SqliteConnection connection, string sessionId = "")
     {
         string dataSource = connection.DataSource;
         string dir = string.IsNullOrEmpty(dataSource) ? "." : Path.GetDirectoryName(Path.GetFullPath(dataSource)) ?? ".";
-        return Path.Combine(dir, "pending-learn.jsonl");
+        return string.IsNullOrWhiteSpace(sessionId)
+            ? Path.Combine(dir, "pending-learn.jsonl")
+            : Path.Combine(dir, "pending", SessionSlug(sessionId) + ".jsonl");
     }
 
-    public string ExecuteCli(SqliteConnection connection, IReadOnlyList<string> pos, string gloss = "", string scheme = "", string facet = "text", string because = "", bool hard = false, bool multi = false)
+    /// <summary>Same charset as <c>StoreConnection.Slug</c>: a session id must be safe as a bare file name
+    /// on every OS this runs on, and must never be able to escape the <c>pending/</c> directory via a
+    /// path separator smuggled into the id.</summary>
+    private static string SessionSlug(string sessionId)
+    {
+        string slug = new([.. sessionId.Where(ch => char.IsLetterOrDigit(ch) || ch is '-' or '_')]);
+        return slug.Length == 0 ? "unnamed-session" : slug;
+    }
+
+    public string ExecuteCli(SqliteConnection connection, IReadOnlyList<string> pos, string gloss = "", string scheme = "", string facet = "text", string because = "", bool hard = false, bool multi = false, string session = "")
     {
         string J(string s) => "\"" + s.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\n", " ").Replace("\r", " ").Replace("\t", " ") + "\"";
         string sub = pos.Count > 0 ? pos[0] : "list";
-        string ledger = LedgerPath(connection);
+        string ledger = LedgerPath(connection, session);
         // Every branch below reads and/or writes the ledger file; a second `grimora stage`/`grimora flush`
         // process (a hook firing back to back, or a CLI call racing an MCP call on the same instance) must
         // never interleave with it — see LedgerFileLock's own comment.
@@ -143,7 +167,7 @@ public sealed class BrainStageTool : ITool
         }
     }
 
-    public string ExecuteMcp(SqliteConnection connection, string kind, string key, string a = "", string b = "", string c = "", string because = "", bool hard = false)
+    public string ExecuteMcp(SqliteConnection connection, string kind, string key, string a = "", string b = "", string c = "", string because = "", bool hard = false, string sessionId = "")
     {
         string Esc(string s) => s.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\n", " ").Replace("\r", " ").Replace("\t", " ");
 
@@ -169,7 +193,7 @@ public sealed class BrainStageTool : ITool
         };
         if (line.Length == 0) return WrongRowKind(kind);
         // A brand-new instance has no directory yet, and AppendAllText does not make one.
-        string ledger = LedgerPath(connection);
+        string ledger = LedgerPath(connection, sessionId);
         using (LedgerFileLock.Acquire(ledger))
         {
             Directory.CreateDirectory(Path.GetDirectoryName(ledger)!);
