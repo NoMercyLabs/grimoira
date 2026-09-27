@@ -90,6 +90,14 @@ public static partial class CliGoldens
 
     /// <summary>The comparison form: what may differ between runs or machines (random ids, timestamps,
     /// elapsed milliseconds, home folder, separators, line endings, decimal mark) is made equal.</summary>
+    // The OS temp folder is not derived from the home folder on every platform (Linux's is `/tmp`, unrelated
+    // to `$HOME`; Windows nests it under the home folder as `<HOME>/AppData/Local/Temp`), so a golden frozen
+    // on one platform still names the other platform's shape literally unless both collapse to one token.
+    // This runs on the forward-slash form, after every backslash is already turned into a slash below.
+    private static readonly string WindowsTempUnderHome = "<HOME>/AppData/Local/Temp";
+    private static readonly string TempDirForward = Path.GetTempPath()
+        .TrimEnd(Path.DirectorySeparatorChar).Replace(Path.DirectorySeparatorChar, '/');
+
     public static string Canonical(string text)
     {
         string result = Expand(Portable(text)).Replace(Crlf, "\n", StringComparison.Ordinal);
@@ -100,7 +108,14 @@ public static partial class CliGoldens
         result = Timestamp().Replace(result, "<TS>");
         result = CompactTimestamp().Replace(result, "<TS>");
         result = RandomTempDir().Replace(result, "grimora-$1-<RAND>");
-        return result.Replace(Backslash.ToString(), "/", StringComparison.Ordinal);
+        result = result.Replace(Backslash.ToString(), "/", StringComparison.Ordinal);
+        if (TempDirForward.Length > 0)
+            result = result.Replace(TempDirForward, "<TEMP>", StringComparison.OrdinalIgnoreCase);
+        result = result.Replace(WindowsTempUnderHome, "<TEMP>", StringComparison.OrdinalIgnoreCase);
+        // Path.GetFullPath resolves a rooted Unix-style input path ("/no/such/dir") against the current
+        // drive on Windows ("C:/no/such/dir") but leaves it as is on Linux/macOS: the same input, two
+        // equally correct answers. A drive letter never means anything else in this CLI's own output.
+        return WindowsDriveLetter().Replace(result, "/");
     }
 
     /// <summary>For a test whose oracle is a function (an mcp.dll call), not a CLI line: in freeze mode runs
@@ -207,8 +222,11 @@ public static partial class CliGoldens
     // Directory.CreateTempSubdirectory("grimora-<name>-") appends its own random suffix, never equal
     // between a golden freeze and a later replay (e.g. a fixture folder Server.Tests seeds a CLI oracle
     // call from). Matches the fixed prefix every caller uses, keeping the descriptive name it chose.
-    [GeneratedRegex(@"grimora-([a-z-]+?)-[0-9a-z]{6,10}(?=[/""\\]|$)", RegexOptions.None, RegexTimeout.Milliseconds)]
+    [GeneratedRegex(@"grimora-([a-z-]+?)-[0-9a-z]{6,10}(?=[/""\\.]|$)", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex RandomTempDir();
+
+    [GeneratedRegex("(?<![A-Za-z0-9])[A-Za-z]:/", RegexOptions.None, RegexTimeout.Milliseconds)]
+    private static partial Regex WindowsDriveLetter();
 
     [GeneratedRegex(@"(?<![\w.])\d+([.,]\d+)?ms", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex Elapsed();
