@@ -31,6 +31,21 @@ internal static class BrainTestFixtures
         insert.ExecuteNonQuery();
     }
 
+    /// <summary>Inserts a node whose valid_from is an explicit number of days in the past, so an age test never
+    /// depends on the wall clock ticking between the insert and the query (a Linux clock tick is too coarse).</summary>
+    public static void InsertNodeAged(string dbPath, string k, string kind, string label, string gloss, int daysAgo)
+    {
+        using SqliteConnection connection = Open(dbPath);
+        using SqliteCommand insert = connection.CreateCommand();
+        insert.CommandText = "INSERT INTO node(k,kind,label,gloss,valid_from) VALUES($k,$kind,$label,$gloss,strftime('%Y-%m-%dT%H:%M:%fZ','now',$age))";
+        insert.Parameters.AddWithValue("$k", k);
+        insert.Parameters.AddWithValue("$kind", kind);
+        insert.Parameters.AddWithValue("$label", label);
+        insert.Parameters.AddWithValue("$gloss", gloss);
+        insert.Parameters.AddWithValue("$age", $"-{daysAgo} days");
+        insert.ExecuteNonQuery();
+    }
+
     public static void InsertSharingTriple(string dbPath, string subject, string @object)
     {
         using SqliteConnection connection = Open(dbPath);

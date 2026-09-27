@@ -41,27 +41,27 @@ public class BrainStaleToolTests
     }
 
     [Fact]
-    public void CliShapeMatchesTodaysCliOutputWithAZeroDayWindow()
+    public void CliShapeMatchesTodaysCliOutputWithAOneDayWindow()
     {
-        string oldInstance = GrimoraCliRunner.NewTestInstance("brain-stale-cli-old-0d");
-        string newInstance = GrimoraCliRunner.NewTestInstance("brain-stale-cli-new-0d");
+        string oldInstance = GrimoraCliRunner.NewTestInstance("brain-stale-cli-old-1d");
+        string newInstance = GrimoraCliRunner.NewTestInstance("brain-stale-cli-new-1d");
         try
         {
-            // A 0-day window makes every just-inserted, never-verified node "stale" immediately —
-            // proves the tool surfaces a real row, not just the empty-report shape.
+            // A node backdated 3 days and never verified is stale for a 1-day window, whatever the clock
+            // granularity — proves the tool surfaces a real row, not just the empty-report shape.
             string oldDb = GrimoraCliRunner.InstanceDbPath(oldInstance);
             GrimoraCliRunner.Run($"init --instance {oldInstance}");
-            BrainTestFixtures.InsertNode(oldDb, "concept:old", "concept", "Old", "asserted a while ago");
-            (string stdout, int exitCode) = GrimoraCliRunner.Run($"brain stale --instance {oldInstance} --days 0");
+            BrainTestFixtures.InsertNodeAged(oldDb, "concept:old", "concept", "Old", "asserted a while ago", 3);
+            (string stdout, int exitCode) = GrimoraCliRunner.Run($"brain stale --instance {oldInstance} --days 1");
             Assert.Equal(0, exitCode);
             string expected = stdout.Trim();
 
             string newDb = GrimoraCliRunner.InstanceDbPath(newInstance);
             GrimoraCliRunner.Run($"init --instance {newInstance}");
-            BrainTestFixtures.InsertNode(newDb, "concept:old", "concept", "Old", "asserted a while ago");
+            BrainTestFixtures.InsertNodeAged(newDb, "concept:old", "concept", "Old", "asserted a while ago", 3);
 
             using SqliteConnection connection = StoreConnection.Open(newDb);
-            string actual = new BrainStaleTool().Execute(connection, 0).Trim();
+            string actual = new BrainStaleTool().Execute(connection, 1).Trim();
 
             Assert.Equal(expected, actual);
             Assert.Contains("concept:old", actual);
