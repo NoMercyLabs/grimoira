@@ -67,7 +67,7 @@
           {
             "type": "command",
             "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/index-on-edit.mjs"],
+            "args": ["${CLAUDE_PLUGIN_ROOT}/run-hook.mjs", "PostToolUse"],
             "timeout": 65
           }
         ]

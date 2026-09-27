@@ -3,7 +3,7 @@
 //
 // Build output is gitignored and every plugin version installs into a new cache folder, so right after an
 // install or update there is no bin-cli/ or bin-server/. The published CLI and server therefore live in
-// CLAUDE_PLUGIN_DATA (kept across plugin updates), guarded by a build stamp like launch-mcp.mjs.
+// CLAUDE_PLUGIN_DATA (kept across plugin updates), guarded by a build stamp like run-mcp.mjs.
 //
 // - Build current: run `dotnet <data>/current/bin-cli/grimora.dll hook SessionStart`, stdin, stdout and the exit
 //   code passed straight through. The hook gets GRIMORA_PLUGIN_ROOT, so a server it starts from the data folder
@@ -15,7 +15,7 @@
 //   sure two sessions never build at once. The session goes on without Grimora until the build is done.
 //
 // With no CLAUDE_PLUGIN_DATA (run from a checkout) the checkout's own bin-cli/ and bin-server/ are used, as
-// launch-mcp.mjs uses the checkout's bin/. build-cli.ps1 and build-server.ps1 own their freshness there, so
+// run-mcp.mjs uses the checkout's bin/. build-cli.ps1 and build-server.ps1 own their freshness there, so
 // the step only builds when they are missing.
 
 import { promoteLegacyEnv } from './legacy-env.mjs';

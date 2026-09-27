@@ -1,10 +1,7 @@
 # Rebuild everything and prove it still works. This is the actual repeated task: building one half
-# and skipping the parse check or the ranking tests is how a broken hook or a silent scoring
-# regression ships, since neither fails loudly at runtime.
+# and skipping the parse check is how a broken hook ships, since it does not fail loudly at runtime.
 #
-#   ./build.ps1            build both binaries, parse hooks, run tests
-#   ./build.ps1 -Quick     skip the tests
-param([switch]$Quick)
+#   ./build.ps1            build both binaries, parse hooks
 
 $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
@@ -40,10 +37,5 @@ Get-ChildItem "$root/*.mjs" | ForEach-Object {
 if ($bad -gt 0) { throw "$bad hook(s) failed to parse" }
 Write-Host "  all hooks parse" -ForegroundColor Green
 
-if (-not $Quick) {
-    Write-Host 'ranking tests...' -ForegroundColor Cyan
-    node "$root/brain-lib.test.mjs"
-    if ($LASTEXITCODE -ne 0) { throw 'ranking tests failed' }
-}
 
 Write-Host 'ready' -ForegroundColor Green

@@ -52,14 +52,14 @@ $out | Select-String 'Passed!|Failed!' | Select-Object -Last 30
 if ($dotnetTestExit -ne 0) { $failed += 'dotnet test Grimora.sln' }
 
 Write-Host '-- hook registration' -ForegroundColor Cyan
-$out = & node "$PSScriptRoot/hook-doctor.mjs" --project "$projectRoot" 2>&1
+$out = & dotnet "$PSScriptRoot/bin-cli/grimora.dll" hooks-doctor --project "$projectRoot" 2>&1
 $hookExit = $LASTEXITCODE
 $out | Select-Object -Last 1
 if ($hookExit -ne 0) { $failed += 'hook registration' }
 
 # `grimora selftest` is gone (RESTRUCTURE.md slice 24 bullet 1): its 63 checks now live in the C# test
 # projects, verified by Grimora.Layout.Tests.SelfTestCoverageTests, which `dotnet test Grimora.sln` above
-# already ran. `grimora selftest` itself now just prints "removed in 0.4" and exits 2 (cli-exit.test.mjs
+# already ran. `grimora selftest` itself now just prints "removed in 0.4" and exits 2 (the cli-exit test
 # below covers that exit-code contract, the same way it covers every other dropped verb).
 
 # Every *.test.mjs in the repo root, found by pattern rather than typed into a list — a file dropped

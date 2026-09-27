@@ -52,9 +52,9 @@ LLM, no separate index to keep in sync:
 These replace the external `graphify` tool for this workspace: graphify's graph here only ever covered
 the root repo's docs and scripts (nested repos — the actual product code — were never in it), so any
 question about a real class, controller, or hub returned "no node matching" or a doc-only answer. Grimora's
-edges table already spans every registered project because `index-code.mjs` walks them all.
+edges table already spans every registered project because `grimora index-code` walks them all.
 
-Refresh the index after code changes: `node index-code.mjs [--instance <name>] [--project <name>]`
+Refresh the index after code changes: `grimora index-code [--instance <name>] [--project <name>]`
 (idempotent — safe to run every session end; declarations only, so it stays cheap even on a big repo).
 
 For a broad conceptual question (not a specific symbol), `doc` and `rule` still answer better than

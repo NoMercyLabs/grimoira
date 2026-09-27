@@ -16,8 +16,7 @@ The conversation channel is a primary asset, not noise around the facts. It carr
 | --- | --- |
 | `grimora.cs` | The CLI. File-based C# app, builds to `bin-cli/`. |
 | `mcp.cs` | MCP server exposing the store as tools. Builds to `bin/`. |
-| `brain-lib.mjs` | Shared lookup: tokenise, scan every channel, score, format. |
-| `index-code.mjs` | Bulk indexer for the public declaration surface of registered projects. |
+| `grimora index-code` | Bulk indexer for the public declaration surface of registered projects (C#, `IndexCodeTool`). |
 
 ## Build
 
@@ -49,9 +48,7 @@ answers:
 - `chrome-ready.mjs` (PreToolUse on browser MCP tools, PostToolUse `--prune-only` on
   `Bash|PowerShell`) — makes sure a debugger-attached Chrome is up before a browser
   tool runs, and prunes stale browser processes after a shell command.
-- `index-on-edit.mjs` (PostToolUse `Write|Edit|MultiEdit|NotebookEdit`) — re-indexes
-  the memory/docs channel when a `.md` memory or spec file is edited.
-- `run-hook.mjs` (UserPromptSubmit, PreCompact, SessionEnd) — forwards the event to the
+- `run-hook.mjs` (UserPromptSubmit, PreCompact, PostToolUse `Write|Edit|MultiEdit|NotebookEdit`, SessionEnd) — forwards the event to the
   published CLI (`grimora hook <event>`), which saves and restores the compaction anchors and
   folds the finished session back into the store.
 
@@ -68,7 +65,7 @@ on every turn.
 If you previously wired Grimora hooks by hand in `settings.json`, do not enable this
 plugin until those direct entries are removed in the same sitting — running both at
 once double-executes a hook that appears in both places. Run
-`node hook-doctor.mjs --project C:/Projects/NoMercy` to check hook overlap without
+`grimora hooks-doctor --project C:/Projects/NoMercy` to check hook overlap without
 running hooks or showing command arguments; `verify.ps1 -Project C:/Projects/NoMercy`
 includes this check.
 

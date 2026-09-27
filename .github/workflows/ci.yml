@@ -76,13 +76,12 @@ jobs:
           done
           exit $status
 
-      # Ranking has no loud failure mode: it just answers with worse material, which reads as the
-      # model being dim rather than as a regression. These are the cases that actually shipped broken.
-      - name: Ranking regression tests
-        run: node brain-lib.test.mjs
+      # The Node launch scripts keep their own tests (the ranking tests are C#: BrainSearchLibTests).
+      - name: Launch script tests
+        run: node --test
 
       - name: Cold start on a scratch instance
-        run: node init.mjs --root "$GITHUB_WORKSPACE" --instance ci-init --skip-chat --quiet
+        run: dotnet bin-cli/grimora.dll init --full --root "$GITHUB_WORKSPACE" --instance ci-init --skip-chat
 
       - name: Vulnerable dependencies
         run: |
