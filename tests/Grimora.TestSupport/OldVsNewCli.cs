@@ -32,8 +32,10 @@ public static class OldVsNewCli
 
     /// <summary>The frozen "before" binary's path, building it first if this is the first call on this
     /// machine.</summary>
-    public static string OracleDll()
+    public static string OracleDll([System.Runtime.CompilerServices.CallerFilePath] string callerFile = "", [System.Runtime.CompilerServices.CallerMemberName] string callerMember = "")
     {
+        // A class that has been frozen never builds the oracle; the sentinel only says "the frozen oracle".
+        if (!CliGoldens.FreezeMode && CliGoldens.HasGolden(callerFile)) return Path.Combine(SnapshotDir, "aitm.dll");
         string dll = Path.Combine(SnapshotDir, "aitm.dll");
         string stamp = Path.Combine(SnapshotDir, ".built-ok");
         if (File.Exists(dll) && File.Exists(stamp)) return dll;
@@ -46,17 +48,24 @@ public static class OldVsNewCli
 
     /// <summary>Today's compiled CLI — the "after" binary, rebuilt by build-cli.ps1 after each part's
     /// changes to grimora.cs.</summary>
-    public static string BinCliDll() => FindAbove(RepoRoot, Path.Combine("bin-cli-old", "grimora.dll"));
+    public static string BinCliDll([System.Runtime.CompilerServices.CallerFilePath] string callerFile = "", [System.Runtime.CompilerServices.CallerMemberName] string callerMember = "") =>
+        !CliGoldens.FreezeMode && CliGoldens.HasGolden(callerFile)
+            ? InProcessDll
+            : FindAbove(RepoRoot, Path.Combine("bin-cli-old", "grimora.dll"));
+
+    /// <summary>The sentinel for "the current code, run in-process" once a class is frozen.</summary>
+    public const string InProcessDll = "in-process/grimora.dll";
 
     /// <summary>Runs the same verb/arguments on a fresh <c>test-*</c> instance for each binary and
     /// returns both results, so a single command's old-vs-new behaviour is one assertion away.</summary>
-    public static (Result oldResult, Result newResult) RunBoth(string arguments)
+    public static (Result oldResult, Result newResult) RunBoth(string arguments, [System.Runtime.CompilerServices.CallerFilePath] string callerFile = "", [System.Runtime.CompilerServices.CallerMemberName] string callerMember = "")
     {
         string oldInstance = GrimoraCliRunner.NewTestInstance("oracle-old");
         string newInstance = GrimoraCliRunner.NewTestInstance("oracle-new");
         try
         {
-            return (Run(OracleDll(), oldInstance, arguments), Run(BinCliDll(), newInstance, arguments));
+            return (Run(OracleDll(callerFile, callerMember), oldInstance, arguments, callerFile, callerMember),
+                Run(BinCliDll(callerFile, callerMember), newInstance, arguments, callerFile, callerMember));
         }
         finally
         {
@@ -67,7 +76,41 @@ public static class OldVsNewCli
 
     /// <summary>Runs one command against one binary on one instance. Exposed so a test can seed a store
     /// (e.g. <c>add</c> a fact) identically on both instances before comparing a later verb.</summary>
-    public static Result Run(string dllPath, string instance, string arguments)
+    public static Result Run(string dllPath, string instance, string arguments, [System.Runtime.CompilerServices.CallerFilePath] string callerFile = "", [System.Runtime.CompilerServices.CallerMemberName] string callerMember = "")
+    {
+        bool frozenClass = !CliGoldens.FreezeMode && CliGoldens.HasGolden(callerFile);
+        if (frozenClass && dllPath == InProcessDll) return RunInProcess(instance, arguments);
+        if (frozenClass && Path.GetFileName(dllPath) == "aitm.dll") return Replay(instance, arguments, callerFile, callerMember);
+        Result live = RunLive(dllPath, instance, arguments);
+        if (CliGoldens.FreezeMode && Path.GetFileName(dllPath) == "aitm.dll")
+        {
+            CliGoldens.Record(callerFile, callerMember, arguments, live.Stdout, live.Stderr, live.ExitCode, instance, PinnedHeader);
+        }
+        return live;
+    }
+
+    private const string PinnedHeader =
+        "GOLDEN written by the pinned oracle aitm.cs at commit bbb9b4d2f4788d3f1960438799331d57198c9fbe (slice 24 start); never by the new code";
+
+    private static Result Replay(string instance, string arguments, string callerFile, string callerMember)
+    {
+        CliGoldens.Entry golden = CliGoldens.Take(callerFile, callerMember, arguments);
+        return new Result(
+            CliGoldens.Expand(golden.Stdout).Replace(CliGoldens.InstanceMarker, instance, StringComparison.Ordinal),
+            CliGoldens.Expand(golden.Stderr).Replace(CliGoldens.InstanceMarker, instance, StringComparison.Ordinal),
+            golden.ExitCode);
+    }
+
+    private static Result RunInProcess(string instance, string arguments)
+    {
+        using StringWriter stdout = new();
+        using StringWriter stderr = new();
+        int exit = Grimora.Server.Data.CliDispatch.Run(
+            CliGoldens.SplitArguments($"{arguments} --instance {instance}"), Directory.GetCurrentDirectory(), stdout, stderr);
+        return new Result(stdout.ToString(), stderr.ToString(), exit);
+    }
+
+    private static Result RunLive(string dllPath, string instance, string arguments)
     {
         // The verb has to be argv[0] (grimora.cs reads `a[0]` as the command), so --instance goes after it.
         ProcessStartInfo psi = new("dotnet", $"\"{dllPath}\" {arguments} --instance {instance}")

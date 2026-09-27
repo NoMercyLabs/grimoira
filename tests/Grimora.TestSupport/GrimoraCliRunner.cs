@@ -107,19 +107,42 @@ public static class GrimoraCliRunner
     }
 
     /// <summary>Runs <c>grimora &lt;arguments&gt;</c> and returns (stdout, exit code). Never throws on a
-    /// non-zero exit so a caller can pin an error path too.</summary>
-    public static (string stdout, int exitCode) Run(string arguments)
+    /// non-zero exit so a caller can pin an error path too. The returned stdout is the frozen golden of the
+    /// calling test (see <see cref="CliGoldens"/>); the current CLI code runs in-process and must match it,
+    /// otherwise this throws <see cref="CliGoldens.MismatchException"/>. With GRIMORA_FREEZE=1 the oracle
+    /// build in bin-cli-old runs instead and its answer is written to the golden.</summary>
+    public static (string stdout, int exitCode) Run(
+        string arguments,
+        [System.Runtime.CompilerServices.CallerFilePath] string callerFile = "",
+        [System.Runtime.CompilerServices.CallerMemberName] string callerMember = "")
     {
-        // The child inherits this process's console (RedirectStandardInput is never set here, so the
-        // console handle carries over), and on Windows the child's own Console.OutputEncoding is read
-        // from that console's active output code page — not from StandardOutputEncoding below, which
-        // only tells *this* process how to decode the bytes it reads back from the pipe. When that code
-        // page is not UTF-8 (any single-byte Windows code page), the child best-fits "…" (and other
-        // non-ASCII text the CLI prints, e.g. a recall header's ellipsis) down to plain ASCII before the
-        // bytes ever reach the pipe, so no amount of decoding on this side recovers the original
-        // character. Switch the shared console's own output code page to UTF-8 first so the child writes
-        // the real bytes. No-op (and harmless) on Linux/macOS, where there is no Windows code page and
-        // the terminal is UTF-8 already.
+        if (CliGoldens.FreezeMode || !CliGoldens.HasGolden(callerFile))
+        {
+            (string oldOut, string oldErr, int oldExit) = RunOracle(arguments);
+            if (CliGoldens.FreezeMode) CliGoldens.Record(callerFile, callerMember, arguments, oldOut, oldErr, oldExit);
+            else if (oldExit != 0 && string.IsNullOrEmpty(oldOut))
+                throw new InvalidOperationException($"'{arguments}' exited {oldExit}/nSTDERR:/n{oldErr}");
+            return (oldOut, oldExit);
+        }
+
+        CliGoldens.Entry golden = CliGoldens.Take(callerFile, callerMember, arguments);
+        (string stdout, string stderr, int exitCode) = RunCurrent(arguments);
+        CliGoldens.AssertMatches(golden, arguments, stdout, stderr, exitCode);
+        return (stdout, exitCode);
+    }
+
+    private static (string stdout, string stderr, int exitCode) RunCurrent(string arguments)
+    {
+        using StringWriter stdout = new();
+        using StringWriter stderr = new();
+        int exit = Grimora.Server.Data.CliDispatch.Run(CliGoldens.SplitArguments(arguments), Directory.GetCurrentDirectory(), stdout, stderr);
+        return (stdout.ToString(), stderr.ToString(), exit);
+    }
+
+    private static (string stdout, string stderr, int exitCode) RunOracle(string arguments)
+    {
+        // The child inherits this process's console; on Windows its output code page decides how it encodes
+        // non-ASCII text, so switch it to UTF-8 first (no-op on Linux/macOS).
         if (OperatingSystem.IsWindows()) SetConsoleOutputCP(Utf8CodePage);
 
         string dll = FindGrimoraDll();
@@ -128,7 +151,6 @@ public static class GrimoraCliRunner
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,
-            // Decodes the now-UTF-8 bytes the child writes (see the SetConsoleOutputCP call above).
             StandardOutputEncoding = System.Text.Encoding.UTF8,
             StandardErrorEncoding = System.Text.Encoding.UTF8,
         };
@@ -136,9 +158,7 @@ public static class GrimoraCliRunner
         string stdout = process.StandardOutput.ReadToEnd();
         string stderr = process.StandardError.ReadToEnd();
         process.WaitForExit();
-        if (process.ExitCode != 0 && string.IsNullOrEmpty(stdout))
-            throw new InvalidOperationException($"'dotnet {dll} {arguments}' exited {process.ExitCode}\nSTDOUT:\n{stdout}\nSTDERR:\n{stderr}");
-        return (stdout, process.ExitCode);
+        return (stdout, stderr, process.ExitCode);
     }
 
     private const uint Utf8CodePage = 65001;
