@@ -139,13 +139,26 @@ public static class GrimoraCliRunner
         return (stdout.ToString(), stderr.ToString(), exit);
     }
 
-    private static (string stdout, string stderr, int exitCode) RunOracle(string arguments)
+    /// <summary>Spawns a real <c>dotnet bin-cli/grimora.dll &lt;arguments&gt;</c> process — the published thin
+    /// client, i.e. today's code, not the oracle. For a test that needs a genuine separate OS process (a
+    /// cross-process file-lock race, for instance), not a stdout comparison: goldens replay a fixed answer,
+    /// which cannot stand in for two real processes racing each other.</summary>
+    public static (string stdout, int exitCode) RunBinCli(string arguments)
+    {
+        (string stdout, string stderr, int exitCode) = RunProcess(FindBinCliDll(), arguments);
+        if (exitCode != 0 && string.IsNullOrEmpty(stdout))
+            throw new InvalidOperationException($"'{arguments}' exited {exitCode}\nSTDERR:\n{stderr}");
+        return (stdout, exitCode);
+    }
+
+    private static (string stdout, string stderr, int exitCode) RunOracle(string arguments) => RunProcess(FindGrimoraDll(), arguments);
+
+    private static (string stdout, string stderr, int exitCode) RunProcess(string dll, string arguments)
     {
         // The child inherits this process's console; on Windows its output code page decides how it encodes
         // non-ASCII text, so switch it to UTF-8 first (no-op on Linux/macOS).
         if (OperatingSystem.IsWindows()) SetConsoleOutputCP(Utf8CodePage);
 
-        string dll = FindGrimoraDll();
         ProcessStartInfo psi = new("dotnet", $"\"{dll}\" {arguments}")
         {
             RedirectStandardOutput = true,
@@ -166,16 +179,19 @@ public static class GrimoraCliRunner
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern bool SetConsoleOutputCP(uint wCodePageId);
 
-    private static string FindGrimoraDll()
+    private static string FindGrimoraDll() => FindAbove(Path.Combine("bin-cli-old", "grimora.dll"));
+
+    private static string FindBinCliDll() => FindAbove(Path.Combine("bin-cli", "grimora.dll"));
+
+    private static string FindAbove(string relative)
     {
         DirectoryInfo? dir = new(AppContext.BaseDirectory);
         while (dir is not null)
         {
-            string candidate = Path.Combine(dir.FullName, "bin-cli-old", "grimora.dll");
+            string candidate = Path.Combine(dir.FullName, relative);
             if (File.Exists(candidate)) return candidate;
             dir = dir.Parent;
         }
-        throw new InvalidOperationException(
-            $"bin-cli-old/grimora.dll not found above {AppContext.BaseDirectory} — run build-cli.ps1 first");
+        throw new InvalidOperationException($"{relative} not found above {AppContext.BaseDirectory} — run build-cli.ps1 first");
     }
 }

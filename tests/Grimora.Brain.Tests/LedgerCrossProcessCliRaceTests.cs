@@ -30,7 +30,7 @@ public sealed class LedgerCrossProcessCliRaceTests
         int expectedApplied = 0;
         try
         {
-            GrimoraCliRunner.Run($"init --instance {instance}");
+            GrimoraCliRunner.RunBinCli($"init --instance {instance}");
 
             for (int round = 0; round < Rounds; round++)
             {
@@ -48,7 +48,7 @@ public sealed class LedgerCrossProcessCliRaceTests
 
             // Drain: any line kept for retry after a transient DB-lock reject is still on disk, never
             // lost — one more flush must deliver everything still outstanding.
-            GrimoraCliRunner.Run($"flush --instance {instance}");
+            GrimoraCliRunner.RunBinCli($"flush --instance {instance}");
 
             string ledger = Path.Combine(GrimoraCliRunner.InstanceDir(instance), "pending-learn.jsonl");
             Assert.False(
@@ -62,14 +62,18 @@ public sealed class LedgerCrossProcessCliRaceTests
         }
         finally
         {
-            GrimoraCliRunner.DeleteInstance(instance);
+            // Real bin-cli calls spawn a background grimora server that keeps the db file open until it goes
+            // idle (Program.cs's IdleExit), well past this test's own cleanup — same situation
+            // SweepStaleInstances already handles for a leaked store, so leave it for that sweep too.
+            try { GrimoraCliRunner.DeleteInstance(instance); }
+            catch (IOException) { /* server still holds the file; the next run's SweepStaleInstances collects it */ }
         }
     }
 
     private static (string stdout, int exitCode) RunStageThenFlush(string instance, string key)
     {
-        (string stageOut, int stageExit) = GrimoraCliRunner.Run($"stage node {key} concept \"Race Label\" --instance {instance}");
-        (string flushOut, int flushExit) = GrimoraCliRunner.Run($"flush --instance {instance}");
+        (string stageOut, int stageExit) = GrimoraCliRunner.RunBinCli($"stage node {key} concept \"Race Label\" --instance {instance}");
+        (string flushOut, int flushExit) = GrimoraCliRunner.RunBinCli($"flush --instance {instance}");
         return ($"stage: {stageOut.Trim()} | flush: {flushOut.Trim()}", stageExit != 0 ? stageExit : flushExit);
     }
 
