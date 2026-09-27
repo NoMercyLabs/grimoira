@@ -43,11 +43,6 @@ The repo is its own marketplace, so it installs directly:
 call and must run outside the model's reasoning, not the ones that grade Claude's own
 answers:
 
-- `shell-guard.mjs` (PreToolUse `Bash|PowerShell`) — blocks a known-bad Windows path
-  shape before the shell runs it.
-- `chrome-ready.mjs` (PreToolUse on browser MCP tools, PostToolUse `--prune-only` on
-  `Bash|PowerShell`) — makes sure a debugger-attached Chrome is up before a browser
-  tool runs, and prunes stale browser processes after a shell command.
 - `run-hook.mjs` (UserPromptSubmit, PreCompact, PostToolUse `Write|Edit|MultiEdit|NotebookEdit`, SessionEnd) — forwards the event to the
   published CLI (`grimora hook <event>`), which saves and restores the compaction anchors and
   folds the finished session back into the store.

@@ -18,9 +18,6 @@ public partial class OnlyTheLaunchScriptsRemainAsNodeTests
         "legacy-env.mjs",
         "build-stamp.mjs", "build-stamp.test.mjs",
         "build-cli-and-server.mjs", "published-cli.mjs",
-        // Live PreToolUse hooks with no C# equivalent yet: deleting them would drop a protection the owner runs
-        // on every shell and browser call. They leave with their C# port, not before.
-        "shell-guard.mjs", "chrome-ready.mjs",
     };
 
     private static string[] Tracked(params string[] patterns)

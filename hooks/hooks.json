@@ -6,33 +6,10 @@
           {
             "type": "command",
             "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/session-start.mjs"],
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/session-start.mjs"
+            ],
             "timeout": 15
-          }
-        ]
-      }
-    ],
-    "PreToolUse": [
-      {
-        "matcher": "Bash|PowerShell",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/shell-guard.mjs"],
-            "timeout": 10
-          }
-        ]
-      },
-      {
-        "matcher": "mcp__chrome-attached__.*|mcp__plugin_chrome-devtools-mcp_chrome-devtools__.*|mcp__plugin_playwright_playwright__.*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/chrome-ready.mjs"],
-            "timeout": 30,
-            "statusMessage": "Making sure the agent browser is up…"
           }
         ]
       }
@@ -43,7 +20,10 @@
           {
             "type": "command",
             "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/run-hook.mjs", "UserPromptSubmit"],
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/run-hook.mjs",
+              "UserPromptSubmit"
+            ],
             "timeout": 10
           }
         ]
@@ -51,23 +31,15 @@
     ],
     "PostToolUse": [
       {
-        "matcher": "Bash|PowerShell",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/chrome-ready.mjs", "--prune-only"],
-            "timeout": 20
-          }
-        ]
-      },
-      {
         "matcher": "Write|Edit|MultiEdit|NotebookEdit",
         "hooks": [
           {
             "type": "command",
             "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/run-hook.mjs", "PostToolUse"],
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/run-hook.mjs",
+              "PostToolUse"
+            ],
             "timeout": 65
           }
         ]
@@ -79,9 +51,12 @@
           {
             "type": "command",
             "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/run-hook.mjs", "PreCompact"],
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/run-hook.mjs",
+              "PreCompact"
+            ],
             "timeout": 20,
-            "statusMessage": "Saving anchors before compaction…"
+            "statusMessage": "Saving anchors before compaction\u2026"
           }
         ]
       }
@@ -92,7 +67,10 @@
           {
             "type": "command",
             "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/run-hook.mjs", "SessionEnd"],
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/run-hook.mjs",
+              "SessionEnd"
+            ],
             "timeout": 390,
             "async": true
           }
