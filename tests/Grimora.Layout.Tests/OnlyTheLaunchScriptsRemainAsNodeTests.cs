@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Grimora.Store.Data;
 using System.Text.RegularExpressions;
 using Xunit;
 
@@ -65,6 +66,6 @@ public partial class OnlyTheLaunchScriptsRemainAsNodeTests
         Assert.True(bad.Count == 0, "references to Node scripts not on the keep list: " + string.Join("; ", bad.Distinct()));
     }
 
-    [GeneratedRegex(@"([A-Za-z0-9_\-*]+\.(?:test\.)?mjs)", RegexOptions.None, matchTimeoutMilliseconds: 2000)]
+    [GeneratedRegex(@"([A-Za-z0-9_\-*]+\.(?:test\.)?mjs)", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex ScriptName();
 }

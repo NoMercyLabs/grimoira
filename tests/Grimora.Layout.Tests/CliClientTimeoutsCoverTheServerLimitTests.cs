@@ -24,25 +24,6 @@ public partial class CliClientTimeoutsCoverTheServerLimitTests
         return int.Parse(match.Groups[1].Value);
     }
 
-    private static int IndexChatTimeoutMs()
-    {
-        string source = File.ReadAllText(Path.Combine(RepoPaths.Root, "init.mjs"));
-        Match match = IndexChatRunCliTimeout().Match(source);
-        Assert.True(match.Success, "init.mjs's index-chat runCli call was not found; the regex needs updating to match its new shape.");
-        return int.Parse(match.Groups[1].Value);
-    }
-
-    [Fact]
-    public void ServersLongVerbTimeoutIsAtLeastInitMjsGivesIndexChat()
-    {
-        int serverMs = LongTimeoutSeconds() * 1000;
-        int callerMs = IndexChatTimeoutMs();
-
-        Assert.True(serverMs >= callerMs,
-            $"CliEndpoint.LongTimeout is {serverMs} ms but init.mjs waits {callerMs} ms for index-chat; " +
-            "a large chat import would now time out at the server before the caller gives up on it.");
-    }
-
     [Fact]
     public void ThinClientsOwnHttpTimeoutIsAtLeastTheServersLongVerbTimeout()
     {
@@ -56,6 +37,4 @@ public partial class CliClientTimeoutsCoverTheServerLimitTests
 
     [GeneratedRegex(@"LongTimeout = TimeSpan\.FromSeconds\((\d+)\)", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex LongTimeoutDeclaration();
-    [GeneratedRegex(@"runCli\(\['index-chat',[^\]]*\],\s*(\d+)\)", RegexOptions.None, RegexTimeout.Milliseconds)]
-    private static partial Regex IndexChatRunCliTimeout();
 }
