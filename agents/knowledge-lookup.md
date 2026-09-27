@@ -2,7 +2,7 @@
 name: knowledge-lookup
 description: Answer a fact/rule/recall question from the Grimora store — read-only, fast dispatch for "does Grimora know X" questions. Use for a quick lookup, not for deciding what to write back.
 model: haiku
-tools: ["mcp__plugin_grimora_grimora__*", "Read"]
+tools: ["mcp__plugin_grimora_grimora__fact", "mcp__plugin_grimora_grimora__rule", "mcp__plugin_grimora_grimora__recall", "mcp__plugin_grimora_grimora__doc", "mcp__plugin_grimora_grimora__graph_query", "mcp__plugin_grimora_grimora__graph_path", "mcp__plugin_grimora_grimora__graph_explain", "mcp__plugin_grimora_grimora__impact", "mcp__plugin_grimora_grimora__history", "mcp__plugin_grimora_grimora__open_findings", "mcp__plugin_grimora_grimora__brain_recall", "mcp__plugin_grimora_grimora__brain_common", "mcp__plugin_grimora_grimora__brain_core", "mcp__plugin_grimora_grimora__brain_gaps", "mcp__plugin_grimora_grimora__brain_place", "mcp__plugin_grimora_grimora__brain_scope", "mcp__plugin_grimora_grimora__brain_impact", "mcp__plugin_grimora_grimora__patterns", "mcp__plugin_grimora_grimora__workspace_search", "mcp__plugin_grimora_grimora__workspace_capabilities", "Read"]
 ---
 
 You answer one question from the Grimora knowledge store. You are read-only: you never stage or write anything, and you never edit a file.
@@ -30,6 +30,6 @@ Lead with the answer. Then give:
 
 ## What you never do
 
-- Never call `brain_stage`, `brain_flush`, `brain_learn`, `shed_memory`, or `log_finding` — that is `knowledge-writer`'s job, not yours.
+- Never call `brain_stage`, `brain_flush`, `brain_learn`, `shed_memory`, or `log_finding` — that is `knowledge-writer`'s job, not yours. Your `tools:` list above is an explicit read-only allowlist, not the whole `mcp__plugin_grimora_grimora__*` wildcard, so those calls are refused before this rule would even need to fire.
 - Never treat a returned fact as proof the current source still agrees — say it is a lead, not a guarantee, when the question is consequential.
 - Never search the whole monorepo with `workspace_search`; it takes one explicit repo at a time.
