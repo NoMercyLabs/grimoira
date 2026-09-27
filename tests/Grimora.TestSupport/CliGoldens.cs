@@ -231,12 +231,16 @@ public static partial class CliGoldens
     // Directory.CreateTempSubdirectory("grimora-<name>-") appends its own random suffix, never equal
     // between a golden freeze and a later replay (e.g. a fixture folder Server.Tests seeds a CLI oracle
     // call from). Matches the fixed prefix every caller uses, keeping the descriptive name it chose.
-    // Path.GetRandomFileName() (what CreateTempSubdirectory actually appends) always has the shape
-    // "XXXXXXXX.XXX" (an 8.3-style name), not just the first segment — a golden that only swallowed the
-    // first 6-10 chars left the ".XXX" tail literal, so it matched at freeze time but mismatched on every
-    // later run once that tail became part of a compared golden (surfaced when the SessionEnd/CLI-through-
-    // GRIMORA_DATA_DIR fix made a CreateTempSubdirectory path show up in a golden for the first time).
-    [GeneratedRegex(@"grimora-([a-z-]+?)-[0-9a-z]{6,10}(?:\.[0-9a-z]{1,4})?(?=[/""\\.]|$)", RegexOptions.None, RegexTimeout.Milliseconds)]
+    // The random suffix's shape is NOT the same on every platform: on Windows, CreateTempSubdirectory
+    // appends a Path.GetRandomFileName()-style "XXXXXXXX.XXX" (8.3, lowercase letters and digits 0-5,
+    // e.g. "ako1vvd5.xvr"); on Linux, confirmed from actual CI output (run 36358035833), it appends a
+    // 6-character mixed-case alphanumeric suffix with no dot (e.g. "ggOPHV", "MLcDme", "BdkxgC") — a
+    // different generator, not just a shorter random name. A golden frozen on Windows (lowercase-only,
+    // dotted) previously left a Linux run's uppercase letters unmatched by the [0-9a-z] class, so the
+    // suffix stayed literal after Canonical() and mismatched every golden that carries one of these paths.
+    // The class below accepts letters of both cases plus digits, with or without the dot extension, so it
+    // normalizes identically regardless of which platform produced the path.
+    [GeneratedRegex(@"grimora-([a-z-]+?)-[0-9A-Za-z]{6,10}(?:\.[0-9A-Za-z]{1,4})?(?=[/""\\.]|$)", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex RandomTempDir();
 
     [GeneratedRegex("(?<![A-Za-z0-9])[A-Za-z]:/", RegexOptions.None, RegexTimeout.Milliseconds)]
