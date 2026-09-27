@@ -1,0 +1,4 @@
+GetWidget	decl	web	<root>/Service.cs	4	csharp declaration	0
+Widget	decl	web	<root>/widget.ts	1	ts declaration	0
+WidgetService	decl	web	<root>/Service.cs	2	csharp declaration	0
+renderWidget	decl	web	<root>/widget.ts	4	ts declaration	0

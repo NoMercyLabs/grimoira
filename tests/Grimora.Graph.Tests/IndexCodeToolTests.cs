@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using Grimora.Graph.Tools;
 using Grimora.Store.Data;
@@ -8,27 +7,19 @@ using Xunit;
 
 namespace Grimora.Graph.Tests;
 
-// RESTRUCTURE.md slice 14: "index-code.mjs on a fixture repo, pinned edge rows (none today). The C#
-// tool must write the same rows." Oracle: today's index-code.mjs run as a child process against a
-// throwaway test-* instance; GRIMORA_SKIP_PROJECTS is set explicitly (blank) so this never inherits
-// whatever a real dev shell has configured for the live projects.
+// RESTRUCTURE.md slice 14: "index-code.mjs on a fixture repo, pinned edge rows. The C# tool must write the
+// same rows." The oracle (index-code.mjs) is gone; Goldens/index-code-fixture-edges.tsv holds the 4 rows it
+// wrote for this fixture, produced by running index-code.mjs itself (commit a573bc1) and not by IndexCodeTool.
+// The fixture root varies per run, so it is written as <root> in both the golden and the compared rows.
 public class IndexCodeToolTests
 {
     [Fact]
-    public void MatchesTodaysIndexCodeEdgeRows()
+    public void MatchesTheFrozenIndexCodeEdgeRows()
     {
-        string oldInstance = GrimoraCliRunner.NewTestInstance("index-code-old");
         string newInstance = GrimoraCliRunner.NewTestInstance("index-code-new");
         string root = MakeFixtureProject("index-code-fixture");
         try
         {
-            // Oracle: today's index-code.mjs.
-            GrimoraCliRunner.Run($"init --instance {oldInstance}");
-            GrimoraCliRunner.Run($"project --instance {oldInstance} --name web --root \"{root}\" --globs \"*.ts,*.cs\"");
-            RunNodeIndexCode(oldInstance);
-            List<string> expected = ReadEdgeRows(GrimoraCliRunner.InstanceDbPath(oldInstance));
-
-            // New: IndexCodeTool.
             GrimoraCliRunner.Run($"init --instance {newInstance}");
             string dbPath = GrimoraCliRunner.InstanceDbPath(newInstance);
             string backupDir = Path.Combine(Path.GetTempPath(), $"grimora-index-code-backups-{Guid.NewGuid():N}");
@@ -36,43 +27,26 @@ public class IndexCodeToolTests
             {
                 new ProjectTool().Execute(setup, "web", root, "", "*.ts,*.cs");
             }
+
             using (SqliteConnection connection = StoreConnection.Open(dbPath))
             {
                 new IndexCodeTool().Execute(connection, null, backupDir);
             }
-            List<string> actual = ReadEdgeRows(dbPath);
 
-            Assert.NotEmpty(expected);
-            Assert.Equal(expected, actual);
+            List<string> actual = ReadEdgeRows(dbPath, root);
+            List<string> golden = [.. File.ReadAllLines(GoldenPath())];
+
+            Assert.Equal(4, golden.Count);
+            Assert.Equal(golden, actual);
         }
         finally
         {
-            GrimoraCliRunner.DeleteInstance(oldInstance);
             GrimoraCliRunner.DeleteInstance(newInstance);
             Directory.Delete(root, recursive: true);
         }
     }
 
-    private static void RunNodeIndexCode(string instance)
-    {
-        ProcessStartInfo psi = new("node", $"\"{IndexCodeScriptPath()}\" --instance {instance} --quiet")
-        {
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-            WorkingDirectory = RepoRoot(),
-            // Explicit per the card: never let a real dev shell's project-skip list leak into the oracle run.
-            EnvironmentVariables = { ["GRIMORA_SKIP_PROJECTS"] = "" },
-        };
-        using Process process = Process.Start(psi) ?? throw new InvalidOperationException("could not start node");
-        string stdout = process.StandardOutput.ReadToEnd();
-        string stderr = process.StandardError.ReadToEnd();
-        process.WaitForExit();
-        if (process.ExitCode != 0)
-            throw new InvalidOperationException($"node index-code.mjs exited {process.ExitCode}\nSTDOUT:\n{stdout}\nSTDERR:\n{stderr}");
-    }
-
-    private static List<string> ReadEdgeRows(string dbPath)
+    private static List<string> ReadEdgeRows(string dbPath, string root)
     {
         using SqliteConnection connection = new($"Data Source={dbPath};Mode=ReadOnly");
         connection.Open();
@@ -83,11 +57,16 @@ public class IndexCodeToolTests
         List<string> rows = [];
         while (reader.Read())
         {
-            rows.Add(string.Join('\u0001', Enumerable.Range(0, reader.FieldCount)
-                .Select(i => reader.IsDBNull(i) ? "<null>" : Convert.ToString(reader.GetValue(i)) ?? "")));
+            rows.Add(string.Join('\t', Enumerable.Range(0, reader.FieldCount)
+                .Select(i => reader.IsDBNull(i) ? "<null>" : Normalise(Convert.ToString(reader.GetValue(i)) ?? "", root))));
         }
         return rows;
     }
+
+    // The tool stores absolute paths with forward slashes; the fixture root differs on every run.
+    private static string Normalise(string value, string root) =>
+        value.Replace(root.Replace('\\', '/'), "<root>", StringComparison.OrdinalIgnoreCase)
+            .Replace(root, "<root>", StringComparison.OrdinalIgnoreCase);
 
     private static string MakeFixtureProject(string label)
     {
@@ -103,8 +82,6 @@ public class IndexCodeToolTests
         return dir;
     }
 
-    private static string IndexCodeScriptPath() => Path.Combine(RepoRoot(), "index-code.mjs");
-
-    private static string RepoRoot([CallerFilePath] string here = "") =>
-        Path.GetFullPath(Path.Combine(Path.GetDirectoryName(here)!, "..", ".."));
+    private static string GoldenPath([CallerFilePath] string here = "") =>
+        Path.Combine(Path.GetDirectoryName(here)!, "Goldens", "index-code-fixture-edges.tsv");
 }
