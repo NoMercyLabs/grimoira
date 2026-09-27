@@ -22,7 +22,7 @@ public sealed class NoOldNameRemainsOutsideTheCompatibilityShimsTests
         ["tests/Grimora.TestSupport/McpSnapshotHarness.cs"] = "the pinned snapshot reads the AITM_INSTANCE env var.",
         ["tests/Grimora.Store.Tests/StatsToolTests.cs"] = "the pinned tok.cs oracle reads the old store folder.",
         ["docs/RESTRUCTURE.md"] = "the plan narrates the rename in its history text.",
-        ["README.md"] = "one sentence tells a returning user that their data moves from the earlier C:/Users/dev/.aitm folder the first time.",
+        ["README.md"] = "one sentence tells a returning user that their data moves from the earlier home-folder store the first time.",
         ["docs/PLAN.md"] = "quotes the owner (2026-09-25) word for word; a quote keeps the name it was said with.",
     };
 
