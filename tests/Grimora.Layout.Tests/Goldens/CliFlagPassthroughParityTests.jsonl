@@ -1,0 +1,8 @@
+{"header":"GOLDEN written by the pinned oracle aitm.cs at commit bbb9b4d2f4788d3f1960438799331d57198c9fbe (slice 24 start); never by the new code"}
+{"Member":"RunParity","Args":"init","Stdout":"instance '<INSTANCE>' ready at <HOME><SEP>.grimora<SEP><INSTANCE><SEP>grimora.db<NL>","Stderr":"","ExitCode":0,"RawArgs":"init"}
+{"Member":"RunParity","Args":"brain learn node p24f:frame fact \"frame label\"","Stdout":"","Stderr":"","ExitCode":0,"RawArgs":"brain learn node p24f:frame fact \"frame label\""}
+{"Member":"RunParity","Args":"brain learn slot p24f:frame name value --facet code","Stdout":"","Stderr":"","ExitCode":0,"RawArgs":"brain learn slot p24f:frame name value --facet code"}
+{"Member":"RunParity","Args":"init","Stdout":"instance '<INSTANCE>' ready at <HOME><SEP>.grimora<SEP><INSTANCE><SEP>grimora.db<NL>","Stderr":"","ExitCode":0,"RawArgs":"init"}
+{"Member":"RunParity","Args":"brain learn node kind:p24fplace fact \"frame label\"","Stdout":"","Stderr":"","ExitCode":0,"RawArgs":"brain learn node kind:p24fplace fact \"frame label\""}
+{"Member":"RunParity","Args":"brain learn slot kind:p24fplace name value --facet code","Stdout":"","Stderr":"","ExitCode":0,"RawArgs":"brain learn slot kind:p24fplace name value --facet code"}
+{"Member":"RunParity","Args":"brain place p24fplace","Stdout":"  name  |  value  |  code  |  <NL>","Stderr":"","ExitCode":0,"RawArgs":"brain place p24fplace"}
