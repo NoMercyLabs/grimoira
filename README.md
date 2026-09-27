@@ -20,6 +20,20 @@ The conversation channel is a primary asset, not noise around the facts. It carr
 
 ## Build
 
+Every script has a bash twin and a PowerShell twin with the same flags and exit codes:
+
+| Task | Bash | PowerShell |
+| --- | --- | --- |
+| CLI to `bin-cli/` | `./build-cli.sh` | `./build-cli.ps1` |
+| Server to `bin-server/` | `./build-server.sh` | `./build-server.ps1` |
+| MCP host to `bin/` | `./build-mcp.sh` | `./build-mcp.ps1` |
+| Everything | `./build.sh` | `./build.ps1` |
+| Rider inspections | `./inspect.sh [--output FILE]` | `./inspect.ps1 [-Output FILE]` |
+| Pre-commit gate | `./verify.sh [--skip-build] [--project DIR]` | `./verify.ps1 [-SkipBuild] [-Project DIR]` |
+| Commit, push, watch CI | `./ship.sh --message ...` | `./ship.ps1 -Message ...` |
+
+`build.sh` does not stop a running MCP host that holds `bin/mcp.dll` (`build.ps1` does): it never kills a process it did not start.
+
 ## Install as a plugin
 
 Grimora is a Claude Code plugin. It bundles the MCP server (`.mcp.json`, launched through
@@ -61,7 +75,7 @@ If you previously wired Grimora hooks by hand in `settings.json`, do not enable 
 plugin until those direct entries are removed in the same sitting — running both at
 once double-executes a hook that appears in both places. Run
 `grimora hooks-doctor --project C:/Projects/NoMercy` to check hook overlap without
-running hooks or showing command arguments; `verify.ps1 -Project C:/Projects/NoMercy`
+running hooks or showing command arguments; `./verify.sh --project C:/Projects/NoMercy` (or `verify.ps1 -Project C:/Projects/NoMercy`)
 includes this check.
 
 ## The enforcement loop (retired)

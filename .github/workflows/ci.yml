@@ -31,15 +31,13 @@ jobs:
       - name: Build CLI
         # bin-cli/ is the published Grimora.Cli, the thin client of the server's POST /cli. bin-cli-old/
         # is the kept grimora.cs build: the rollback, and the oracle the parity tests compare against.
-        run: |
-          dotnet build grimora.cs -c Release -o bin-cli-old
-          dotnet publish src/Grimora.Cli/Grimora.Cli.csproj -c Release -o bin-cli -p:PublishAot=false
+        run: ./build-cli.sh
 
       - name: Build server
-        run: dotnet publish src/Grimora.Server/Grimora.Server.csproj -c Release -o bin-server -p:PublishAot=false
+        run: ./build-server.sh
 
       - name: Build MCP server
-        run: dotnet build mcp.cs -c Release -o bin
+        run: ./build-mcp.sh
 
       # the owner, 2026-09-26: the code style "must be enforced by rules". A file the fixer would rewrite fails CI.
       - name: Code style
@@ -48,10 +46,9 @@ jobs:
       # the owner, 2026-09-27: every warning Rider shows must fail the build. Rider's inspections are not Roslyn
       # analyzers, so JetBrains' inspectcode (pinned in .config/dotnet-tools.json) runs against Grimora.sln.DotSettings.
       - name: Rider inspections
-        shell: pwsh
         run: |
           dotnet build Grimora.sln -c Debug --nologo -v q
-          ./inspect.ps1
+          ./inspect.sh
 
       - name: Solution tests
         run: dotnet test Grimora.sln -c Release
