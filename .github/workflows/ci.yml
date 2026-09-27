@@ -29,8 +29,7 @@ jobs:
           global-json-file: global.json
 
       - name: Build CLI
-        # bin-cli/ is the published Grimora.Cli, the thin client of the server's POST /cli. bin-cli-old/
-        # is the kept grimora.cs build: the rollback, and the oracle the parity tests compare against.
+        # bin-cli/ is the published Grimora.Cli, the thin client of the server's POST /cli.
         run: ./build-cli.sh
 
       - name: Build server
