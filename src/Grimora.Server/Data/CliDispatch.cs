@@ -100,8 +100,29 @@ public static class CliDispatch
                 switch (cmd)
                 {
                     case "init":
+                        if (a.Contains("--full"))
+                        {
+                            InitFullResult full = InitFull.RunFull(new InitFullOptions(
+                                Path.GetFullPath(GetFlag("--root") ?? cwd), _instance, _dbPath,
+                                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), a.Contains("--skip-chat")));
+                            stdout.WriteLine(full.Log);
+                            return full.Success ? 0 : 1;
+                        }
+
                         stdout.WriteLine(new InitTool().Execute(_instance, _dbPath));
                         break;
+                    case "index-code":
+                        stdout.WriteLine(new IndexCodeTool().Execute(_db, GetFlag("--project"), Path.Combine(_root, "index-code-backups")));
+                        break;
+                    case "hooks-doctor":
+                        string claudeHome = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".claude");
+                        string doctorProject = GetFlag("--project") ?? Environment.GetEnvironmentVariable("CLAUDE_PROJECT_DIR") ?? cwd;
+                        string doctorPluginRoot = PluginFileLocator.PluginRoot() ?? AppContext.BaseDirectory;
+                        stdout.WriteLine(Grimora.Hooks.Tools.HookDoctorTool.ExecuteCli(
+                            Path.Combine(claudeHome, "settings.json"),
+                            Path.Combine(doctorProject, ".claude", "settings.json"),
+                            Path.Combine(doctorPluginRoot, "hooks", "hooks.json"), out int doctorExit));
+                        return doctorExit;
                     case "import":
                         stdout.WriteLine(new ImportTool().Execute(_db,
                             GetFlag("--from") ?? throw new ArgumentException("import needs --from <sqlite path>"), _dbPath));
@@ -304,7 +325,9 @@ public static class CliDispatch
                         // One command per line so adding/removing a command is a one-line diff, not a rewrite of the whole string.
                         string[] usage =
                         [
-                            "init                                create/open the instance",
+                            "init [--full --root <dir>]          create/open the instance; --full also registers projects and indexes code, docs, memory, chat",
+                            "index-code [--project <name>]       bulk-index registered projects' public declarations into edges",
+                            "hooks-doctor [--project <dir>]      find duplicate hook registrations (plugin vs. direct)",
                             "import --from <db>                  merge another grimora.db into this one",
                             "add [--provenance stated|inferred]  add a fact (provenance: who established it)",
                             "query <terms>                       look up a verified fact",
