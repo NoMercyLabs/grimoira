@@ -1,0 +1,3 @@
+{"header":"GOLDEN written by the oracle bin-cli-old (grimora.cs at commit 0b2bb70, the last file-based build); never by the new code"}
+{"Member":"NothingRecordedYetIsReportedPlainly","Args":"init --instance test-patterns-empty-<GUID>","Stdout":"instance 'test-patterns-empty-5325f9f600464f01b861a5efafd30ec9' ready at <HOME><SEP>.grimora<SEP>test-patterns-empty-5325f9f600464f01b861a5efafd30ec9<SEP>grimora.db<NL>","Stderr":"","ExitCode":0}
+{"Member":"ListsARecordedPatternThatCrossedTheThreshold","Args":"init --instance test-patterns-<GUID>","Stdout":"instance 'test-patterns-51009ae17b0c451c9d1198e712d3e820' ready at <HOME><SEP>.grimora<SEP>test-patterns-51009ae17b0c451c9d1198e712d3e820<SEP>grimora.db<NL>","Stderr":"","ExitCode":0}
