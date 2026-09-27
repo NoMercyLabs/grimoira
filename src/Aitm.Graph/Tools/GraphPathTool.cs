@@ -21,7 +21,7 @@ public sealed class GraphPathTool : ITool
 {
     public string Name => "graph-path";
     public string CliVerb => "graph-path";
-    public string? McpName => "graph_path";
+    public string McpName => "graph_path";
     public string Help =>
         "graph-path <a> <b>                    shortest path between two symbols/files (max depth 6). " +
         "MCP graph_path(a, b): same lookup.";
@@ -60,7 +60,7 @@ public sealed class GraphPathTool : ITool
             if (!r.Read()) return file;
             string project = r.GetString(0);
             string? fileRel = r.IsDBNull(1) ? null : r.GetString(1);
-            return Schema.GraphFileRelSchema.ResolveFull(roots.TryGetValue(project, out string? root) ? root : null, fileRel, file);
+            return Schema.GraphFileRelSchema.ResolveFull(roots.GetValueOrDefault(project), fileRel, file);
         }
 
         List<string> lines =

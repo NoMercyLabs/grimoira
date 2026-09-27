@@ -273,8 +273,7 @@ public static partial class BrainSearchLib
             if (TranscriptBoilerplateStart().IsMatchOrFalse(body)) continue;
             string key = (r.Head.Length > 0 ? r.Head : body).ToLowerInvariant();
             key = key.Length > 80 ? key[..80] : key;
-            if (key.Length == 0 || seen.Contains(key)) continue;
-            seen.Add(key);
+            if (key.Length == 0 || !seen.Add(key)) continue;
             picks.Add(r);
             if (picks.Count == limit) break;
         }
@@ -285,7 +284,7 @@ public static partial class BrainSearchLib
     private static partial Regex BackslashEscape();
     [GeneratedRegex(@"[(){}\[\]|^$*+?.\\/'""`<>=!,;:#@&%~-]", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex QueryPunctuation();
-    [GeneratedRegex(@"_|(?<=[a-z0-9])(?=[A-Z])", RegexOptions.None, RegexTimeout.Milliseconds)]
+    [GeneratedRegex("_|(?<=[a-z0-9])(?=[A-Z])", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex IdentifierWordBoundary();
     [GeneratedRegex(@"(^|[\\/])(tests?|spec|__tests__)[\\/]", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, RegexTimeout.Milliseconds)]
     private static partial Regex TestFilePath();

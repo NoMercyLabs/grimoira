@@ -18,7 +18,7 @@ public sealed class BrainLearnTool : ITool
 {
     public string Name => "brain learn";
     public string CliVerb => "brain learn";
-    public string? McpName => "brain_learn";
+    public string McpName => "brain_learn";
     public string Help =>
         "brain learn node <k> <kind> <label> [--gloss ..] [--scheme ..] [--hard] | " +
         "brain learn triple <s> <predicate> <o> [--because ..] [--hard] | " +

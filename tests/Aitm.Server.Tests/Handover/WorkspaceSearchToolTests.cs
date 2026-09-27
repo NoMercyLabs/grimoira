@@ -17,7 +17,7 @@ public class WorkspaceSearchToolTests
         public string FileNameSeen = "";
         public List<string> ArgsSeen = [];
         public string Stdout = "src/one.py:1\n";
-        public int ExitCode = 0;
+        public int ExitCode;
 
         public (string Stdout, string Stderr, int ExitCode) Run(string fileName, IReadOnlyList<string> args, string? workingDirectory = null, TimeSpan? timeout = null)
         {

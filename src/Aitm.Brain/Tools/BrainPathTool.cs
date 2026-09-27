@@ -53,7 +53,7 @@ public sealed partial class BrainPathTool : ITool
             return $"no shared symbols found for {file} — nothing else in the graph carries its declarations.";
         List<string> lines = [$"blast radius for {file}:"];
         foreach (BrainGraphLib.BlastRow r in rows)
-            lines.Add($"  {r.Symbol.PadRight(34)} {r.Files} file(s), {r.Projects} project(s): {r.Names}");
+            lines.Add($"  {r.Symbol,-34} {r.Files} file(s), {r.Projects} project(s): {r.Names}");
         return string.Join("\n", lines);
     }
 
@@ -98,7 +98,7 @@ public sealed partial class BrainPathTool : ITool
                 string pkg = PublishedNpmPackage().MatchOrEmpty(g) is { Success: true } pm ? pm.Groups[1].Value : "";
                 string clone = g.Contains("cloned at") ? "cloned" : "";
                 string desc = g.Split('.')[0];
-                lines.Add($"  {name.PadRight(34)} {lang.PadRight(12)} {vis.PadRight(8)} {clone.PadRight(7)}{arch}{fork}");
+                lines.Add($"  {name,-34} {lang,-12} {vis,-8} {clone,-7}{arch}{fork}");
                 if (desc.Length > 0 && desc != "no description") lines.Add($"      {desc}");
                 if (pkg.Length > 0) lines.Add($"      npm: {pkg}");
             }

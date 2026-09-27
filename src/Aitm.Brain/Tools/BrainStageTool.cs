@@ -90,7 +90,7 @@ public sealed class BrainStageTool : ITool
 
     public string Name => "stage";
     public string CliVerb => "stage";
-    public string? McpName => "brain_stage";
+    public string McpName => "brain_stage";
     public string Help =>
         "stage <node|triple|slot|list|clear|dismiss> … : append a durable learning to pending-learn.jsonl " +
         "without writing it (`aitm flush` / brain_flush commits the batch). " +

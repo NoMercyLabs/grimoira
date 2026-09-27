@@ -134,8 +134,7 @@ public class HookCommandTests
         {
             JsonElement slot = doc.RootElement.GetProperty("hooks").GetProperty(eventName).EnumerateArray()
                 .SelectMany(group => group.GetProperty("hooks").EnumerateArray())
-                .Where(hook => RunsHookVerb(hook, eventName) || ArgsMention(hook, "index-on-edit.mjs"))
-                .Single();
+                .Single(hook => RunsHookVerb(hook, eventName) || ArgsMention(hook, "index-on-edit.mjs"));
             int timeoutSeconds = slot.GetProperty("timeout").GetInt32();
             Assert.True(deadline <= TimeSpan.FromSeconds(timeoutSeconds),
                 $"{eventName}: deadline {deadline.TotalSeconds} s is above its slot timeout {timeoutSeconds} s");

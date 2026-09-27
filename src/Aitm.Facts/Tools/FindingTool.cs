@@ -15,7 +15,7 @@ public sealed class FindingTool : ITool
 {
     public string Name => "finding";
     public string CliVerb => "finding";
-    public string? McpName => "log_finding";
+    public string McpName => "log_finding";
     public string Help =>
         "finding <title> [--detail <d>] [--source <s>]   log an unrelated finding for later. " +
         "MCP log_finding(title, detail, source): same, no mutation-log entry.";

@@ -15,7 +15,7 @@ public sealed class WorkspaceSearchTool : ITool
 {
     public string Name => "workspace-search";
     public string CliVerb => "workspace-search";
-    public string? McpName => "workspace_search";
+    public string McpName => "workspace_search";
     public string Help =>
         "workspace-search --repo <repo> --pattern <text> [--path <dir>] [--names]   search fixed text or " +
         "filenames in one registered NoMercy repository; '.' means the root.";

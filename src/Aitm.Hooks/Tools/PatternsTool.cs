@@ -16,7 +16,7 @@ public sealed class PatternsTool : ITool
 {
     public string Name => "patterns";
     public string CliVerb => "patterns";
-    public string? McpName => "patterns";
+    public string McpName => "patterns";
     public string Help => "patterns                              commands/procedures recorded often enough to codify";
 
     public string ExecuteCli(SqliteConnection connection)

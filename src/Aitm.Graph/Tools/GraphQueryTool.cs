@@ -20,7 +20,7 @@ public sealed partial class GraphQueryTool : ITool
 {
     public string Name => "graph-query";
     public string CliVerb => "graph-query";
-    public string? McpName => "graph_query";
+    public string McpName => "graph_query";
     public string Help =>
         "graph-query <question>                find the most relevant symbols/files/docs for a question. " +
         "MCP graph_query(question): same lookup, logs a gap on a miss.";
@@ -101,7 +101,7 @@ public sealed partial class GraphQueryTool : ITool
                     homeProject = r.GetString(0);
                     string? fileRel = hasFileRel && !r.IsDBNull(3) ? r.GetString(3) : null;
                     string file = Schema.GraphFileRelSchema.ResolveFull(
-                        roots.TryGetValue(homeProject, out string? root) ? root : null, fileRel, r.GetString(1));
+                        roots.GetValueOrDefault(homeProject), fileRel, r.GetString(1));
                     defLoc = $"{file}:{r.GetInt32(2)}";
                 }
             }

@@ -24,7 +24,7 @@ public sealed class BrainFlushTool : ITool
 
     public string Name => "flush";
     public string CliVerb => "flush";
-    public string? McpName => "brain_flush";
+    public string McpName => "brain_flush";
     public string Help =>
         "flush : commit every staged learning (`aitm stage …`) into the brain in one transaction, then " +
         "clear the ledger. MCP brain_flush(): same job; a line rejected on a transient DB lock is kept " +

@@ -10,7 +10,7 @@ public partial class RegexTimeoutTests
 {
     // Overlapping alternation under a nested quantifier: exponential on 60 a's followed by a character that
     // cannot match, so it always outruns the shared timeout.
-    [GeneratedRegex(@"^(a|aa)+$", RegexOptions.None, RegexTimeout.Milliseconds)]
+    [GeneratedRegex("^(a|aa)+$", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex OverlappingAlternationThatNeverFinishes();
 
     private static readonly string StuckInput = string.Concat(Enumerable.Repeat('a', 60)) + "!";

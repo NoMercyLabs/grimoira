@@ -116,7 +116,7 @@ public partial class BrainReadCliParityTests
             ("export-default", ["init"], "brain export"),
         ];
         foreach ((string name, string[] setup, string command) in cases)
-            yield return new object[] { name, setup, command };
+            yield return [name, setup, command];
     }
 
     [Theory]

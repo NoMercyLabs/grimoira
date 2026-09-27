@@ -102,7 +102,7 @@ public partial class StoreFactsCliParityTests
             ("resolve-hit", ["init", "finding resolvable finding"], "resolve 1"),
         ];
         foreach ((string name, string[] setup, string command) in cases)
-            yield return new object[] { name, setup, command };
+            yield return [name, setup, command];
     }
 
     [Theory]

@@ -23,7 +23,7 @@ public class DeadCodeIsGoneTests
     // Names a running thing must not contain. "aitm.cs" is matched on a word edge so "aitm.csproj" passes.
     private static readonly Regex Named = new(
         @"launch-mcp|workspace-tools\.test|BinCliThinClientMatchesBinCliOld|ranking-agreement|mcp-graph\.test|mcp-stage\.test"
-        + @"|idp-(approve-device|enable-exchange|login-kmp|login-web|session)"
+        + "|idp-(approve-device|enable-exchange|login-kmp|login-web|session)"
         + @"|process-owner\.mjs|(compact-brief|compact-restore|pattern-watch|session-index|index-infra|index-org|hook-probe|brain-path)\.mjs",
         RegexOptions.None, TimeSpan.FromSeconds(2));
 

@@ -15,7 +15,7 @@ public static class Program
 {
     public static int Main(string[] args)
     {
-        if (args.Length >= 2 && args[0] == "hook")
+        if (args is ["hook", _, ..])
         {
             RunHook(args[1]);
             return 0;
@@ -23,13 +23,13 @@ public static class Program
 
         // The service starts on the first call and stops when idle, so no logon task is installed any more.
         // uninstall-logon stays, so an old install can remove the task it has.
-        if (args.Length >= 1 && args[0] == "service")
+        if (args is ["service", ..])
             return ServiceCommand.RunDefault(args, Console.Out, Console.Error);
 
         // Slice P1: Claude Code's MCP server over stdio; forwards every tool call to the service.
-        if (args.Length >= 1 && args[0] == "mcp") return McpBridge.RunDefault(Console.OpenStandardInput(), Console.OpenStandardOutput(), Console.Error);
+        if (args is ["mcp", ..]) return McpBridge.RunDefault(Console.OpenStandardInput(), Console.OpenStandardOutput(), Console.Error);
 
-        if (args.Length >= 2 && args[0] == "server" && args[1] == "uninstall-logon")
+        if (args is ["server", "uninstall-logon", ..])
         {
             int exitCode = ServerLogonCommand.Uninstall(new ProcessRunner(), out string error);
             if (error.Length > 0) Console.Error.WriteLine(error);

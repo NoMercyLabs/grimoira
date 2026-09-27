@@ -125,8 +125,8 @@ public partial class McpDispatchTests
 ,
             .. GraphAndBrainTools.Select(t => t.McpName),
             .. HandoverExecuteTools.Select(t => t.McpName),
+            "idp_token",
         ];
-        wired.Add("idp_token");
         Assert.Equal(25, wired.Count);
     }
 

@@ -73,7 +73,7 @@ public sealed partial class BrainIndexOrgTool : ITool
                         if (tn.Length > 0) topics.Add(tn);
                     }
                 string url = Str(r, "url");
-                string? local = clones.TryGetValue(url.ToLowerInvariant(), out string? dir) ? dir : null;
+                string? local = clones.GetValueOrDefault(url.ToLowerInvariant());
                 if (local is not null) cloned++;
                 string? pkg = local is not null ? PackageName(local) : null;
 

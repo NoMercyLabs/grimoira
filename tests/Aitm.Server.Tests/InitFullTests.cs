@@ -21,7 +21,7 @@ public class InitFullTests : IDisposable
         ProjectMarker? marker = InitFull.Detect(_dir);
 
         Assert.NotNull(marker);
-        Assert.Equal("ts", marker!.Language);
+        Assert.Equal("ts", marker.Language);
     }
 
     [Fact]
@@ -32,7 +32,7 @@ public class InitFullTests : IDisposable
         ProjectMarker? marker = InitFull.Detect(_dir);
 
         Assert.NotNull(marker);
-        Assert.Equal("csharp", marker!.Language);
+        Assert.Equal("csharp", marker.Language);
     }
 
     [Fact]

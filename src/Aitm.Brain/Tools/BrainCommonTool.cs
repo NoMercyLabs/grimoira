@@ -18,7 +18,7 @@ public sealed class BrainCommonTool : ITool
 {
     public string Name => "brain common";
     public string CliVerb => "brain common";
-    public string? McpName => "brain_common";
+    public string McpName => "brain_common";
     public string Help =>
         "brain common <projA> <projB> [projC ...]   what the named projects have in COMMON. " +
         "Coverage-tolerant: shared_by + present_n + unresolved list. Needs 2+ projects.";

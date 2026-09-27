@@ -119,7 +119,7 @@ public class GraphCliParityTests
             ("promote-all-miss", ["init"], "promote-all --symbol NoSuchPendingSymbol"),
         ];
         foreach ((string name, string[] setup, string command) in cases)
-            yield return new object[] { name, setup, command };
+            yield return [name, setup, command];
     }
 
     [Theory]

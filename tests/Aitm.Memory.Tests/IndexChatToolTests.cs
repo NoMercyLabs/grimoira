@@ -240,9 +240,9 @@ public class IndexChatToolTests
         string[] lines = [.. messages.Select((m, i) => System.Text.Json.JsonSerializer.Serialize(new
         {
             type = "user",
-            uuid = m.uuid,
+            m.uuid,
             timestamp = $"2026-09-25T11:0{i}:00.000Z",
-            message = new { content = m.content },
+            message = new { m.content },
         }))];
         File.WriteAllLines(path, lines);
         return path;

@@ -162,7 +162,7 @@ public partial class BrainWriteCliParityTests
             ("learn-batch-missing-file", ["init"], "brain learn-batch --from \"/no/such/directory/aitm-slice24-fixture.txt\""),
         ];
         foreach ((string name, string[] setup, string command) in cases)
-            yield return new object[] { name, setup, command };
+            yield return [name, setup, command];
     }
 
     [Theory]

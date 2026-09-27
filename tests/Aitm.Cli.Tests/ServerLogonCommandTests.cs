@@ -19,7 +19,7 @@ public class ServerLogonCommandTests
     private sealed class FakeRunner : IProcessRunner
     {
         public List<(string FileName, IReadOnlyList<string> Args)> Calls = [];
-        public int ExitCode = 0;
+        public int ExitCode;
         public string Stderr = "";
 
         public (string Stdout, string Stderr, int ExitCode) Run(string fileName, IReadOnlyList<string> args, string? workingDirectory = null, TimeSpan? timeout = null)

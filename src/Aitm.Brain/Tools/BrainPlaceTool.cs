@@ -27,7 +27,7 @@ public sealed class BrainPlaceTool : ITool
 
     public string Name => "brain place";
     public string CliVerb => "brain place";
-    public string? McpName => "brain_place";
+    public string McpName => "brain_place";
     public string Help =>
         "brain place <codekind>                where new code of a kind belongs AND how it's written " +
         "here, inheriting conventions up the broader chain. Call BEFORE writing new code.";

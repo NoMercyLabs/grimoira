@@ -44,7 +44,7 @@ public sealed class ServerHostTests : IDisposable
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Dictionary<string, object>? body = await response.Content.ReadFromJsonAsync<Dictionary<string, object>>();
         Assert.NotNull(body);
-        Assert.True(body!.ContainsKey("version"));
+        Assert.True(body.ContainsKey("version"));
         Assert.True(body.ContainsKey("uptimeSeconds"));
         Assert.True(body.ContainsKey("openStores"));
         Assert.True(body.ContainsKey("buildStamp")); // null outside a published build (slice 32b)

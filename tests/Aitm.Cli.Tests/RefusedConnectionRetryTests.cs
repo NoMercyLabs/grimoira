@@ -33,7 +33,7 @@ public sealed class RefusedConnectionRetryTests
     {
         int attempts = 0;
 
-        bool reached = RefusedConnectionRetry.TrySend<string>(() => { attempts++; throw Refused(); }, () => true, out string? answer);
+        bool reached = RefusedConnectionRetry.TrySend(() => { attempts++; throw Refused(); }, () => true, out string? answer);
 
         Assert.False(reached);
         Assert.Null(answer);

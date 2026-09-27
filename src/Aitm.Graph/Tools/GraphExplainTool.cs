@@ -26,7 +26,7 @@ public sealed class GraphExplainTool : ITool
 {
     public string Name => "graph-explain";
     public string CliVerb => "graph-explain";
-    public string? McpName => "graph_explain";
+    public string McpName => "graph_explain";
     public string Help =>
         "graph-explain <symbol>                what a symbol is, who uses it, and docs/rules that mention it. " +
         "MCP graph_explain(symbol): same lookup, logs a gap on a miss.";
@@ -69,7 +69,7 @@ public sealed class GraphExplainTool : ITool
         Dictionary<string, string> roots = hasFileRel ? Schema.GraphFileRelSchema.LoadProjectRoots(connection) : [];
         string ResolveFile(string project, string file, bool isDbNull, Func<string> getFileRel) =>
             Schema.GraphFileRelSchema.ResolveFull(
-                roots.TryGetValue(project, out string? root) ? root : null,
+                roots.GetValueOrDefault(project),
                 hasFileRel && !isDbNull ? getFileRel() : null, file);
 
         List<string> lines = [];

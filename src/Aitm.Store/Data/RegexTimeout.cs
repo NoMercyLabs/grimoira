@@ -86,6 +86,7 @@ public static class RegexTimeout
     {
         try
         {
+            // ReSharper disable once RedundantEnumerableCastCall (MatchCollection enumerates as object in this target; the cast is what types it)
             return [.. regex.Matches(input).Cast<Match>()];
         }
         catch (RegexMatchTimeoutException)

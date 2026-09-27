@@ -141,7 +141,7 @@ public class BrainSearchLibTests
             InsertEdge(c, "LocalOnly", "video-player", "/repo/video/types.ts", 20, "ts declaration");
 
             List<BrainGraphLib.BlastRow> blast = BrainGraphLib.BlastRadius(c, "/repo/video/types.ts", 5);
-            Assert.Contains(blast, b => b.Symbol == "AudioTrackState" && b.Projects > 1);
+            Assert.Contains(blast, b => b is { Symbol: "AudioTrackState", Projects: > 1 });
             Assert.DoesNotContain(blast, b => b.Symbol == "LocalOnly");
         }
         finally { c.Dispose(); AitmCliRunner.DeleteInstance(instance); }

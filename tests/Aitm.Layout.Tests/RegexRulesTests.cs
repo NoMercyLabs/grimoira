@@ -18,7 +18,7 @@ public partial class RegexRulesTests
 
     private static IEnumerable<string> SourceFiles()
     {
-        string self = Path.GetFileName(typeof(RegexRulesTests).Name + ".cs");
+        string self = Path.GetFileName(nameof(RegexRulesTests) + ".cs");
         foreach (string top in new[] { "src", "tests" })
         {
             foreach (string file in Directory.EnumerateFiles(Path.Combine(RepoPaths.Root, top), "*.cs", SearchOption.AllDirectories))

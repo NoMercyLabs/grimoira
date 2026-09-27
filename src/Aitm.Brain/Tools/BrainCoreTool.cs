@@ -18,7 +18,7 @@ public sealed class BrainCoreTool : ITool
 
     public string Name => "brain core";
     public string CliVerb => "brain core";
-    public string? McpName => "brain_core";
+    public string McpName => "brain_core";
     public string Help =>
         "brain core                            the hard=1 nodes that apply every turn. No args. " +
         "Pull at the START of a session/turn before doing project work.";

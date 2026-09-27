@@ -37,7 +37,7 @@ public sealed class MemTool : ITool
 
     public string Name => "mem";
     public string CliVerb => "mem";
-    public string? McpName => "rule";
+    public string McpName => "rule";
     public string Help =>
         "mem <text> | mem --hard             recall a migrated RULE/preference (CLI, up to 6 hits; " +
         "--hard lists the always-on core). MCP rule(query): up to 4 hits, reinforces the usage signal.";

@@ -74,8 +74,7 @@ public static class BrainGraphLib
             {
                 foreach ((string p, string other, string because, string dir) in Neighbours(k))
                 {
-                    if (seen.Contains(other)) continue;
-                    seen.Add(other);
+                    if (!seen.Add(other)) continue;
                     List<Hop> newHops = [.. hops, new Hop(k, p, other, dir, because)];
                     if (other == b.K) return new PathResult(a, b, newHops);
                     next.Add((other, newHops));

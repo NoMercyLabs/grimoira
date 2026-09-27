@@ -18,7 +18,7 @@ public sealed class BrainGapsTool : ITool
 {
     public string Name => "brain gaps";
     public string CliVerb => "brain gaps";
-    public string? McpName => "brain_gaps";
+    public string McpName => "brain_gaps";
     public string Help =>
         "brain gaps                             what the brain could NOT answer — every refused fact/" +
         "rule/recall/doc/place query is auto-logged here. Check at session start. No args.";

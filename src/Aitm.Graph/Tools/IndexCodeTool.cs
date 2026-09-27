@@ -159,8 +159,7 @@ public sealed partial class IndexCodeTool : ITool
                     foreach ((string symbol, int line) in DeclarationsIn(file, lang))
                     {
                         string key = $"{symbol} {rel} {line}";
-                        if (known.Contains(key)) continue;
-                        known.Add(key);
+                        if (!known.Add(key)) continue;
                         using SqliteCommand insert = connection.CreateCommand();
                         insert.Transaction = transaction;
                         insert.CommandText =
@@ -184,7 +183,7 @@ public sealed partial class IndexCodeTool : ITool
                 continue;
             }
             grandTotal += added;
-            log.Add($"  {name.PadRight(16)} {files,6} files -> {added} new declaration(s)");
+            log.Add($"  {name,-16} {files,6} files -> {added} new declaration(s)");
         }
         log.Add($"total new edges: {grandTotal}");
         return string.Join("\n", log);

@@ -116,7 +116,7 @@ public partial class MemoryDocsCliParityTests
             ("shed-synthesis-miss", ["init"], "shed-synthesis --path \"/no/such/directory/aitm-slice24-fixture\""),
         ];
         foreach ((string name, string[] setup, string command) in cases)
-            yield return new object[] { name, setup, command };
+            yield return [name, setup, command];
     }
 
     [Theory]

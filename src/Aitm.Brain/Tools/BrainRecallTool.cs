@@ -36,7 +36,7 @@ public sealed class BrainRecallTool : ITool
 
     public string Name => "brain recall";
     public string CliVerb => "brain recall";
-    public string? McpName => "brain_recall";
+    public string McpName => "brain_recall";
     public string Help =>
         "brain recall <free text>              natural-language question -> synonym expansion -> FTS " +
         "seed -> who-uses-it + governing rule + ground-truth fact. The catch-all when the question isn't " +

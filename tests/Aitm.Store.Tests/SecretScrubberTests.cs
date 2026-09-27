@@ -92,7 +92,7 @@ public partial class SecretScrubberTests
 
     // Overlapping alternation under a nested quantifier: exponential on 60 a's followed by a character that
     // cannot match, so it always outruns the shared timeout. Stands in for any scrub pattern that times out.
-    [GeneratedRegex(@"^(a|aa)+$", RegexOptions.None, RegexTimeout.Milliseconds)]
+    [GeneratedRegex("^(a|aa)+$", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex OverlappingAlternationThatNeverFinishes();
 
     [Fact]

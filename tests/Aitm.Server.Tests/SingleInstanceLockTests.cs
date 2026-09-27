@@ -35,7 +35,7 @@ public class SingleInstanceLockTests
         {
             FileStream? first = ProcessOwner.TryAcquireSingleInstanceLock(dataDir);
             Assert.NotNull(first);
-            first!.Dispose();
+            first.Dispose();
 
             using FileStream? second = ProcessOwner.TryAcquireSingleInstanceLock(dataDir);
             Assert.NotNull(second);

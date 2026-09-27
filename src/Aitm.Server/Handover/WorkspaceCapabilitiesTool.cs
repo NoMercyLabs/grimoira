@@ -16,7 +16,7 @@ public sealed class WorkspaceCapabilitiesTool : ITool
 {
     public string Name => "workspace-capabilities";
     public string CliVerb => "workspace-capabilities";
-    public string? McpName => "workspace_capabilities";
+    public string McpName => "workspace_capabilities";
     public string Help =>
         "workspace-capabilities <query>   find existing NoMercy tools by purpose; returns a few source " +
         "paths with reviewed prerequisites, never executes what it finds.";

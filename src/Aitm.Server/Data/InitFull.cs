@@ -273,7 +273,7 @@ public static partial class InitFull
 
             new ProjectTool().Execute(connection, name, dir, meta.Language, meta.Globs);
             registered++;
-            log.Add($"  + {name.PadRight(28)} {meta.Language}");
+            log.Add($"  + {name,-28} {meta.Language}");
         }
         log.Add($"  {registered} newly registered, {found.Count - registered} already known");
     }

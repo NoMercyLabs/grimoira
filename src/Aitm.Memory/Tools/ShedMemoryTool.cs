@@ -14,7 +14,7 @@ public sealed class ShedMemoryTool : ITool
 {
     public string Name => "shed-memory";
     public string CliVerb => "shed-memory";
-    public string? McpName => "shed_memory";
+    public string McpName => "shed_memory";
     public string Help =>
         "shed-memory --key <slug>             delete one memory by key. MCP shed_memory(key): the same.";
 

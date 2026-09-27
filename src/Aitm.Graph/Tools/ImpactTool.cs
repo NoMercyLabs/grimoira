@@ -18,7 +18,7 @@ public sealed class ImpactTool : ITool
 {
     public string Name => "impact";
     public string CliVerb => "impact";
-    public string? McpName => "impact";
+    public string McpName => "impact";
     public string Help =>
         "impact <symbol>                       list cross-project consumers of a changing symbol/field/contract. " +
         "Call before changing any shared contract.";
@@ -43,7 +43,7 @@ public sealed class ImpactTool : ITool
                 string project = r.GetString(0);
                 string? fileRel = hasFileRel && !r.IsDBNull(5) ? r.GetString(5) : null;
                 string file = Schema.GraphFileRelSchema.ResolveFull(
-                    roots.TryGetValue(project, out string? root) ? root : null, fileRel, r.GetString(1));
+                    roots.GetValueOrDefault(project), fileRel, r.GetString(1));
                 edges.Add((project, file, r.GetInt32(2), r.GetString(3)));
             }
         }
@@ -86,7 +86,7 @@ public sealed class ImpactTool : ITool
             string project = r.GetString(0);
             string? fileRel = hasFileRel && !r.IsDBNull(6) ? r.GetString(6) : null;
             string file = Schema.GraphFileRelSchema.ResolveFull(
-                roots.TryGetValue(project, out string? root) ? root : null, fileRel, r.GetString(1));
+                roots.GetValueOrDefault(project), fileRel, r.GetString(1));
             sb.AppendLine($"  {project} {file}:{r.GetInt32(2)} {(h ? "[HARDCODED] " : "")}{r.GetString(3)}");
         }
         if (sb.Length == 0) return $"'{symbol}' has no recorded consumers (safe to change, or not yet indexed).";
