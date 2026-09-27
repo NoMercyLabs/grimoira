@@ -68,7 +68,7 @@ public class FindingToolTests
             GrimoraCliRunner.Run($"init --instance {instance}");
 
             Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", instance);
-            string expected = (string)InvokeMcpLogFinding("finding-fixture-mcp", "detail-mcp", "source-mcp")!;
+            string expected = CliGoldens.Frozen("log_finding", () => (string)InvokeMcpLogFinding("finding-fixture-mcp", "detail-mcp", "source-mcp")!);
 
             string dbPath = GrimoraCliRunner.InstanceDbPath(instance);
             string actual;
