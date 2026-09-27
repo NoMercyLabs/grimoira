@@ -17,6 +17,12 @@ namespace Grimora.Server.Tests;
 // (Claude-Project-Dir header, else the body cwd), never from the server's own environment, and the verb
 // runs under that project's writer gate. The oracle is CliDispatch.Run in-process and the bin-cli binary
 // (slice 29b), each on its own fresh test instance. The server's own stores live in a temp data dir.
+//
+// This class both hosts its own in-memory server (WebApplicationFactory) and, via OldVsNewCli.BinCliDll(),
+// spawns a real `dotnet bin-cli/grimora.dll` process that forwards to the one shared grimora server keyed
+// by a single named pipe per data dir. CliDispatchTests does the same live-process call; running both
+// classes at once raced them. RealBinCliCollection serializes every class that makes that live call.
+[Collection(RealBinCliCollection.Name)]
 public sealed partial class CliEndpointTests : IDisposable
 {
     private readonly string _dataDir = Directory.CreateTempSubdirectory("grimora-cli-").FullName;
@@ -26,6 +32,9 @@ public sealed partial class CliEndpointTests : IDisposable
     private readonly string _allowedHost = $"127.0.0.1:{Port}";
 
     private sealed record CliAnswer(HttpStatusCode Status, int ExitCode, string Stdout, string Stderr);
+
+    private readonly string? _savedDataDir = Environment.GetEnvironmentVariable("GRIMORA_DATA_DIR");
+    private readonly string? _savedServerPort = Environment.GetEnvironmentVariable("GRIMORA_SERVER_PORT");
 
     private WebApplicationFactory<Program> Factory()
     {
@@ -279,6 +288,12 @@ public sealed partial class CliEndpointTests : IDisposable
 
     public void Dispose()
     {
+        // Factory() sets these process-wide (Environment.SetEnvironmentVariable has no per-instance scope),
+        // so every later test in this process — including a real bin-cli child process another test spawns
+        // (OldVsNewCli.BinCliDll's no-golden fallback) — would otherwise inherit this test's now-deleted
+        // _dataDir as GRIMORA_DATA_DIR and find no server there.
+        Environment.SetEnvironmentVariable("GRIMORA_DATA_DIR", _savedDataDir);
+        Environment.SetEnvironmentVariable("GRIMORA_SERVER_PORT", _savedServerPort);
         foreach (string instance in _cliInstances) GrimoraCliRunner.DeleteInstance(instance);
         foreach (string dir in _projectDirs)
         {

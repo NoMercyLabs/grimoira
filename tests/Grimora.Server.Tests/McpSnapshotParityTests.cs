@@ -24,7 +24,7 @@ public partial class McpSnapshotParityTests
         string instance = GrimoraCliRunner.NewTestInstance("mcp-parity-list");
         try
         {
-            GrimoraCliRunner.Run($"init --instance {instance}");
+            GrimoraCliRunner.Seed($"init --instance {instance}");
             (IReadOnlyList<string> oldTools, _) = McpProcess.Run(oldDll, instance, []);
             (IReadOnlyList<string> newTools, _) = McpProcess.Run(newDll, instance, []);
 
@@ -50,8 +50,8 @@ public partial class McpSnapshotParityTests
         string newInstance = GrimoraCliRunner.NewTestInstance($"mcp-parity-{toolName}-new");
         try
         {
-            GrimoraCliRunner.Run($"init --instance {oldInstance}");
-            GrimoraCliRunner.Run($"init --instance {newInstance}");
+            GrimoraCliRunner.Seed($"init --instance {oldInstance}");
+            GrimoraCliRunner.Seed($"init --instance {newInstance}");
             seed(oldInstance);
             seed(newInstance);
 
@@ -74,14 +74,14 @@ public partial class McpSnapshotParityTests
         yield return
         [
             "fact",
-            (Action<string>)(instance => GrimoraCliRunner.Run($"add --instance {instance} --term parity-fact --value parity-answer --category manual")),
+            (Action<string>)(instance => GrimoraCliRunner.Seed($"add --instance {instance} --term parity-fact --value parity-answer --category manual")),
             new { query = "parity-fact" },
             new { query = "nothing-ever-matches-this-term-at-all" },
         ];
         yield return
         [
             "history",
-            (Action<string>)(instance => GrimoraCliRunner.Run($"add --instance {instance} --term parity-history --value one --category manual")),
+            (Action<string>)(instance => GrimoraCliRunner.Seed($"add --instance {instance} --term parity-history --value one --category manual")),
             new { term = "parity-history" },
             new { term = "nothing-was-ever-named-this" },
         ];
@@ -95,7 +95,7 @@ public partial class McpSnapshotParityTests
         yield return
         [
             "open_findings",
-            (Action<string>)(instance => GrimoraCliRunner.Run($"finding --instance {instance} --title parity-open-finding --detail d --source s")),
+            (Action<string>)(instance => GrimoraCliRunner.Seed($"finding --instance {instance} --title parity-open-finding --detail d --source s")),
             new { },
             new { },
         ];
@@ -139,14 +139,14 @@ public partial class McpSnapshotParityTests
         yield return
         [
             "fact",
-            (Action<string>)(instance => GrimoraCliRunner.Run($"add --instance {instance} --term \"{punct}\" --value parity-answer --category manual")),
+            (Action<string>)(instance => GrimoraCliRunner.Seed($"add --instance {instance} --term \"{punct}\" --value parity-answer --category manual")),
             new { query = punct },
             new { query = "nothing-ever-matches-this-term-at-all" },
         ];
         yield return
         [
             "history",
-            (Action<string>)(instance => GrimoraCliRunner.Run($"add --instance {instance} --term \"{punct}\" --value one --category manual")),
+            (Action<string>)(instance => GrimoraCliRunner.Seed($"add --instance {instance} --term \"{punct}\" --value one --category manual")),
             new { term = punct },
             new { term = "nothing-was-ever-named-this" },
         ];
@@ -160,7 +160,7 @@ public partial class McpSnapshotParityTests
         yield return
         [
             "open_findings",
-            (Action<string>)(instance => GrimoraCliRunner.Run($"finding --instance {instance} --title \"{punct}\" --detail d --source s")),
+            (Action<string>)(instance => GrimoraCliRunner.Seed($"finding --instance {instance} --title \"{punct}\" --detail d --source s")),
             new { },
             new { },
         ];
@@ -346,7 +346,7 @@ public partial class McpSnapshotParityTests
         string dir = Directory.CreateTempSubdirectory("grimora-mcp-parity-mem-").FullName;
         File.WriteAllText(Path.Combine(dir, $"{MemoryKey(label)}.md"),
             $"---\ntype: feedback\ntitle: {label}\nhook: {label}\n---\n\nA memory about {topic} topic.\n");
-        GrimoraCliRunner.Run($"index-memory --instance {instance} --from \"{dir}\"");
+        GrimoraCliRunner.Seed($"index-memory --instance {instance} --from \"{dir}\"");
     }
 
     private static void SeedChat(string instance, string label)
@@ -358,7 +358,7 @@ public partial class McpSnapshotParityTests
         string dir = Directory.CreateTempSubdirectory("grimora-mcp-parity-chat-").FullName;
         File.WriteAllText(Path.Combine(dir, "session.jsonl"),
             $"{{\"type\":\"user\",\"message\":{{\"role\":\"user\",\"content\":\"a message about {label} topic, said during a real working session\"}},\"sessionId\":\"s1\",\"timestamp\":\"2026-01-01T00:00:00Z\"}}\n");
-        GrimoraCliRunner.Run($"index-chat --instance {instance} --from \"{dir}\"");
+        GrimoraCliRunner.Seed($"index-chat --instance {instance} --from \"{dir}\"");
     }
 
     private static void SeedDocs(string instance, string label) => SeedDocs(instance, label, label);
@@ -367,7 +367,7 @@ public partial class McpSnapshotParityTests
     {
         string dir = Directory.CreateTempSubdirectory("grimora-mcp-parity-docs-").FullName;
         File.WriteAllText(Path.Combine(dir, $"{label}.md"), $"# {label}\n\nContent about {topic} topic.\n");
-        GrimoraCliRunner.Run($"index-docs --instance {instance} --from \"{dir}\"");
+        GrimoraCliRunner.Seed($"index-docs --instance {instance} --from \"{dir}\"");
     }
 
     private static string FindNewMcpDll()

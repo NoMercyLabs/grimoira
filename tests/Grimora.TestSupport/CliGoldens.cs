@@ -99,6 +99,7 @@ public static partial class CliGoldens
         result = Elapsed().Replace(result, "<MS>ms");
         result = Timestamp().Replace(result, "<TS>");
         result = CompactTimestamp().Replace(result, "<TS>");
+        result = RandomTempDir().Replace(result, "grimora-$1-<RAND>");
         return result.Replace(Backslash.ToString(), "/", StringComparison.Ordinal);
     }
 
@@ -202,6 +203,12 @@ public static partial class CliGoldens
     // freeze and a later replay.
     [GeneratedRegex(@"\d{8}-\d{9}", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex CompactTimestamp();
+
+    // Directory.CreateTempSubdirectory("grimora-<name>-") appends its own random suffix, never equal
+    // between a golden freeze and a later replay (e.g. a fixture folder Server.Tests seeds a CLI oracle
+    // call from). Matches the fixed prefix every caller uses, keeping the descriptive name it chose.
+    [GeneratedRegex(@"grimora-([a-z-]+?)-[0-9a-z]{6,10}(?=[/""\\]|$)", RegexOptions.None, RegexTimeout.Milliseconds)]
+    private static partial Regex RandomTempDir();
 
     [GeneratedRegex(@"(?<![\w.])\d+([.,]\d+)?ms", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex Elapsed();

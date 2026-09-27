@@ -67,7 +67,17 @@ public static class GrimoraCliRunner
             throw new InvalidOperationException($"refusing to delete '{instance}': not a test-* instance");
         Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
         string dir = InstanceDir(instance);
-        if (Directory.Exists(dir)) DeleteDirectoryWithRetry(dir);
+        if (Directory.Exists(dir))
+        {
+            try { DeleteDirectoryWithRetry(dir); }
+            catch (IOException)
+            {
+                // A real bin-cli call (RunBinCli, or OldVsNewCli's no-golden fallback) spawns a background
+                // grimora server that keeps the db file open until it goes idle (Program.cs's IdleExit),
+                // well past DeleteMaxRetries * DeleteRetryDelayMs (5s). Leave it for SweepStaleInstances,
+                // the same way it already handles a store any other leaked lock left behind.
+            }
+        }
         OldStore.Delete(instance);
     }
 
@@ -120,6 +130,15 @@ public static class GrimoraCliRunner
         CliGoldens.Entry golden = CliGoldens.Take(callerFile, callerMember, arguments);
         (string stdout, string stderr, int exitCode) = RunCurrent(arguments);
         CliGoldens.AssertMatches(golden, arguments, stdout, stderr, exitCode);
+        return (stdout, exitCode);
+    }
+
+    /// <summary>Runs <c>grimora &lt;arguments&gt;</c> in-process to build a fixture (seed a store), with no
+    /// golden comparison: the call populates a store for a later comparison to read, it is not itself the
+    /// behaviour under test, so there is nothing here for a golden to prove.</summary>
+    public static (string stdout, int exitCode) Seed(string arguments)
+    {
+        (string stdout, string _, int exitCode) = RunCurrent(arguments);
         return (stdout, exitCode);
     }
 

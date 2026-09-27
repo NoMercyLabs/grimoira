@@ -10,6 +10,13 @@ namespace Grimora.Server.Tests;
 // binary, on fresh test instances, and needs stdout, stderr and the exit code to match byte for byte.
 // The error cases (unknown verb, dropped verb, missing flag, bad id) return 2 and this test process is
 // still running afterwards, which is the point: inside the server an Environment.Exit would stop it.
+//
+// OldVsNewCli.BinCliDll() has no golden for this class, so every call is a real, live `dotnet
+// bin-cli/grimora.dll` process — the published thin client, which forwards to the one shared grimora
+// server keyed by a single named pipe per data dir (Grimora.Server's Program.cs). CliEndpointTests does
+// the same and also hosts its own in-memory server via WebApplicationFactory; running both classes at
+// once raced two processes to start/reach that one shared pipe. RealBinCliCollection serializes them.
+[Collection(RealBinCliCollection.Name)]
 public class CliDispatchTests
 {
     public static TheoryData<string, string[]> Cases() => new()
