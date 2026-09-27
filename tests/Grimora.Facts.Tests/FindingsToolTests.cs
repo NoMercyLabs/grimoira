@@ -55,7 +55,7 @@ public class FindingsToolTests
             GrimoraCliRunner.Run($"finding --instance {instance} --title findings-fixture-mcp --source some-source");
 
             Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", instance);
-            string expected = (string)InvokeMcpOpenFindings()!;
+            string expected = CliGoldens.Frozen("open_findings", () => (string)InvokeMcpOpenFindings()!);
 
             string dbPath = GrimoraCliRunner.InstanceDbPath(instance);
             using SqliteConnection connection = StoreConnection.Open(dbPath);
@@ -81,7 +81,7 @@ public class FindingsToolTests
             GrimoraCliRunner.Run($"init --instance {instance}");
 
             Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", instance);
-            string expected = (string)InvokeMcpOpenFindings()!;
+            string expected = CliGoldens.Frozen("open_findings", () => (string)InvokeMcpOpenFindings()!);
 
             string dbPath = GrimoraCliRunner.InstanceDbPath(instance);
             using SqliteConnection connection = StoreConnection.Open(dbPath);
