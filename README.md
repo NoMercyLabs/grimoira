@@ -18,48 +18,13 @@ The conversation channel is a primary asset, not noise around the facts. It carr
 | `mcp.cs` | MCP server exposing the store as tools. Builds to `bin/`. |
 | `brain-lib.mjs` | Shared lookup: tokenise, scan every channel, score, format. |
 | `index-code.mjs` | Bulk indexer for the public declaration surface of registered projects. |
-| `session-*.mjs` | Session lifecycle indexers. |
-| `pattern-watch.mjs` | Record-only command-shape counter (no longer nudges the session). |
 
 ## Build
-
-### NoMercy process ownership pilot
-
-New launches through `launch-mcp.mjs` record ownership when their project directory
-is inside the sibling `NoMercy` checkout. Other workspaces retain their existing
-startup behavior. Existing sessions are not adopted or restarted.
-
-Inspect records with `node process-owner.mjs status`. Records live in the workspace's
-ignored `.claude/scratch/process-owners/` directory. They contain launcher and child IDs,
-timestamps, and lifecycle state; no command arguments or environment values.
-
-Only the live launcher can cancel its original child. The status command never kills
-processes. A record left as running after a crash has unverified liveness and must not
-be used to kill a PID. Forced-crash cleanup, application session identity, descendant
-ownership are not implemented by this initial pilot. The latest 50 completed records
-are retained during ordinary operation. Housekeeping examines at most 1,000 entries;
-unresolved records are preserved for inspection rather than automatically deleted.
-
-Validate with `node --test process-owner.test.mjs`. No global hook changes are needed.
-
-In NoMercy, Claude and Codex project registrations launch this server. Its
-`workspace_capabilities` tool calls the workspace's bounded capability lookup and
-returns reviewed prerequisites and limitations when available. It only discovers
-tools; it does not run them. The lookup requires Python and has a 25-second timeout.
-`workspace_search` searches one registered repository and returns file and line
-locations without source values. It excludes the secrets repository and common
-credential paths, and reports partial coverage when a limit is reached.
-Restart an existing agent session to load a new tool registration.
-
-```powershell
-./build-cli.ps1   # -> bin-cli/aitm.exe
-./build-mcp.ps1   # -> bin/mcp.dll
-```
 
 ## Install as a plugin
 
 AITM is a Claude Code plugin. It bundles the MCP server (`.mcp.json`, launched via
-`launch-mcp.mjs`), the knowledge skill (`skills/aitm/SKILL.md`), two agents
+`run-mcp.mjs`), the knowledge skill (`skills/aitm/SKILL.md`), two agents
 (`agents/knowledge-lookup.md` for read-only lookups, `agents/knowledge-writer.md` for
 deciding what to stage and flush), a maintenance slash command
 (`commands/aitm-maintain.md`), and the hard-gate hooks only — see below.
@@ -71,12 +36,7 @@ The repo is its own marketplace, so it installs directly:
 /plugin install aitm@nomercylabs
 ```
 
-`launch-mcp.mjs` builds the MCP server itself on first launch if `bin/mcp.dll` is
-missing (build output is gitignored and never shipped), so no manual build step is
-required after a fresh install. It writes that first build under
-`${CLAUDE_PLUGIN_DATA}/bin` when Claude Code sets that variable, otherwise to `bin/`
-next to the checkout, matching `build-mcp.ps1`. The CLI (`bin-cli/aitm.exe`, used by
-`/aitm-maintain`) still needs `./build-cli.ps1` run once.
+`run-mcp.mjs` starts the MCP server from the published CLI; build output is gitignored and never shipped.
 
 ### What the plugin's hooks do
 
@@ -91,15 +51,9 @@ answers:
   tool runs, and prunes stale browser processes after a shell command.
 - `index-on-edit.mjs` (PostToolUse `Write|Edit|MultiEdit|NotebookEdit`) — re-indexes
   the memory/docs channel when a `.md` memory or spec file is edited.
-- `compact-brief.mjs` (PreCompact) — writes anything durable to the store before
-  compaction throws it away.
-- `compact-restore.mjs` (UserPromptSubmit) — restores the anchors `compact-brief.mjs`
-  saved, once a compaction has paraphrased them away. Pairs with `compact-brief.mjs`
-  and is as much a hard gate: without it the PreCompact save has nothing that reads
-  it back.
-- `session-index.mjs`, `session-index-docs.mjs`, `index-code.mjs --quiet` (SessionEnd,
-  all async) — fold the finished session, its absorbed docs, and its code symbols back
-  into the store.
+- `run-hook.mjs` (UserPromptSubmit, PreCompact, SessionEnd) — forwards the event to the
+  published CLI (`aitm hook <event>`), which saves and restores the compaction anchors and
+  folds the finished session back into the store.
 
 Everything that used to judge the quality of Claude's own answer by pattern-matching
 text (`hedge-guard`, `goal-guard`, `proof-guard`, `continue-guard`, `population-guard`,
@@ -109,8 +63,7 @@ Grep/Glob/Read/prompt (`brain-gate`, `brain-read-gate`, `brain-harvest`,
 `synthesis-capture`, `brain-context`, `session-continue`) never belonged in the plugin
 and has been deleted from the repo entirely (`docs/RESTRUCTURE.md` section 2.4): the
 skill and the two agents reach the same tools with judgment instead of a blind script
-on every turn. `pattern-watch.mjs` is the one exception — it only counts, never judges
-or blocks — and stays, unregistered, until it gets an `http` hook slot.
+on every turn.
 
 If you previously wired AITM hooks by hand in `settings.json`, do not enable this
 plugin until those direct entries are removed in the same sitting — running both at

@@ -73,11 +73,6 @@ jobs:
       - name: Ranking regression tests
         run: node brain-lib.test.mjs
 
-      # The store is ranked twice — FTS5/bm25 in the CLI, LIKE plus JS scoring in the hooks, because
-      # node's SQLite has no FTS5. Two implementations of one judgement drift silently.
-      - name: Ranking agreement (CLI vs hooks)
-        run: node ranking-agreement.test.mjs
-
       - name: Cold start on a scratch instance
         run: node init.mjs --root "$GITHUB_WORKSPACE" --instance ci-init --skip-chat --quiet
 

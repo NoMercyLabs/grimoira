@@ -48,17 +48,6 @@ public partial class BinCliIsThePublishedThinClientTests
         Assert.DoesNotContain("\"bin-cli\"", source);
     }
 
-    [Theory]
-    [InlineData("cli-exit.test.mjs")]
-    [InlineData("ranking-agreement.test.mjs")]
-    [InlineData("mcp-graph.test.mjs")]
-    public void NodeTestsOfTheAitmCsBuildReadBinCliOld(string relative)
-    {
-        string source = File.ReadAllText(Path.Combine(RepoPaths.Root, relative));
-        Assert.Contains("'bin-cli-old'", source);
-        Assert.DoesNotContain("'bin-cli'", source);
-    }
-
     [Fact]
     public void BuildCliScriptClearsBinCliBeforePublishingSoNoStaleDllsRemain()
     {

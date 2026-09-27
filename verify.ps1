@@ -56,7 +56,7 @@ if ($hookExit -ne 0) { $failed += 'hook registration' }
 # below covers that exit-code contract, the same way it covers every other dropped verb).
 
 # Every *.test.mjs in the repo root, found by pattern rather than typed into a list — a file dropped
-# here (or forgotten, as brain-gates.test.mjs and launch-mcp.test.mjs were) is run, not silently skipped.
+# here (or forgotten) is run, not silently skipped.
 # A file that imports node:test needs the `node --test` runner; every other file is a plain script that
 # prints its own pass/fail line and exits non-zero on failure. Both groups are run below, and the total
 # discovered must equal the total actually run, or the gate stops instead of quietly covering less.

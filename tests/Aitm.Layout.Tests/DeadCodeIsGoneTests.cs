@@ -3,28 +3,28 @@ using Xunit;
 
 namespace Aitm.Layout.Tests;
 
-// RESTRUCTURE.md slices 29f and 33: the file-based hosts, the old hook scripts and the oracle build
-// are deleted, and nothing that runs (a script, a hook, a workflow, a test) may name them again.
+// RESTRUCTURE.md slice 33: the old hook scripts, the launcher and the login scripts are deleted, and
+// nothing that runs (a script, a hook, a workflow, a test) may name them again. aitm.cs, mcp.cs and the
+// oracle harness stay until the 92 test files that run the old builds have literal expected values.
 public class DeadCodeIsGoneTests
 {
     private static readonly string[] DeletedFiles =
     [
-        "aitm.cs", "mcp.cs", "launch-mcp.mjs", "launch-mcp.test.mjs", "process-owner.mjs", "process-owner.test.mjs",
-        "brain-lib.mjs", "brain-lib.test.mjs", "ranking-agreement.test.mjs", "mcp-graph.test.mjs", "mcp-stage.test.mjs",
+        "launch-mcp.mjs", "launch-mcp.test.mjs", "process-owner.mjs", "process-owner.test.mjs",
+        "ranking-agreement.test.mjs", "mcp-graph.test.mjs", "mcp-stage.test.mjs",
         "brain-path.mjs", "compact-brief.mjs", "compact-restore.mjs", "pattern-watch.mjs", "pattern-watch.test.mjs",
         "session-index.mjs", "session-index-docs.mjs", "index-infra.mjs", "index-org.mjs", "hook-probe.mjs",
-        "cli-exit.test.mjs", "workspace-tools.test.mjs", "build-mcp.ps1",
+        "cli-exit.test.mjs", "workspace-tools.test.mjs",
         "idp-approve-device.mjs", "idp-enable-exchange.mjs", "idp-login-kmp.mjs",
         "idp-login-web.mjs", "idp-session.mjs",
-        "tests/Aitm.TestSupport/OldVsNewCli.cs", "tests/Aitm.TestSupport/McpSnapshotHarness.cs",
         "tests/Aitm.Server.Tests/BinCliThinClientMatchesBinCliOldTests.cs",
     ];
 
     // Names a running thing must not contain. "aitm.cs" is matched on a word edge so "aitm.csproj" passes.
     private static readonly Regex Named = new(
-        @"(?<![\w.-])(aitm\.cs|mcp\.cs)(?![\w])|launch-mcp|brain-lib|bin-cli-old|bin-cli-next|OldVsNewCli|McpSnapshotHarness"
-        + @"|workspace-tools\.test|build-mcp|idp-(approve-device|enable-exchange|login-kmp|login-web|session)"
-        + @"|process-owner|(compact-brief|compact-restore|pattern-watch|session-index|index-infra|index-org|hook-probe|brain-path)\.mjs",
+        @"launch-mcp|workspace-tools\.test|BinCliThinClientMatchesBinCliOld|ranking-agreement|mcp-graph\.test|mcp-stage\.test"
+        + @"|idp-(approve-device|enable-exchange|login-kmp|login-web|session)"
+        + @"|process-owner\.mjs|(compact-brief|compact-restore|pattern-watch|session-index|index-infra|index-org|hook-probe|brain-path)\.mjs",
         RegexOptions.None, TimeSpan.FromSeconds(2));
 
     [Fact]
@@ -60,7 +60,13 @@ public class DeadCodeIsGoneTests
         Assert.True(hits.Count == 0, $"{hits.Count} names of deleted code:/n" + string.Join('\n', hits.Take(60)));
     }
 
-    // A C# comment line is history, not a running name; the doc-comment pass owns those.
-    private static bool IsProse(string file, string line) =>
-        file.EndsWith(".cs", StringComparison.Ordinal) && line.TrimStart().StartsWith("//", StringComparison.Ordinal);
+    // A comment line is history, not a running name; the doc-comment pass owns those.
+    private static bool IsProse(string file, string line)
+    {
+        string trimmed = line.TrimStart();
+        return (file.EndsWith(".cs", StringComparison.Ordinal) || file.EndsWith(".mjs", StringComparison.Ordinal))
+                && trimmed.StartsWith("//", StringComparison.Ordinal)
+            || file.EndsWith(".ps1", StringComparison.Ordinal) && trimmed.StartsWith('#')
+            || file.EndsWith(".yml", StringComparison.Ordinal) && trimmed.StartsWith('#');
+    }
 }
