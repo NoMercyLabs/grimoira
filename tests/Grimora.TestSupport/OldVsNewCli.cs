@@ -4,13 +4,16 @@ using System.Runtime.CompilerServices;
 namespace Grimora.TestSupport;
 
 /// <summary>
-/// RESTRUCTURE.md slice 24 ("grimora.cs and mcp.cs now hold only dispatch to the registry") moves in
+/// RESTRUCTURE.md slice 24 ("grimora.cs and mcp.cs now hold only dispatch to the registry") moved in
 /// parts, each part rewiring a handful of CLI verb cases from inline logic to a call into their tool
-/// class. This is the oracle every part compares against: <see cref="OracleCommit"/> is the commit
-/// slice 24 started from, so building grimora.cs exactly as it stood there gives a frozen "before" binary.
-/// A test runs one verb on a fresh <c>test-*</c> instance against that frozen binary and against
-/// the kept grimora.cs build, <c>bin-cli-old/grimora.dll</c>, and hands back both outputs — stdout, stderr and exit code all have
-/// to match, byte for byte, or the rewiring changed behaviour.
+/// class. This is the oracle every part compared against: <see cref="OracleCommit"/> is the commit
+/// slice 24 started from, so building grimora.cs exactly as it stood there gives a frozen "before" binary
+/// — built from git history (<c>git show</c>/<c>git worktree</c> at that commit), independent of today's
+/// working tree. A class this has already frozen a golden for (see <see cref="CliGoldens"/>) replays that
+/// golden instead of running either binary; the two still had to match byte for byte, stdout, stderr and
+/// exit code, when it was frozen. A class with no golden yet still runs the pinned commit's build live
+/// against today's published thin client, <c>bin-cli/grimora.dll</c> (<see cref="BinCliDll"/>) — used by
+/// tests that compare against schema or need a real process, not a frozen answer (e.g. InitFullTests).
 ///
 /// The oracle build is cached under the OS temp dir, keyed by the commit sha, and built once per
 /// machine (a lock file guards a concurrent build from two test runs racing each other). Each part adds
@@ -46,12 +49,11 @@ public static class OldVsNewCli
         }
     }
 
-    /// <summary>Today's compiled CLI — the "after" binary, rebuilt by build-cli.ps1 after each part's
-    /// changes to grimora.cs.</summary>
+    /// <summary>Today's compiled CLI — the published thin client, rebuilt by build-cli.ps1/.sh.</summary>
     public static string BinCliDll([System.Runtime.CompilerServices.CallerFilePath] string callerFile = "", [System.Runtime.CompilerServices.CallerMemberName] string callerMember = "") =>
         !CliGoldens.FreezeMode && CliGoldens.HasGolden(callerFile)
             ? InProcessDll
-            : FindAbove(RepoRoot, Path.Combine("bin-cli-old", "grimora.dll"));
+            : FindAbove(RepoRoot, Path.Combine("bin-cli", "grimora.dll"));
 
     /// <summary>The sentinel for "the current code, run in-process" once a class is frozen.</summary>
     public const string InProcessDll = "in-process/grimora.dll";

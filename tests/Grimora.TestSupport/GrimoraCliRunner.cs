@@ -4,12 +4,14 @@ using System.Runtime.InteropServices;
 namespace Grimora.TestSupport;
 
 /// <summary>
-/// Runs today's compiled <c>bin-cli-old/grimora.dll</c> (the kept grimora.cs build) against a throwaway <c>test-*</c> instance and returns
-/// its stdout — the oracle every project's pinned-output tests run against. Previously duplicated once
-/// per test project (<c>Grimora.Store.Tests</c>, then <c>Grimora.Facts.Tests</c>) because the class was
-/// internal to its own assembly; a third copy for <c>Grimora.Memory.Tests</c> would have made three, so
-/// this is the one shared place instead (Grimora.Layout.Tests' folder rules only govern src/*, not
-/// tests/*, so nothing there blocks the move).
+/// Runs a CLI verb against a throwaway <c>test-*</c> instance. <see cref="Run"/> replays the class's frozen
+/// golden (<see cref="CliGoldens"/>) and asserts the current code, run in-process, still matches it — no
+/// live oracle process runs any more, every caller has a golden. <see cref="RunBinCli"/> spawns the real
+/// published <c>bin-cli/grimora.dll</c> for a test that needs a genuine separate OS process instead.
+/// Previously duplicated once per test project (<c>Grimora.Store.Tests</c>, then <c>Grimora.Facts.Tests</c>)
+/// because the class was internal to its own assembly; a third copy for <c>Grimora.Memory.Tests</c> would
+/// have made three, so this is the one shared place instead (Grimora.Layout.Tests' folder rules only
+/// govern src/*, not tests/*, so nothing there blocks the move).
 /// </summary>
 public static class GrimoraCliRunner
 {
@@ -106,25 +108,15 @@ public static class GrimoraCliRunner
         }
     }
 
-    /// <summary>Runs <c>grimora &lt;arguments&gt;</c> and returns (stdout, exit code). Never throws on a
-    /// non-zero exit so a caller can pin an error path too. The returned stdout is the frozen golden of the
-    /// calling test (see <see cref="CliGoldens"/>); the current CLI code runs in-process and must match it,
-    /// otherwise this throws <see cref="CliGoldens.MismatchException"/>. With GRIMORA_FREEZE=1 the oracle
-    /// build in bin-cli-old runs instead and its answer is written to the golden.</summary>
+    /// <summary>Runs <c>grimora &lt;arguments&gt;</c> in-process and returns (stdout, exit code), after
+    /// asserting the answer still matches the calling test's frozen golden (see <see cref="CliGoldens"/>);
+    /// throws <see cref="CliGoldens.MismatchException"/> on a mismatch. No oracle process runs any more —
+    /// every caller of this method has a golden already.</summary>
     public static (string stdout, int exitCode) Run(
         string arguments,
         [System.Runtime.CompilerServices.CallerFilePath] string callerFile = "",
         [System.Runtime.CompilerServices.CallerMemberName] string callerMember = "")
     {
-        if (CliGoldens.FreezeMode || !CliGoldens.HasGolden(callerFile))
-        {
-            (string oldOut, string oldErr, int oldExit) = RunOracle(arguments);
-            if (CliGoldens.FreezeMode) CliGoldens.Record(callerFile, callerMember, arguments, oldOut, oldErr, oldExit);
-            else if (oldExit != 0 && string.IsNullOrEmpty(oldOut))
-                throw new InvalidOperationException($"'{arguments}' exited {oldExit}/nSTDERR:/n{oldErr}");
-            return (oldOut, oldExit);
-        }
-
         CliGoldens.Entry golden = CliGoldens.Take(callerFile, callerMember, arguments);
         (string stdout, string stderr, int exitCode) = RunCurrent(arguments);
         CliGoldens.AssertMatches(golden, arguments, stdout, stderr, exitCode);
@@ -151,8 +143,6 @@ public static class GrimoraCliRunner
         return (stdout, exitCode);
     }
 
-    private static (string stdout, string stderr, int exitCode) RunOracle(string arguments) => RunProcess(FindGrimoraDll(), arguments);
-
     private static (string stdout, string stderr, int exitCode) RunProcess(string dll, string arguments)
     {
         // The child inherits this process's console; on Windows its output code page decides how it encodes
@@ -178,8 +168,6 @@ public static class GrimoraCliRunner
 
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern bool SetConsoleOutputCP(uint wCodePageId);
-
-    private static string FindGrimoraDll() => FindAbove(Path.Combine("bin-cli-old", "grimora.dll"));
 
     private static string FindBinCliDll() => FindAbove(Path.Combine("bin-cli", "grimora.dll"));
 

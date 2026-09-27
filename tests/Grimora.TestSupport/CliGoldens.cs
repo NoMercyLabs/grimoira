@@ -3,15 +3,17 @@ using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using Grimora.Store.Data;
 
 namespace Grimora.TestSupport;
 
 /// <summary>
-/// The frozen answers of the old file-based CLI (the oracle). A test class that used to compare against a
-/// running oracle now compares against <c>Goldens/&lt;TestFile&gt;.jsonl</c> beside its source: one JSON line
-/// per oracle call, keyed by test method, the normalised arguments and the call's occurrence. The first line
-/// says who wrote it. The oracle wrote every golden; the new code never did. Freeze with GRIMORA_FREEZE=1
-/// (needs bin-cli-old); the normal run replays: the current code runs in-process and must equal the golden.
+/// The frozen answers of an oracle (the old file-based CLI, or a pinned commit's build). A test class that
+/// used to compare against a running oracle now compares against <c>Goldens/&lt;TestFile&gt;.jsonl</c> beside
+/// its source: one JSON line per oracle call, keyed by test method, the normalised arguments and the call's
+/// occurrence. The first line says who wrote it and never the new code. GrimoraCliRunner.Run only ever
+/// replays now (no oracle process runs); OldVsNewCli and CliGoldens.Frozen can still freeze a new golden
+/// with GRIMORA_FREEZE=1 from their own pinned-commit oracle.
 /// </summary>
 public static partial class CliGoldens
 {
@@ -96,6 +98,7 @@ public static partial class CliGoldens
         result = InstanceId().Replace(result, "<GUID>");
         result = Elapsed().Replace(result, "<MS>ms");
         result = Timestamp().Replace(result, "<TS>");
+        result = CompactTimestamp().Replace(result, "<TS>");
         return result.Replace(Backslash.ToString(), "/", StringComparison.Ordinal);
     }
 
@@ -151,7 +154,7 @@ public static partial class CliGoldens
         string path = GoldenPath(callerFile);
         lock (WriteLock)
         {
-            List<Entry> entries = Loaded.GetOrAdd(path, _ => []);
+            List<Entry> entries = Loaded.GetOrAdd(path, Read);
             entries.Add(entry);
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
             StringBuilder text = new();
@@ -170,7 +173,7 @@ public static partial class CliGoldens
         int occurrence = Seen.AddOrUpdate(key, 0, (_, n) => n + 1);
         Entry? entry = entries.Where(e => e.Member == member && e.Args == args).ElementAtOrDefault(occurrence);
         return entry ?? throw new InvalidOperationException(
-            $"no golden #{occurrence} for {member}: {args} in {path}; freeze it with GRIMORA_FREEZE=1 (needs bin-cli-old)");
+            $"no golden #{occurrence} for {member}: {args} in {path}");
     }
 
     public static void AssertMatches(Entry golden, string arguments, string stdout, string stderr, int exitCode)
@@ -189,16 +192,21 @@ public static partial class CliGoldens
         return [.. File.ReadLines(path).Skip(1).Where(l => l.Length > 0).Select(l => JsonSerializer.Deserialize<Entry>(l)!)];
     }
 
-    [GeneratedRegex("[0-9a-f]{32}")]
+    [GeneratedRegex("[0-9a-f]{32}", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex InstanceId();
 
-    [GeneratedRegex(@"\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})?")]
+    [GeneratedRegex(@"\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})?", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex Timestamp();
 
-    [GeneratedRegex(@"(?<![\w.])\d+([.,]\d+)?ms")]
+    // A backup file name's compact stamp (BackupTool: yyyyMMdd-HHmmssfff), never equal between a golden
+    // freeze and a later replay.
+    [GeneratedRegex(@"\d{8}-\d{9}", RegexOptions.None, RegexTimeout.Milliseconds)]
+    private static partial Regex CompactTimestamp();
+
+    [GeneratedRegex(@"(?<![\w.])\d+([.,]\d+)?ms", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex Elapsed();
 
     // A decimal point that follows the machine's culture (nl-NL prints "0,00") is written with a point in every golden.
-    [GeneratedRegex(@"(score -?\d+),(\d+)")]
+    [GeneratedRegex(@"(score -?\d+),(\d+)", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex Decimal();
 }
