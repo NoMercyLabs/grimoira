@@ -145,4 +145,4 @@ The design notes are in `docs/`. `docs/RESTRUCTURE.md` explains how the code is 
 
 ## Licence
 
-This repository has no licence file yet. Until one is added, all rights are reserved.
+Apache License 2.0. See `LICENSE`.
