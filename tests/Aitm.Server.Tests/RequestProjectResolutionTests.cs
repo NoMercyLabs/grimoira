@@ -47,7 +47,7 @@ public sealed class RequestProjectResolutionTests : IDisposable
     private HttpClient Client(WebApplicationFactory<Program> factory) =>
         factory.CreateClient(new WebApplicationFactoryClientOptions { BaseAddress = new Uri($"http://{_allowedHost}") });
 
-    private string[] Stores() => [.. Directory.GetDirectories(_dataDir).Select(d => Path.GetFileName(d)!)];
+    private string[] Stores() => [.. Directory.GetDirectories(_dataDir).Select(d => Path.GetFileName(d.AsSpan()).ToString())];
 
     private void AssertOnlyStore(string expected)
     {
