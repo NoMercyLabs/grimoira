@@ -74,7 +74,7 @@ public partial class QueryToolTests
             GrimoraCliRunner.Run($"add --instance {instance} --term queryfixturemcp --value the-mcp-answer --category manual");
 
             Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", instance);
-            string expected = (string)InvokeMcpFact("queryfixturemcp")!;
+            string expected = CliGoldens.Frozen("fact " + "queryfixturemcp", () => (string)InvokeMcpFact("queryfixturemcp")!);
 
             string dbPath = GrimoraCliRunner.InstanceDbPath(instance);
             using SqliteConnection connection = StoreConnection.Open(dbPath);
@@ -100,7 +100,7 @@ public partial class QueryToolTests
             GrimoraCliRunner.Run($"init --instance {instance}");
 
             Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", instance);
-            string expected = (string)InvokeMcpFact("nothing-ever-matches-this-mcp-term")!;
+            string expected = CliGoldens.Frozen("fact " + "nothing-ever-matches-this-mcp-term", () => (string)InvokeMcpFact("nothing-ever-matches-this-mcp-term")!);
 
             string dbPath = GrimoraCliRunner.InstanceDbPath(instance);
             using SqliteConnection connection = StoreConnection.Open(dbPath);
