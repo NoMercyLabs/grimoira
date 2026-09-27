@@ -114,6 +114,16 @@ WebApplication app = builder.Build();
 TimeSpan idleTime = IdleExit.ConfiguredIdle();
 IdleExit idleExit = new(idleTime, () => app.Lifetime.StopApplication());
 
+// RESTRUCTURE.md "Slice 38": SessionEnd's indexing runs off the request thread (HookEndpoint), so its
+// own HTTP answer stays inside the 1.5 s hooks.json budget. It shares idleExit's own "in flight" count
+// (IndexJobQueue.Enqueue takes a token before this returns), so a shutdown drain or an idle exit waits
+// for a queued job the same way it already waits for a call still in flight, instead of losing it.
+IndexJobQueue indexQueue = new(projectStore, idleExit);
+// Never awaited: this loop only ends when the process does. A bug inside it must never take a later
+// SessionEnd down with it (RunAsync's own try/catch per job already keeps one job's failure from
+// stopping the next), so nothing here needs to observe its completion.
+_ = indexQueue.RunAsync();
+
 // Stopped, not Stopping: Stopping fires before Kestrel drains, so a call still in flight would lose its store
 // (RESTRUCTURE.md slice 32b: the old server finishes its calls in flight, then exits). A /cli verb that outlived
 // its timeout runs on its own thread with no request behind it, so the drain waits for it too.
@@ -163,7 +173,7 @@ app.MapPost("/tools/{name}", (string name, HttpContext context) => ToolsEndpoint
 
 // RESTRUCTURE.md "Slice 34": Claude Code http hooks; runs the slice 20-22 handlers under the same
 // per-project writer gate as /mcp (HookEndpoint).
-app.MapPost("/hooks/{event}", (string @event, HttpContext context) => HookEndpoint.Handle(@event, context, projectStore));
+app.MapPost("/hooks/{event}", (string @event, HttpContext context) => HookEndpoint.Handle(@event, context, projectStore, indexQueue));
 
 // RESTRUCTURE.md "Slice 29c": the CLI verbs; each runs on the project's one open connection under its
 // writer gate, with a timeout that answers exit 124 (CliEndpoint).

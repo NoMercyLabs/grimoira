@@ -14,13 +14,16 @@ namespace Grimora.Server.Data;
 /// A hook must fail open: an unknown event, a malformed payload or a handler error all answer 200 with
 /// an empty body, never a 5xx.
 ///
-/// SessionEnd runs its three handlers synchronously here. An <c>http</c> hook cannot be async and is
-/// bound by the 1.5 s SessionEnd budget (RESTRUCTURE.md phase 4 facts), so slice 38 must enqueue them
-/// and answer at once; this slice does not build that queue.
+/// SessionEnd's three indexing handlers do not run inline any more (slice 38): an <c>http</c> hook cannot
+/// be async and is bound by the 1.5 s SessionEnd budget (RESTRUCTURE.md phase 4 facts), and running them
+/// synchronously meant a slow or failing indexer either blocked the answer or, wrapped to avoid that, had
+/// its failure silently thrown away. <see cref="IndexJobQueue"/> takes the payload instead and answers at
+/// once; the actual indexing runs in the background, under the project's own writer gate, with a failure
+/// that survives every retry recorded as a finding instead of vanishing.
 /// </summary>
 internal static class HookEndpoint
 {
-    public static async Task<IResult> Handle(string eventName, HttpContext context, ProjectStore store)
+    public static async Task<IResult> Handle(string eventName, HttpContext context, ProjectStore store, IndexJobQueue indexQueue)
     {
         string output;
         try
@@ -33,9 +36,6 @@ internal static class HookEndpoint
 
             if (JsonNode.Parse(body) is not JsonObject payload) return Empty();
 
-            IReadOnlyList<Func<string, string?, string>> handlers = HandlersFor(eventName, payload);
-            if (handlers.Count == 0) return Empty();
-
             // A command hook gets CLAUDE_PROJECT_DIR from Claude Code. The shared server's own env is the env of
             // whichever session started it, so the handlers get the request's project instead: the
             // Claude-Project-Dir header, else the payload's cwd, else the server's directory, the same order
@@ -45,6 +45,17 @@ internal static class HookEndpoint
                 ?? (string.IsNullOrWhiteSpace(payloadCwd) ? null : payloadCwd)
                 ?? Directory.GetCurrentDirectory();
             string instance = RequestProjectResolver.Resolve(context, requestCwd: payloadCwd);
+
+            if (eventName == "SessionEnd")
+            {
+                // Queued, not run here: see the class doc comment and IndexJobQueue. Still answers empty,
+                // same as the handlers themselves always did.
+                indexQueue.Enqueue(instance, body);
+                return Empty();
+            }
+
+            IReadOnlyList<Func<string, string?, string>> handlers = HandlersFor(eventName, payload);
+            if (handlers.Count == 0) return Empty();
 
             ProjectHandle handle = store.Acquire(instance);
             await handle.Gate.WaitAsync(context.RequestAborted);
@@ -79,8 +90,8 @@ internal static class HookEndpoint
     }
 
     /// <summary>The event map: the slice 20-22 handlers, in the order hooks.json runs their slots.</summary>
-    /// <remarks>The SessionEnd handlers and PatternWatch do not take the project yet: they get it when their own
-    /// slots move to http.</remarks>
+    /// <remarks>PatternWatch does not take the project yet: it gets it when its own slot moves to http.
+    /// SessionEnd is handled directly in <see cref="Handle"/> (queued), never through this map.</remarks>
     private static IReadOnlyList<Func<string, string?, string>> HandlersFor(string eventName, JsonObject payload)
     {
         switch (eventName)
@@ -89,8 +100,6 @@ internal static class HookEndpoint
                 return [CompactBriefTool.Execute];
             case "UserPromptSubmit":
                 return [CompactRestoreTool.Execute];
-            case "SessionEnd":
-                return [Ignore(SessionIndexChatTool.Execute), Ignore(SessionIndexDocsTool.Execute), Ignore(IndexCodeSessionEndTool.Execute)];
             case "Stop":
                 return [StopFlushTool.Execute];
             case "PostToolUse":

@@ -16,27 +16,47 @@ public static class SessionIndexDocsTool
 {
     public static string Execute(string stdin)
     {
+        TryExecute(stdin);
+        return "";
+    }
+
+    /// <summary>Same work as <see cref="Execute"/>, but the exception is returned instead of swallowed, so a
+    /// caller that runs this off the request thread (the SessionEnd index queue) can record a real failure
+    /// instead of it vanishing silently. Null means the docs were indexed, or there was nothing to do
+    /// (no `.claude` dir, no store yet) - both are a normal outcome, not a failure worth recording.</summary>
+    public static Exception? TryExecute(string stdin)
+    {
         try
         {
-            using JsonDocument doc = JsonDocument.Parse(string.IsNullOrWhiteSpace(stdin) ? "{}" : stdin);
-            JsonElement payload = doc.RootElement;
-            string proj = Environment.GetEnvironmentVariable("CLAUDE_PROJECT_DIR")
-                ?? GetString(payload, "cwd")
-                ?? Directory.GetCurrentDirectory();
-            string claudeDir = Path.Combine(proj, ".claude");
-            if (!Directory.Exists(claudeDir)) return "";
-
-            string instance = HookPaths.ResolveInstance(GetString(payload, "cwd"));
-            if (!File.Exists(HookPaths.DbPath(instance))) return "";
-
-            using SqliteConnection connection = HookStore.Open(HookPaths.DbPath(instance));
-            new IndexDocsTool().Execute(connection, claudeDir, "doc");
+            ExecuteCore(stdin);
+            return null;
         }
-        catch
+        catch (Exception e)
         {
-            // fail open — never block session end on an index error
+            return e;
         }
-        return "";
+    }
+
+    private static void ExecuteCore(string stdin)
+    {
+        using JsonDocument doc = JsonDocument.Parse(string.IsNullOrWhiteSpace(stdin) ? "{}" : stdin);
+        JsonElement payload = doc.RootElement;
+        // Reviewer finding: this used to prefer the server's own CLAUDE_PROJECT_DIR env over the request's
+        // cwd. That was already wrong per-request (the shared server's env is whichever session started
+        // it, not this call's); now that this runs off the SessionEnd queue instead of inline with the
+        // request, there is no meaningful "this call's env" at all - the payload's own cwd is the only
+        // correct source, same order RequestProjectResolver already uses for every other hook/tool call.
+        string proj = GetString(payload, "cwd")
+            ?? Environment.GetEnvironmentVariable("CLAUDE_PROJECT_DIR")
+            ?? Directory.GetCurrentDirectory();
+        string claudeDir = Path.Combine(proj, ".claude");
+        if (!Directory.Exists(claudeDir)) return;
+
+        string instance = HookPaths.ResolveInstance(GetString(payload, "cwd"));
+        if (!File.Exists(HookPaths.DbPath(instance))) return;
+
+        using SqliteConnection connection = HookStore.Open(HookPaths.DbPath(instance));
+        new IndexDocsTool().Execute(connection, claudeDir, "doc");
     }
 
     private static string? GetString(JsonElement e, string prop) =>

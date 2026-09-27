@@ -73,7 +73,7 @@ public sealed class HookVerbAgainstTheRunningServerTests : IDisposable
     }
 
     [Fact]
-    public void SessionEndThroughTheCliIndexesTheTranscriptTheClaudeDirAndTheCode()
+    public async Task SessionEndThroughTheCliIndexesTheTranscriptTheClaudeDirAndTheCode()
     {
         StartServer();
         string fixtureRoot = Path.Combine(_projectDir, "fixture");
@@ -90,9 +90,35 @@ public sealed class HookVerbAgainstTheRunningServerTests : IDisposable
 
         Assert.Equal(0, exit);
         Assert.Equal("", stdout);
-        Assert.True(Scalar("SELECT count(*) FROM chat") > 0, "SessionEnd did not index the transcript");
-        Assert.True(Scalar("SELECT count(*) FROM docs") > 0, "SessionEnd did not index the .claude dir");
-        Assert.Equal(1L, Scalar("SELECT count(*) FROM edges WHERE symbol='Widget'"));
+        // SessionEnd answers as soon as the CLI has forwarded the payload to the server (slice 38:
+        // IndexJobQueue), before the actual indexing runs - the 1.5 s hooks.json budget is the server's
+        // own HTTP answer, not the indexing itself. So this waits for the real, bounded completion signal
+        // (the rows landing) instead of assuming it already happened the instant the process exited; a
+        // failure that a retry inside the server could not clear would instead show up as a finding
+        // (IndexJobQueueTests covers that path directly, against the queue, not through two spawned processes).
+        Assert.True(await PollUntil(() => Scalar("SELECT count(*) FROM chat") > 0, TimeSpan.FromSeconds(25)),
+            "SessionEnd did not index the transcript");
+        Assert.True(await PollUntil(() => Scalar("SELECT count(*) FROM docs") > 0, TimeSpan.FromSeconds(25)),
+            "SessionEnd did not index the .claude dir");
+        Assert.True(await PollUntil(() => Scalar("SELECT count(*) FROM edges WHERE symbol='Widget'") == 1, TimeSpan.FromSeconds(25)),
+            "SessionEnd did not index the code");
+    }
+
+    // The background job (IndexJobQueue) may still be mid-Acquire (creating/migrating the db) or not yet
+    // dequeued when the first poll runs, so a query against a table it has not created yet throws instead
+    // of just returning 0 - that is a "not ready", not a real failure, so it is swallowed here the same way
+    // "not yet true" is; only a timeout without ever seeing a clean true is a real failure.
+    private static async Task<bool> PollUntil(Func<bool> condition, TimeSpan timeout)
+    {
+        DateTime deadline = DateTime.UtcNow + timeout;
+        while (DateTime.UtcNow < deadline)
+        {
+            try { if (condition()) return true; }
+            catch (Microsoft.Data.Sqlite.SqliteException) { /* db/table not there yet - keep polling */ }
+            await Task.Delay(50);
+        }
+        try { return condition(); }
+        catch (Microsoft.Data.Sqlite.SqliteException) { return false; }
     }
 
     [Fact]

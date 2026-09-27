@@ -18,24 +18,39 @@ public static class SessionIndexChatTool
 {
     public static string Execute(string stdin)
     {
+        TryExecute(stdin);
+        return "";
+    }
+
+    /// <summary>Same work as <see cref="Execute"/>, but the exception is returned instead of swallowed, so a
+    /// caller that runs this off the request thread (the SessionEnd index queue) can record a real failure
+    /// instead of it vanishing silently. Null means the transcript was indexed, or there was nothing to do
+    /// (no transcript, no store yet) - both are a normal outcome, not a failure worth recording.</summary>
+    public static Exception? TryExecute(string stdin)
+    {
         try
         {
-            using JsonDocument doc = JsonDocument.Parse(string.IsNullOrWhiteSpace(stdin) ? "{}" : stdin);
-            JsonElement payload = doc.RootElement;
-            string? transcriptPath = GetString(payload, "transcript_path");
-            if (transcriptPath is null || !File.Exists(transcriptPath)) return "";
-
-            string instance = HookPaths.ResolveInstance(GetString(payload, "cwd"));
-            if (!File.Exists(HookPaths.DbPath(instance))) return "";
-
-            using SqliteConnection connection = HookStore.Open(HookPaths.DbPath(instance));
-            new IndexChatTool().Execute(connection, transcriptPath);
+            ExecuteCore(stdin);
+            return null;
         }
-        catch
+        catch (Exception e)
         {
-            // fail open — never block session end on an index error
+            return e;
         }
-        return "";
+    }
+
+    private static void ExecuteCore(string stdin)
+    {
+        using JsonDocument doc = JsonDocument.Parse(string.IsNullOrWhiteSpace(stdin) ? "{}" : stdin);
+        JsonElement payload = doc.RootElement;
+        string? transcriptPath = GetString(payload, "transcript_path");
+        if (transcriptPath is null || !File.Exists(transcriptPath)) return;
+
+        string instance = HookPaths.ResolveInstance(GetString(payload, "cwd"));
+        if (!File.Exists(HookPaths.DbPath(instance))) return;
+
+        using SqliteConnection connection = HookStore.Open(HookPaths.DbPath(instance));
+        new IndexChatTool().Execute(connection, transcriptPath);
     }
 
     private static string? GetString(JsonElement e, string prop) =>
