@@ -1,0 +1,2 @@
+{"header":"GOLDEN written by the oracle bin-cli-old (grimora.cs at commit 0b2bb70, the last file-based build); never by the new code"}
+{"Member":"PromotingAPendingCandidateInsertsTheEdgeLogsItAndMarksTheCandidatePromoted","Args":"init --instance test-promote-tool-<GUID>","Stdout":"instance 'test-promote-tool-7de4cd3b7eb3408fb175e40a63ab934d' ready at <HOME><SEP>.grimora<SEP>test-promote-tool-7de4cd3b7eb3408fb175e40a63ab934d<SEP>grimora.db<NL>","Stderr":"","ExitCode":0}
