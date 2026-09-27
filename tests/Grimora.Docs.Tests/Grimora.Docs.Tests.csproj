@@ -8,7 +8,7 @@
     <PackageReference Include="xunit.runner.visualstudio" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Grimora.Docs\Grimora.Docs.csproj" />
+    <ProjectReference Include="../../src/Grimora.Docs/Grimora.Docs.csproj" />
     <ProjectReference Include="../Grimora.TestSupport/Grimora.TestSupport.csproj" />
   </ItemGroup>
 </Project>

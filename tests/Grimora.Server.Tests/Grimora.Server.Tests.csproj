@@ -9,15 +9,15 @@
     <PackageReference Include="xunit.runner.visualstudio" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Grimora.Server\Grimora.Server.csproj" />
+    <ProjectReference Include="../../src/Grimora.Server/Grimora.Server.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\Grimora.Layout.Tests\Grimora.Layout.Tests.csproj" />
+    <ProjectReference Include="../Grimora.Layout.Tests/Grimora.Layout.Tests.csproj" />
     <ProjectReference Include="../Grimora.TestSupport/Grimora.TestSupport.csproj" />
   </ItemGroup>
   <!-- Slice 34: HooksEndpointTests spawns `grimora hook <event>` (Grimora.Cli.dll) as the oracle. Build order
        only: the assembly is not referenced (its linked Hooks copies would clash with Grimora.Hooks). -->
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Grimora.Cli\Grimora.Cli.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../../src/Grimora.Cli/Grimora.Cli.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
 </Project>

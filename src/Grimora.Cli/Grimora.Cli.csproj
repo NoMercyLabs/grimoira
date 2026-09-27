@@ -19,8 +19,8 @@
     <Compile Include="../Grimora.Hooks/Data/HookPaths.cs" Link="Hooks/HookPaths.cs" />
     <Compile Include="../Grimora.Hooks/Tools/CompactBriefTool.cs" Link="Hooks/CompactBriefTool.cs" />
     <Compile Include="../Grimora.Hooks/Tools/CompactRestoreTool.cs" Link="Hooks/CompactRestoreTool.cs" />
-    <Compile Include="..\Grimora.Brain\Data\IProcessRunner.cs">
-      <Link>Data\IProcessRunner.cs</Link>
+    <Compile Include="../Grimora.Brain/Data/IProcessRunner.cs">
+      <Link>Data/IProcessRunner.cs</Link>
     </Compile>
     <!-- Slice 27: `server install-logon`/`uninstall-logon` run schtasks through this seam. Same
          no-ProjectReference rule as above, so it is a build-time linked copy of Grimora.Brain's file, not
