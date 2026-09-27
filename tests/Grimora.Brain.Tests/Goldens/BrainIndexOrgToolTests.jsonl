@@ -1,0 +1,3 @@
+{"header":"GOLDEN written by the oracle bin-cli-old (grimora.cs at commit 0b2bb70, the last file-based build); never by the new code"}
+{"Member":"IndexesAnOrgAndMatchesALocalCloneByRemoteUrl","Args":"init --instance test-index-org-<GUID>","Stdout":"instance 'test-index-org-a054899115004865bf28bbfb109f030f' ready at <HOME><SEP>.grimora<SEP>test-index-org-a054899115004865bf28bbfb109f030f<SEP>grimora.db<NL>","Stderr":"","ExitCode":0}
+{"Member":"DryRunWritesTheFragmentButNeverImports","Args":"init --instance test-index-org-dry-<GUID>","Stdout":"instance 'test-index-org-dry-80368bee11b94c81a74eed8cad843e38' ready at <HOME><SEP>.grimora<SEP>test-index-org-dry-80368bee11b94c81a74eed8cad843e38<SEP>grimora.db<NL>","Stderr":"","ExitCode":0}
