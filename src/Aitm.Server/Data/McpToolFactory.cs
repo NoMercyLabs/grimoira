@@ -14,7 +14,7 @@ namespace Aitm.Server.Data;
 /// tools (an <c>ExecuteMcp(SqliteConnection, ...)</c> method) go through the same
 /// <see cref="BuildStoreBackedTool"/> reflection path, which resolves the connection parameter from the
 /// calling project's <see cref="ProjectStore"/> instead of the JSON arguments and serialises every call
-/// through <see cref="LockingAIFunction"/>. The 3 handover tools (<see cref="IdPTokenTool"/>,
+/// through <see cref="LockingAiFunction"/>. The 3 handover tools (<see cref="IdPTokenTool"/>,
 /// <see cref="WorkspaceCapabilitiesTool"/>, <see cref="WorkspaceSearchTool"/>) hold no project store —
 /// they take server-level dependencies (a process runner, the data/project directories) instead of a
 /// connection, so they are wired directly to their own <c>Execute</c> overload.
@@ -118,7 +118,7 @@ public static class McpToolFactory
         };
 
         AIFunction inner = AIFunctionFactory.Create(method, tool, options);
-        return new LockingAIFunction(inner, store, httpContextAccessor, gateTimeout);
+        return new LockingAiFunction(inner, store, httpContextAccessor, gateTimeout);
     }
 
     private static McpServerTool BuildIdPTool(IdPTokenTool tool, string dataDir, IProcessRunner runner) =>

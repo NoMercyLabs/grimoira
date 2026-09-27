@@ -24,7 +24,7 @@ namespace Aitm.Brain.Tools;
 /// a second such handle, in this process or any other, until the first is released, and releases it for
 /// free if the holding process dies. Acquiring retries for a bounded wait rather than blocking forever, so
 /// a genuinely stuck holder surfaces as a clear error instead of a hang. The HTTP path needs no equivalent
-/// because <see cref="Aitm.Server.Data.LockingAIFunction"/> already serializes every tool call per project
+/// because <see cref="Aitm.Server.Data.LockingAiFunction"/> already serializes every tool call per project
 /// instance, in one process, before it reaches here.
 /// </summary>
 internal static class LedgerFileLock

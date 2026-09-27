@@ -190,10 +190,7 @@ public static partial class InitFull
             // ----------------------------------------------------------------- 6. memory
             Step(6, "rules");
             string memDir = Path.Combine(options.HomeDir, ".claude", "projects", PathSlug(options.Root), "memory");
-            if (Directory.Exists(memDir))
-                log.Add($"  {new IndexMemoryTool().Execute(connection, memDir)}");
-            else
-                log.Add("  no memory directory for this repo");
+            log.Add(Directory.Exists(memDir) ? $"  {new IndexMemoryTool().Execute(connection, memDir)}" : "  no memory directory for this repo");
 
             // ---------------------------------------------------- 7. past conversations
             Step(7, "past conversations");

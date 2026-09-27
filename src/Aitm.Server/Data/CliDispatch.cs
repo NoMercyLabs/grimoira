@@ -85,12 +85,12 @@ public static class CliDispatch
             // every `query` and every hook lookup was contending with the indexer just to confirm a schema that
             // had not changed. user_version is a header read with no lock, so the common case now touches nothing.
             // BUMP THIS whenever the schema changes; otherwise an existing store never learns about the new table.
-            const int SchemaVersion = 3;
-            if (ScalarLong("PRAGMA user_version") != SchemaVersion)
+            const int schemaVersion = 3;
+            if (ScalarLong("PRAGMA user_version") != schemaVersion)
             {
                 Init();
                 InitBrain();
-                Exec($"PRAGMA user_version={SchemaVersion}");
+                Exec($"PRAGMA user_version={schemaVersion}");
             }
 
 

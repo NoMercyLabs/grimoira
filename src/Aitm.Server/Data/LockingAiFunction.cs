@@ -8,7 +8,7 @@ namespace Aitm.Server.Data;
 /// tool method runs and always releases it afterwards, even when the call throws. This is the "one
 /// writer" half of RESTRUCTURE.md "Slice 26"; <see cref="ProjectStore"/> is the "one open store" half.
 /// </summary>
-internal sealed class LockingAIFunction(AIFunction inner, ProjectStore store, IHttpContextAccessor httpContextAccessor, TimeSpan? gateTimeout = null) : AIFunction
+internal sealed class LockingAiFunction(AIFunction inner, ProjectStore store, IHttpContextAccessor httpContextAccessor, TimeSpan? gateTimeout = null) : AIFunction
 {
     public override string Name => inner.Name;
     public override string Description => inner.Description;

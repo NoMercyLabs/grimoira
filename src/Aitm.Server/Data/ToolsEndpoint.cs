@@ -8,7 +8,7 @@ namespace Aitm.Server.Data;
 /// registered tool as <c>{ name, description, inputSchema }</c>. <c>POST /tools/{name}</c> takes the tool's JSON
 /// arguments and answers its text result (200, text/plain), resolving the project through
 /// <see cref="RequestProjectResolver"/> like /mcp and running under the same per-project writer gate
-/// (<see cref="LockingAIFunction"/>), so there is still one writer. An unknown name is 404, arguments the tool
+/// (<see cref="LockingAiFunction"/>), so there is still one writer. An unknown name is 404, arguments the tool
 /// cannot bind are 400, any other failure is 500; the body is a one-line reason, never a stack trace.
 /// </summary>
 public static class ToolsEndpoint
