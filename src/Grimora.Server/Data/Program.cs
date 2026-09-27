@@ -111,10 +111,20 @@ IdleExit idleExit = new(idleTime, () => app.Lifetime.StopApplication());
 // Stopped, not Stopping: Stopping fires before Kestrel drains, so a call still in flight would lose its store
 // (RESTRUCTURE.md slice 32b: the old server finishes its calls in flight, then exits). A /cli verb that outlived
 // its timeout runs on its own thread with no request behind it, so the drain waits for it too.
+// A clean stop (every call drained, none cut off by the shutdown timeout) leaves CleanExitRecord before the
+// process frees server.lock: a call whose connection the stop closed unread then provably never ran, so the
+// client resends it (RefusedConnectionRetry).
+System.Diagnostics.Stopwatch stopClock = new();
+app.Lifetime.ApplicationStopping.Register(stopClock.Start);
 app.Lifetime.ApplicationStopped.Register(() =>
 {
-    idleExit.WaitForDrain(CliEndpoint.LongTimeout);
+    bool drained = idleExit.WaitForDrain(CliEndpoint.LongTimeout);
     projectStore.Dispose();
+    if (drained && stopClock.Elapsed < CliEndpoint.LongTimeout)
+    {
+        try { CleanExitRecord.Write(dataDir, startedAt, DateTime.UtcNow); }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { /* no record: a lost call is not resent */ }
+    }
 });
 app.Use(async (context, next) =>
 {

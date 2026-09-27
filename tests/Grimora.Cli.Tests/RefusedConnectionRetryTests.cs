@@ -72,4 +72,62 @@ public sealed class RefusedConnectionRetryTests
 
         Assert.Equal(1, attempts);
     }
+
+    private static HttpRequestException Dropped() => new("An error occurred while sending the request.", new IOException("Pipe is broken."));
+
+    [Fact]
+    public void ACallDroppedByAServiceThatProvedItNeverRanIsResent()
+    {
+        int attempts = 0;
+        DateTime? askedAbout = null;
+        DateTime before = DateTime.UtcNow;
+
+        bool reached = RefusedConnectionRetry.TrySend(() =>
+        {
+            if (++attempts == 1) throw Dropped();
+            return "answered";
+        }, () => true, out string? answer, sent => { askedAbout = sent; return true; });
+
+        Assert.True(reached);
+        Assert.Equal("answered", answer);
+        Assert.Equal(2, attempts);
+        Assert.True(askedAbout >= before, "the proof was asked for a time before the call was sent");
+    }
+
+    [Fact]
+    public void ACallDroppedWithoutProofThatItNeverRanIsNotResent()
+    {
+        int attempts = 0;
+
+        Assert.Throws<HttpRequestException>(() => RefusedConnectionRetry.TrySend<string>(
+            () => { attempts++; throw Dropped(); }, () => true, out _, _ => false));
+
+        Assert.Equal(1, attempts);
+    }
+
+    [Fact]
+    public void TheProofNeedsAFreeLockAndACleanExitRecordCoveringTheCall()
+    {
+        string dataDir = Directory.CreateTempSubdirectory("grimora-lost-call-").FullName;
+        try
+        {
+            DateTime sent = DateTime.UtcNow;
+            Func<DateTime, bool> neverRan = RefusedConnectionRetry.LostCallNeverRan(dataDir);
+            Assert.False(neverRan(sent));
+
+            Grimora.Server.Data.CleanExitRecord.Write(dataDir, sent.AddSeconds(-5), sent.AddSeconds(1));
+            Assert.True(neverRan(sent));
+            // A service that started after the call was sent is not the one the call went to.
+            Assert.False(neverRan(sent.AddSeconds(-10)));
+
+            using FileStream held = new(Path.Combine(dataDir, "server.lock"), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+            System.Diagnostics.Stopwatch clock = System.Diagnostics.Stopwatch.StartNew();
+            Assert.False(neverRan(sent));
+            Assert.True(clock.Elapsed >= RefusedConnectionRetry.ExitWait, "a held lock must be waited on before the proof is refused");
+        }
+        finally
+        {
+            Directory.Delete(dataDir, recursive: true);
+        }
+    }
 }

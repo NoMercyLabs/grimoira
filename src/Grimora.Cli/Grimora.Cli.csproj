@@ -16,6 +16,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="../Grimora.Store/Data/RegexTimeout.cs" Link="Data/RegexTimeout.cs" />
+    <Compile Include="../Grimora.Server/Data/CleanExitRecord.cs" Link="Data/CleanExitRecord.cs" />
     <Compile Include="../Grimora.Hooks/Data/HookPaths.cs" Link="Hooks/HookPaths.cs" />
     <Compile Include="../Grimora.Hooks/Tools/CompactBriefTool.cs" Link="Hooks/CompactBriefTool.cs" />
     <Compile Include="../Grimora.Hooks/Tools/CompactRestoreTool.cs" Link="Hooks/CompactRestoreTool.cs" />

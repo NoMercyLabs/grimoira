@@ -14,8 +14,8 @@ namespace Grimora.Cli.Tools;
 /// stderr are written as they are and its <c>exitCode</c> is returned.
 ///
 /// A server that refuses the connection is started through <see cref="ServerAutoStart"/> and the call
-/// is sent again, up to 3 times (<see cref="RefusedConnectionRetry"/>). Only a refused connection counts: any later failure may mean the verb already ran,
-/// so it is never resent. Still unreachable: one stderr line, exit 1.
+/// is sent again, up to 3 times (<see cref="RefusedConnectionRetry"/>). Any later failure may mean the verb already ran, so it is
+/// resent only when the service proved it never ran (its clean-exit record covers the call). Still unreachable: one stderr line, exit 1.
 /// </summary>
 public static class ThinClient
 {
@@ -33,8 +33,10 @@ public static class ThinClient
         using HttpClient client = PipeConnection.CreateClient(dataDir, ConnectTimeout, RequestTimeout);
         try
         {
-            // A refused connection starts the service and resends (RefusedConnectionRetry); nothing else is resent.
-            if (!RefusedConnectionRetry.TrySend(() => Send(client, args, cwd, instanceEnv, projectDirEnv), ensureServer, out HttpResponseMessage? response))
+            // A refused connection, or a call the exiting service proved it never ran, starts the service and
+            // resends (RefusedConnectionRetry); nothing else is resent.
+            if (!RefusedConnectionRetry.TrySend(() => Send(client, args, cwd, instanceEnv, projectDirEnv), ensureServer, out HttpResponseMessage? response,
+                RefusedConnectionRetry.LostCallNeverRan(dataDir)))
             {
                 string why = File.Exists(serverExe)
                     ? $"started {serverExe}, but /health did not answer within {ServerAutoStart.DefaultMaxWait.TotalSeconds:0} s"

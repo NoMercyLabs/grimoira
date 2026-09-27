@@ -58,7 +58,7 @@ public static class HookForwarder
             // (RefusedConnectionRetry). With no ensureServer the hook is sent once.
             HttpResponseMessage? response;
             if (ensureServer is null) response = Send();
-            else if (!RefusedConnectionRetry.TrySend(Send, ensureServer, out response)) return "";
+            else if (!RefusedConnectionRetry.TrySend(Send, ensureServer, out response, RefusedConnectionRetry.LostCallNeverRan(dataDir))) return "";
 
             using (response)
             {

@@ -39,11 +39,12 @@ public static class McpBridge
     {
         using HttpClient client = PipeConnection.CreateClient(dataDir, ThinClient.ConnectTimeout, RequestTimeout);
         string projectDir = string.IsNullOrWhiteSpace(projectDirEnv) ? cwd : projectDirEnv;
+        Func<DateTime, bool> lostCallNeverRan = RefusedConnectionRetry.LostCallNeverRan(dataDir);
 
         List<Tool> tools;
         try
         {
-            tools = FetchTools(client, ensureServer, out string? failure);
+            tools = FetchTools(client, ensureServer, lostCallNeverRan, out string? failure);
             if (failure is not null)
             {
                 string why = File.Exists(serverExe)
@@ -69,7 +70,7 @@ public static class McpBridge
                 CallToolHandler = async (context, cancellationToken) =>
                 {
                     string name = context.Params?.Name ?? "";
-                    return await CallAsync(client, ensureServer, name, context.Params?.Arguments, projectDir, instanceEnv, cancellationToken);
+                    return await CallAsync(client, ensureServer, lostCallNeverRan, name, context.Params?.Arguments, projectDir, instanceEnv, cancellationToken);
                 },
             },
         };
@@ -94,10 +95,10 @@ public static class McpBridge
     }
 
     /// <summary>The service's tool list; <paramref name="failure"/> is set when it never answered, even after a start.</summary>
-    private static List<Tool> FetchTools(HttpClient client, Func<bool> ensureServer, out string? failure)
+    private static List<Tool> FetchTools(HttpClient client, Func<bool> ensureServer, Func<DateTime, bool> lostCallNeverRan, out string? failure)
     {
         failure = null;
-        if (!RefusedConnectionRetry.TrySend(() => client.GetStringAsync("/tools").GetAwaiter().GetResult(), ensureServer, out string? body))
+        if (!RefusedConnectionRetry.TrySend(() => client.GetStringAsync("/tools").GetAwaiter().GetResult(), ensureServer, out string? body, lostCallNeverRan))
         {
             failure = "unreachable";
             return [];
@@ -112,16 +113,16 @@ public static class McpBridge
         })];
     }
 
-    private static async Task<CallToolResult> CallAsync(HttpClient client, Func<bool> ensureServer, string name,
+    private static async Task<CallToolResult> CallAsync(HttpClient client, Func<bool> ensureServer, Func<DateTime, bool> lostCallNeverRan, string name,
         IDictionary<string, JsonElement>? arguments, string projectDir, string? instanceEnv, CancellationToken cancellationToken)
     {
         try
         {
             // The service went away since the last call (an idle exit, a hand-over): start it and resend, up to
-            // 3 times (RefusedConnectionRetry). Only a refused connection is resent; any later failure may mean
-            // the tool already ran.
+            // 3 times (RefusedConnectionRetry). A refused connection is resent; any later failure only when the
+            // service proved it never ran the tool (its clean-exit record covers the call).
             (bool reached, HttpResponseMessage? response) = await RefusedConnectionRetry.TrySendAsync(
-                () => SendAsync(client, name, arguments, projectDir, instanceEnv, cancellationToken), ensureServer, cancellationToken);
+                () => SendAsync(client, name, arguments, projectDir, instanceEnv, cancellationToken), ensureServer, cancellationToken, lostCallNeverRan);
             if (!reached) return Error("the grimora server is not running and could not be started");
 
             using (response)
