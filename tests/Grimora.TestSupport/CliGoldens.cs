@@ -15,7 +15,7 @@ namespace Grimora.TestSupport;
 /// </summary>
 public static partial class CliGoldens
 {
-    public sealed record Entry(string Member, string Args, string Stdout, string Stderr, int ExitCode);
+    public sealed record Entry(string Member, string Args, string Stdout, string Stderr, int ExitCode, string RawArgs = "");
 
     public sealed class MismatchException(string message) : Exception(message);
 
@@ -59,6 +59,7 @@ public static partial class CliGoldens
     private const char Backslash = (char)92;
 
     private static readonly string Home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+    private static readonly string HomeForward = Home.Replace(Path.DirectorySeparatorChar, (char)47);
 
     /// <summary>What is written to a golden: the oracle's own text, with only the machine's own habits
     /// (home folder, path separator, line ending, decimal mark) swapped for markers, so it can be read back on
@@ -69,7 +70,7 @@ public static partial class CliGoldens
         if (Home.Length > 0)
         {
             result = result.Replace(Home, "<HOME>", StringComparison.OrdinalIgnoreCase)
-                .Replace(Home.Replace(Path.DirectorySeparatorChar, '/'), "<HOME>", StringComparison.OrdinalIgnoreCase);
+                .Replace(HomeForward, "<HOMEF>", StringComparison.OrdinalIgnoreCase);
         }
         result = Decimal().Replace(result, "$1<DEC>$2");
         if (Environment.NewLine == Crlf) result = result.Replace(Crlf, "<NL>", StringComparison.Ordinal);
@@ -80,6 +81,7 @@ public static partial class CliGoldens
     /// <summary>The golden as this machine would have printed it.</summary>
     public static string Expand(string portable) => portable
         .Replace("<HOME>", Home, StringComparison.Ordinal)
+        .Replace("<HOMEF>", HomeForward, StringComparison.Ordinal)
         .Replace("<SEP>", Path.DirectorySeparatorChar.ToString(), StringComparison.Ordinal)
         .Replace("<NL>", Environment.NewLine, StringComparison.Ordinal)
         .Replace("<DEC>", System.Globalization.CultureInfo.CurrentCulture.NumberFormat.NumberDecimalSeparator, StringComparison.Ordinal);
@@ -90,7 +92,7 @@ public static partial class CliGoldens
     {
         string result = Expand(Portable(text)).Replace(Crlf, "\n", StringComparison.Ordinal);
         result = result.Replace(Home, "<HOME>", StringComparison.OrdinalIgnoreCase)
-            .Replace(Home.Replace(Path.DirectorySeparatorChar, '/'), "<HOME>", StringComparison.OrdinalIgnoreCase);
+            .Replace(HomeForward, "<HOME>", StringComparison.OrdinalIgnoreCase);
         result = InstanceId().Replace(result, "<GUID>");
         result = Elapsed().Replace(result, "<MS>ms");
         result = Timestamp().Replace(result, "<TS>");
@@ -116,11 +118,36 @@ public static partial class CliGoldens
 
     public const string InstanceMarker = "<INSTANCE>";
 
+    /// <summary>The golden's text as this run should see it: the frozen run's random arguments (fixture
+    /// folders, ids) are swapped for the arguments this run passed, the frozen instance name for this instance.</summary>
+    public static string ForThisRun(Entry golden, string text, string arguments, string? instance)
+    {
+        string result = Expand(text);
+        if (instance is not null) result = result.Replace(InstanceMarker, instance, StringComparison.Ordinal);
+        string[] frozen = SplitArguments(Expand(golden.RawArgs));
+        string[] current = SplitArguments(arguments);
+        if (frozen.Length == current.Length)
+        {
+            foreach ((string was, string now) in frozen.Zip(current).Where(p => p.First != p.Second && p.First.Length > 3))
+            {
+                Replacements[was] = now;
+                Replacements[was.Replace(Path.DirectorySeparatorChar, (char)47)] = now.Replace(Path.DirectorySeparatorChar, (char)47);
+            }
+        }
+        // A folder named by an earlier call of the same test (project --root) shows up in a later call's output,
+        // so every swap learned so far applies, longest first.
+        foreach (KeyValuePair<string, string> swap in Replacements.OrderByDescending(p => p.Key.Length))
+            result = result.Replace(swap.Key, swap.Value, StringComparison.Ordinal);
+        return result;
+    }
+
+    private static readonly ConcurrentDictionary<string, string> Replacements = new();
+
     public static void Record(string callerFile, string member, string arguments, string stdout, string stderr, int exitCode,
         string? instance = null, string? header = null)
     {
         string Mark(string text) => Portable(instance is null ? text : text.Replace(instance, InstanceMarker, StringComparison.Ordinal));
-        Entry entry = new(member, Canonical(arguments), Mark(stdout), Mark(stderr), exitCode);
+        Entry entry = new(member, Canonical(arguments), Mark(stdout), Mark(stderr), exitCode, Portable(arguments));
         string path = GoldenPath(callerFile);
         lock (WriteLock)
         {

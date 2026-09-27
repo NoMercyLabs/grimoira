@@ -95,9 +95,12 @@ public static class OldVsNewCli
     private static Result Replay(string instance, string arguments, string callerFile, string callerMember)
     {
         CliGoldens.Entry golden = CliGoldens.Take(callerFile, callerMember, arguments);
+        // The answer is the golden; the command also runs in-process on the oracle's instance so the store
+        // a later step of the test reads exists (a test that reads that store compares the current code with itself there).
+        RunInProcess(instance, arguments);
         return new Result(
-            CliGoldens.Expand(golden.Stdout).Replace(CliGoldens.InstanceMarker, instance, StringComparison.Ordinal),
-            CliGoldens.Expand(golden.Stderr).Replace(CliGoldens.InstanceMarker, instance, StringComparison.Ordinal),
+            CliGoldens.ForThisRun(golden, golden.Stdout, arguments, instance),
+            CliGoldens.ForThisRun(golden, golden.Stderr, arguments, instance),
             golden.ExitCode);
     }
 
@@ -112,6 +115,7 @@ public static class OldVsNewCli
 
     private static Result RunLive(string dllPath, string instance, string arguments)
     {
+        if (OperatingSystem.IsWindows()) SetConsoleOutputCP(65001);
         // The verb has to be argv[0] (grimora.cs reads `a[0]` as the command), so --instance goes after it.
         ProcessStartInfo psi = new("dotnet", $"\"{dllPath}\" {arguments} --instance {instance}")
         {
@@ -208,6 +212,9 @@ public static class OldVsNewCli
         if (process.ExitCode != 0)
             throw new InvalidOperationException($"'{exe} {args}' exited {process.ExitCode}\nSTDOUT:\n{stdout}\nSTDERR:\n{stderr}");
     }
+
+    [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool SetConsoleOutputCP(uint wCodePageId);
 
     private static string FindAbove(string start, string relative)
     {
