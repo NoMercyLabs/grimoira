@@ -91,6 +91,8 @@ internal static class HookEndpoint
                 return [CompactRestoreTool.Execute];
             case "SessionEnd":
                 return [Ignore(SessionIndexChatTool.Execute), Ignore(SessionIndexDocsTool.Execute), Ignore(IndexCodeSessionEndTool.Execute)];
+            case "Stop":
+                return [StopFlushTool.Execute];
             case "PostToolUse":
                 string? toolName = payload["tool_name"] is JsonValue v && v.TryGetValue(out string? t) ? t : null;
                 return toolName switch

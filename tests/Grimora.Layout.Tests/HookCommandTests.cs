@@ -99,6 +99,7 @@ public class HookCommandTests
     [InlineData("UserPromptSubmit")]
     [InlineData("PostToolUse")]
     [InlineData("SessionEnd")]
+    [InlineData("Stop")]
     public void TheEventRunsTheHookVerbOfThePublishedCli(string eventName)
     {
         using JsonDocument doc = JsonDocument.Parse(File.ReadAllText(Path.Combine(RepoPaths.Root, "hooks", "hooks.json")));

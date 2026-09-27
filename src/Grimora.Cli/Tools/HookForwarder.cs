@@ -27,6 +27,9 @@ public static class HookForwarder
     {
         ["SessionEnd"] = TimeSpan.FromSeconds(390),
         ["PostToolUse"] = TimeSpan.FromSeconds(65),
+        // Stop only reads/writes one small ledger file and, at most, flushes it into the store — nowhere
+        // near SessionEnd's indexing work — so it gets a short budget of its own.
+        ["Stop"] = TimeSpan.FromSeconds(10),
     };
 
     /// <summary>A pipe/socket connect to a running server takes well under a millisecond.</summary>

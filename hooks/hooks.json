@@ -80,6 +80,22 @@
           }
         ]
       }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "dotnet",
+            "args": [
+              "${CLAUDE_PLUGIN_DATA}/current/bin-cli/grimora.dll",
+              "hook",
+              "Stop"
+            ],
+            "timeout": 10
+          }
+        ]
+      }
     ]
   }
 }
