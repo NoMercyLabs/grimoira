@@ -43,6 +43,27 @@ public sealed partial class CliEndpointTests : IDisposable
         return new WebApplicationFactory<Program>();
     }
 
+    // The in-process host above (Factory()) runs Program's own top-level startup and holds _dataDir's
+    // server.lock for the test's lifetime. A real `dotnet bin-cli/grimora.dll` process started against
+    // that same data dir cannot reach a service over the pipe (Factory()'s TestServer never binds one)
+    // and, on trying to start its own, cannot take a lock the in-process host already holds, so it never
+    // answers /health. The bin-cli comparison needs its own real, unshared data dir.
+    private readonly string _binDataDir = Directory.CreateTempSubdirectory("grimora-cli-bin-").FullName;
+
+    private OldVsNewCli.Result RunBin(string instance, string arguments)
+    {
+        string? saved = Environment.GetEnvironmentVariable("GRIMORA_DATA_DIR");
+        Environment.SetEnvironmentVariable("GRIMORA_DATA_DIR", _binDataDir);
+        try
+        {
+            return OldVsNewCli.Run(OldVsNewCli.BinCliDll(), instance, arguments);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("GRIMORA_DATA_DIR", saved);
+        }
+    }
+
     private HttpClient Client(WebApplicationFactory<Program> factory) =>
         factory.CreateClient(new WebApplicationFactoryClientOptions { BaseAddress = new Uri($"http://{_allowedHost}") });
 
@@ -104,9 +125,8 @@ public sealed partial class CliEndpointTests : IDisposable
         using HttpClient client = Client(factory);
 
         (int exit, string stdout, string stderr) inProc = InProcess(args, NewCliInstance("cliroute-" + name));
-        OldVsNewCli.Result bin = OldVsNewCli.Run(OldVsNewCli.BinCliDll(), NewCliInstance("cliroute-bin-" + name), string.Join(' ', args));
+        OldVsNewCli.Result bin = RunBin(NewCliInstance("cliroute-bin-" + name), string.Join(' ', args));
         CliAnswer route = await PostCli(client, args, NewProjectDir(name));
-
         Assert.Equal(HttpStatusCode.OK, route.Status);
         Assert.Equal(bin.ExitCode, inProc.exit);
         Assert.Equal(bin.ExitCode, route.ExitCode);
@@ -128,9 +148,9 @@ public sealed partial class CliEndpointTests : IDisposable
 
         (int exit, string stdout, string stderr) inProcAdd = InProcess(add, inProcInstance);
         (int exit, string stdout, string stderr) inProcQuery = InProcess(query, inProcInstance);
-        OldVsNewCli.Result binAdd = OldVsNewCli.Run(OldVsNewCli.BinCliDll(), binInstance,
+        OldVsNewCli.Result binAdd = RunBin(binInstance,
             "add --term cliroutefixture --value \"a value seeded through slash cli\"");
-        OldVsNewCli.Result binQuery = OldVsNewCli.Run(OldVsNewCli.BinCliDll(), binInstance, "query cliroutefixture");
+        OldVsNewCli.Result binQuery = RunBin(binInstance, "query cliroutefixture");
         CliAnswer routeAdd = await PostCli(client, add, projectDir);
         CliAnswer routeQuery = await PostCli(client, query, projectDir);
 
@@ -300,6 +320,10 @@ public sealed partial class CliEndpointTests : IDisposable
             try { Directory.Delete(dir, recursive: true); } catch (IOException) { }
         }
         try { Directory.Delete(_dataDir, recursive: true); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+        Environment.SetEnvironmentVariable("GRIMORA_DATA_DIR", _binDataDir);
+        try { GrimoraCliRunner.Seed("service stop"); } catch (Exception) { }
+        Environment.SetEnvironmentVariable("GRIMORA_DATA_DIR", _savedDataDir);
+        try { Directory.Delete(_binDataDir, recursive: true); } catch (IOException) { } catch (UnauthorizedAccessException) { }
     }
 
     [GeneratedRegex(@"\(\d+[.,]\d+ms\)", RegexOptions.None, RegexTimeout.Milliseconds)]
