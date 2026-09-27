@@ -175,9 +175,7 @@ public static class AitmTools
             return "refused: token minting is gated. This tool impersonates a real user, so it is off by "
                 + "default. Set AITM_ALLOW_TOKEN_MINT=1 to enable it here, or run the script directly: "
                 + "node idp-impersonate.mjs <subject> [--prod]. To LOG A CLIENT IN instead of getting a "
-                + "raw token, use the sibling drivers in the aitm folder — idp-login-web.mjs (browser), "
-                + "idp-login-kmp.mjs (phone), idp-approve-device.mjs (TV); see "
-                + "docs/test-login-and-token-exchange.md.";
+                + "raw token, use the workspace login drivers (C:/Projects/NoMercy/.claude/work/tools/idp).";
         }
         if (string.IsNullOrWhiteSpace(subject)) return "subject is required (a user GUID, email, or username).";
         realm = realm?.Trim().ToLowerInvariant() switch { "prod" => "prod", "" or null => "dev", "dev" => "dev", var r => r! };
