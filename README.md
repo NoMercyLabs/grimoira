@@ -1,91 +1,148 @@
-# grimora
+# Grimora
 
-**Agent In The Middle.**
+Grimora is a long-term memory for Claude Code.
 
-It sits between the input field and the model, and it keeps both sides on the right path. That direction matters: this is a shared contract, not the agent's private memory.
+Claude forgets everything when a session ends. Grimora keeps what matters: facts you verified, rules you set, decisions you argued over, and how your projects connect. The next session, in any of your projects, can ask for that knowledge instead of guessing. It runs on your machine, and nothing leaves it.
 
-It holds everything learned about the product being built. Every exchange is context that accumulates into where the product is going, so a decision argued four months ago still applies to a change made today. The job is to stop the same things being explained twice, and to stop the "you just broke this by fixing that" class of regression, because a decision made now still matters two years from now.
+## What it does for you
 
-One SQLite store per instance under `~/.grimora/<instance>/grimora.db`, with separate channels for verified facts, durable rules, absorbed docs, conversation history, and a code graph.
+Claude reaches Grimora through 24 tools and through the `grimora` command. Day to day, it can:
 
-The conversation channel is a primary asset, not noise around the facts. It carries the reasoning behind decisions, which is the part that prevents regressions; anything that ranks it as low-value defeats the purpose of the store.
+- Look up a verified fact, such as a base URL, a file path, a config key or a port. If Grimora does not know, it says so and logs the gap. It does not guess.
+- Recall a standing rule or a past decision about how to work in a project.
+- Search what was said in earlier conversations.
+- Search your plans, specs and docs that Grimora has absorbed.
+- Answer "what breaks if I change this?" across projects, with the files and lines that use a symbol.
+- Record what a session learned, so the next one starts ahead, and keep todos and findings.
 
-## Layout
+Its answers are leads with a source. The source file and the running code are still the proof; a memory is context, not a verdict.
 
-| File | What it is |
-| --- | --- |
-| `grimora.cs` | The CLI. File-based C# app, builds to `bin-cli/`. |
-| `mcp.cs` | MCP server exposing the store as tools. Builds to `bin/`. |
-| `grimora index-code` | Bulk indexer for the public declaration surface of registered projects (C#, `IndexCodeTool`). |
+## How it works
 
-## Build
+Grimora is a Claude Code plugin. It ships a skill, two agents, a maintenance command, an MCP server, and a small set of hooks. The MCP server and the hooks call a thin `grimora` command. That command talks to a background service over a local named pipe (a Unix socket on macOS and Linux), so no network port is open. The service starts on the first call and exits after 30 quiet minutes. Hooks save your place before Claude compacts a conversation and fold the finished session into the store. Everything lives in SQLite files on your disk, one file per project instance.
 
-Every script has a bash twin and a PowerShell twin with the same flags and exit codes:
+## Install
 
-| Task | Bash | PowerShell |
-| --- | --- | --- |
-| CLI to `bin-cli/` | `./build-cli.sh` | `./build-cli.ps1` |
-| Server to `bin-server/` | `./build-server.sh` | `./build-server.ps1` |
-| MCP host to `bin/` | `./build-mcp.sh` | `./build-mcp.ps1` |
-| Everything | `./build.sh` | `./build.ps1` |
-| Rider inspections | `./inspect.sh [--output FILE]` | `./inspect.ps1 [-Output FILE]` |
-| Pre-commit gate | `./verify.sh [--skip-build] [--project DIR]` | `./verify.ps1 [-SkipBuild] [-Project DIR]` |
-| Commit, push, watch CI | `./ship.sh --message ...` | `./ship.ps1 -Message ...` |
+Requirements:
 
-`build.sh` does not stop a running MCP host that holds `bin/mcp.dll` (`build.ps1` does): it never kills a process it did not start.
+- Claude Code.
+- The .NET 10 SDK (`dotnet`). The plugin builds its own command and service with it. Nothing else is required — no Node, no separate runtime.
 
-## Install as a plugin
-
-Grimora is a Claude Code plugin. It bundles the MCP server (`.mcp.json`, launched through
-the published CLI), the knowledge skill (`skills/grimora/SKILL.md`), two agents
-(`agents/knowledge-lookup.md` for read-only lookups, `agents/knowledge-writer.md` for
-deciding what to stage and flush), a maintenance slash command
-(`commands/grimora-maintain.md`), and the hard-gate hooks only — see below.
-
-The repo is its own marketplace, so it installs directly:
+The repository is private for now. You need access to `NoMercyLabs/grimora` on GitHub. Then, in Claude Code:
 
 ```
 /plugin marketplace add NoMercyLabs/grimora
 /plugin install grimora@nomercylabs
 ```
 
-The plugin needs only `dotnet` (.NET 10 SDK). `.mcp.json` runs `dotnet ${CLAUDE_PLUGIN_DATA}/current/bin-cli/grimora.dll mcp`. Build output is gitignored and never shipped: on the first session after an install or update, the SessionStart step `bootstrap.cs` (a .NET file-based app) builds the CLI and server into the plugin data folder in the background and points `current` at the finished build. Until that build ends (a few minutes), the hooks and the MCP server have no dll: `dotnet` prints its "Could not execute" text and exits 1, so Claude Code may show a failed hook or a failed `grimora` MCP server for that first session. Reconnect it with `/mcp` after the build.
+## First start
 
-### What the plugin's hooks do
+Nothing asks you anything. There is no login and no setup screen.
 
-`hooks/hooks.json` carries only the hard gates — the ones that cannot be a judgment
-call and must run outside the model's reasoning, not the ones that grade Claude's own
-answers:
+The first session after an install or an update has no built command yet. A one-time step starts a background build and Claude Code may show a failed hook or a failed `grimora` connection in `/mcp` for that first session, because the build has not finished. The build takes a few minutes. Reconnect with `/mcp` once it is done; your session works normally in the meantime, just without Grimora.
 
-- `dotnet .../grimora.dll hook <event>` (UserPromptSubmit, PreCompact, PostToolUse `Write|Edit|MultiEdit|NotebookEdit`, SessionEnd) — runs the event through the
-  published CLI, which saves and restores the compaction anchors and
-  folds the finished session back into the store.
+The first call after the build creates your data folder:
 
-Everything that used to judge the quality of Claude's own answer by pattern-matching
-text (`hedge-guard`, `goal-guard`, `proof-guard`, `continue-guard`, `population-guard`,
-`loop-guard`, `blast-radius`) and everything that force-fed the store onto every
-Grep/Glob/Read/prompt (`brain-gate`, `brain-read-gate`, `brain-harvest`,
-`brain-history`, `prompt-recall`, `context-watch`, `subagent-context`, `brain-capture`,
-`synthesis-capture`, `brain-context`, `session-continue`) never belonged in the plugin
-and has been deleted from the repo entirely (`docs/RESTRUCTURE.md` section 2.4): the
-skill and the two agents reach the same tools with judgment instead of a blind script
-on every turn.
+```
+~/.grimora/<instance>/grimora.db
+```
 
-If you previously wired Grimora hooks by hand in `settings.json`, do not enable this
-plugin until those direct entries are removed in the same sitting — running both at
-once double-executes a hook that appears in both places. Run
-`grimora hooks-doctor --project C:/Projects/NoMercy` to check hook overlap without
-running hooks or showing command arguments; `./verify.sh --project C:/Projects/NoMercy` (or `verify.ps1 -Project C:/Projects/NoMercy`)
-includes this check.
+An instance is one store. Its name comes from `GRIMORA_INSTANCE`, or from the folder of the project Claude is working in.
 
-## The enforcement loop (retired)
+If you used Grimora under its earlier name, AITM, your data is in `~/.aitm`. The first time the service starts and `~/.grimora` does not exist yet, it copies `~/.aitm` there once, using SQLite's own backup method so a running old copy is never corrupted mid-copy. It never changes or deletes `~/.aitm`.
 
-`brain-gate`, `brain-harvest` and `brain-capture` used to form a closed loop: `brain-gate` refused a filesystem search the store could already answer and handed back the hits; when the store genuinely missed, the search ran and the miss was recorded as a gap; `brain-harvest` folded whatever that search found back into the code graph and closed the gap; `brain-capture` blocked the end of the turn if gaps were opened and nothing was taught back. All three force-fed recall into ordinary tool calls and are deleted (`docs/RESTRUCTURE.md` section 2.4). Gaps stay visible through the `brain_gaps` / `gaps` tool instead of being enforced by a hook.
+## Everyday use
 
-Every hook still in the plugin fails open: a guard error never blocks a real tool call.
+In Claude Code you mostly do nothing. Claude calls the tools when the skill tells it to. Two agents back that up: one only reads, the other decides what is worth recording after a task finishes.
 
-## Store notes
+From a terminal you can use the command directly:
 
-The store runs in WAL mode. Under the default rollback journal a single writer blocks every reader, and the long doc indexer holds the write lock for minutes, which made concurrent reads throw `SQLITE_BUSY` and crash. Both the CLI and the MCP server set `journal_mode=WAL` and `busy_timeout=5000` on open.
+```
+grimora help
+```
 
-Node's bundled SQLite has no FTS5. Anything touching an `*_fts` table has to go through the C# CLI or a `Microsoft.Data.Sqlite` process, or the store and its search index drift apart silently.
+lists every verb. Some verbs you will use directly:
+
+```
+grimora add --term "api base url" --value "https://api.example.test" --category url --source "docs/api.md" --instance demo
+grimora query "api base url" --instance demo
+grimora todo "write the release notes" --instance demo
+grimora projects --instance demo
+grimora stats --instance demo
+```
+
+A miss looks like this, on purpose. Grimora refuses rather than guesses:
+
+```
+no confident answer for "demo" - not in the knowledge base (refusing rather than guessing; gap logged).
+```
+
+Service control, if you ever need it:
+
+```
+grimora service status
+grimora service stop
+```
+
+You rarely need `grimora service start` by hand; the first call starts it for you.
+
+`/grimora-maintain` is a slash command for occasional admin work: rebuilding the code graph, exporting or importing a store, forgetting a project. It is never run automatically, and it asks before it deletes anything.
+
+## Privacy
+
+Grimora stores facts, rules, absorbed docs, conversation history, todos, findings, and a code graph of declarations and usage sites, never your source code itself. All of it stays in your data folder.
+
+Before conversation text is stored, Grimora replaces token-shaped strings with a redaction marker. It covers JWTs, bearer tokens, common key prefixes such as GitHub, OpenAI, AWS and Slack, and PEM private keys. If a check cannot finish in time, the whole text is redacted rather than left unscrubbed.
+
+Grimora holds no secrets of its own and opens no network port. On macOS and Linux its data folder is set to user-only permissions.
+
+## Configuration
+
+Every setting is an environment variable, and every one is optional:
+
+- `GRIMORA_DATA_DIR` — the data folder. Default `~/.grimora`.
+- `GRIMORA_INSTANCE` — which store to use.
+- `GRIMORA_IDLE_MINUTES` — quiet minutes before the background service exits. Default 30.
+- `GRIMORA_SKIP_PROJECTS` — project names, comma separated, that the code indexer skips.
+
+The old `AITM_*` names are still read for one release if their `GRIMORA_*` equivalent is unset.
+
+## Upgrade and uninstall
+
+Update through Claude Code's `/plugin` menu. The next session builds the new version in the background the same way the first install did. Your data folder is never touched by an update.
+
+To uninstall, remove the plugin from the `/plugin` menu. Your data stays in `~/.grimora` until you delete that folder yourself.
+
+## Troubleshooting
+
+**Grimora seems missing right after an install or update.** It is still building in the background. Wait a few minutes and start a new session, or reconnect with `/mcp`.
+
+**The service is not running.** Run `grimora service status`, then `grimora service start` if needed.
+
+**The service exited by itself.** That is the idle exit after 30 quiet minutes. The next call starts it again.
+
+## Building from source
+
+You need the .NET 10 SDK.
+
+```
+./build-cli.sh      # or build-cli.ps1
+./build-server.sh   # or build-server.ps1
+./build.sh           # or build.ps1: builds everything and runs the tests
+```
+
+Every build script has a matching bash and PowerShell twin with the same flags. Run the tests directly with:
+
+```
+dotnet test Grimora.sln
+```
+
+`./verify.sh` (or `verify.ps1`) runs the checks that must pass before a commit.
+
+## Contributing
+
+The design notes are in `docs/`. `docs/RESTRUCTURE.md` explains how the code is laid out and why. Read it before you change a project boundary.
+
+## Licence
+
+This repository has no licence file yet. Until one is added, all rights are reserved.
