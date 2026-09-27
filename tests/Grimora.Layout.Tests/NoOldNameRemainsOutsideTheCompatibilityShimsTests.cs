@@ -21,10 +21,12 @@ public sealed class NoOldNameRemainsOutsideTheCompatibilityShimsTests
         ["tests/Grimora.TestSupport/OldVsNewCli.cs"] = "builds the pinned oracle commit, whose file and dll are still aitm.cs and aitm.dll.",
         ["tests/Grimora.TestSupport/McpSnapshotHarness.cs"] = "the pinned snapshot reads the AITM_INSTANCE env var.",
         ["tests/Grimora.Store.Tests/StatsToolTests.cs"] = "the pinned tok.cs oracle reads the old store folder.",
+        ["tests/Grimora.TestSupport/CliGoldens.cs"] = "a golden's header records the old store name for the run it was frozen from.",
         ["docs/RESTRUCTURE.md"] = "the plan narrates the rename in its history text.",
         ["README.md"] = "one sentence tells a returning user that their data moves from the earlier home-folder store the first time.",
         ["docs/PLAN.md"] = "quotes the owner (2026-09-25) word for word; a quote keeps the name it was said with.",
     };
+
 
     [Fact]
     public void NoOldNameRemainsOutsideTheCompatibilityShims()
@@ -34,6 +36,10 @@ public sealed class NoOldNameRemainsOutsideTheCompatibilityShimsTests
         foreach (string file in files)
         {
             if (AllowList.ContainsKey(file)) continue;
+            // A frozen golden is a literal, byte-for-byte capture of the oracle's own answer at freeze
+            // time, including the store folder name the oracle actually used — CliGoldens.Header records
+            // that provenance on purpose, in every project's Goldens/*.jsonl, not a lingering reference to fix.
+            if (file.Contains("/Goldens/", StringComparison.Ordinal) && file.EndsWith(".jsonl", StringComparison.Ordinal)) continue;
             if (file.Contains("aitm", StringComparison.OrdinalIgnoreCase)) { offenders.Add(file + " (path)"); continue; }
             string full = Path.Combine(RepoPaths.Root, file);
             if (!File.Exists(full)) continue;
