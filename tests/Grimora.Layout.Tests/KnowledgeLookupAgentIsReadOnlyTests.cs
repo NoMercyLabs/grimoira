@@ -30,7 +30,7 @@ public sealed class KnowledgeLookupAgentIsReadOnlyTests
             .FirstOrDefault(l => l.StartsWith("tools:", StringComparison.Ordinal));
         Assert.True(line is not null, "knowledge-lookup.md must declare a tools: frontmatter list on its own line.");
 
-        int open = line!.IndexOf('[');
+        int open = line.IndexOf('[');
         int close = line.LastIndexOf(']');
         Assert.True(open >= 0 && close > open, "tools: must be a bracketed list.");
 

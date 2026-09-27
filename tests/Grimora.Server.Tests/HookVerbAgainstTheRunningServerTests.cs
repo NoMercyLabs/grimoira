@@ -13,9 +13,9 @@ namespace Grimora.Server.Tests;
 // Memory, Docs, Graph and Store, so the CLI sends those events to the server's POST /hooks/{event} over the
 // local pipe / Unix socket and exits 0 on any failure. A real Grimora.Server process (this build's output)
 // runs against a temp data dir; the CLI (Grimora.Cli's build output, the same project build-cli.ps1 publishes
-// to bin-cli) runs as its own process with that same data dir. The handlers keep their own
-// ~/.grimora/<instance> layout (HookPaths), so each test uses a unique test-* instance there and deletes it
-// afterwards, the same way Grimora.Hooks.Tests does.
+// to bin-cli) runs as its own process with that same data dir. The handlers (HookPaths) honour that same
+// GRIMORA_DATA_DIR, so each test uses a unique instance under _dataDir and deletes it afterwards, the same
+// way Grimora.Hooks.Tests does.
 public sealed class HookVerbAgainstTheRunningServerTests : IDisposable
 {
     private static readonly string Configuration = new DirectoryInfo(AppContext.BaseDirectory.TrimEnd('/', '\\')).Parent!.Name;
@@ -28,15 +28,29 @@ public sealed class HookVerbAgainstTheRunningServerTests : IDisposable
     private readonly string _instance;
     private readonly List<Process> _servers = [];
 
+    private readonly string? _previousDataDirEnv;
+
     public HookVerbAgainstTheRunningServerTests(ITestOutputHelper output)
     {
         _output = output;
         _projectDir = Path.Combine(Path.GetTempPath(), $"test-hook-verb-{Guid.NewGuid():N}");
         Directory.CreateDirectory(_projectDir);
         _instance = Path.GetFileName(_projectDir).ToLowerInvariant();
+
+        // GrimoraCliRunner.Run below (`init`/`project`) runs Grimora.Server's CliDispatch in THIS process,
+        // which reads GRIMORA_DATA_DIR from this process's own env (there is no dataDir parameter to pass
+        // explicitly) — it must agree with the spawned server/CLI processes' GRIMORA_DATA_DIR=_dataDir
+        // (StartServer/RunHook below), or the golden `init`/`project` calls register a project the hook
+        // handlers, correctly honouring GRIMORA_DATA_DIR, can never find.
+        _previousDataDirEnv = Environment.GetEnvironmentVariable("GRIMORA_DATA_DIR");
+        Environment.SetEnvironmentVariable("GRIMORA_DATA_DIR", _dataDir);
     }
 
-    private string DbPath => GrimoraCliRunner.InstanceDbPath(_instance);
+    // HookPaths (Grimora.Hooks) honours GRIMORA_DATA_DIR the same way the CLI/server do (a fix to a
+    // reviewer-reported bug: hooks used to hardcode ~/.grimora regardless of GRIMORA_DATA_DIR) — this class
+    // runs its server/CLI with GRIMORA_DATA_DIR=_dataDir (see StartServer/RunHook below), so the db the
+    // hook handlers actually write to lives under _dataDir, not GrimoraCliRunner's default ~/.grimora.
+    private string DbPath => Path.Combine(_dataDir, _instance, "grimora.db");
 
     [Fact]
     public void PreCompactThenUserPromptSubmitThroughTheCliCarryTheBriefOnceWithNoServer()
@@ -236,6 +250,7 @@ public sealed class HookVerbAgainstTheRunningServerTests : IDisposable
         }
         SqliteConnection.ClearAllPools();
         GrimoraCliRunner.DeleteInstance(_instance);
+        Environment.SetEnvironmentVariable("GRIMORA_DATA_DIR", _previousDataDirEnv);
         try { Directory.Delete(_dataDir, recursive: true); } catch (Exception) { }
         try { Directory.Delete(_projectDir, recursive: true); } catch (Exception) { }
     }

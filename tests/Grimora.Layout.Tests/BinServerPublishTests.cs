@@ -1,7 +1,6 @@
 extern alias cli;
 
 using System.Diagnostics;
-using cli::Grimora.Cli.Tools;
 using Xunit;
 
 namespace Grimora.Layout.Tests;
@@ -66,7 +65,7 @@ public class BinServerPublishTests
             {
                 try
                 {
-                    using HttpClient client = PipeConnection.CreateClient(dataDir, TimeSpan.FromSeconds(1));
+                    using HttpClient client = cli::Grimora.Cli.Tools.PipeConnection.CreateClient(dataDir, TimeSpan.FromSeconds(1));
                     using HttpResponseMessage response = await client.GetAsync("/health");
                     if (response.IsSuccessStatusCode) { healthy = true; break; }
                 }

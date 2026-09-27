@@ -2,7 +2,6 @@ extern alias cli;
 
 using Grimora.Store.Data;
 using System.Text.RegularExpressions;
-using cli::Grimora.Cli.Tools;
 using Xunit;
 
 namespace Grimora.Layout.Tests;
@@ -29,7 +28,7 @@ public partial class CliClientTimeoutsCoverTheServerLimitTests
     [Fact]
     public void ThinClientsOwnHttpTimeoutIsAtLeastTheServersLongVerbTimeout()
     {
-        int thinClientSeconds = (int)ThinClient.RequestTimeout.TotalSeconds;
+        int thinClientSeconds = (int)cli::Grimora.Cli.Tools.ThinClient.RequestTimeout.TotalSeconds;
         int serverSeconds = LongTimeoutSeconds();
 
         Assert.True(thinClientSeconds >= serverSeconds,

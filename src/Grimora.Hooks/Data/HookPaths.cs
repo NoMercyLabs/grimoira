@@ -5,25 +5,30 @@ namespace Grimora.Hooks.Data;
 /// <c>resolveInstance</c> and <c>briefPath</c> (RESTRUCTURE.md slice 20): compact-brief.mjs writes here
 /// and compact-restore.mjs reads the same path back, so the two must compute it identically.
 ///
-/// Instance and data-dir resolution here duplicates (not references — this file is also linked verbatim
-/// into Grimora.Cli, which per CliReferencesNothingInGrimora may not take a ProjectReference on
-/// Grimora.Store or anything else in Grimora) <see cref="Grimora.Store.Data.StoreConnection.ResolveInstance()"/>
-/// and <see cref="Grimora.Store.Data.StoreConnection.ResolveDataDir()"/>: honour <c>GRIMORA_INSTANCE</c> and
-/// <c>GRIMORA_DATA_DIR</c> first, same as every other entry point (the CLI's ServerAddress/ServerAutoStart,
-/// the server's RequestProjectResolver). A hook run with those env vars set must land in the same instance
-/// directory as a CLI or MCP call made with the same env vars, not silently fall back to the project folder
-/// name or a hardcoded <c>~/.grimora</c>. See HooksResolveTheSameInstanceAsCliAndServerTests.
+/// Data-dir resolution here duplicates (not references — this file is also linked verbatim into
+/// Grimora.Cli, which per CliReferencesNothingInGrimora may not take a ProjectReference on Grimora.Store or
+/// anything else in Grimora) <see cref="Grimora.Store.Data.StoreConnection.ResolveDataDir()"/>: honour
+/// <c>GRIMORA_DATA_DIR</c>, same as every other entry point (the CLI's ServerAddress/ServerAutoStart, the
+/// server's own data dir), instead of always hardcoding <c>~/.grimora</c>.
+///
+/// Instance resolution here deliberately does NOT read <c>GRIMORA_INSTANCE</c> from the process
+/// environment, even though the CLI's ServerAddress/ServerAutoStart and the MCP path do: several handlers
+/// that call this (SessionEnd's, PostToolUse's, Stop's) run inside the ONE shared Grimora.Server process
+/// serving every project's requests, not inside a per-session CLI process — reading env there would read
+/// whichever session's env the shared server happened to inherit at its own startup, not the requesting
+/// session's, and silently misroute that request's writes to a wrong or stale instance (exactly the
+/// per-request-state-in-process-env mistake <see cref="Grimora.Server.Data.RequestProjectResolver"/>'s own
+/// doc comment already calls out: "It never reads the server process's own environment"). A caller that
+/// resolved its own cwd/projectDir before calling in (the CLI's local PreCompact/UserPromptSubmit handlers,
+/// the server's RequestProjectResolver for everything forwarded over HTTP) already has the right value; an
+/// env-based override belongs at THAT layer, not duplicated unsafely here.
 /// </summary>
 public static class HookPaths
 {
     public static string ResolveInstance(string? cwd) => ResolveInstance(cwd, projectDir: null);
 
-    /// <summary>The instance of <see cref="ProjectDir"/>, or of <c>GRIMORA_INSTANCE</c> when it is set.</summary>
     public static string ResolveInstance(string? cwd, string? projectDir)
     {
-        string? instanceEnv = Environment.GetEnvironmentVariable("GRIMORA_INSTANCE");
-        if (!string.IsNullOrWhiteSpace(instanceEnv)) return Slug(instanceEnv);
-
         string trimmed = ProjectDir(cwd, projectDir).TrimEnd('\\', '/');
         string name = Path.GetFileName(trimmed);
         string slug = Slug(name);

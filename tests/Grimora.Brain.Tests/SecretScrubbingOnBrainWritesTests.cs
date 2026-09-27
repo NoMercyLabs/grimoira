@@ -61,7 +61,7 @@ public class SecretScrubbingOnBrainWritesTests
             using SqliteConnection connection = StoreConnection.Open(GrimoraCliRunner.InstanceDbPath(instance));
 
             new BrainStageTool().ExecuteMcp(connection, "node", "scrub-stage-node-k", "fact",
-                $"staged label with a secret: {PastedGithubToken}", "", sessionId: "scrub-test-session");
+                $"staged label with a secret: {PastedGithubToken}", sessionId: "scrub-test-session");
             string result = new BrainFlushTool().ExecuteMcp(connection, sessionId: "scrub-test-session");
             Assert.StartsWith("flushed 1 learning", result);
 

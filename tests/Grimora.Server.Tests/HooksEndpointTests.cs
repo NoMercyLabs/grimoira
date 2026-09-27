@@ -92,7 +92,12 @@ public sealed class HooksEndpointTests : IDisposable
         return transcriptPath;
     }
 
-    private string HookDbPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".grimora", _instance, "grimora.db");
+    // HookPaths (Grimora.Hooks) honours GRIMORA_DATA_DIR the same way the CLI/server do (a fix to a
+    // reviewer-reported bug: hooks used to hardcode ~/.grimora regardless of GRIMORA_DATA_DIR), so this
+    // test's own db path must be under this test's _dataDir too, not the real ~/.grimora — otherwise every
+    // assertion here would look in the wrong place for what the hook handlers, correctly, now write under
+    // _dataDir (set via the GRIMORA_DATA_DIR env var above).
+    private string HookDbPath => Path.Combine(_dataDir, _instance, "grimora.db");
 
     [Fact]
     public async Task PreCompactEqualsTheCliHook()
