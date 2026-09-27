@@ -5,7 +5,8 @@ namespace Grimora.Cli.Tools;
 /// <summary>
 /// The one retry loop every client of the service shares (ThinClient, HookForwarder, McpBridge). The service
 /// exits by itself when idle, so a client can meet it half gone: the listener is closed but the process still
-/// holds server.lock. A refused connection is followed by a wait and <c>ensureServer</c> (which starts a service when
+/// holds server.lock. A refused connection is followed by a wait (and, with <see cref="PriorServiceGone"/>, a wait
+/// of up to <see cref="ExitWait"/> until that lock is free) and <c>ensureServer</c> (which starts a service when
 /// none answers /health; a new service that meets the old one's lock exits at once, cleanly) and a resend, up to
 /// <see cref="MaxResends"/> times, <see cref="Spacing"/> apart. A refused connection is resent. Any other failure
 /// may mean the call already ran, so it is resent only with proof that it did not: a stopping service closes a
@@ -36,12 +37,27 @@ public static class RefusedConnectionRetry
         return CleanExitRecord.Covers(dataDir, sentUtc);
     };
 
+    /// <summary>For the refused path: true when the service that refused has freed server.lock, or a service answers
+    /// /health again (another client started one). A new service that meets the old one's lock exits at once, so
+    /// <see cref="WaitForPriorService"/> polls this before the start.</summary>
+    public static Func<bool> PriorServiceGone(string dataDir) => () =>
+        ServerHandover.IsFree(Path.Combine(dataDir, "server.lock")) || ServerAutoStart.IsHealthy(dataDir, TimeSpan.FromMilliseconds(250));
+
+    /// <summary>Polls <paramref name="priorServiceGone"/> until true or <see cref="ExitWait"/> has passed.</summary>
+    private static void WaitForPriorService(Func<bool>? priorServiceGone)
+    {
+        if (priorServiceGone is null) return;
+        System.Diagnostics.Stopwatch clock = System.Diagnostics.Stopwatch.StartNew();
+        while (!priorServiceGone() && clock.Elapsed < ExitWait) Thread.Sleep(50);
+    }
+
     private static bool Resendable(HttpRequestException ex, DateTime sentUtc, Func<DateTime, bool>? lostCallNeverRan) =>
         ex.HttpRequestError == HttpRequestError.ConnectionError || (lostCallNeverRan is not null && lostCallNeverRan(sentUtc));
 
     /// <summary>True with the answer, or false when the service stayed unreachable after every resend. Any other
     /// failure propagates, unless <paramref name="lostCallNeverRan"/> proves the call never ran.</summary>
-    public static bool TrySend<T>(Func<T> attempt, Func<bool> ensureServer, out T? result, Func<DateTime, bool>? lostCallNeverRan = null)
+    public static bool TrySend<T>(Func<T> attempt, Func<bool> ensureServer, out T? result, Func<DateTime, bool>? lostCallNeverRan = null,
+        Func<bool>? priorServiceGone = null)
     {
         for (int resend = 0; ; resend++)
         {
@@ -62,6 +78,7 @@ public static class RefusedConnectionRetry
                 // does not meet it. A service that cannot be started (none installed, or it never answers)
                 // ends the loop; retrying it would only repeat the wait.
                 Thread.Sleep(Spacing);
+                WaitForPriorService(priorServiceGone);
                 if (!ensureServer())
                 {
                     result = default;
@@ -73,7 +90,7 @@ public static class RefusedConnectionRetry
 
     /// <summary>The same loop for an async call: (reached, answer).</summary>
     public static async Task<(bool Reached, T? Result)> TrySendAsync<T>(Func<Task<T>> attempt, Func<bool> ensureServer, CancellationToken cancellationToken,
-        Func<DateTime, bool>? lostCallNeverRan = null)
+        Func<DateTime, bool>? lostCallNeverRan = null, Func<bool>? priorServiceGone = null)
     {
         for (int resend = 0; ; resend++)
         {
@@ -86,6 +103,7 @@ public static class RefusedConnectionRetry
             {
                 if (resend == MaxResends) return (false, default);
                 await Task.Delay(Spacing, cancellationToken);
+                WaitForPriorService(priorServiceGone);
                 if (!ensureServer()) return (false, default);
             }
         }

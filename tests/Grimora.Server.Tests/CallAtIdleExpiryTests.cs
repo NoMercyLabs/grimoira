@@ -37,7 +37,7 @@ public sealed class CallAtIdleExpiryTests : IDisposable
     }
 
     [Fact]
-    public async Task CallsIssuedAroundTheIdleExpiryAreAllAnswered()
+    public void CallsIssuedAroundTheIdleExpiryAreAllAnswered()
     {
         int[] gapsMs = [1700, 1900, 2000, 2100, 2300, 2600, 1800, 2000];
         (int exit, _, string error) = Cli("help");
@@ -52,8 +52,9 @@ public sealed class CallAtIdleExpiryTests : IDisposable
             Assert.NotEmpty(callOut);
         }
 
-        // The last call was answered above; the service that answered it is alive for the 2 s idle time.
-        using HttpClient client = PipeTestClient.CreateClient(_dataDir, TimeSpan.FromSeconds(5));
-        Assert.True((await client.GetAsync("/health")).IsSuccessStatusCode);
+        // The service may already have exited on idle by now; one more call must still be answered (by it or a new one).
+        (int lastExit, string lastOut, string lastError) = Cli("help");
+        Assert.True(lastExit == 0, $"the closing call was not answered (exit {lastExit}): {lastError}");
+        Assert.NotEmpty(lastOut);
     }
 }

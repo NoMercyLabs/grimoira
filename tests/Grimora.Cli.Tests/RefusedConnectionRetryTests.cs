@@ -130,4 +130,38 @@ public sealed class RefusedConnectionRetryTests
             Directory.Delete(dataDir, recursive: true);
         }
     }
+
+    [Fact]
+    public void ARefusedCallWaitsForTheOldServiceToFreeItsLockBeforeStartingANewOne()
+    {
+        string dataDir = Directory.CreateTempSubdirectory("grimora-old-holder-").FullName;
+        string lockPath = Path.Combine(dataDir, "server.lock");
+        // The old service: its pipe already refuses, but it holds server.lock until the test lets go.
+        FileStream oldHolder = new(lockPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+        try
+        {
+            using Timer release = new(_ => oldHolder.Dispose(), null, TimeSpan.FromSeconds(1), Timeout.InfiniteTimeSpan);
+            int attempts = 0;
+            bool? lockFreeAtStart = null;
+
+            bool reached = RefusedConnectionRetry.TrySend(() =>
+            {
+                if (++attempts == 1) throw Refused();
+                return "answered";
+            }, () =>
+            {
+                lockFreeAtStart = ServerHandover.IsFree(lockPath);
+                return true;
+            }, out string? answer, priorServiceGone: RefusedConnectionRetry.PriorServiceGone(dataDir));
+
+            Assert.True(reached);
+            Assert.Equal("answered", answer);
+            Assert.True(lockFreeAtStart, "a new service was started while the old one still held server.lock");
+        }
+        finally
+        {
+            oldHolder.Dispose();
+            Directory.Delete(dataDir, recursive: true);
+        }
+    }
 }

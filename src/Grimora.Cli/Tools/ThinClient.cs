@@ -36,7 +36,7 @@ public static class ThinClient
             // A refused connection, or a call the exiting service proved it never ran, starts the service and
             // resends (RefusedConnectionRetry); nothing else is resent.
             if (!RefusedConnectionRetry.TrySend(() => Send(client, args, cwd, instanceEnv, projectDirEnv), ensureServer, out HttpResponseMessage? response,
-                RefusedConnectionRetry.LostCallNeverRan(dataDir)))
+                RefusedConnectionRetry.LostCallNeverRan(dataDir), RefusedConnectionRetry.PriorServiceGone(dataDir)))
             {
                 string why = File.Exists(serverExe)
                     ? $"started {serverExe}, but /health did not answer within {ServerAutoStart.DefaultMaxWait.TotalSeconds:0} s"
