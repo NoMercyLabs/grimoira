@@ -10,9 +10,11 @@
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { promoteLegacyEnv } from './legacy-env.mjs';
 import { publishedCliDll, runCliMcp } from './published-cli.mjs';
 
 function main() {
+  promoteLegacyEnv();
   const root = import.meta.dirname;
   const cli = publishedCliDll(process.env, root);
   process.exitCode = existsSync(cli) ? runCliMcp(cli, root) : 0;

@@ -14,6 +14,7 @@ public sealed class NoOldNameRemainsOutsideTheCompatibilityShimsTests
         ["src/Grimora.Store/Data/LegacyStore.cs"] = "compat shim: moves the old store folder once.",
         ["src/Grimora.Cli/Tools/LegacyEnvironment.cs"] = "compat shim: the CLI cannot reference Store, so it keeps its own copy.",
         ["legacy-env.mjs"] = "compat shim for the plugin scripts: old env vars and old store folder.",
+        ["tests/Grimora.Layout.Tests/LegacyStoreMoveTests.cs"] = "tests the store move, so it names the old folder.",
         ["tests/Grimora.Layout.Tests/LegacyCompatTests.cs"] = "tests the shims, so it names the old variables and folder.",
         ["tests/Grimora.Layout.Tests/NoOldNameRemainsOutsideTheCompatibilityShimsTests.cs"] = "this guard names the old name.",
         ["tests/Grimora.Layout.Tests/CliFlagCoverageGuardTests.cs"] = "reads the pinned oracle commit aitm.cs.",
@@ -40,7 +41,7 @@ public sealed class NoOldNameRemainsOutsideTheCompatibilityShimsTests
             if (System.Text.Encoding.Latin1.GetString(bytes).Contains("aitm", StringComparison.OrdinalIgnoreCase))
                 offenders.Add(file);
         }
-        Assert.True(offenders.Count == 0, "old name found in:/n" + string.Join('\n', offenders));
+        Assert.True(offenders.Count == 0, "old name found in:" + Environment.NewLine + string.Join('\n', offenders));
     }
 
     private static string Git(string args)

@@ -10,7 +10,7 @@ using ModelContextProtocol.Server;
 
 LegacyEnvironment.Promote();
 if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("GRIMORA_DATA_DIR")))
-    LegacyStore.MoveIfNeeded(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
+    LegacyStore.MoveIfNeeded(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), Console.Error);
 string dataDir = ServerAddress.ResolveDataDir();
 string projectRoot = Environment.GetEnvironmentVariable("CLAUDE_PROJECT_DIR") ?? Directory.GetCurrentDirectory();
 

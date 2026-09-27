@@ -32,9 +32,27 @@ public static class GrimoraCliRunner
     static GrimoraCliRunner()
     {
         SweepStaleInstances();
+        // A test that fails before its own cleanup must not leave a test-* folder in the real home.
+        AppDomain.CurrentDomain.ProcessExit += (_, _) => RemoveCreatedInstances();
     }
 
-    public static string NewTestInstance(string label) => $"test-{label}-{Guid.NewGuid():N}";
+    private static readonly System.Collections.Concurrent.ConcurrentBag<string> Created = [];
+
+    private static void RemoveCreatedInstances()
+    {
+        foreach (string instance in Created)
+        {
+            try { DeleteInstance(instance); }
+            catch (Exception) { /* best effort at process exit */ }
+        }
+    }
+
+    public static string NewTestInstance(string label)
+    {
+        string instance = $"test-{label}-{Guid.NewGuid():N}";
+        Created.Add(instance);
+        return instance;
+    }
 
     public static string InstanceDbPath(string instance) => Path.Combine(InstanceDir(instance), "grimora.db");
 

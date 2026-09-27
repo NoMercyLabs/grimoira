@@ -18,8 +18,7 @@
 // launch-mcp.mjs uses the checkout's bin/. build-cli.ps1 and build-server.ps1 own their freshness there, so
 // the step only builds when they are missing.
 
-import { homedir } from 'node:os';
-import { moveLegacyStore, promoteLegacyEnv } from './legacy-env.mjs';
+import { promoteLegacyEnv } from './legacy-env.mjs';
 import { closeSync, existsSync, mkdirSync, openSync, renameSync, rmSync, statSync, writeFileSync, writeSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -110,7 +109,6 @@ export function startDetached(script, args) {
 
 function main() {
   promoteLegacyEnv();
-  if (!process.env.GRIMORA_DATA_DIR) moveLegacyStore(homedir());
   const root = import.meta.dirname;
   const pluginData = process.env.CLAUDE_PLUGIN_DATA;
   const code = sessionStart({
