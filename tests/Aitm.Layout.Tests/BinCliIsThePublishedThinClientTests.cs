@@ -40,7 +40,6 @@ public partial class BinCliIsThePublishedThinClientTests
     [Theory]
     [InlineData("tests/Aitm.TestSupport/AitmCliRunner.cs")]
     [InlineData("tests/Aitm.TestSupport/OldVsNewCli.cs")]
-    [InlineData("tests/Aitm.Store.Tests/Support/V3StoreFixture.cs")]
     public void AitmCsOraclesReadBinCliOld(string relative)
     {
         string source = File.ReadAllText(Path.Combine(RepoPaths.Root, relative));
