@@ -14,7 +14,7 @@ Write-Host 'building Grimora.sln...' -ForegroundColor Cyan
 dotnet build "$root/Grimora.sln" | Select-String -Pattern 'error|warning NU19|-> '
 
 Write-Host 'building CLI...' -ForegroundColor Cyan
-# build-cli.ps1 publishes Grimora.Cli to bin-cli/ and keeps the grimora.cs build as bin-cli-old/ (sub-card 29e).
+# build-cli.ps1 publishes Grimora.Cli to bin-cli/ (sub-card 29e).
 & "$root/build-cli.ps1" | Select-String -Pattern 'error|warning NU19|-> '
 
 Write-Host 'building MCP server...' -ForegroundColor Cyan
