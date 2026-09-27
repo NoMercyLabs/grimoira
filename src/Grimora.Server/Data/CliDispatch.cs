@@ -59,7 +59,13 @@ public static class CliDispatch
         {
             string cmd = a.Length > 0 ? a[0] : "help";
             _instance = fixedInstance ?? GetFlag("--instance") ?? ResolveInstance();
-            _root = Path.Combine(dataDir ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".grimora"), _instance);
+            // dataDir is only ever non-null from RunOnStore (the server already resolved its own realm). The
+            // plain Run path (every in-process CLI call, including GrimoraCliRunner.Run in tests) must honour
+            // GRIMORA_DATA_DIR the same way ServerAddress/HookPaths do — hardcoding ~/.grimora here silently
+            // wrote `init`/`project` to the real user store instead of a test's isolated GRIMORA_DATA_DIR,
+            // so a project registered this way was invisible to the spawned server the hook path talks to
+            // (its projects table stayed empty and index-code correctly, silently, indexed nothing).
+            _root = Path.Combine(dataDir ?? ServerAddress.ResolveDataDir(), _instance);
             Directory.CreateDirectory(_root);
             _dbPath = Path.Combine(_root, "grimora.db");
 

@@ -182,7 +182,28 @@ public sealed class HooksEndpointTests : IDisposable
 
         Assert.Equal(HttpStatusCode.OK, status);
         Assert.Equal(expected, body);
-        Assert.True(Scalar(HookDbPath, "SELECT count(*) FROM chat") > 0, "SessionEnd did not index the transcript");
+        // SessionEnd answers as soon as the request has enqueued the indexing job (IndexJobQueue, slice 38);
+        // the actual chat/docs/code indexing runs on the background queue afterwards. Checking Scalar() the
+        // instant PostHook returns raced that background job — most of the time it lost, throwing "unable to
+        // open database file" (the db/table did not exist yet) rather than failing the intended assertion, and
+        // it failed every single time in isolation, not just under full-suite load. HookVerbAgainstTheRunningServerTests'
+        // equivalent check (through the real CLI/server processes) already polls for exactly this reason; this
+        // in-process TestServer version needs the same wait.
+        Assert.True(await PollUntil(() => Scalar(HookDbPath, "SELECT count(*) FROM chat") > 0, TimeSpan.FromSeconds(25)),
+            "SessionEnd did not index the transcript");
+    }
+
+    private static async Task<bool> PollUntil(Func<bool> condition, TimeSpan timeout)
+    {
+        DateTime deadline = DateTime.UtcNow + timeout;
+        while (DateTime.UtcNow < deadline)
+        {
+            try { if (condition()) return true; }
+            catch (SqliteException) { /* db/table not there yet - keep polling */ }
+            await Task.Delay(50);
+        }
+        try { return condition(); }
+        catch (SqliteException) { return false; }
     }
 
     // The server is one process for every session. Started from a session hook, it inherits that session's
