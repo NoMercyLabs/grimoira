@@ -17,7 +17,7 @@ namespace Grimora.Server.Tests;
 /// <summary>
 /// RESTRUCTURE.md "Slice 26b: every MCP tool over HTTP equals the old mcp.dll." For each of the 25
 /// golden MCP tools (<see cref="Grimora.Layout.Tests.GoldenListsTests.GoldenMcpTools"/>), seeds two
-/// identical fresh stores — one under a temp <c>Grimora_DATA_DIR</c> for the real <c>/mcp</c> HTTP endpoint
+/// identical fresh stores — one under a temp <c>GRIMORA_DATA_DIR</c> for the real <c>/mcp</c> HTTP endpoint
 /// (<see cref="WebApplicationFactory{TEntryPoint}"/>, the <see cref="RequestProjectResolver.InstanceHeader"/>
 /// header), one under a throwaway <c>test-*</c> instance for the pinned pre-slice-24 <c>mcp.dll</c>
 /// snapshot (<see cref="McpSnapshotHarness"/>, stdio) — and asserts the two give byte-identical text for
@@ -27,7 +27,7 @@ namespace Grimora.Server.Tests;
 /// Exception (see <see cref="ToolCases"/>'s <c>idp_token</c> case): its output changed on purpose at
 /// slice 23c (a file path + claims instead of the raw token), applied to the live host at slice 28, so
 /// the snapshot's shape is not required — this test only proves the HTTP call never leaks a token because
-/// no real login driver ever runs (the tool's own <c>Grimora_ALLOW_TOKEN_MINT</c> gate, off by default, is
+/// no real login driver ever runs (the tool's own <c>GRIMORA_ALLOW_TOKEN_MINT</c> gate, off by default, is
 /// the fake-runner seam here: neither side ever spawns node/python). <c>workspace_capabilities</c> and
 /// <c>workspace_search</c> use the same non-execution path: this repo carries no
 /// <c>scripts/workspace-*.py</c>, so both oracles hit the safe "unavailable" branch before any process
@@ -71,8 +71,8 @@ public sealed partial class HttpSnapshotParityTests
         // duration of this call, regardless of what the developer's own shell has set, so neither the
         // stdio child (inherits this process's environment) nor the HTTP tool (reads it per request)
         // ever shells out to node/idp-impersonate.mjs.
-        string? previousMint = Environment.GetEnvironmentVariable("Grimora_ALLOW_TOKEN_MINT");
-        Environment.SetEnvironmentVariable("Grimora_ALLOW_TOKEN_MINT", "0");
+        string? previousMint = Environment.GetEnvironmentVariable("GRIMORA_ALLOW_TOKEN_MINT");
+        Environment.SetEnvironmentVariable("GRIMORA_ALLOW_TOKEN_MINT", "0");
         try
         {
             GrimoraCliRunner.Run($"init --instance {oldInstance}");
@@ -103,8 +103,8 @@ public sealed partial class HttpSnapshotParityTests
             (_, IReadOnlyList<string> oldResults) =
                 McpProcess.Run(oldDll, oldInstance, [(toolName, normalArgs), (toolName, errorArgs)]);
 
-            Environment.SetEnvironmentVariable("Grimora_DATA_DIR", newDataDir);
-            Environment.SetEnvironmentVariable("Grimora_SERVER_PORT", _port);
+            Environment.SetEnvironmentVariable("GRIMORA_DATA_DIR", newDataDir);
+            Environment.SetEnvironmentVariable("GRIMORA_SERVER_PORT", _port);
             using WebApplicationFactory<Program> factory = new();
             using HttpClient httpClient = factory.CreateClient(
                 new WebApplicationFactoryClientOptions { BaseAddress = new Uri($"http://{_allowedHost}") });
@@ -142,7 +142,7 @@ public sealed partial class HttpSnapshotParityTests
             {
                 // idp_token: the snapshot's shape is not required (slice 23c changed the output on
                 // purpose); prove instead that the gated HTTP call never runs a real login driver or
-                // leaks token text — the fake runner seam is the tool's own Grimora_ALLOW_TOKEN_MINT gate,
+                // leaks token text — the fake runner seam is the tool's own GRIMORA_ALLOW_TOKEN_MINT gate,
                 // left unset here, which both oracles must refuse on before ever touching node/python.
                 Assert.Contains("refused", normalText, StringComparison.OrdinalIgnoreCase);
                 Assert.Contains("refused", errorText, StringComparison.OrdinalIgnoreCase);
@@ -153,9 +153,9 @@ public sealed partial class HttpSnapshotParityTests
         finally
         {
             GrimoraCliRunner.DeleteInstance(oldInstance);
-            Environment.SetEnvironmentVariable("Grimora_DATA_DIR", null);
-            Environment.SetEnvironmentVariable("Grimora_SERVER_PORT", null);
-            Environment.SetEnvironmentVariable("Grimora_ALLOW_TOKEN_MINT", previousMint);
+            Environment.SetEnvironmentVariable("GRIMORA_DATA_DIR", null);
+            Environment.SetEnvironmentVariable("GRIMORA_SERVER_PORT", null);
+            Environment.SetEnvironmentVariable("GRIMORA_ALLOW_TOKEN_MINT", previousMint);
             try { Directory.Delete(newDataDir, recursive: true); } catch { /* best effort cleanup */ }
         }
     }

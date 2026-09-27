@@ -15,6 +15,7 @@ public static class Program
 {
     public static int Main(string[] args)
     {
+        LegacyEnvironment.Promote();
         if (args is ["hook", _, ..])
         {
             RunHook(args[1]);

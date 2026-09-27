@@ -10,7 +10,7 @@ namespace Grimora.Graph.Tests;
 
 // RESTRUCTURE.md slice 14: "index-code.mjs on a fixture repo, pinned edge rows (none today). The C#
 // tool must write the same rows." Oracle: today's index-code.mjs run as a child process against a
-// throwaway test-* instance; Grimora_SKIP_PROJECTS is set explicitly (blank) so this never inherits
+// throwaway test-* instance; GRIMORA_SKIP_PROJECTS is set explicitly (blank) so this never inherits
 // whatever a real dev shell has configured for the live projects.
 public class IndexCodeToolTests
 {
@@ -62,7 +62,7 @@ public class IndexCodeToolTests
             UseShellExecute = false,
             WorkingDirectory = RepoRoot(),
             // Explicit per the card: never let a real dev shell's project-skip list leak into the oracle run.
-            EnvironmentVariables = { ["Grimora_SKIP_PROJECTS"] = "" },
+            EnvironmentVariables = { ["GRIMORA_SKIP_PROJECTS"] = "" },
         };
         using Process process = Process.Start(psi) ?? throw new InvalidOperationException("could not start node");
         string stdout = process.StandardOutput.ReadToEnd();

@@ -34,7 +34,7 @@ public static class OldVsNewCli
     /// machine.</summary>
     public static string OracleDll()
     {
-        string dll = Path.Combine(SnapshotDir, "grimora.dll");
+        string dll = Path.Combine(SnapshotDir, "aitm.dll");
         string stamp = Path.Combine(SnapshotDir, ".built-ok");
         if (File.Exists(dll) && File.Exists(stamp)) return dll;
         lock (BuildLock)
@@ -78,10 +78,20 @@ public static class OldVsNewCli
             StandardOutputEncoding = System.Text.Encoding.UTF8,
             StandardErrorEncoding = System.Text.Encoding.UTF8,
         };
+        // The pinned oracle (aitm.dll) still keeps its store under C:/Users/dev/.aitm; hand it the instance and take it back.
+        bool oracle = Path.GetFileName(dllPath) == "aitm.dll";
+        if (oracle) OldStore.ToOld(instance);
         using Process process = Process.Start(psi) ?? throw new InvalidOperationException($"could not start dotnet {dllPath}");
         string stdout = process.StandardOutput.ReadToEnd();
         string stderr = process.StandardError.ReadToEnd();
         process.WaitForExit();
+        if (oracle)
+        {
+            OldStore.FromOld(instance);
+            // The oracle names its store paths the old way; say them the new way so the outputs compare.
+            stdout = OldStore.AsNew(stdout);
+            stderr = OldStore.AsNew(stderr);
+        }
         return new Result(stdout, stderr, process.ExitCode);
     }
 
@@ -97,7 +107,7 @@ public static class OldVsNewCli
         try
         {
             Directory.CreateDirectory(buildDir);
-            RunOrThrow("dotnet", $"build \"{Path.Combine(worktree, "grimora.cs")}\" -c Release -o \"{buildDir}\"");
+            RunOrThrow("dotnet", $"build \"{Path.Combine(worktree, "aitm.cs")}\" -c Release -o \"{buildDir}\"");
         }
         finally
         {
@@ -109,7 +119,7 @@ public static class OldVsNewCli
             catch (InvalidOperationException) { /* best effort */ }
         }
 
-        string builtDll = Path.Combine(buildDir, "grimora.dll");
+        string builtDll = Path.Combine(buildDir, "aitm.dll");
         if (!File.Exists(builtDll))
             throw new InvalidOperationException($"oracle build did not produce {builtDll}");
         File.WriteAllText(Path.Combine(buildDir, ".built-ok"), DateTime.UtcNow.ToString("o"));
@@ -119,7 +129,7 @@ public static class OldVsNewCli
 
     private static string MoveIntoPlace(string builtDir)
     {
-        string finalDll = Path.Combine(SnapshotDir, "grimora.dll");
+        string finalDll = Path.Combine(SnapshotDir, "aitm.dll");
         string finalStamp = Path.Combine(SnapshotDir, ".built-ok");
         // A final folder without the stamp is a leftover of an old in-place build; builds now happen
         // only in private folders, so nobody else is writing it.

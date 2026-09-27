@@ -44,14 +44,14 @@ public class BrainCoreToolTests
     public void McpShapeMatchesTodaysMcpOutputForHardNodes()
     {
         string instance = GrimoraCliRunner.NewTestInstance("brain-core-mcp");
-        string? previousInstanceEnv = Environment.GetEnvironmentVariable("Grimora_INSTANCE");
+        string? previousInstanceEnv = Environment.GetEnvironmentVariable("GRIMORA_INSTANCE");
         try
         {
             string dbPath = GrimoraCliRunner.InstanceDbPath(instance);
             GrimoraCliRunner.Run($"init --instance {instance}");
             BrainTestFixtures.InsertHardNode(dbPath, "rule:no-secrets-mcp", "rule", "No secrets in logs", "Never log a token.");
 
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", instance);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", instance);
             string expected = (string)McpDll.Invoke("brain_core")!;
 
             using SqliteConnection connection = StoreConnection.Open(dbPath);
@@ -62,7 +62,7 @@ public class BrainCoreToolTests
         }
         finally
         {
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", previousInstanceEnv);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", previousInstanceEnv);
             GrimoraCliRunner.DeleteInstance(instance);
         }
     }

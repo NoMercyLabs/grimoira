@@ -101,13 +101,13 @@ public class DocToolTests
     {
         string instance = GrimoraCliRunner.NewTestInstance("doc-mcp-hit");
         string dir = MakeFixtureDir("doc-mcp-hit-fixture");
-        string? previousInstanceEnv = Environment.GetEnvironmentVariable("Grimora_INSTANCE");
+        string? previousInstanceEnv = Environment.GetEnvironmentVariable("GRIMORA_INSTANCE");
         try
         {
             GrimoraCliRunner.Run($"init --instance {instance}");
             GrimoraCliRunner.Run($"index-docs --instance {instance} --from \"{dir}\"");
 
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", instance);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", instance);
             string expected = (string)InvokeMcpDoc("docmcphittopic")!;
 
             string dbPath = GrimoraCliRunner.InstanceDbPath(instance);
@@ -119,7 +119,7 @@ public class DocToolTests
         }
         finally
         {
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", previousInstanceEnv);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", previousInstanceEnv);
             GrimoraCliRunner.DeleteInstance(instance);
             Directory.Delete(dir, recursive: true);
         }
@@ -129,12 +129,12 @@ public class DocToolTests
     public void McpShapeReportsGapSuffixWhenNoMatch()
     {
         string instance = GrimoraCliRunner.NewTestInstance("doc-mcp-gap");
-        string? previousInstanceEnv = Environment.GetEnvironmentVariable("Grimora_INSTANCE");
+        string? previousInstanceEnv = Environment.GetEnvironmentVariable("GRIMORA_INSTANCE");
         try
         {
             GrimoraCliRunner.Run($"init --instance {instance}");
 
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", instance);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", instance);
             string expected = (string)InvokeMcpDoc("nothing-ever-matches-this-mcp-doc-term")!;
 
             string dbPath = GrimoraCliRunner.InstanceDbPath(instance);
@@ -146,7 +146,7 @@ public class DocToolTests
         }
         finally
         {
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", previousInstanceEnv);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", previousInstanceEnv);
             GrimoraCliRunner.DeleteInstance(instance);
         }
     }

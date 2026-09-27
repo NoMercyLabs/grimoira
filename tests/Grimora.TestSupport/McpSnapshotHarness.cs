@@ -24,9 +24,12 @@ public static class McpProcess
             RedirectStandardError = true,
             UseShellExecute = false,
             StandardOutputEncoding = System.Text.Encoding.UTF8,
-            Environment = { ["Grimora_INSTANCE"] = instance },
+            Environment = { ["GRIMORA_INSTANCE"] = instance, ["AITM_INSTANCE"] = instance },
         };
 
+        // The pinned snapshot still keeps its store under C:/Users/dev/.aitm; hand it the instance and take it back.
+        bool snapshot = dllPath.Contains("grimora-mcp-snapshot", StringComparison.Ordinal);
+        if (snapshot) OldStore.ToOld(instance);
         using Process process = Process.Start(psi) ?? throw new InvalidOperationException($"could not start dotnet {dllPath}");
 
         List<string> lines = [];
@@ -52,6 +55,7 @@ public static class McpProcess
 
         try { process.Kill(entireProcessTree: true); } catch { /* best effort */ }
         process.WaitForExit(2000);
+        if (snapshot) OldStore.FromOld(instance);
 
         List<string> allLines = Snapshot(lines, gate);
         List<string> toolNames = [];

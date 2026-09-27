@@ -126,13 +126,13 @@ public class MemToolTests
     {
         string instance = GrimoraCliRunner.NewTestInstance("mem-mcp-hit");
         string memDir = MakeMemoryDir("mem-mcp-hit", ("memmcpfixture", "feedback", "Mem Mcp Fixture", "a memory about the memmcpfixtureword subject"));
-        string? previousInstanceEnv = Environment.GetEnvironmentVariable("Grimora_INSTANCE");
+        string? previousInstanceEnv = Environment.GetEnvironmentVariable("GRIMORA_INSTANCE");
         try
         {
             GrimoraCliRunner.Run($"init --instance {instance}");
             GrimoraCliRunner.Run($"index-memory --instance {instance} --from \"{memDir}\"");
 
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", instance);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", instance);
             string expected = (string)InvokeMcpRule("memmcpfixtureword")!;
 
             string dbPath = GrimoraCliRunner.InstanceDbPath(instance);
@@ -144,7 +144,7 @@ public class MemToolTests
         }
         finally
         {
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", previousInstanceEnv);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", previousInstanceEnv);
             GrimoraCliRunner.DeleteInstance(instance);
             Directory.Delete(memDir, recursive: true);
         }
@@ -154,12 +154,12 @@ public class MemToolTests
     public void McpShapeReportsGapSuffixWhenNoMatch()
     {
         string instance = GrimoraCliRunner.NewTestInstance("mem-mcp-gap");
-        string? previousInstanceEnv = Environment.GetEnvironmentVariable("Grimora_INSTANCE");
+        string? previousInstanceEnv = Environment.GetEnvironmentVariable("GRIMORA_INSTANCE");
         try
         {
             GrimoraCliRunner.Run($"init --instance {instance}");
 
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", instance);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", instance);
             string expected = (string)InvokeMcpRule("nothing-ever-matches-this-mcp-term")!;
 
             string dbPath = GrimoraCliRunner.InstanceDbPath(instance);
@@ -171,7 +171,7 @@ public class MemToolTests
         }
         finally
         {
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", previousInstanceEnv);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", previousInstanceEnv);
             GrimoraCliRunner.DeleteInstance(instance);
         }
     }

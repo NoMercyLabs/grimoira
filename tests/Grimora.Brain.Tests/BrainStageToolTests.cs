@@ -213,11 +213,11 @@ public class BrainStageToolTests
         // types and node kinds are disjoint, so "rule" can only ever have meant a node of kind rule.
         string oldInstance = GrimoraCliRunner.NewTestInstance("stage-mcp-coerce-old");
         string newInstance = GrimoraCliRunner.NewTestInstance("stage-mcp-coerce-new");
-        string? previousInstanceEnv = Environment.GetEnvironmentVariable("Grimora_INSTANCE");
+        string? previousInstanceEnv = Environment.GetEnvironmentVariable("GRIMORA_INSTANCE");
         try
         {
             GrimoraCliRunner.Run($"init --instance {oldInstance}");
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", oldInstance);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", oldInstance);
             string expected = (string)McpDll.Invoke("brain_stage", "rule", "stage-coercion-probe", "a probe label", "the full statement", "", "", false)!;
             string oldLedger = File.ReadAllText(Path.Combine(GrimoraCliRunner.InstanceDir(oldInstance), "pending-learn.jsonl"));
 
@@ -238,7 +238,7 @@ public class BrainStageToolTests
         }
         finally
         {
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", previousInstanceEnv);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", previousInstanceEnv);
             GrimoraCliRunner.DeleteInstance(oldInstance);
             GrimoraCliRunner.DeleteInstance(newInstance);
         }
@@ -248,12 +248,12 @@ public class BrainStageToolTests
     public void McpShapeRejectsAProseNodeKindWithTheRicherMcpGuardText()
     {
         string instance = GrimoraCliRunner.NewTestInstance("stage-mcp-guard");
-        string? previousInstanceEnv = Environment.GetEnvironmentVariable("Grimora_INSTANCE");
+        string? previousInstanceEnv = Environment.GetEnvironmentVariable("GRIMORA_INSTANCE");
         try
         {
             string dbPath = GrimoraCliRunner.InstanceDbPath(instance);
             GrimoraCliRunner.Run($"init --instance {instance}");
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", instance);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", instance);
             string expected = (string)McpDll.Invoke("brain_stage", "node", "stage:bad", "This is prose", "some label", "", "", false)!;
 
             using SqliteConnection connection = StoreConnection.Open(dbPath);
@@ -266,7 +266,7 @@ public class BrainStageToolTests
         }
         finally
         {
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", previousInstanceEnv);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", previousInstanceEnv);
             GrimoraCliRunner.DeleteInstance(instance);
         }
     }
@@ -276,11 +276,11 @@ public class BrainStageToolTests
     {
         string oldInstance = GrimoraCliRunner.NewTestInstance("stage-mcp-triple-old");
         string newInstance = GrimoraCliRunner.NewTestInstance("stage-mcp-triple-new");
-        string? previousInstanceEnv = Environment.GetEnvironmentVariable("Grimora_INSTANCE");
+        string? previousInstanceEnv = Environment.GetEnvironmentVariable("GRIMORA_INSTANCE");
         try
         {
             GrimoraCliRunner.Run($"init --instance {oldInstance}");
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", oldInstance);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", oldInstance);
             string expected = (string)McpDll.Invoke("brain_stage", "triple", "stage:s2", "related", "stage:o2", "", "because text", false)!;
             string oldLedger = File.ReadAllText(Path.Combine(GrimoraCliRunner.InstanceDir(oldInstance), "pending-learn.jsonl"));
 
@@ -296,7 +296,7 @@ public class BrainStageToolTests
         }
         finally
         {
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", previousInstanceEnv);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", previousInstanceEnv);
             GrimoraCliRunner.DeleteInstance(oldInstance);
             GrimoraCliRunner.DeleteInstance(newInstance);
         }
@@ -306,12 +306,12 @@ public class BrainStageToolTests
     public void McpShapeRejectsAnUnknownRowKind()
     {
         string instance = GrimoraCliRunner.NewTestInstance("stage-mcp-bad-kind");
-        string? previousInstanceEnv = Environment.GetEnvironmentVariable("Grimora_INSTANCE");
+        string? previousInstanceEnv = Environment.GetEnvironmentVariable("GRIMORA_INSTANCE");
         try
         {
             string dbPath = GrimoraCliRunner.InstanceDbPath(instance);
             GrimoraCliRunner.Run($"init --instance {instance}");
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", instance);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", instance);
             string expected = (string)McpDll.Invoke("brain_stage", "bogus", "stage:x", "a", "b", "c", "", false)!;
 
             using SqliteConnection connection = StoreConnection.Open(dbPath);
@@ -324,7 +324,7 @@ public class BrainStageToolTests
         }
         finally
         {
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", previousInstanceEnv);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", previousInstanceEnv);
             GrimoraCliRunner.DeleteInstance(instance);
         }
     }

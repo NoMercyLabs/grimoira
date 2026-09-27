@@ -67,12 +67,12 @@ public sealed class IdleExit(TimeSpan idle, Action stop, Func<DateTime>? now = n
         }
     }
 
-    /// <summary>The idle time: <c>Grimora_IDLE_SECONDS</c> (a test seam), else <c>Grimora_IDLE_MINUTES</c>, else <see cref="DefaultIdle"/>.</summary>
+    /// <summary>The idle time: <c>GRIMORA_IDLE_SECONDS</c> (a test seam), else <c>GRIMORA_IDLE_MINUTES</c>, else <see cref="DefaultIdle"/>.</summary>
     public static TimeSpan ConfiguredIdle()
     {
-        if (int.TryParse(Environment.GetEnvironmentVariable("Grimora_IDLE_SECONDS"), out int seconds) && seconds > 0)
+        if (int.TryParse(Environment.GetEnvironmentVariable("GRIMORA_IDLE_SECONDS"), out int seconds) && seconds > 0)
             return TimeSpan.FromSeconds(seconds);
-        if (int.TryParse(Environment.GetEnvironmentVariable("Grimora_IDLE_MINUTES"), out int minutes) && minutes > 0)
+        if (int.TryParse(Environment.GetEnvironmentVariable("GRIMORA_IDLE_MINUTES"), out int minutes) && minutes > 0)
             return TimeSpan.FromMinutes(minutes);
         return DefaultIdle;
     }

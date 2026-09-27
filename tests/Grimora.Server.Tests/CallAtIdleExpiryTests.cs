@@ -23,10 +23,10 @@ public sealed class CallAtIdleExpiryTests : IDisposable
         ProcessStartInfo psi = new("dotnet") { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true, RedirectStandardInput = true };
         psi.ArgumentList.Add(RunningServer.CliDll);
         foreach (string a in args) psi.ArgumentList.Add(a);
-        psi.Environment["Grimora_DATA_DIR"] = _dataDir;
-        psi.Environment["Grimora_IDLE_SECONDS"] = "2";
-        psi.Environment["Grimora_SERVER_EXE"] = Path.Combine(RunningServer.ServerDir, OperatingSystem.IsWindows() ? "Grimora.Server.exe" : "Grimora.Server");
-        psi.Environment.Remove("Grimora_INSTANCE");
+        psi.Environment["GRIMORA_DATA_DIR"] = _dataDir;
+        psi.Environment["GRIMORA_IDLE_SECONDS"] = "2";
+        psi.Environment["GRIMORA_SERVER_EXE"] = Path.Combine(RunningServer.ServerDir, OperatingSystem.IsWindows() ? "Grimora.Server.exe" : "Grimora.Server");
+        psi.Environment.Remove("GRIMORA_INSTANCE");
         psi.Environment["CLAUDE_PROJECT_DIR"] = Path.Combine(_dataDir, "project");
         using Process p = Process.Start(psi)!;
         p.StandardInput.Close();

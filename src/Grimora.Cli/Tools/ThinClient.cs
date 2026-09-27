@@ -10,7 +10,7 @@ namespace Grimora.Cli.Tools;
 /// instead of <c>127.0.0.1:7635</c>. Body <c>{ "args", "cwd" }</c>, no token (Grimora holds no secret; only
 /// the current user can open the pipe), the project in the <c>Claude-Project-Dir</c> header (and
 /// <c>Grimora-Instance</c> when set), exactly the inputs the old CLI resolved its instance from
-/// (<c>Grimora_INSTANCE</c>, <c>CLAUDE_PROJECT_DIR</c>, else the current directory). The answer's stdout and
+/// (<c>GRIMORA_INSTANCE</c>, <c>CLAUDE_PROJECT_DIR</c>, else the current directory). The answer's stdout and
 /// stderr are written as they are and its <c>exitCode</c> is returned.
 ///
 /// A server that refuses the connection is started through <see cref="ServerAutoStart"/> and the call
@@ -69,7 +69,7 @@ public static class ThinClient
         args,
         Directory.GetCurrentDirectory(),
         ServerAutoStart.DefaultDataDir(),
-        Environment.GetEnvironmentVariable("Grimora_INSTANCE"),
+        Environment.GetEnvironmentVariable("GRIMORA_INSTANCE"),
         Environment.GetEnvironmentVariable("CLAUDE_PROJECT_DIR"),
         ServerAutoStart.EnsureRunning,
         ServerAutoStart.DefaultServerExe(),

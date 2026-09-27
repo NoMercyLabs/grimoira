@@ -57,17 +57,17 @@ public class FindingToolTests
         }
     }
 
-    // mcp.cs's `log_finding` resolves its own connection from Grimora_INSTANCE.
+    // mcp.cs's `log_finding` resolves its own connection from GRIMORA_INSTANCE.
     [Fact]
     public void McpShapeMatchesTodaysMcpOutputAndDoesNotLogAMutation()
     {
         string instance = GrimoraCliRunner.NewTestInstance("finding-mcp");
-        string? previousInstanceEnv = Environment.GetEnvironmentVariable("Grimora_INSTANCE");
+        string? previousInstanceEnv = Environment.GetEnvironmentVariable("GRIMORA_INSTANCE");
         try
         {
             GrimoraCliRunner.Run($"init --instance {instance}");
 
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", instance);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", instance);
             string expected = (string)InvokeMcpLogFinding("finding-fixture-mcp", "detail-mcp", "source-mcp")!;
 
             string dbPath = GrimoraCliRunner.InstanceDbPath(instance);
@@ -90,7 +90,7 @@ public class FindingToolTests
         }
         finally
         {
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", previousInstanceEnv);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", previousInstanceEnv);
             GrimoraCliRunner.DeleteInstance(instance);
         }
     }

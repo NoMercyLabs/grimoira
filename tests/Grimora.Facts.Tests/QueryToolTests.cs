@@ -61,19 +61,19 @@ public partial class QueryToolTests
         }
     }
 
-    // mcp.cs's `fact` resolves its own connection from Grimora_INSTANCE (same pattern as HistoryToolTests'
+    // mcp.cs's `fact` resolves its own connection from GRIMORA_INSTANCE (same pattern as HistoryToolTests'
     // McpShapeMatchesTodaysMcpOutput).
     [Fact]
     public void McpShapeMatchesTodaysMcpOutputForAConfidentMatch()
     {
         string instance = GrimoraCliRunner.NewTestInstance("query-mcp-hit");
-        string? previousInstanceEnv = Environment.GetEnvironmentVariable("Grimora_INSTANCE");
+        string? previousInstanceEnv = Environment.GetEnvironmentVariable("GRIMORA_INSTANCE");
         try
         {
             GrimoraCliRunner.Run($"init --instance {instance}");
             GrimoraCliRunner.Run($"add --instance {instance} --term queryfixturemcp --value the-mcp-answer --category manual");
 
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", instance);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", instance);
             string expected = (string)InvokeMcpFact("queryfixturemcp")!;
 
             string dbPath = GrimoraCliRunner.InstanceDbPath(instance);
@@ -85,7 +85,7 @@ public partial class QueryToolTests
         }
         finally
         {
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", previousInstanceEnv);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", previousInstanceEnv);
             GrimoraCliRunner.DeleteInstance(instance);
         }
     }
@@ -94,12 +94,12 @@ public partial class QueryToolTests
     public void McpShapeReportsGapSuffixWhenNoMatch()
     {
         string instance = GrimoraCliRunner.NewTestInstance("query-mcp-gap");
-        string? previousInstanceEnv = Environment.GetEnvironmentVariable("Grimora_INSTANCE");
+        string? previousInstanceEnv = Environment.GetEnvironmentVariable("GRIMORA_INSTANCE");
         try
         {
             GrimoraCliRunner.Run($"init --instance {instance}");
 
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", instance);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", instance);
             string expected = (string)InvokeMcpFact("nothing-ever-matches-this-mcp-term")!;
 
             string dbPath = GrimoraCliRunner.InstanceDbPath(instance);
@@ -111,7 +111,7 @@ public partial class QueryToolTests
         }
         finally
         {
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", previousInstanceEnv);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", previousInstanceEnv);
             GrimoraCliRunner.DeleteInstance(instance);
         }
     }

@@ -11,7 +11,7 @@ namespace Grimora.Cli.Tests;
 /// <summary>
 /// RESTRUCTURE.md slice 29d, transport updated by Slice P1: Grimora.Cli is the thin client. Every verb except
 /// `hook ...` and `server install-logon/uninstall-logon` goes to <c>POST /cli</c> over the local pipe /
-/// Unix socket derived from <c>Grimora_DATA_DIR</c>, with <c>{args, cwd}</c> and the Claude-Project-Dir
+/// Unix socket derived from <c>GRIMORA_DATA_DIR</c>, with <c>{args, cwd}</c> and the Claude-Project-Dir
 /// header, and no token (Grimora holds no secret; only the current user can open the pipe); the answer's
 /// stdout, stderr and exitCode are passed through exactly. The server here is a stand-in /cli bound to the
 /// same pipe/socket a real Grimora.Server for this data dir would use, never the real 127.0.0.1:7635, so the
@@ -54,9 +54,9 @@ public sealed class ThinClientForwardsVerbsToTheServerTests : IAsyncLifetime
 
     private Dictionary<string, string> Env(string? projectDir = "", string? instance = "") => new()
     {
-        ["Grimora_SERVER_EXE"] = Path.Combine(_dataDir, "missing", "Grimora.Server.exe"),
+        ["GRIMORA_SERVER_EXE"] = Path.Combine(_dataDir, "missing", "Grimora.Server.exe"),
         ["CLAUDE_PROJECT_DIR"] = projectDir ?? "",
-        ["Grimora_INSTANCE"] = instance ?? "",
+        ["GRIMORA_INSTANCE"] = instance ?? "",
     };
 
     [Fact]

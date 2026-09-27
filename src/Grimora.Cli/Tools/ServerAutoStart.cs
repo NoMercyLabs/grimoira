@@ -44,12 +44,12 @@ public static class ServerAutoStart
         TimeSpan.FromMilliseconds(250));
 
     /// <summary>The data directory ("realm") Grimora.Server uses, and so the pipe/socket it is reached on is
-    /// derived from: <c>Grimora_DATA_DIR</c>, else <c>~/.grimora</c>.</summary>
+    /// derived from: <c>GRIMORA_DATA_DIR</c>, else <c>~/.grimora</c>.</summary>
     public static string DefaultDataDir() => ServerAddress.ResolveDataDir();
 
-    /// <summary>The server at <c>Grimora_SERVER_EXE</c>, else <see cref="DefaultServerPath"/> beside this CLI.</summary>
+    /// <summary>The server at <c>GRIMORA_SERVER_EXE</c>, else <see cref="DefaultServerPath"/> beside this CLI.</summary>
     public static string DefaultServerExe() =>
-        Environment.GetEnvironmentVariable("Grimora_SERVER_EXE") is { Length: > 0 } exe
+        Environment.GetEnvironmentVariable("GRIMORA_SERVER_EXE") is { Length: > 0 } exe
             ? exe
             : DefaultServerPath(AppContext.BaseDirectory);
 
@@ -97,7 +97,7 @@ public static class ServerAutoStart
             RedirectStandardError = !windows,
         };
         // The server serves every project through headers; it must not pin itself to this session's one.
-        string[] pinned = ["CLAUDE_PROJECT_DIR", "Grimora_INSTANCE"];
+        string[] pinned = ["CLAUDE_PROJECT_DIR", "GRIMORA_INSTANCE"];
         Dictionary<string, string?> saved = pinned.ToDictionary(n => n, Environment.GetEnvironmentVariable);
         try
         {

@@ -316,7 +316,7 @@ public partial class McpSnapshotParityTests
         ];
 
         // idp_token is deliberately NOT exercised here: RESTRUCTURE.md ("Handover tools must never
-        // run the real Python or login drivers in tests") — and on this box Grimora_ALLOW_TOKEN_MINT=1 is
+        // run the real Python or login drivers in tests") — and on this box GRIMORA_ALLOW_TOKEN_MINT=1 is
         // set in the ambient environment (the testbed convention the card's Handover note refers to),
         // so ANY call here would run the real node idp-impersonate.mjs against a live IdP
         // realm. It stays inline and unchanged (see IdPTokenStaysInlineUntilSlice28 in

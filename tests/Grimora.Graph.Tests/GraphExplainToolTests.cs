@@ -69,19 +69,19 @@ public class GraphExplainToolTests
     }
 
     // Ported from mcp-graph.test.mjs: 'graph_explain: shows the declaration site' / 'lists users grouped
-    // by project'. mcp.cs's graph_explain resolves its own connection from Grimora_INSTANCE.
+    // by project'. mcp.cs's graph_explain resolves its own connection from GRIMORA_INSTANCE.
     [Fact]
     public void McpShapeMatchesTodaysMcpOutputForARecordedSymbol()
     {
         string instance = GrimoraCliRunner.NewTestInstance("graph-explain-mcp-hit");
-        string? previousInstanceEnv = Environment.GetEnvironmentVariable("Grimora_INSTANCE");
+        string? previousInstanceEnv = Environment.GetEnvironmentVariable("GRIMORA_INSTANCE");
         try
         {
             string dbPath = GrimoraCliRunner.InstanceDbPath(instance);
             GrimoraCliRunner.Run($"init --instance {instance}");
             SeedFixture(dbPath);
 
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", instance);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", instance);
             string expected = (string)GraphQueryToolTests.InvokeMcp("graph_explain", "GraphFixtureWidget")!;
 
             using SqliteConnection connection = StoreConnection.Open(dbPath);
@@ -94,7 +94,7 @@ public class GraphExplainToolTests
         }
         finally
         {
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", previousInstanceEnv);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", previousInstanceEnv);
             GrimoraCliRunner.DeleteInstance(instance);
         }
     }
@@ -103,12 +103,12 @@ public class GraphExplainToolTests
     public void McpShapeReportsNoSymbolMatchForAnUnknownSymbol()
     {
         string instance = GrimoraCliRunner.NewTestInstance("graph-explain-mcp-unknown");
-        string? previousInstanceEnv = Environment.GetEnvironmentVariable("Grimora_INSTANCE");
+        string? previousInstanceEnv = Environment.GetEnvironmentVariable("GRIMORA_INSTANCE");
         try
         {
             GrimoraCliRunner.Run($"init --instance {instance}");
 
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", instance);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", instance);
             string expected = (string)GraphQueryToolTests.InvokeMcp("graph_explain", "never-indexed-mcp-symbol")!;
 
             string dbPath = GrimoraCliRunner.InstanceDbPath(instance);
@@ -120,7 +120,7 @@ public class GraphExplainToolTests
         }
         finally
         {
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", previousInstanceEnv);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", previousInstanceEnv);
             GrimoraCliRunner.DeleteInstance(instance);
         }
     }

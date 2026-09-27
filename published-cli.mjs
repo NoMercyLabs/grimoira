@@ -18,12 +18,12 @@ export function publishedCliDll(env, checkoutRoot) {
 
 /**
  * Runs `dotnet <cli> hook <event>` with stdin, stdout and stderr inherited, so the hook's input and output pass
- * through byte for byte, and returns its exit code. The plugin root goes along as Grimora_PLUGIN_ROOT, so a server
+ * through byte for byte, and returns its exit code. The plugin root goes along as GRIMORA_PLUGIN_ROOT, so a server
  * the hook starts finds the plugin files. A dotnet that cannot start fails open (0).
  */
 export function runCliHook(cli, event, pluginRoot) {
   const hook = spawnSync('dotnet', [cli, 'hook', event],
-    { stdio: 'inherit', windowsHide: true, env: { ...process.env, Grimora_PLUGIN_ROOT: pluginRoot } });
+    { stdio: 'inherit', windowsHide: true, env: { ...process.env, GRIMORA_PLUGIN_ROOT: pluginRoot } });
   return hook.error ? 0 : (hook.status ?? 0);
 }
 
@@ -34,6 +34,6 @@ export function runCliHook(cli, event, pluginRoot) {
  */
 export function runCliMcp(cli, pluginRoot) {
   const server = spawnSync('dotnet', [cli, 'mcp'],
-    { stdio: 'inherit', windowsHide: true, env: { ...process.env, Grimora_PLUGIN_ROOT: pluginRoot } });
+    { stdio: 'inherit', windowsHide: true, env: { ...process.env, GRIMORA_PLUGIN_ROOT: pluginRoot } });
   return server.error ? 0 : (server.status ?? 0);
 }

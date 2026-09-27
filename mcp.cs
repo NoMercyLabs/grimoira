@@ -14,7 +14,7 @@
 // Grimora MCP server: exposes the per-instance store (knowledge, the cross-project impact graph,
 // history, findings) as tools the agent calls every session. stdio transport; all host logging
 // disabled so only tool output reaches the client.
-// Instance resolves from Grimora_INSTANCE, else the project dir (CLAUDE_PROJECT_DIR or cwd) basename,
+// Instance resolves from GRIMORA_INSTANCE, else the project dir (CLAUDE_PROJECT_DIR or cwd) basename,
 // so the one user-scope server serves whatever repo the session runs in; store at ~/.grimora/<instance>/grimora.db.
 using System.ComponentModel;
 using System.Diagnostics;
@@ -103,7 +103,7 @@ public static class GrimoraTools
 
     private static string ResolveInstance()
     {
-        string? env = Environment.GetEnvironmentVariable("Grimora_INSTANCE");
+        string? env = Environment.GetEnvironmentVariable("GRIMORA_INSTANCE");
         if (!string.IsNullOrWhiteSpace(env)) return Slug(env);
         string? proj = Environment.GetEnvironmentVariable("CLAUDE_PROJECT_DIR");
         string dir = string.IsNullOrWhiteSpace(proj) ? Directory.GetCurrentDirectory() : proj;
@@ -147,10 +147,10 @@ public static class GrimoraTools
 
     // Locate the token-exchange engine (idp-impersonate.mjs) that ships alongside this source. The
     // compiled dll runs from bin/, so walk up from the assembly directory until the file appears; an
-    // explicit Grimora_HOME overrides. One origin for the exchange — the tool never reimplements it.
+    // explicit GRIMORA_HOME overrides. One origin for the exchange — the tool never reimplements it.
     private static string? EnginePath()
     {
-        string? home = Environment.GetEnvironmentVariable("Grimora_HOME");
+        string? home = Environment.GetEnvironmentVariable("GRIMORA_HOME");
         if (!string.IsNullOrEmpty(home))
         {
             string p = Path.Combine(home, "idp-impersonate.mjs");
@@ -167,13 +167,13 @@ public static class GrimoraTools
     }
 
     [McpServerTool]
-    [Description("INTERNAL TESTING. Get a test user token — use this whenever automated work needs a real user token (for an API/SignalR/test call) or you are blocked by a login screen. Mints a real IdP access token for a subject (user GUID, email, or username) via the supported token-exchange grant, with audience=nomercy-server so the media-server accepts it. Defaults to dev; pass realm=\"prod\". This is the ONLY sanctioned way to authenticate for automated work — never weaken/bypass auth or scrape a live session. To LOG A CLIENT IN (not just get a raw token) there are sibling scripts in the same grimora folder: idp-login-web.mjs (browser), idp-login-kmp.mjs (phone), idp-approve-device.mjs (TV); full guide in docs/test-login-and-token-exchange.md. GATED: this tool no-ops unless Grimora_ALLOW_TOKEN_MINT=1 (an always-on impersonation primitive is a large blast radius) — when gated, run the script directly instead. Never fabricates a user. Reads the nomercy-api secret from env or nomercy-tv/.env.")]
+    [Description("INTERNAL TESTING. Get a test user token — use this whenever automated work needs a real user token (for an API/SignalR/test call) or you are blocked by a login screen. Mints a real IdP access token for a subject (user GUID, email, or username) via the supported token-exchange grant, with audience=nomercy-server so the media-server accepts it. Defaults to dev; pass realm=\"prod\". This is the ONLY sanctioned way to authenticate for automated work — never weaken/bypass auth or scrape a live session. To LOG A CLIENT IN (not just get a raw token) there are sibling scripts in the same grimora folder: idp-login-web.mjs (browser), idp-login-kmp.mjs (phone), idp-approve-device.mjs (TV); full guide in docs/test-login-and-token-exchange.md. GATED: this tool no-ops unless GRIMORA_ALLOW_TOKEN_MINT=1 (an always-on impersonation primitive is a large blast radius) — when gated, run the script directly instead. Never fabricates a user. Reads the nomercy-api secret from env or nomercy-tv/.env.")]
     public static string idp_token(string subject, string realm = "dev")
     {
-        if (Environment.GetEnvironmentVariable("Grimora_ALLOW_TOKEN_MINT") != "1")
+        if (Environment.GetEnvironmentVariable("GRIMORA_ALLOW_TOKEN_MINT") != "1")
         {
             return "refused: token minting is gated. This tool impersonates a real user, so it is off by "
-                + "default. Set Grimora_ALLOW_TOKEN_MINT=1 to enable it here, or run the script directly: "
+                + "default. Set GRIMORA_ALLOW_TOKEN_MINT=1 to enable it here, or run the script directly: "
                 + "node idp-impersonate.mjs <subject> [--prod]. To LOG A CLIENT IN instead of getting a "
                 + "raw token, use the workspace login drivers (C:/Projects/NoMercy/.claude/work/tools/idp).";
         }
@@ -182,7 +182,7 @@ public static class GrimoraTools
         if (realm != "dev" && realm != "prod") return $"unknown realm \"{realm}\" — use \"dev\" or \"prod\".";
 
         string? engine = EnginePath();
-        if (engine == null) return "cannot locate idp-impersonate.mjs — set Grimora_HOME to the grimora checkout directory.";
+        if (engine == null) return "cannot locate idp-impersonate.mjs — set GRIMORA_HOME to the grimora checkout directory.";
 
         try
         {

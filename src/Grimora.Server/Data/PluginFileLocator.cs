@@ -3,7 +3,7 @@ namespace Grimora.Server.Data;
 /// <summary>
 /// Finds the files that ship in the plugin root (RESTRUCTURE.md slice 32a). An installed plugin runs the server
 /// from <c>${CLAUDE_PLUGIN_DATA}/current/bin-server</c>, outside the plugin root, so the folders above the
-/// server's own no longer hold them. The plugin root comes from, in order: <c>Grimora_PLUGIN_ROOT</c> (the
+/// server's own no longer hold them. The plugin root comes from, in order: <c>GRIMORA_PLUGIN_ROOT</c> (the
 /// SessionStart step passes it to the hook, and a server that hook starts inherits it), then
 /// <c>&lt;data&gt;/plugin-root.txt</c> (SessionStart writes it every session, for a
 /// server started by the logon task or a thin client). A root that no longer exists (an old plugin version
@@ -12,7 +12,7 @@ namespace Grimora.Server.Data;
 /// </summary>
 public static class PluginFileLocator
 {
-    public const string PluginRootVariable = "Grimora_PLUGIN_ROOT";
+    public const string PluginRootVariable = "GRIMORA_PLUGIN_ROOT";
 
     public const string PluginRootFile = "plugin-root.txt";
 
@@ -21,7 +21,7 @@ public static class PluginFileLocator
         Environment.GetEnvironmentVariable(PluginRootVariable) is { Length: > 0 } root ? root : null;
 
     /// <summary>
-    /// A script such as idp-impersonate.mjs: <paramref name="home"/> (Grimora_HOME) when set, then the plugin
+    /// A script such as idp-impersonate.mjs: <paramref name="home"/> (GRIMORA_HOME) when set, then the plugin
     /// root, then up to six folders up from <paramref name="baseDirectory"/>. Null when none has it.
     /// </summary>
     public static string? FindEngine(string fileName, string? home, string? pluginRoot, string baseDirectory)

@@ -148,7 +148,7 @@ public partial class CliFlagCoverageGuardTests
     // owns building/caching the oracle *binary*; this only needs the *source text* of one file.
     private static string ReadOracleSource()
     {
-        ProcessStartInfo psi = new("git", $"-C \"{RepoPaths.Root}\" show {OldVsNewCli.OracleCommit}:grimora.cs")
+        ProcessStartInfo psi = new("git", $"-C \"{RepoPaths.Root}\" show {OldVsNewCli.OracleCommit}:aitm.cs")
         {
             RedirectStandardOutput = true,
             UseShellExecute = false,
@@ -158,7 +158,7 @@ public partial class CliFlagCoverageGuardTests
         string stdout = process.StandardOutput.ReadToEnd();
         process.WaitForExit();
         if (process.ExitCode != 0)
-            throw new InvalidOperationException($"git show {OldVsNewCli.OracleCommit}:grimora.cs exited {process.ExitCode}");
+            throw new InvalidOperationException($"git show {OldVsNewCli.OracleCommit}:aitm.cs exited {process.ExitCode}");
         return stdout;
     }
 

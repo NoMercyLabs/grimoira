@@ -69,14 +69,14 @@ public class BrainPlaceToolTests
     public void McpShapeMatchesTodaysMcpOutputForAKnownKind()
     {
         string instance = GrimoraCliRunner.NewTestInstance("brain-place-mcp");
-        string? previousInstanceEnv = Environment.GetEnvironmentVariable("Grimora_INSTANCE");
+        string? previousInstanceEnv = Environment.GetEnvironmentVariable("GRIMORA_INSTANCE");
         try
         {
             string dbPath = GrimoraCliRunner.InstanceDbPath(instance);
             GrimoraCliRunner.Run($"init --instance {instance}");
             SeedPlacement(dbPath);
 
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", instance);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", instance);
             string expected = (string)McpDll.Invoke("brain_place", "vue-component")!;
 
             using SqliteConnection connection = StoreConnection.Open(dbPath);
@@ -87,7 +87,7 @@ public class BrainPlaceToolTests
         }
         finally
         {
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", previousInstanceEnv);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", previousInstanceEnv);
             GrimoraCliRunner.DeleteInstance(instance);
         }
     }
@@ -96,13 +96,13 @@ public class BrainPlaceToolTests
     public void McpShapeLogsAGapForAnUnknownKind()
     {
         string instance = GrimoraCliRunner.NewTestInstance("brain-place-mcp-unknown");
-        string? previousInstanceEnv = Environment.GetEnvironmentVariable("Grimora_INSTANCE");
+        string? previousInstanceEnv = Environment.GetEnvironmentVariable("GRIMORA_INSTANCE");
         try
         {
             string dbPath = GrimoraCliRunner.InstanceDbPath(instance);
             GrimoraCliRunner.Run($"init --instance {instance}");
 
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", instance);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", instance);
             string expected = (string)McpDll.Invoke("brain_place", "never-seen-codekind")!;
 
             using SqliteConnection connection = StoreConnection.Open(dbPath);
@@ -117,7 +117,7 @@ public class BrainPlaceToolTests
         }
         finally
         {
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", previousInstanceEnv);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", previousInstanceEnv);
             GrimoraCliRunner.DeleteInstance(instance);
         }
     }

@@ -70,13 +70,13 @@ public class ImpactToolTests
         }
     }
 
-    // mcp.cs's `impact` resolves its own connection from Grimora_INSTANCE (same pattern as
+    // mcp.cs's `impact` resolves its own connection from GRIMORA_INSTANCE (same pattern as
     // HistoryToolTests' McpShapeMatchesTodaysMcpOutput / QueryToolTests' InvokeMcpFact).
     [Fact]
     public void McpShapeMatchesTodaysMcpOutputForARecordedSymbol()
     {
         string instance = GrimoraCliRunner.NewTestInstance("impact-mcp-hit");
-        string? previousInstanceEnv = Environment.GetEnvironmentVariable("Grimora_INSTANCE");
+        string? previousInstanceEnv = Environment.GetEnvironmentVariable("GRIMORA_INSTANCE");
         try
         {
             string dbPath = GrimoraCliRunner.InstanceDbPath(instance);
@@ -84,7 +84,7 @@ public class ImpactToolTests
             SeedEdge(dbPath, "has_more_mcp", "web", "src/list.ts", 1, "page.has_more_mcp", "PaginatedResponse", hardcoded: 1);
             SeedEdge(dbPath, "has_more_mcp", "api", "src/dto.ts", 2, "", "PaginatedResponse", hardcoded: 0);
 
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", instance);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", instance);
             string expected = (string)InvokeMcpImpact("has_more_mcp")!;
 
             using SqliteConnection connection = StoreConnection.Open(dbPath);
@@ -95,7 +95,7 @@ public class ImpactToolTests
         }
         finally
         {
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", previousInstanceEnv);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", previousInstanceEnv);
             GrimoraCliRunner.DeleteInstance(instance);
         }
     }
@@ -104,12 +104,12 @@ public class ImpactToolTests
     public void McpShapeReportsNoRecordedConsumersForAnUnknownSymbol()
     {
         string instance = GrimoraCliRunner.NewTestInstance("impact-mcp-unknown");
-        string? previousInstanceEnv = Environment.GetEnvironmentVariable("Grimora_INSTANCE");
+        string? previousInstanceEnv = Environment.GetEnvironmentVariable("GRIMORA_INSTANCE");
         try
         {
             GrimoraCliRunner.Run($"init --instance {instance}");
 
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", instance);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", instance);
             string expected = (string)InvokeMcpImpact("never-indexed-mcp-symbol")!;
 
             string dbPath = GrimoraCliRunner.InstanceDbPath(instance);
@@ -121,7 +121,7 @@ public class ImpactToolTests
         }
         finally
         {
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", previousInstanceEnv);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", previousInstanceEnv);
             GrimoraCliRunner.DeleteInstance(instance);
         }
     }

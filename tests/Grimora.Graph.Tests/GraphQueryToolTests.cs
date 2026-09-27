@@ -70,19 +70,19 @@ public class GraphQueryToolTests
     }
 
     // Ported from mcp-graph.test.mjs: 'graph_query: finds the fixture symbol' / 'groups it under its
-    // home project'. mcp.cs's graph_query resolves its own connection from Grimora_INSTANCE.
+    // home project'. mcp.cs's graph_query resolves its own connection from GRIMORA_INSTANCE.
     [Fact]
     public void McpShapeMatchesTodaysMcpOutputForAMatchingQuestion()
     {
         string instance = GrimoraCliRunner.NewTestInstance("graph-query-mcp-hit");
-        string? previousInstanceEnv = Environment.GetEnvironmentVariable("Grimora_INSTANCE");
+        string? previousInstanceEnv = Environment.GetEnvironmentVariable("GRIMORA_INSTANCE");
         try
         {
             string dbPath = GrimoraCliRunner.InstanceDbPath(instance);
             GrimoraCliRunner.Run($"init --instance {instance}");
             SeedFixture(dbPath);
 
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", instance);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", instance);
             string expected = (string)InvokeMcp("graph_query", "GraphFixtureWidget")!;
 
             using SqliteConnection connection = StoreConnection.Open(dbPath);
@@ -94,7 +94,7 @@ public class GraphQueryToolTests
         }
         finally
         {
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", previousInstanceEnv);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", previousInstanceEnv);
             GrimoraCliRunner.DeleteInstance(instance);
         }
     }

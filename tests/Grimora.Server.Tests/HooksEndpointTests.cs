@@ -34,8 +34,8 @@ public sealed class HooksEndpointTests : IDisposable
 
     private WebApplicationFactory<Program> Factory()
     {
-        Environment.SetEnvironmentVariable("Grimora_DATA_DIR", _dataDir);
-        Environment.SetEnvironmentVariable("Grimora_SERVER_PORT", Port);
+        Environment.SetEnvironmentVariable("GRIMORA_DATA_DIR", _dataDir);
+        Environment.SetEnvironmentVariable("GRIMORA_SERVER_PORT", Port);
         return new WebApplicationFactory<Program>();
     }
 
@@ -72,7 +72,7 @@ public sealed class HooksEndpointTests : IDisposable
         psi.Environment["CLAUDE_PROJECT_DIR"] = _projectDir;
         // The CLI sends SessionEnd and PostToolUse on to a server; this factory's server listens on no pipe,
         // so those events reach nothing and fail open, and never the live server on the default data dir's pipe.
-        psi.Environment["Grimora_DATA_DIR"] = _dataDir;
+        psi.Environment["GRIMORA_DATA_DIR"] = _dataDir;
         using Process process = Process.Start(psi)!;
         process.StandardInput.Write(payload);
         process.StandardInput.Close();
@@ -325,8 +325,8 @@ public sealed class HooksEndpointTests : IDisposable
 
     public void Dispose()
     {
-        Environment.SetEnvironmentVariable("Grimora_DATA_DIR", null);
-        Environment.SetEnvironmentVariable("Grimora_SERVER_PORT", null);
+        Environment.SetEnvironmentVariable("GRIMORA_DATA_DIR", null);
+        Environment.SetEnvironmentVariable("GRIMORA_SERVER_PORT", null);
         SqliteConnection.ClearAllPools();
         GrimoraCliRunner.DeleteInstance(_instance);
         try { Directory.Delete(_dataDir, recursive: true); } catch { /* best effort cleanup */ }

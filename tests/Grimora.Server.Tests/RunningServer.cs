@@ -27,9 +27,9 @@ internal sealed class RunningServer : IDisposable
     {
         ProcessStartInfo psi = new("dotnet") { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true };
         psi.ArgumentList.Add(Path.Combine(ServerDir, "Grimora.Server.dll"));
-        psi.Environment["Grimora_DATA_DIR"] = dataDir;
+        psi.Environment["GRIMORA_DATA_DIR"] = dataDir;
         psi.Environment.Remove("CLAUDE_PROJECT_DIR");
-        psi.Environment.Remove("Grimora_INSTANCE");
+        psi.Environment.Remove("GRIMORA_INSTANCE");
         Process process = Process.Start(psi)!;
         _ = process.StandardOutput.ReadToEndAsync();
         _ = process.StandardError.ReadToEndAsync();

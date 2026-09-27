@@ -60,22 +60,22 @@ public class HistoryToolTests
         }
     }
 
-    // mcp.cs's `history` (mcp.cs:871-882) resolves its own connection from Grimora_INSTANCE, so the oracle
+    // mcp.cs's `history` (mcp.cs:871-882) resolves its own connection from GRIMORA_INSTANCE, so the oracle
     // call and the new tool's call both go through the same env var, never in parallel with another
     // test that touches it (xunit runs test *methods* within a class sequentially by default; this is
-    // the only class in this assembly that mutates Grimora_INSTANCE).
+    // the only class in this assembly that mutates GRIMORA_INSTANCE).
     [Fact]
     public void McpShapeMatchesTodaysMcpOutput()
     {
         string instance = GrimoraCliRunner.NewTestInstance("history-mcp");
-        string? previousInstanceEnv = Environment.GetEnvironmentVariable("Grimora_INSTANCE");
+        string? previousInstanceEnv = Environment.GetEnvironmentVariable("GRIMORA_INSTANCE");
         try
         {
             GrimoraCliRunner.Run($"init --instance {instance}");
             GrimoraCliRunner.Run($"add --instance {instance} --term history-fixture-mcp --value one --category manual");
             GrimoraCliRunner.Run($"add --instance {instance} --term history-fixture-mcp --value two --category manual");
 
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", instance);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", instance);
             string expected = (string)InvokeMcpHistory("history-fixture-mcp")!;
 
             string dbPath = GrimoraCliRunner.InstanceDbPath(instance);
@@ -87,7 +87,7 @@ public class HistoryToolTests
         }
         finally
         {
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", previousInstanceEnv);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", previousInstanceEnv);
             GrimoraCliRunner.DeleteInstance(instance);
         }
     }

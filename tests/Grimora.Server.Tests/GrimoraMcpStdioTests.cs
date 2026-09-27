@@ -26,8 +26,8 @@ public sealed class GrimoraMcpStdioTests : IDisposable
     {
         Dictionary<string, string?> env = new()
         {
-            ["Grimora_DATA_DIR"] = _dataDir,
-            ["Grimora_INSTANCE"] = Instance,
+            ["GRIMORA_DATA_DIR"] = _dataDir,
+            ["GRIMORA_INSTANCE"] = Instance,
         };
         if (extraEnv is not null) foreach ((string k, string? v) in extraEnv) env[k] = v;
         return McpClient.CreateAsync(new StdioClientTransport(new StdioClientTransportOptions
@@ -86,8 +86,8 @@ public sealed class GrimoraMcpStdioTests : IDisposable
         };
         psi.ArgumentList.Add(RunningServer.CliDll);
         psi.ArgumentList.Add("mcp");
-        psi.Environment["Grimora_DATA_DIR"] = _dataDir;
-        psi.Environment["Grimora_INSTANCE"] = Instance;
+        psi.Environment["GRIMORA_DATA_DIR"] = _dataDir;
+        psi.Environment["GRIMORA_INSTANCE"] = Instance;
         using Process cli = Process.Start(psi)!;
         Task<string> stderr = cli.StandardError.ReadToEndAsync();
 
@@ -125,8 +125,8 @@ public sealed class GrimoraMcpStdioTests : IDisposable
         ProcessStartInfo psi = new("dotnet") { UseShellExecute = false, RedirectStandardInput = true, RedirectStandardOutput = true, RedirectStandardError = true };
         psi.ArgumentList.Add(RunningServer.CliDll);
         psi.ArgumentList.Add("mcp");
-        psi.Environment["Grimora_DATA_DIR"] = _dataDir;
-        psi.Environment["Grimora_SERVER_EXE"] = Path.Combine(_dataDir, "no-such-server.exe");
+        psi.Environment["GRIMORA_DATA_DIR"] = _dataDir;
+        psi.Environment["GRIMORA_SERVER_EXE"] = Path.Combine(_dataDir, "no-such-server.exe");
         using Process cli = Process.Start(psi)!;
         Task<string> stdout = cli.StandardOutput.ReadToEndAsync();
         Task<string> stderr = cli.StandardError.ReadToEndAsync();

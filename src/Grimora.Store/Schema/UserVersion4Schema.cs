@@ -9,7 +9,7 @@ namespace Grimora.Store.Schema;
 /// version."
 ///
 /// The gate: this step is a no-op — <see cref="Statements"/> is empty — unless the environment variable
-/// <see cref="Gate"/> ("<c>Grimora_PHASE3_COMPLETE</c>") is set to <c>"1"</c>. Nothing in this repo sets
+/// <see cref="Gate"/> ("<c>GRIMORA_PHASE3_COMPLETE</c>") is set to <c>"1"</c>. Nothing in this repo sets
 /// it, and nothing in this repo's pipelines (<c>IndexCodeSessionEndTool</c>, <c>InitFull</c>, or any
 /// other <see cref="SchemaRunner.Run"/> call site) applies this provider yet. It exists, ready, for
 /// slice 33 ("Cleanup" — deletes grimora.cs, mcp.cs, launch-mcp.mjs) to flip the gate on and wire this step
@@ -18,7 +18,7 @@ namespace Grimora.Store.Schema;
 public sealed class UserVersion4Schema : ISchemaProvider
 {
     /// <summary>The environment variable that must be <c>"1"</c> for this step to do anything.</summary>
-    public const string Gate = "Grimora_PHASE3_COMPLETE";
+    public const string Gate = "GRIMORA_PHASE3_COMPLETE";
 
     public string Name => "UserVersion4";
 

@@ -36,9 +36,9 @@ public sealed class ThinClientAgainstTheRunningServerTests : IDisposable
     {
         ProcessStartInfo psi = new("dotnet") { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true };
         psi.ArgumentList.Add(Path.Combine(ServerDir, "Grimora.Server.dll"));
-        psi.Environment["Grimora_DATA_DIR"] = _dataDir;
+        psi.Environment["GRIMORA_DATA_DIR"] = _dataDir;
         psi.Environment.Remove("CLAUDE_PROJECT_DIR");
-        psi.Environment.Remove("Grimora_INSTANCE");
+        psi.Environment.Remove("GRIMORA_INSTANCE");
         Process process = Process.Start(psi)!;
         _servers.Add(process);
         Stopwatch sw = Stopwatch.StartNew();
@@ -73,10 +73,10 @@ public sealed class ThinClientAgainstTheRunningServerTests : IDisposable
         ProcessStartInfo psi = new("dotnet") { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true, RedirectStandardInput = true };
         psi.ArgumentList.Add(CliDll);
         foreach (string a in args) psi.ArgumentList.Add(a);
-        psi.Environment["Grimora_DATA_DIR"] = _dataDir;
-        psi.Environment["Grimora_SERVER_EXE"] = serverExe ?? Path.Combine(_dataDir, "missing", "Grimora.Server.exe");
+        psi.Environment["GRIMORA_DATA_DIR"] = _dataDir;
+        psi.Environment["GRIMORA_SERVER_EXE"] = serverExe ?? Path.Combine(_dataDir, "missing", "Grimora.Server.exe");
         psi.Environment["CLAUDE_PROJECT_DIR"] = _projectDir;
-        psi.Environment.Remove("Grimora_INSTANCE");
+        psi.Environment.Remove("GRIMORA_INSTANCE");
         using Process p = Process.Start(psi)!;
         p.StandardInput.Close();
         Task<string> stdout = p.StandardOutput.ReadToEndAsync();

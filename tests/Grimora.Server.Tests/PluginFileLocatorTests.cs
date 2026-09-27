@@ -5,7 +5,7 @@ namespace Grimora.Server.Tests;
 
 // RESTRUCTURE.md slice 32a: an installed plugin runs the server from ${CLAUDE_PLUGIN_DATA}/current/bin-server,
 // outside the plugin root. Files that ship in the plugin root (idp-impersonate.mjs, seeds/spine.json)
-// are found through the plugin root the SessionStart step passes as Grimora_PLUGIN_ROOT; Grimora_HOME still wins for
+// are found through the plugin root the SessionStart step passes as GRIMORA_PLUGIN_ROOT; GRIMORA_HOME still wins for
 // the engine, and a checkout build still finds them next to or above its own folder.
 public class PluginFileLocatorTests : IDisposable
 {
@@ -54,7 +54,7 @@ public class PluginFileLocatorTests : IDisposable
             PluginFileLocator.FindEngine("idp-impersonate.mjs", home: null, pluginRoot: null, serverDir));
     }
 
-    // A server started by the logon task or a thin client has no Grimora_PLUGIN_ROOT. SessionStart records the
+    // A server started by the logon task or a thin client has no GRIMORA_PLUGIN_ROOT. SessionStart records the
     // plugin root in <data>/plugin-root.txt, two folders above the server's own (builds/<id>/bin-server, or
     // current/bin-server through the junction).
     [Theory]

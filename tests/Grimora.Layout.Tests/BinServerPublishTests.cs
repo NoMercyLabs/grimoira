@@ -52,7 +52,7 @@ public class BinServerPublishTests
             CreateNoWindow = true,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
-            Environment = { ["Grimora_DATA_DIR"] = dataDir },
+            Environment = { ["GRIMORA_DATA_DIR"] = dataDir },
         };
 
         using Process process = Process.Start(psi) ?? throw new InvalidOperationException($"could not start {exe}");

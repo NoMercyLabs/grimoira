@@ -122,11 +122,11 @@ test('the hook gets the plugin root, so a server it starts can find the plugin f
     run(f);
     build(f);
     const { calls } = run(f);
-    assert.equal(calls.hookEnv[0].Grimora_PLUGIN_ROOT, f.root);
+    assert.equal(calls.hookEnv[0].GRIMORA_PLUGIN_ROOT, f.root);
   } finally { f.clean(); }
 });
 
-// A server started without the hook (the logon task, a thin client of another slot) has no Grimora_PLUGIN_ROOT,
+// A server started without the hook (the logon task, a thin client of another slot) has no GRIMORA_PLUGIN_ROOT,
 // so every SessionStart also records the plugin root in the data folder, where the server finds it.
 test('every SessionStart records the plugin root in the data folder, building or not', () => {
   const f = fixture();

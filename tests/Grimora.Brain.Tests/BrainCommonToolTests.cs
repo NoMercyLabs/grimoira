@@ -69,14 +69,14 @@ public class BrainCommonToolTests
     public void McpShapeMatchesTodaysMcpOutputForSharedTopic()
     {
         string instance = GrimoraCliRunner.NewTestInstance("brain-common-mcp");
-        string? previousInstanceEnv = Environment.GetEnvironmentVariable("Grimora_INSTANCE");
+        string? previousInstanceEnv = Environment.GetEnvironmentVariable("GRIMORA_INSTANCE");
         try
         {
             string dbPath = GrimoraCliRunner.InstanceDbPath(instance);
             GrimoraCliRunner.Run($"init --instance {instance}");
             SeedSharedTopic(dbPath);
 
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", instance);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", instance);
             string expected = (string)McpDll.Invoke("brain_common", "proj:web proj:api")!;
 
             using SqliteConnection connection = StoreConnection.Open(dbPath);
@@ -87,7 +87,7 @@ public class BrainCommonToolTests
         }
         finally
         {
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", previousInstanceEnv);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", previousInstanceEnv);
             GrimoraCliRunner.DeleteInstance(instance);
         }
     }
@@ -96,13 +96,13 @@ public class BrainCommonToolTests
     public void McpShapeReportsGiveTwoProjectsWithOneGiven()
     {
         string instance = GrimoraCliRunner.NewTestInstance("brain-common-mcp-usage");
-        string? previousInstanceEnv = Environment.GetEnvironmentVariable("Grimora_INSTANCE");
+        string? previousInstanceEnv = Environment.GetEnvironmentVariable("GRIMORA_INSTANCE");
         try
         {
             string dbPath = GrimoraCliRunner.InstanceDbPath(instance);
             GrimoraCliRunner.Run($"init --instance {instance}");
 
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", instance);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", instance);
             string expected = (string)McpDll.Invoke("brain_common", "proj:web")!;
 
             using SqliteConnection connection = StoreConnection.Open(dbPath);
@@ -113,7 +113,7 @@ public class BrainCommonToolTests
         }
         finally
         {
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", previousInstanceEnv);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", previousInstanceEnv);
             GrimoraCliRunner.DeleteInstance(instance);
         }
     }

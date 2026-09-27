@@ -27,7 +27,7 @@ public static class CliDispatch
     /// request (<paramref name="instance"/>), the store root is the server's data directory, and the verb
     /// runs on the project's one open connection (<see cref="ProjectHandle.Connection"/>, held under its
     /// gate by the caller) instead of opening a second connection of its own. The process environment
-    /// (Grimora_INSTANCE, CLAUDE_PROJECT_DIR) is never read, so the server's env cannot pin a request.</summary>
+    /// (GRIMORA_INSTANCE, CLAUDE_PROJECT_DIR) is never read, so the server's env cannot pin a request.</summary>
     internal static int RunOnStore(string[] args, string cwd, TextWriter stdout, TextWriter stderr,
         string instance, string dataDir, SqliteConnection connection)
         => new Dispatcher(args, cwd, stdout, stderr, instance, dataDir, connection).Dispatch();
@@ -371,11 +371,11 @@ public static class CliDispatch
         // the flag-audit guard reads the verbs' flags from it.
         private string? GetFlag(string name) => FlagValue(a, name);
 
-        // Generic instance resolution (explicit --instance already won at the call site): Grimora_INSTANCE,
+        // Generic instance resolution (explicit --instance already won at the call site): GRIMORA_INSTANCE,
         // else the project dir (CLAUDE_PROJECT_DIR or cwd) basename — the same binary serves any repo, no config.
         private string ResolveInstance()
         {
-            string? env = Environment.GetEnvironmentVariable("Grimora_INSTANCE");
+            string? env = Environment.GetEnvironmentVariable("GRIMORA_INSTANCE");
             if (!string.IsNullOrWhiteSpace(env)) return Slug(env);
             string? proj = Environment.GetEnvironmentVariable("CLAUDE_PROJECT_DIR");
             string dir = string.IsNullOrWhiteSpace(proj) ? cwd : proj;

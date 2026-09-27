@@ -69,14 +69,14 @@ public class BrainImpactToolTests
     public void McpShapeMatchesTodaysMcpOutputForAKnownConsumer()
     {
         string instance = GrimoraCliRunner.NewTestInstance("brain-impact-mcp");
-        string? previousInstanceEnv = Environment.GetEnvironmentVariable("Grimora_INSTANCE");
+        string? previousInstanceEnv = Environment.GetEnvironmentVariable("GRIMORA_INSTANCE");
         try
         {
             string dbPath = GrimoraCliRunner.InstanceDbPath(instance);
             GrimoraCliRunner.Run($"init --instance {instance}");
             SeedConsumer(dbPath);
 
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", instance);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", instance);
             string expected = (string)McpDll.Invoke("brain_impact", "device_id")!;
 
             using SqliteConnection connection = StoreConnection.Open(dbPath);
@@ -87,7 +87,7 @@ public class BrainImpactToolTests
         }
         finally
         {
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", previousInstanceEnv);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", previousInstanceEnv);
             GrimoraCliRunner.DeleteInstance(instance);
         }
     }

@@ -14,10 +14,10 @@ namespace Grimora.Store.Data;
 /// secret scrubber does not use them: it fails closed instead, see <c>SecretScrubber</c>.)
 ///
 /// Grimora.Cli compiles this file as a linked copy (it references no Grimora project) and defines
-/// Grimora_CLI_LINKED so its copy stays internal and the two assemblies never expose the same public type to a
+/// GRIMORA_CLI_LINKED so its copy stays internal and the two assemblies never expose the same public type to a
 /// project that references both.
 /// </summary>
-#if Grimora_CLI_LINKED
+#if GRIMORA_CLI_LINKED
 internal static class RegexTimeout
 #else
 public static class RegexTimeout

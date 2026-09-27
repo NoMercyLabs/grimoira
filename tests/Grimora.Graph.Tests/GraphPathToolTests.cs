@@ -68,19 +68,19 @@ public class GraphPathToolTests
     }
 
     // Ported from mcp-graph.test.mjs: 'graph_path: finds the 2-hop path' / 'unresolvable symbol refuses
-    // cleanly'. mcp.cs's graph_path resolves its own connection from Grimora_INSTANCE.
+    // cleanly'. mcp.cs's graph_path resolves its own connection from GRIMORA_INSTANCE.
     [Fact]
     public void McpShapeMatchesTodaysMcpOutputForTheTwoHopPath()
     {
         string instance = GrimoraCliRunner.NewTestInstance("graph-path-mcp-hit");
-        string? previousInstanceEnv = Environment.GetEnvironmentVariable("Grimora_INSTANCE");
+        string? previousInstanceEnv = Environment.GetEnvironmentVariable("GRIMORA_INSTANCE");
         try
         {
             string dbPath = GrimoraCliRunner.InstanceDbPath(instance);
             GrimoraCliRunner.Run($"init --instance {instance}");
             SeedPathFixture(dbPath);
 
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", instance);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", instance);
             string expected = (string)GraphQueryToolTests.InvokeMcp("graph_path", "GraphPathFixtureA", "GraphPathFixtureB")!;
 
             using SqliteConnection connection = StoreConnection.Open(dbPath);
@@ -91,7 +91,7 @@ public class GraphPathToolTests
         }
         finally
         {
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", previousInstanceEnv);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", previousInstanceEnv);
             GrimoraCliRunner.DeleteInstance(instance);
         }
     }
@@ -100,14 +100,14 @@ public class GraphPathToolTests
     public void McpShapeRefusesCleanlyForAnUnresolvableSymbol()
     {
         string instance = GrimoraCliRunner.NewTestInstance("graph-path-mcp-miss");
-        string? previousInstanceEnv = Environment.GetEnvironmentVariable("Grimora_INSTANCE");
+        string? previousInstanceEnv = Environment.GetEnvironmentVariable("GRIMORA_INSTANCE");
         try
         {
             string dbPath = GrimoraCliRunner.InstanceDbPath(instance);
             GrimoraCliRunner.Run($"init --instance {instance}");
             SeedPathFixture(dbPath);
 
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", instance);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", instance);
             string expected = (string)GraphQueryToolTests.InvokeMcp("graph_path", "NoSuchSymbolEver", "GraphPathFixtureA")!;
 
             using SqliteConnection connection = StoreConnection.Open(dbPath);
@@ -118,7 +118,7 @@ public class GraphPathToolTests
         }
         finally
         {
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", previousInstanceEnv);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", previousInstanceEnv);
             GrimoraCliRunner.DeleteInstance(instance);
         }
     }

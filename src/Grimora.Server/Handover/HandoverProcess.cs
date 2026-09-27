@@ -16,7 +16,7 @@ internal static class HandoverProcess
 {
     internal static string RunPython(IProcessRunner runner, string script, IReadOnlyList<string> scriptArguments, string workingDirectory, string operation, TimeSpan timeout)
     {
-        string python = Environment.GetEnvironmentVariable("Grimora_PYTHON")
+        string python = Environment.GetEnvironmentVariable("GRIMORA_PYTHON")
             ?? (OperatingSystem.IsWindows() ? "python" : "python3");
         List<string> args = [script, .. scriptArguments];
         try
@@ -35,7 +35,7 @@ internal static class HandoverProcess
         }
         catch (Exception)
         {
-            return $"Could not start {operation.ToLowerInvariant()}. Check Python availability or configure Grimora_PYTHON.";
+            return $"Could not start {operation.ToLowerInvariant()}. Check Python availability or configure GRIMORA_PYTHON.";
         }
     }
 

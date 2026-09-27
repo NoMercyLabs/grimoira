@@ -137,7 +137,7 @@ public static class McpToolFactory
     {
         string Invoke(string subject, string realm = "dev")
         {
-            bool mintAllowed = Environment.GetEnvironmentVariable("Grimora_ALLOW_TOKEN_MINT") == "1";
+            bool mintAllowed = Environment.GetEnvironmentVariable("GRIMORA_ALLOW_TOKEN_MINT") == "1";
             string? engineScriptPath = EnginePath();
             return tool.Execute(subject, realm, engineScriptPath ?? "", dataDir, mintAllowed, runner);
         }
@@ -157,9 +157,9 @@ public static class McpToolFactory
         return Invoke;
     }
 
-    // Mirrors mcp.cs's EnginePath(): locates idp-impersonate.mjs at Grimora_HOME when set, in the plugin root
+    // Mirrors mcp.cs's EnginePath(): locates idp-impersonate.mjs at GRIMORA_HOME when set, in the plugin root
     // (slice 32a: the installed server runs from the data folder), or beside the running binary. Returns null
     // (never throws) so IdPTokenTool reports the same "cannot locate" message it always has for a missing engine.
     private static string? EnginePath() => PluginFileLocator.FindEngine("idp-impersonate.mjs",
-        Environment.GetEnvironmentVariable("Grimora_HOME"), PluginFileLocator.PluginRoot(), AppContext.BaseDirectory);
+        Environment.GetEnvironmentVariable("GRIMORA_HOME"), PluginFileLocator.PluginRoot(), AppContext.BaseDirectory);
 }

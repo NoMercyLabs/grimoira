@@ -11,7 +11,7 @@ namespace Grimora.Cli.Tools;
 /// start it reads the tool list from the service (<c>GET /tools</c>, over the pipe of <see cref="PipeConnection"/>,
 /// starting the service through <see cref="ServerAutoStart"/> when it is down) and serves exactly that list;
 /// each call is forwarded to <c>POST /tools/{name}</c> with the <c>Claude-Project-Dir</c> header (and
-/// <c>Grimora-Instance</c> when Grimora_INSTANCE is set), so the service resolves the project and stays the one writer.
+/// <c>Grimora-Instance</c> when GRIMORA_INSTANCE is set), so the service resolves the project and stays the one writer.
 ///
 /// stdout is the protocol stream: this class writes nothing to it except through the SDK's stdio transport.
 /// Diagnostics go to stderr. A failed call is an MCP tool error (<c>isError</c>), never a crash.
@@ -26,7 +26,7 @@ public static class McpBridge
     public static int RunDefault(Stream stdin, Stream stdout, TextWriter stderr) => Run(
         ServerAddress.ResolveDataDir(),
         Directory.GetCurrentDirectory(),
-        Environment.GetEnvironmentVariable("Grimora_INSTANCE"),
+        Environment.GetEnvironmentVariable("GRIMORA_INSTANCE"),
         Environment.GetEnvironmentVariable("CLAUDE_PROJECT_DIR"),
         ServerAutoStart.EnsureRunning,
         ServerAutoStart.DefaultServerExe(),

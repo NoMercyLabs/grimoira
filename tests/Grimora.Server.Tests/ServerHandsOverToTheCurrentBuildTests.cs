@@ -111,9 +111,9 @@ public sealed class ServerHandsOverToTheCurrentBuildTests : IClassFixture<Server
     {
         ProcessStartInfo psi = new("dotnet") { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true };
         psi.ArgumentList.Add(Path.Combine(_builds.BuildDir(stamp), "bin-server", "Grimora.Server.dll"));
-        psi.Environment["Grimora_DATA_DIR"] = _dataDir;
+        psi.Environment["GRIMORA_DATA_DIR"] = _dataDir;
         psi.Environment.Remove("CLAUDE_PROJECT_DIR");
-        psi.Environment.Remove("Grimora_INSTANCE");
+        psi.Environment.Remove("GRIMORA_INSTANCE");
         Process process = Process.Start(psi)!;
         process.OutputDataReceived += (_, _) => { };
         process.ErrorDataReceived += (_, _) => { };
@@ -171,10 +171,10 @@ public sealed class ServerHandsOverToTheCurrentBuildTests : IClassFixture<Server
         psi.ArgumentList.Add(Path.Combine(_builds.Current, "bin-cli", "grimora.dll"));
         psi.ArgumentList.Add("hook");
         psi.ArgumentList.Add("SessionStart");
-        psi.Environment["Grimora_DATA_DIR"] = _dataDir;
-        psi.Environment.Remove("Grimora_SERVER_EXE"); // the server beside the CLI: current/bin-server
+        psi.Environment["GRIMORA_DATA_DIR"] = _dataDir;
+        psi.Environment.Remove("GRIMORA_SERVER_EXE"); // the server beside the CLI: current/bin-server
         psi.Environment.Remove("CLAUDE_PROJECT_DIR");
-        psi.Environment.Remove("Grimora_INSTANCE");
+        psi.Environment.Remove("GRIMORA_INSTANCE");
         using Process p = Process.Start(psi)!;
         p.StandardInput.Close();
         Task<string> stdout = p.StandardOutput.ReadToEndAsync();

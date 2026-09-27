@@ -7,7 +7,7 @@ namespace Grimora.Server.Data;
 /// an explicit instance (an <c>--instance</c> arg on /cli, else the <c>Grimora-Instance</c> header), then the
 /// <c>Claude-Project-Dir</c> header, then the request's own cwd (the /cli body <c>cwd</c>, the /hooks payload
 /// <c>cwd</c>), then the server's current directory. The two headers are the header-cased form of the
-/// Grimora_INSTANCE / CLAUDE_PROJECT_DIR env vars the stdio hosts (mcp.cs, grimora.cs) read, and the name goes
+/// GRIMORA_INSTANCE / CLAUDE_PROJECT_DIR env vars the stdio hosts (mcp.cs, grimora.cs) read, and the name goes
 /// through <see cref="StoreConnection.ResolveInstance(string?, string?, string)"/> so every host slugs it the
 /// same way.
 ///

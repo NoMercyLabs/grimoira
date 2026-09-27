@@ -42,11 +42,11 @@ public sealed class OnDemandServiceTests : IDisposable
         ProcessStartInfo psi = new("dotnet") { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true, RedirectStandardInput = true };
         psi.ArgumentList.Add(CliDll);
         foreach (string a in args) psi.ArgumentList.Add(a);
-        psi.Environment["Grimora_DATA_DIR"] = _dataDir;
-        psi.Environment["Grimora_SERVER_EXE"] = ServerExe;
+        psi.Environment["GRIMORA_DATA_DIR"] = _dataDir;
+        psi.Environment["GRIMORA_SERVER_EXE"] = ServerExe;
         psi.Environment["CLAUDE_PROJECT_DIR"] = _projectDir;
-        psi.Environment.Remove("Grimora_INSTANCE");
-        if (idleSeconds > 0) psi.Environment["Grimora_IDLE_SECONDS"] = idleSeconds.ToString();
+        psi.Environment.Remove("GRIMORA_INSTANCE");
+        if (idleSeconds > 0) psi.Environment["GRIMORA_IDLE_SECONDS"] = idleSeconds.ToString();
         using Process p = Process.Start(psi)!;
         p.StandardInput.Write("{}");
         p.StandardInput.Close();

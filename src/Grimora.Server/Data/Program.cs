@@ -1,5 +1,6 @@
 using System.Reflection;
 using Grimora.Server.Data;
+using Grimora.Store.Data;
 using ModelContextProtocol.Server;
 
 // The service is reached only through a local pipe (Windows) or Unix socket, current user only: no TCP, no
@@ -7,6 +8,9 @@ using ModelContextProtocol.Server;
 // (ProcessOwner). An old server.token file is ignored, never deleted. /mcp: mcp.cs stays the live host until
 // phase 3 switches over.
 
+LegacyEnvironment.Promote();
+if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("GRIMORA_DATA_DIR")))
+    LegacyStore.MoveIfNeeded(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
 string dataDir = ServerAddress.ResolveDataDir();
 string projectRoot = Environment.GetEnvironmentVariable("CLAUDE_PROJECT_DIR") ?? Directory.GetCurrentDirectory();
 
@@ -47,7 +51,7 @@ else
     if (System.Text.Encoding.UTF8.GetByteCount(unixSocketPath!) > 100)
     {
         // sun_path holds about 104 bytes; a longer path fails in the kernel with a raw exception.
-        Console.Error.WriteLine($"Grimora.Server: the socket path is too long ({unixSocketPath}); set Grimora_DATA_DIR to a shorter folder.");
+        Console.Error.WriteLine($"Grimora.Server: the socket path is too long ({unixSocketPath}); set GRIMORA_DATA_DIR to a shorter folder.");
         Environment.Exit(1);
         return;
     }

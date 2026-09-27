@@ -12,7 +12,7 @@ public static class StoreConnection
     /// <summary>Resolves the instance name the same way grimora.cs's ResolveInstance() does, reading the
     /// process environment and the current directory.</summary>
     public static string ResolveInstance() => ResolveInstance(
-        Environment.GetEnvironmentVariable("Grimora_INSTANCE"),
+        Environment.GetEnvironmentVariable("GRIMORA_INSTANCE"),
         Environment.GetEnvironmentVariable("CLAUDE_PROJECT_DIR"),
         Directory.GetCurrentDirectory());
 

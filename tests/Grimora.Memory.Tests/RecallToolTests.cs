@@ -106,13 +106,13 @@ public class RecallToolTests
     {
         string instance = GrimoraCliRunner.NewTestInstance("recall-mcp-hit");
         string transcript = MakeFixtureTranscript("recallmcp"); // indexed token "recallmcptopic" must equal the query (see the CLI twin above)
-        string? previousInstanceEnv = Environment.GetEnvironmentVariable("Grimora_INSTANCE");
+        string? previousInstanceEnv = Environment.GetEnvironmentVariable("GRIMORA_INSTANCE");
         try
         {
             GrimoraCliRunner.Run($"init --instance {instance}");
             GrimoraCliRunner.Run($"index-chat --instance {instance} --from \"{transcript}\"");
 
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", instance);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", instance);
             string expected = (string)InvokeMcpRecall("recallmcptopic")!;
 
             string dbPath = GrimoraCliRunner.InstanceDbPath(instance);
@@ -125,7 +125,7 @@ public class RecallToolTests
         }
         finally
         {
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", previousInstanceEnv);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", previousInstanceEnv);
             GrimoraCliRunner.DeleteInstance(instance);
             File.Delete(transcript);
         }
@@ -135,12 +135,12 @@ public class RecallToolTests
     public void McpShapeReportsGapSuffixWhenNoMatch()
     {
         string instance = GrimoraCliRunner.NewTestInstance("recall-mcp-gap");
-        string? previousInstanceEnv = Environment.GetEnvironmentVariable("Grimora_INSTANCE");
+        string? previousInstanceEnv = Environment.GetEnvironmentVariable("GRIMORA_INSTANCE");
         try
         {
             GrimoraCliRunner.Run($"init --instance {instance}");
 
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", instance);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", instance);
             string expected = (string)InvokeMcpRecall("nothing-ever-matches-this-mcp-term")!;
 
             string dbPath = GrimoraCliRunner.InstanceDbPath(instance);
@@ -152,7 +152,7 @@ public class RecallToolTests
         }
         finally
         {
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", previousInstanceEnv);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", previousInstanceEnv);
             GrimoraCliRunner.DeleteInstance(instance);
         }
     }

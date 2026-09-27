@@ -17,7 +17,7 @@ function isolated(dataDir) {
   // Never the live service: a throwaway store has its own pipe. A hook starts the service on demand; it
   // holds the store's files, so a test stops it before deleting them, and it also ends itself after 3 idle seconds.
   const store = mkdtempSync(join(tmpdir(), 'grimora-run-hook-store-'));
-  return { store, env: { ...process.env, CLAUDE_PLUGIN_DATA: dataDir, Grimora_DATA_DIR: store, Grimora_IDLE_SECONDS: '3' } };
+  return { store, env: { ...process.env, CLAUDE_PLUGIN_DATA: dataDir, GRIMORA_DATA_DIR: store, GRIMORA_IDLE_SECONDS: '3' } };
 }
 
 for (const event of events) {

@@ -28,8 +28,8 @@ public sealed class GrimoraMcpParityTests
         string oldInstance = GrimoraCliRunner.NewTestInstance($"mcp-bridge-parity-{toolName}");
         string newDataDir = Directory.CreateTempSubdirectory("grimora-mcp-bridge-parity-").FullName;
         const string newInstance = "new";
-        string? previousMint = Environment.GetEnvironmentVariable("Grimora_ALLOW_TOKEN_MINT");
-        Environment.SetEnvironmentVariable("Grimora_ALLOW_TOKEN_MINT", "0");
+        string? previousMint = Environment.GetEnvironmentVariable("GRIMORA_ALLOW_TOKEN_MINT");
+        Environment.SetEnvironmentVariable("GRIMORA_ALLOW_TOKEN_MINT", "0");
         try
         {
             GrimoraCliRunner.Run($"init --instance {oldInstance}");
@@ -57,9 +57,9 @@ public sealed class GrimoraMcpParityTests
                 Arguments = [RunningServer.CliDll, "mcp"],
                 EnvironmentVariables = new Dictionary<string, string?>
                 {
-                    ["Grimora_DATA_DIR"] = newDataDir,
-                    ["Grimora_INSTANCE"] = newInstance,
-                    ["Grimora_ALLOW_TOKEN_MINT"] = "0",
+                    ["GRIMORA_DATA_DIR"] = newDataDir,
+                    ["GRIMORA_INSTANCE"] = newInstance,
+                    ["GRIMORA_ALLOW_TOKEN_MINT"] = "0",
                 },
             }));
 
@@ -89,7 +89,7 @@ public sealed class GrimoraMcpParityTests
         finally
         {
             GrimoraCliRunner.DeleteInstance(oldInstance);
-            Environment.SetEnvironmentVariable("Grimora_ALLOW_TOKEN_MINT", previousMint);
+            Environment.SetEnvironmentVariable("GRIMORA_ALLOW_TOKEN_MINT", previousMint);
             SqliteConnection.ClearAllPools();
             try { Directory.Delete(newDataDir, recursive: true); } catch { /* best effort cleanup */ }
         }

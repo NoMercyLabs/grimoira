@@ -19,8 +19,8 @@ public sealed class McpEndpointTests : IDisposable
 
     private WebApplicationFactory<Program> Factory()
     {
-        Environment.SetEnvironmentVariable("Grimora_DATA_DIR", _dataDir);
-        Environment.SetEnvironmentVariable("Grimora_SERVER_PORT", Port);
+        Environment.SetEnvironmentVariable("GRIMORA_DATA_DIR", _dataDir);
+        Environment.SetEnvironmentVariable("GRIMORA_SERVER_PORT", Port);
         return new WebApplicationFactory<Program>();
     }
 
@@ -124,8 +124,8 @@ public sealed class McpEndpointTests : IDisposable
 
     public void Dispose()
     {
-        Environment.SetEnvironmentVariable("Grimora_DATA_DIR", null);
-        Environment.SetEnvironmentVariable("Grimora_SERVER_PORT", null);
+        Environment.SetEnvironmentVariable("GRIMORA_DATA_DIR", null);
+        Environment.SetEnvironmentVariable("GRIMORA_SERVER_PORT", null);
         try { Directory.Delete(_dataDir, recursive: true); } catch { /* best effort cleanup */ }
     }
 }

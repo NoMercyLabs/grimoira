@@ -102,7 +102,7 @@ public sealed partial class IndexCodeTool : ITool
     };
 
     /// <param name="onlyProject">Index only this registered project's name; when null, every project not
-    /// named in <c>Grimora_SKIP_PROJECTS</c> (comma-separated) is indexed — the same env var
+    /// named in <c>GRIMORA_SKIP_PROJECTS</c> (comma-separated) is indexed — the same env var
     /// index-code.mjs reads.</param>
     public string Execute(SqliteConnection connection, string? onlyProject, string backupDirectory)
     {
@@ -113,7 +113,7 @@ public sealed partial class IndexCodeTool : ITool
         Schema.GraphFileRelSchema.Backfill(connection);
 
         HashSet<string> skip = new(
-            (Environment.GetEnvironmentVariable("Grimora_SKIP_PROJECTS") ?? "")
+            (Environment.GetEnvironmentVariable("GRIMORA_SKIP_PROJECTS") ?? "")
                 .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries),
             StringComparer.Ordinal);
 

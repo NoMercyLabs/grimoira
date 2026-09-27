@@ -86,7 +86,7 @@ public class SessionStartServerCheckTests
             Stopwatch sw = Stopwatch.StartNew();
             (string stdout, _, int exit) = BuiltCli.Run(["hook", "SessionStart"], dataDir, new Dictionary<string, string>
             {
-                ["Grimora_SERVER_EXE"] = Path.Combine(dataDir, "missing", "Grimora.Server.exe"),
+                ["GRIMORA_SERVER_EXE"] = Path.Combine(dataDir, "missing", "Grimora.Server.exe"),
             });
 
             Assert.Equal(0, exit);

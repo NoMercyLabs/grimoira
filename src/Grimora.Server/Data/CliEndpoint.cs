@@ -137,7 +137,7 @@ internal static class CliEndpoint
 
     private static TimeSpan TimeoutFor(string[] args)
     {
-        if (int.TryParse(Environment.GetEnvironmentVariable("Grimora_CLI_TIMEOUT_SECONDS"), out int seconds) && seconds > 0)
+        if (int.TryParse(Environment.GetEnvironmentVariable("GRIMORA_CLI_TIMEOUT_SECONDS"), out int seconds) && seconds > 0)
             return TimeSpan.FromSeconds(seconds);
         string verb = args.Length > 0 ? args[0] : "help";
         bool isLong = LongVerbs.Contains(verb)

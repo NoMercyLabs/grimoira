@@ -22,11 +22,11 @@ public class BrainLearnToolTests
     {
         string oldInstance = GrimoraCliRunner.NewTestInstance("brain-learn-mcp-node-new-old");
         string newInstance = GrimoraCliRunner.NewTestInstance("brain-learn-mcp-node-new-new");
-        string? previousInstanceEnv = Environment.GetEnvironmentVariable("Grimora_INSTANCE");
+        string? previousInstanceEnv = Environment.GetEnvironmentVariable("GRIMORA_INSTANCE");
         try
         {
             GrimoraCliRunner.Run($"init --instance {oldInstance}");
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", oldInstance);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", oldInstance);
             string expected = (string)McpDll.Invoke("brain_learn", "node", "learn:n1", "concept", "a widget", "widget gloss", "", false)!;
 
             string newDb = GrimoraCliRunner.InstanceDbPath(newInstance);
@@ -52,7 +52,7 @@ public class BrainLearnToolTests
         }
         finally
         {
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", previousInstanceEnv);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", previousInstanceEnv);
             GrimoraCliRunner.DeleteInstance(oldInstance);
             GrimoraCliRunner.DeleteInstance(newInstance);
         }
@@ -63,14 +63,14 @@ public class BrainLearnToolTests
     {
         string oldInstance = GrimoraCliRunner.NewTestInstance("brain-learn-mcp-node-noop-old");
         string newInstance = GrimoraCliRunner.NewTestInstance("brain-learn-mcp-node-noop-new");
-        string? previousInstanceEnv = Environment.GetEnvironmentVariable("Grimora_INSTANCE");
+        string? previousInstanceEnv = Environment.GetEnvironmentVariable("GRIMORA_INSTANCE");
         try
         {
             string oldDb = GrimoraCliRunner.InstanceDbPath(oldInstance);
             GrimoraCliRunner.Run($"init --instance {oldInstance}");
             BrainTestFixtures.InsertNode(oldDb, "learn:n2", "concept", "a widget", "widget gloss");
 
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", oldInstance);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", oldInstance);
             string expected = (string)McpDll.Invoke("brain_learn", "node", "learn:n2", "concept", "a widget", "widget gloss", "", false)!;
 
             string newDb = GrimoraCliRunner.InstanceDbPath(newInstance);
@@ -88,7 +88,7 @@ public class BrainLearnToolTests
         }
         finally
         {
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", previousInstanceEnv);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", previousInstanceEnv);
             GrimoraCliRunner.DeleteInstance(oldInstance);
             GrimoraCliRunner.DeleteInstance(newInstance);
         }
@@ -98,14 +98,14 @@ public class BrainLearnToolTests
     public void McpShapeRejectsAProseNodeKindWithTheRicherMcpGuardText()
     {
         string instance = GrimoraCliRunner.NewTestInstance("brain-learn-mcp-guard");
-        string? previousInstanceEnv = Environment.GetEnvironmentVariable("Grimora_INSTANCE");
+        string? previousInstanceEnv = Environment.GetEnvironmentVariable("GRIMORA_INSTANCE");
         try
         {
             // A rejection writes nothing, so sharing one instance is safe here.
             string dbPath = GrimoraCliRunner.InstanceDbPath(instance);
             GrimoraCliRunner.Run($"init --instance {instance}");
 
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", instance);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", instance);
             string expected = (string)McpDll.Invoke("brain_learn", "node", "learn:bad", "This is prose", "some label", "", "", false)!;
 
             using SqliteConnection connection = StoreConnection.Open(dbPath);
@@ -121,7 +121,7 @@ public class BrainLearnToolTests
         }
         finally
         {
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", previousInstanceEnv);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", previousInstanceEnv);
             GrimoraCliRunner.DeleteInstance(instance);
         }
     }
@@ -131,7 +131,7 @@ public class BrainLearnToolTests
     {
         string oldInstance = GrimoraCliRunner.NewTestInstance("brain-learn-mcp-triple-new-old");
         string newInstance = GrimoraCliRunner.NewTestInstance("brain-learn-mcp-triple-new-new");
-        string? previousInstanceEnv = Environment.GetEnvironmentVariable("Grimora_INSTANCE");
+        string? previousInstanceEnv = Environment.GetEnvironmentVariable("GRIMORA_INSTANCE");
         try
         {
             string oldDb = GrimoraCliRunner.InstanceDbPath(oldInstance);
@@ -139,7 +139,7 @@ public class BrainLearnToolTests
             BrainTestFixtures.InsertNode(oldDb, "learn:s1", "concept", "subject", "");
             BrainTestFixtures.InsertNode(oldDb, "learn:o1", "concept", "object", "");
 
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", oldInstance);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", oldInstance);
             string expected = (string)McpDll.Invoke("brain_learn", "triple", "learn:s1", "related", "learn:o1", "", "because text", false)!;
 
             string newDb = GrimoraCliRunner.InstanceDbPath(newInstance);
@@ -162,7 +162,7 @@ public class BrainLearnToolTests
         }
         finally
         {
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", previousInstanceEnv);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", previousInstanceEnv);
             GrimoraCliRunner.DeleteInstance(oldInstance);
             GrimoraCliRunner.DeleteInstance(newInstance);
         }
@@ -173,7 +173,7 @@ public class BrainLearnToolTests
     {
         string oldInstance = GrimoraCliRunner.NewTestInstance("brain-learn-mcp-triple-reassert-old");
         string newInstance = GrimoraCliRunner.NewTestInstance("brain-learn-mcp-triple-reassert-new");
-        string? previousInstanceEnv = Environment.GetEnvironmentVariable("Grimora_INSTANCE");
+        string? previousInstanceEnv = Environment.GetEnvironmentVariable("GRIMORA_INSTANCE");
         try
         {
             string oldDb = GrimoraCliRunner.InstanceDbPath(oldInstance);
@@ -182,7 +182,7 @@ public class BrainLearnToolTests
             BrainTestFixtures.InsertNode(oldDb, "learn:o2", "concept", "object", "");
             BrainTestFixtures.InsertSharingTriple(oldDb, "learn:s2", "learn:o2"); // seeds s2 -consumes-> o2
 
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", oldInstance);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", oldInstance);
             string expected = (string)McpDll.Invoke("brain_learn", "triple", "learn:s2", "consumes", "learn:o2", "", "", false)!;
 
             string newDb = GrimoraCliRunner.InstanceDbPath(newInstance);
@@ -202,7 +202,7 @@ public class BrainLearnToolTests
         }
         finally
         {
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", previousInstanceEnv);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", previousInstanceEnv);
             GrimoraCliRunner.DeleteInstance(oldInstance);
             GrimoraCliRunner.DeleteInstance(newInstance);
         }
@@ -213,14 +213,14 @@ public class BrainLearnToolTests
     {
         string oldInstance = GrimoraCliRunner.NewTestInstance("brain-learn-mcp-slot-new-old");
         string newInstance = GrimoraCliRunner.NewTestInstance("brain-learn-mcp-slot-new-new");
-        string? previousInstanceEnv = Environment.GetEnvironmentVariable("Grimora_INSTANCE");
+        string? previousInstanceEnv = Environment.GetEnvironmentVariable("GRIMORA_INSTANCE");
         try
         {
             string oldDb = GrimoraCliRunner.InstanceDbPath(oldInstance);
             GrimoraCliRunner.Run($"init --instance {oldInstance}");
             BrainTestFixtures.InsertNode(oldDb, "learn:frame1", "codekind", "frame one", "");
 
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", oldInstance);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", oldInstance);
             string expected = (string)McpDll.Invoke("brain_learn", "slot", "learn:frame1", "place", "somewhere", "", "", false)!;
 
             string newDb = GrimoraCliRunner.InstanceDbPath(newInstance);
@@ -242,7 +242,7 @@ public class BrainLearnToolTests
         }
         finally
         {
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", previousInstanceEnv);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", previousInstanceEnv);
             GrimoraCliRunner.DeleteInstance(oldInstance);
             GrimoraCliRunner.DeleteInstance(newInstance);
         }
@@ -252,14 +252,14 @@ public class BrainLearnToolTests
     public void McpShapeRejectsAnUnknownRowKind()
     {
         string instance = GrimoraCliRunner.NewTestInstance("brain-learn-mcp-bad-kind");
-        string? previousInstanceEnv = Environment.GetEnvironmentVariable("Grimora_INSTANCE");
+        string? previousInstanceEnv = Environment.GetEnvironmentVariable("GRIMORA_INSTANCE");
         try
         {
             // Rejected, writes nothing, so sharing one instance is safe here.
             string dbPath = GrimoraCliRunner.InstanceDbPath(instance);
             GrimoraCliRunner.Run($"init --instance {instance}");
 
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", instance);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", instance);
             string expected = (string)McpDll.Invoke("brain_learn", "bogus", "learn:x", "a", "b", "c", "", false)!;
 
             using SqliteConnection connection = StoreConnection.Open(dbPath);
@@ -270,7 +270,7 @@ public class BrainLearnToolTests
         }
         finally
         {
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", previousInstanceEnv);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", previousInstanceEnv);
             GrimoraCliRunner.DeleteInstance(instance);
         }
     }

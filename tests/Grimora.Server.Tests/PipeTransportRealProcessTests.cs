@@ -27,9 +27,9 @@ public sealed class PipeTransportRealProcessTests : IDisposable
         Assert.True(File.Exists(ServerDll), $"Grimora.Server not built at {ServerDll}");
         ProcessStartInfo psi = new("dotnet") { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true };
         psi.ArgumentList.Add(ServerDll);
-        psi.Environment["Grimora_DATA_DIR"] = _dataDir;
+        psi.Environment["GRIMORA_DATA_DIR"] = _dataDir;
         psi.Environment.Remove("CLAUDE_PROJECT_DIR");
-        psi.Environment.Remove("Grimora_INSTANCE");
+        psi.Environment.Remove("GRIMORA_INSTANCE");
         _server = Process.Start(psi)!;
 
         Stopwatch sw = Stopwatch.StartNew();
@@ -102,7 +102,7 @@ public sealed class PipeTransportRealProcessTests : IDisposable
         Assert.True(File.Exists(ServerDll), $"Grimora.Server not built at {ServerDll}");
         ProcessStartInfo psi = new("dotnet") { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true };
         psi.ArgumentList.Add(ServerDll);
-        psi.Environment["Grimora_DATA_DIR"] = _dataDir;
+        psi.Environment["GRIMORA_DATA_DIR"] = _dataDir;
         _server = Process.Start(psi)!;
 
         bool exited = _server.WaitForExit(20000);
@@ -123,7 +123,7 @@ public sealed class PipeTransportRealProcessTests : IDisposable
         Assert.True(File.Exists(ServerDll), $"Grimora.Server not built at {ServerDll}");
         ProcessStartInfo psi = new("dotnet") { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true };
         psi.ArgumentList.Add(ServerDll);
-        psi.Environment["Grimora_DATA_DIR"] = _dataDir;
+        psi.Environment["GRIMORA_DATA_DIR"] = _dataDir;
         psi.Environment[variable] = value;
         _server = Process.Start(psi)!;
         Task<string> stderr = _server.StandardError.ReadToEndAsync();

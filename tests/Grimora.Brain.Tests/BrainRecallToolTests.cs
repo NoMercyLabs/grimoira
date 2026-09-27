@@ -98,14 +98,14 @@ public class BrainRecallToolTests
     public void McpShapeMatchesTodaysMcpOutputForAnFtsHit()
     {
         string instance = GrimoraCliRunner.NewTestInstance("brain-recall-mcp");
-        string? previousInstanceEnv = Environment.GetEnvironmentVariable("Grimora_INSTANCE");
+        string? previousInstanceEnv = Environment.GetEnvironmentVariable("GRIMORA_INSTANCE");
         try
         {
             string dbPath = GrimoraCliRunner.InstanceDbPath(instance);
             GrimoraCliRunner.Run($"init --instance {instance}");
             SeedNode(dbPath);
 
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", instance);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", instance);
             string expected = (string)McpDll.Invoke("brain_recall", "paginated cursor")!;
 
             using SqliteConnection connection = StoreConnection.Open(dbPath);
@@ -116,7 +116,7 @@ public class BrainRecallToolTests
         }
         finally
         {
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", previousInstanceEnv);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", previousInstanceEnv);
             GrimoraCliRunner.DeleteInstance(instance);
         }
     }
@@ -125,13 +125,13 @@ public class BrainRecallToolTests
     public void McpShapeLogsAGapWhenNothingMatches()
     {
         string instance = GrimoraCliRunner.NewTestInstance("brain-recall-mcp-gap");
-        string? previousInstanceEnv = Environment.GetEnvironmentVariable("Grimora_INSTANCE");
+        string? previousInstanceEnv = Environment.GetEnvironmentVariable("GRIMORA_INSTANCE");
         try
         {
             string dbPath = GrimoraCliRunner.InstanceDbPath(instance);
             GrimoraCliRunner.Run($"init --instance {instance}");
 
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", instance);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", instance);
             string expected = (string)McpDll.Invoke("brain_recall", "nothing-ever-matches-this-mcp-term")!;
 
             using SqliteConnection connection = StoreConnection.Open(dbPath);
@@ -146,7 +146,7 @@ public class BrainRecallToolTests
         }
         finally
         {
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", previousInstanceEnv);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", previousInstanceEnv);
             GrimoraCliRunner.DeleteInstance(instance);
         }
     }

@@ -83,6 +83,7 @@ public class StatsToolTests
     {
         string tempFile = Path.Combine(Path.GetTempPath(), $"grimora-tok-oracle-{Guid.NewGuid():N}.cs");
         File.WriteAllText(tempFile, ReadTokCsAtOracleCommit());
+        OldStore.ToOld(instance); // the pinned tok.cs reads the old store folder
         try
         {
             ProcessStartInfo psi = new("dotnet", $"run \"{tempFile}\" {instance}")

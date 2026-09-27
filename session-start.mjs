@@ -6,7 +6,7 @@
 // CLAUDE_PLUGIN_DATA (kept across plugin updates), guarded by a build stamp like launch-mcp.mjs.
 //
 // - Build current: run `dotnet <data>/current/bin-cli/grimora.dll hook SessionStart`, stdin, stdout and the exit
-//   code passed straight through. The hook gets Grimora_PLUGIN_ROOT, so a server it starts from the data folder
+//   code passed straight through. The hook gets GRIMORA_PLUGIN_ROOT, so a server it starts from the data folder
 //   still finds the files that ship in the plugin root (idp-impersonate.mjs, seeds/).
 // - A running server keeps the build it started from. The CLI's SessionStart compares the build stamp in its
 //   /health with the current build's: on a mismatch the old server finishes its calls in flight and exits, and
@@ -18,6 +18,8 @@
 // launch-mcp.mjs uses the checkout's bin/. build-cli.ps1 and build-server.ps1 own their freshness there, so
 // the step only builds when they are missing.
 
+import { homedir } from 'node:os';
+import { moveLegacyStore, promoteLegacyEnv } from './legacy-env.mjs';
 import { closeSync, existsSync, mkdirSync, openSync, renameSync, rmSync, statSync, writeFileSync, writeSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -70,7 +72,7 @@ export function releaseLock(dataDir) {
 /**
  * Records the plugin root in <data>/plugin-root.txt, written to a temp file and renamed so a reader never sees
  * half a path. A server started without this hook (the logon task, a thin client of another slot) has no
- * Grimora_PLUGIN_ROOT and finds idp-impersonate.mjs and seeds/ through this file (PluginFileLocator).
+ * GRIMORA_PLUGIN_ROOT and finds idp-impersonate.mjs and seeds/ through this file (PluginFileLocator).
  */
 export function recordPluginRoot(dataDir, root) {
   mkdirSync(dataDir, { recursive: true });
@@ -85,7 +87,7 @@ export function sessionStart({ root, dataDir, pluginData, runHook, startBuild, w
     try { recordPluginRoot(dataDir, root); } catch { /* best effort: the env var and the walk-up remain */ }
   }
   if (isCurrent(root, dataDir, pluginData)) {
-    return runHook(join(buildDir(dataDir, pluginData), 'bin-cli', 'grimora.dll'), { Grimora_PLUGIN_ROOT: root });
+    return runHook(join(buildDir(dataDir, pluginData), 'bin-cli', 'grimora.dll'), { GRIMORA_PLUGIN_ROOT: root });
   }
   if (takeLock(dataDir)) {
     try {
@@ -107,13 +109,15 @@ export function startDetached(script, args) {
 }
 
 function main() {
+  promoteLegacyEnv();
+  if (!process.env.GRIMORA_DATA_DIR) moveLegacyStore(homedir());
   const root = import.meta.dirname;
   const pluginData = process.env.CLAUDE_PLUGIN_DATA;
   const code = sessionStart({
     root,
     dataDir: pluginData || root,
     pluginData: Boolean(pluginData),
-    runHook: (cli, env) => runCliHook(cli, 'SessionStart', env.Grimora_PLUGIN_ROOT),
+    runHook: (cli, env) => runCliHook(cli, 'SessionStart', env.GRIMORA_PLUGIN_ROOT),
     startBuild: dataDir => startDetached(join(root, 'build-cli-and-server.mjs'), [dataDir]),
     write: line => process.stdout.write(`${line}\n`),
   });

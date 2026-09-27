@@ -85,7 +85,7 @@ Use the CLI `add` / `index-memory` commands instead if the MCP server is unavail
 
 ## Auth (gated, rare)
 
-- `idp_token` — mint a real IdP token for a subject, for automated test/API/SignalR calls. The only sanctioned way to authenticate for automated work; never weaken or bypass auth instead. Gated behind `Grimora_ALLOW_TOKEN_MINT=1`; when gated, run the sibling script directly instead of the tool.
+- `idp_token` — mint a real IdP token for a subject, for automated test/API/SignalR calls. The only sanctioned way to authenticate for automated work; never weaken or bypass auth instead. Gated behind `GRIMORA_ALLOW_TOKEN_MINT=1`; when gated, run the sibling script directly instead of the tool.
 
 ## Rules
 

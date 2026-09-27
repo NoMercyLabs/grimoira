@@ -43,18 +43,18 @@ public class FindingsToolTests
         }
     }
 
-    // mcp.cs's `open_findings` resolves its own connection from Grimora_INSTANCE.
+    // mcp.cs's `open_findings` resolves its own connection from GRIMORA_INSTANCE.
     [Fact]
     public void McpShapeMatchesTodaysMcpOutputForOpenFindings()
     {
         string instance = GrimoraCliRunner.NewTestInstance("findings-mcp");
-        string? previousInstanceEnv = Environment.GetEnvironmentVariable("Grimora_INSTANCE");
+        string? previousInstanceEnv = Environment.GetEnvironmentVariable("GRIMORA_INSTANCE");
         try
         {
             GrimoraCliRunner.Run($"init --instance {instance}");
             GrimoraCliRunner.Run($"finding --instance {instance} --title findings-fixture-mcp --source some-source");
 
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", instance);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", instance);
             string expected = (string)InvokeMcpOpenFindings()!;
 
             string dbPath = GrimoraCliRunner.InstanceDbPath(instance);
@@ -66,7 +66,7 @@ public class FindingsToolTests
         }
         finally
         {
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", previousInstanceEnv);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", previousInstanceEnv);
             GrimoraCliRunner.DeleteInstance(instance);
         }
     }
@@ -75,12 +75,12 @@ public class FindingsToolTests
     public void McpShapeReportsNoOpenFindingsOnAFreshStore()
     {
         string instance = GrimoraCliRunner.NewTestInstance("findings-mcp-empty");
-        string? previousInstanceEnv = Environment.GetEnvironmentVariable("Grimora_INSTANCE");
+        string? previousInstanceEnv = Environment.GetEnvironmentVariable("GRIMORA_INSTANCE");
         try
         {
             GrimoraCliRunner.Run($"init --instance {instance}");
 
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", instance);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", instance);
             string expected = (string)InvokeMcpOpenFindings()!;
 
             string dbPath = GrimoraCliRunner.InstanceDbPath(instance);
@@ -92,7 +92,7 @@ public class FindingsToolTests
         }
         finally
         {
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", previousInstanceEnv);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", previousInstanceEnv);
             GrimoraCliRunner.DeleteInstance(instance);
         }
     }

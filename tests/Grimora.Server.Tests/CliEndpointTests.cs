@@ -29,8 +29,8 @@ public sealed partial class CliEndpointTests : IDisposable
 
     private WebApplicationFactory<Program> Factory()
     {
-        Environment.SetEnvironmentVariable("Grimora_DATA_DIR", _dataDir);
-        Environment.SetEnvironmentVariable("Grimora_SERVER_PORT", Port);
+        Environment.SetEnvironmentVariable("GRIMORA_DATA_DIR", _dataDir);
+        Environment.SetEnvironmentVariable("GRIMORA_SERVER_PORT", Port);
         return new WebApplicationFactory<Program>();
     }
 
@@ -161,9 +161,9 @@ public sealed partial class CliEndpointTests : IDisposable
     public async Task TwoProjectsStayApartAndTheServerEnvDoesNotPinThem()
     {
         string? savedProjectDir = Environment.GetEnvironmentVariable("CLAUDE_PROJECT_DIR");
-        string? savedInstance = Environment.GetEnvironmentVariable("Grimora_INSTANCE");
+        string? savedInstance = Environment.GetEnvironmentVariable("GRIMORA_INSTANCE");
         Environment.SetEnvironmentVariable("CLAUDE_PROJECT_DIR", NewProjectDir("server-env"));
-        Environment.SetEnvironmentVariable("Grimora_INSTANCE", null);
+        Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", null);
         try
         {
             using WebApplicationFactory<Program> factory = Factory();
@@ -189,7 +189,7 @@ public sealed partial class CliEndpointTests : IDisposable
         finally
         {
             Environment.SetEnvironmentVariable("CLAUDE_PROJECT_DIR", savedProjectDir);
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", savedInstance);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", savedInstance);
         }
     }
 
@@ -242,8 +242,8 @@ public sealed partial class CliEndpointTests : IDisposable
     [Fact]
     public async Task ATimedOutCallIsExit124AndTheServerStaysAlive()
     {
-        string? saved = Environment.GetEnvironmentVariable("Grimora_CLI_TIMEOUT_SECONDS");
-        Environment.SetEnvironmentVariable("Grimora_CLI_TIMEOUT_SECONDS", "1");
+        string? saved = Environment.GetEnvironmentVariable("GRIMORA_CLI_TIMEOUT_SECONDS");
+        Environment.SetEnvironmentVariable("GRIMORA_CLI_TIMEOUT_SECONDS", "1");
         try
         {
             using WebApplicationFactory<Program> factory = Factory();
@@ -273,7 +273,7 @@ public sealed partial class CliEndpointTests : IDisposable
         }
         finally
         {
-            Environment.SetEnvironmentVariable("Grimora_CLI_TIMEOUT_SECONDS", saved);
+            Environment.SetEnvironmentVariable("GRIMORA_CLI_TIMEOUT_SECONDS", saved);
         }
     }
 

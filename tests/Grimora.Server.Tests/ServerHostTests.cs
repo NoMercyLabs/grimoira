@@ -10,7 +10,7 @@ namespace Grimora.Server.Tests;
 // (the owner, 2026-09-26). These tests run the real Program pipeline through an in-process
 // TestServer (WebApplicationFactory<Program>), which replaces Kestrel entirely and so never exercises the
 // pipe/socket transport itself (PipeOnlyTransportTests and PipeTransportRealProcessTests do) — Program
-// reads Grimora_DATA_DIR so a test never touches ~/.grimora; Grimora_SERVER_PORT below is no longer read by anything
+// reads GRIMORA_DATA_DIR so a test never touches ~/.grimora; GRIMORA_SERVER_PORT below is no longer read by anything
 // (it only survives in these WebApplicationFactory tests as a harmless leftover).
 public sealed class ServerHostTests : IDisposable
 {
@@ -20,8 +20,8 @@ public sealed class ServerHostTests : IDisposable
 
     private WebApplicationFactory<Program> Factory()
     {
-        Environment.SetEnvironmentVariable("Grimora_DATA_DIR", _dataDir);
-        Environment.SetEnvironmentVariable("Grimora_SERVER_PORT", Port);
+        Environment.SetEnvironmentVariable("GRIMORA_DATA_DIR", _dataDir);
+        Environment.SetEnvironmentVariable("GRIMORA_SERVER_PORT", Port);
         return new WebApplicationFactory<Program>();
     }
 
@@ -95,8 +95,8 @@ public sealed class ServerHostTests : IDisposable
 
     public void Dispose()
     {
-        Environment.SetEnvironmentVariable("Grimora_DATA_DIR", null);
-        Environment.SetEnvironmentVariable("Grimora_SERVER_PORT", null);
+        Environment.SetEnvironmentVariable("GRIMORA_DATA_DIR", null);
+        Environment.SetEnvironmentVariable("GRIMORA_SERVER_PORT", null);
         try { Directory.Delete(_dataDir, recursive: true); } catch { /* best effort cleanup */ }
     }
 }

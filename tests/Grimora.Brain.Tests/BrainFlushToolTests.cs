@@ -101,11 +101,11 @@ public class BrainFlushToolTests
     public void McpShapeReportsNothingStagedOnAFreshInstance()
     {
         string instance = GrimoraCliRunner.NewTestInstance("flush-mcp-empty");
-        string? previousInstanceEnv = Environment.GetEnvironmentVariable("Grimora_INSTANCE");
+        string? previousInstanceEnv = Environment.GetEnvironmentVariable("GRIMORA_INSTANCE");
         try
         {
             GrimoraCliRunner.Run($"init --instance {instance}");
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", instance);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", instance);
             string expected = (string)McpDll.Invoke("brain_flush")!;
 
             using SqliteConnection connection = StoreConnection.Open(GrimoraCliRunner.InstanceDbPath(instance));
@@ -116,7 +116,7 @@ public class BrainFlushToolTests
         }
         finally
         {
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", previousInstanceEnv);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", previousInstanceEnv);
             GrimoraCliRunner.DeleteInstance(instance);
         }
     }
@@ -126,11 +126,11 @@ public class BrainFlushToolTests
     {
         string oldInstance = GrimoraCliRunner.NewTestInstance("flush-mcp-commit-old");
         string newInstance = GrimoraCliRunner.NewTestInstance("flush-mcp-commit-new");
-        string? previousInstanceEnv = Environment.GetEnvironmentVariable("Grimora_INSTANCE");
+        string? previousInstanceEnv = Environment.GetEnvironmentVariable("GRIMORA_INSTANCE");
         try
         {
             GrimoraCliRunner.Run($"init --instance {oldInstance}");
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", oldInstance);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", oldInstance);
             McpDll.Invoke("brain_stage", "node", "flush:mcp-n1", "fact", "a widget", "widget gloss", "", false);
             string expected = (string)McpDll.Invoke("brain_flush")!;
 
@@ -150,7 +150,7 @@ public class BrainFlushToolTests
         }
         finally
         {
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", previousInstanceEnv);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", previousInstanceEnv);
             GrimoraCliRunner.DeleteInstance(oldInstance);
             GrimoraCliRunner.DeleteInstance(newInstance);
         }

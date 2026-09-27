@@ -54,7 +54,7 @@ public class UserVersion4SchemaTests
     [Fact]
     public void NoOwnEnvironmentVariableIsSetInThisProcessSoTheDefaultConstructorIsAlwaysOff()
     {
-        // Nothing in the repo sets Grimora_PHASE3_COMPLETE; the default (no-arg) constructor reads it from
+        // Nothing in the repo sets GRIMORA_PHASE3_COMPLETE; the default (no-arg) constructor reads it from
         // the real environment, so it stays off unless a future slice's own process sets it.
         Assert.Null(Environment.GetEnvironmentVariable(UserVersion4Schema.Gate));
         Assert.Empty(new UserVersion4Schema().Statements);

@@ -170,9 +170,9 @@ public sealed class HookVerbAgainstTheRunningServerTests : IDisposable
     {
         ProcessStartInfo psi = new("dotnet") { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true };
         psi.ArgumentList.Add(ServerDll);
-        psi.Environment["Grimora_DATA_DIR"] = _dataDir;
+        psi.Environment["GRIMORA_DATA_DIR"] = _dataDir;
         psi.Environment.Remove("CLAUDE_PROJECT_DIR");
-        psi.Environment.Remove("Grimora_INSTANCE");
+        psi.Environment.Remove("GRIMORA_INSTANCE");
         Process process = Process.Start(psi)!;
         _servers.Add(process);
         Stopwatch sw = Stopwatch.StartNew();
@@ -198,10 +198,10 @@ public sealed class HookVerbAgainstTheRunningServerTests : IDisposable
         psi.ArgumentList.Add(CliDll);
         psi.ArgumentList.Add("hook");
         psi.ArgumentList.Add(eventName);
-        psi.Environment["Grimora_DATA_DIR"] = _dataDir;
-        psi.Environment["Grimora_SERVER_EXE"] = Path.Combine(_dataDir, "missing", "Grimora.Server.exe");
+        psi.Environment["GRIMORA_DATA_DIR"] = _dataDir;
+        psi.Environment["GRIMORA_SERVER_EXE"] = Path.Combine(_dataDir, "missing", "Grimora.Server.exe");
         psi.Environment["CLAUDE_PROJECT_DIR"] = _projectDir;
-        psi.Environment.Remove("Grimora_INSTANCE");
+        psi.Environment.Remove("GRIMORA_INSTANCE");
         Stopwatch sw = Stopwatch.StartNew();
         using Process p = Process.Start(psi)!;
         p.StandardInput.Write(payload);

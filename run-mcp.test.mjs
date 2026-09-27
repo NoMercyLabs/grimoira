@@ -15,7 +15,7 @@ test('no current build prints nothing, exits 0 and starts no build', () => {
   const dataDir = mkdtempSync(join(tmpdir(), 'grimora-run-mcp-'));
   const store = mkdtempSync(join(tmpdir(), 'grimora-run-mcp-store-'));
   try {
-    const env = { ...process.env, CLAUDE_PLUGIN_DATA: dataDir, Grimora_DATA_DIR: store };
+    const env = { ...process.env, CLAUDE_PLUGIN_DATA: dataDir, GRIMORA_DATA_DIR: store };
     const result = spawnSync(process.execPath, [script], { input: '', encoding: 'utf8', env, timeout: 20000 });
     assert.equal(result.status, 0);
     assert.equal(result.stdout, '');
@@ -35,7 +35,7 @@ test('with a current build the server exit code passes through and stdout stays 
     try {
       symlinkSync(import.meta.dirname, join(dataDir, 'current'), process.platform === 'win32' ? 'junction' : 'dir');
       // A server exe that does not exist: `grimora mcp` cannot start the service and exits 1, printing nothing to stdout.
-      const env = { ...process.env, CLAUDE_PLUGIN_DATA: dataDir, Grimora_DATA_DIR: store, Grimora_SERVER_EXE: join(store, 'none.exe') };
+      const env = { ...process.env, CLAUDE_PLUGIN_DATA: dataDir, GRIMORA_DATA_DIR: store, GRIMORA_SERVER_EXE: join(store, 'none.exe') };
       const result = spawnSync(process.execPath, [script], { input: '', encoding: 'utf8', env, timeout: 30000 });
       assert.equal(result.status, 1);
       assert.equal(result.stdout, '');

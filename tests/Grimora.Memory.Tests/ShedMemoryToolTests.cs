@@ -81,13 +81,13 @@ public class ShedMemoryToolTests
     {
         string instance = GrimoraCliRunner.NewTestInstance("shed-memory-mcp-hit");
         string memDir = MakeMemoryDir();
-        string? previousInstanceEnv = Environment.GetEnvironmentVariable("Grimora_INSTANCE");
+        string? previousInstanceEnv = Environment.GetEnvironmentVariable("GRIMORA_INSTANCE");
         try
         {
             GrimoraCliRunner.Run($"init --instance {instance}");
             GrimoraCliRunner.Run($"index-memory --instance {instance} --from \"{memDir}\"");
 
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", instance);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", instance);
             string expected = (string)InvokeMcpShedMemory("shed-memory-fixture")!;
 
             // The MCP oracle already deleted the row; reindex to give the new tool the same starting state.
@@ -104,7 +104,7 @@ public class ShedMemoryToolTests
         }
         finally
         {
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", previousInstanceEnv);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", previousInstanceEnv);
             GrimoraCliRunner.DeleteInstance(instance);
             Directory.Delete(memDir, recursive: true);
         }
@@ -114,12 +114,12 @@ public class ShedMemoryToolTests
     public void McpShapeReportsNoMemoryForAnUnknownKey()
     {
         string instance = GrimoraCliRunner.NewTestInstance("shed-memory-mcp-missing");
-        string? previousInstanceEnv = Environment.GetEnvironmentVariable("Grimora_INSTANCE");
+        string? previousInstanceEnv = Environment.GetEnvironmentVariable("GRIMORA_INSTANCE");
         try
         {
             GrimoraCliRunner.Run($"init --instance {instance}");
 
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", instance);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", instance);
             string expected = (string)InvokeMcpShedMemory("never-existed")!;
 
             string dbPath = GrimoraCliRunner.InstanceDbPath(instance);
@@ -131,7 +131,7 @@ public class ShedMemoryToolTests
         }
         finally
         {
-            Environment.SetEnvironmentVariable("Grimora_INSTANCE", previousInstanceEnv);
+            Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", previousInstanceEnv);
             GrimoraCliRunner.DeleteInstance(instance);
         }
     }

@@ -6,7 +6,7 @@ namespace Grimora.Server.Data;
 /// <summary>
 /// RESTRUCTURE.md Slice P1: the service listens on a per-user, per-realm local pipe (Windows) or Unix
 /// domain socket (macOS/Linux) instead of 127.0.0.1:7635. The "realm" is the data directory
-/// (<c>Grimora_DATA_DIR</c>, default <c>~/.grimora</c>); one pipe/socket per data directory, so two realms on
+/// (<c>GRIMORA_DATA_DIR</c>, default <c>~/.grimora</c>); one pipe/socket per data directory, so two realms on
 /// the same machine (or two OS users, each with their own default data directory) never collide.
 ///
 /// Duplicated verbatim as <c>Grimora.Cli.Tools.ServerAddress</c>: Grimora.Cli and Grimora.Server sit at the same
@@ -29,13 +29,13 @@ public static class ServerAddress
         return OperatingSystem.IsWindows() ? full.ToUpperInvariant() : full;
     }
 
-    /// <summary>The data directory ("realm"): <c>Grimora_DATA_DIR</c>, else <c>~/.grimora</c>. An empty value counts
+    /// <summary>The data directory ("realm"): <c>GRIMORA_DATA_DIR</c>, else <c>~/.grimora</c>. An empty value counts
     /// as unset.</summary>
     public static string ResolveDataDir(string? configured, string userProfile) =>
         string.IsNullOrEmpty(configured) ? Path.Combine(userProfile, ".grimora") : configured;
 
     public static string ResolveDataDir() => ResolveDataDir(
-        Environment.GetEnvironmentVariable("Grimora_DATA_DIR"),
+        Environment.GetEnvironmentVariable("GRIMORA_DATA_DIR"),
         Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
 
     /// <summary>The Unix domain socket path for the given data directory: a file inside it, so it inherits

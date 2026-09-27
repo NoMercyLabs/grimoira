@@ -13,7 +13,7 @@ namespace Grimora.Server.Tests;
 
 // One rule for "which project" on /mcp, /cli and /hooks: explicit instance (--instance, Grimora-Instance)
 // > Claude-Project-Dir header > the request's own cwd > the server's current directory. The server's own
-// Grimora_INSTANCE / CLAUDE_PROJECT_DIR are never read: a server started from one session's hook inherits
+// GRIMORA_INSTANCE / CLAUDE_PROJECT_DIR are never read: a server started from one session's hook inherits
 // them and would pin every other session to that project. Each request opens exactly one project store
 // under the data dir, so the store directory it creates is the project it resolved.
 public sealed class RequestProjectResolutionTests : IDisposable
@@ -22,7 +22,7 @@ public sealed class RequestProjectResolutionTests : IDisposable
     private readonly string _envInstance = $"test-envinst-{Guid.NewGuid():N}";
     private readonly string _envProjectDir = Path.Combine(Path.GetTempPath(), $"test-envdir-{Guid.NewGuid():N}");
     private readonly string _projectDir = Path.Combine(Path.GetTempPath(), $"test-reqdir-{Guid.NewGuid():N}");
-    private readonly string? _savedInstance = Environment.GetEnvironmentVariable("Grimora_INSTANCE");
+    private readonly string? _savedInstance = Environment.GetEnvironmentVariable("GRIMORA_INSTANCE");
     private readonly string? _savedProjectDir = Environment.GetEnvironmentVariable("CLAUDE_PROJECT_DIR");
     private const string Port = "17645";
     private readonly string _allowedHost = $"127.0.0.1:{Port}";
@@ -31,7 +31,7 @@ public sealed class RequestProjectResolutionTests : IDisposable
     {
         Directory.CreateDirectory(_envProjectDir);
         Directory.CreateDirectory(_projectDir);
-        Environment.SetEnvironmentVariable("Grimora_INSTANCE", _envInstance);
+        Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", _envInstance);
         Environment.SetEnvironmentVariable("CLAUDE_PROJECT_DIR", _envProjectDir);
     }
 
@@ -39,8 +39,8 @@ public sealed class RequestProjectResolutionTests : IDisposable
 
     private WebApplicationFactory<Program> Factory()
     {
-        Environment.SetEnvironmentVariable("Grimora_DATA_DIR", _dataDir);
-        Environment.SetEnvironmentVariable("Grimora_SERVER_PORT", Port);
+        Environment.SetEnvironmentVariable("GRIMORA_DATA_DIR", _dataDir);
+        Environment.SetEnvironmentVariable("GRIMORA_SERVER_PORT", Port);
         return new WebApplicationFactory<Program>();
     }
 
@@ -183,10 +183,10 @@ public sealed class RequestProjectResolutionTests : IDisposable
 
     public void Dispose()
     {
-        Environment.SetEnvironmentVariable("Grimora_INSTANCE", _savedInstance);
+        Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", _savedInstance);
         Environment.SetEnvironmentVariable("CLAUDE_PROJECT_DIR", _savedProjectDir);
-        Environment.SetEnvironmentVariable("Grimora_DATA_DIR", null);
-        Environment.SetEnvironmentVariable("Grimora_SERVER_PORT", null);
+        Environment.SetEnvironmentVariable("GRIMORA_DATA_DIR", null);
+        Environment.SetEnvironmentVariable("GRIMORA_SERVER_PORT", null);
         SqliteConnection.ClearAllPools();
         // The hook handlers keep their own ~/.grimora/<instance> layout; remove anything this class could leave there.
         foreach (string name in new[] { _envInstance, Path.GetFileName(_envProjectDir), RequestProject, "test-headerinst" })

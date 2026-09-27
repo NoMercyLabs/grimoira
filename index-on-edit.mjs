@@ -20,7 +20,7 @@ import { join, basename, dirname, resolve, sep } from 'node:path';
 import { publishedCliDll } from './published-cli.mjs';
 
 // The data folder's current build in an installed plugin, else the checkout's bin-cli beside this script.
-const Grimora_DLL = publishedCliDll(process.env, import.meta.dirname);
+const GRIMORA_DLL = publishedCliDll(process.env, import.meta.dirname);
 
 // Case-insensitive (Windows) path-containment: is `child` inside `parent`?
 const norm = (p) => resolve(p).replace(/[\\/]+/g, sep).replace(/[\\/]+$/, '').toLowerCase();
@@ -87,7 +87,7 @@ process.stdin.on('end', () => {
 // the reverse makes the CLI treat --instance as the command and dump help). Best-effort, never throws.
 function reindex(command, fromDir, instance) {
   try {
-    const result = spawnSync('dotnet', [Grimora_DLL, command, '--from', fromDir, '--instance', instance], {
+    const result = spawnSync('dotnet', [GRIMORA_DLL, command, '--from', fromDir, '--instance', instance], {
       timeout: 60000,
       stdio: 'ignore',
     });

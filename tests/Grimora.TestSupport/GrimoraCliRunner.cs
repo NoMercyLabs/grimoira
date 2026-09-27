@@ -48,6 +48,7 @@ public static class GrimoraCliRunner
         Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
         string dir = InstanceDir(instance);
         if (Directory.Exists(dir)) DeleteDirectoryWithRetry(dir);
+        OldStore.Delete(instance);
     }
 
     /// <summary>Removes every <c>test-*</c> instance directory under <c>~/.grimora</c> that has not been
