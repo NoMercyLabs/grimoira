@@ -63,7 +63,12 @@ public sealed class ConnectionAcceptedAtStopTests : IDisposable
             using HttpClient late = new(handler);
             late.Timeout = TimeSpan.FromSeconds(20);
             Exception? failure = await Record.ExceptionAsync(() => late.PostAsync("http://grimora-pipe.local/tools/recall", null));
-            Assert.IsType<HttpRequestException>(failure);
+            // Windows reports the dead pipe as HttpRequestException; on Linux, the Unix domain socket the
+            // peer already closed surfaces as ObjectDisposedException from inside SocketsHttpHandler's own
+            // connection reuse instead. Both mean the same thing here: the call never got a response, which
+            // is what CleanExitRecord.Judge below actually proves.
+            Assert.True(failure is HttpRequestException or ObjectDisposedException,
+                $"expected the dropped call to fail, got {failure?.GetType().FullName ?? "no exception"}");
 
             // The service is gone once its single-instance lock is free.
             using (FileStream? held = WaitForFreeLock()) Assert.NotNull(held);
