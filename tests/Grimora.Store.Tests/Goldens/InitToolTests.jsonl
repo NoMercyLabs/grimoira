@@ -1,0 +1,2 @@
+{"header":"GOLDEN written by the oracle bin-cli-old (grimora.cs at commit 0b2bb70, the last file-based build); never by the new code"}
+{"Member":"MatchesTodaysCliOutput","Args":"init --instance test-init-<GUID>","Stdout":"instance 'test-init-3355239dacb74c6d9fbf14d539dc1352' ready at <HOME><SEP>.grimora<SEP>test-init-3355239dacb74c6d9fbf14d539dc1352<SEP>grimora.db<NL>","Stderr":"","ExitCode":0}
