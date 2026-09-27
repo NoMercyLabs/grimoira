@@ -189,7 +189,7 @@ public static partial class CliGoldens
         return [.. File.ReadLines(path).Skip(1).Where(l => l.Length > 0).Select(l => JsonSerializer.Deserialize<Entry>(l)!)];
     }
 
-    [GeneratedRegex(@"[0-9a-f]{32}")]
+    [GeneratedRegex("[0-9a-f]{32}")]
     private static partial Regex InstanceId();
 
     [GeneratedRegex(@"\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})?")]
