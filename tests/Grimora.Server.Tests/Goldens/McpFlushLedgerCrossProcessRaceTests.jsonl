@@ -1,0 +1,2 @@
+{"header":"GOLDEN written by the oracle bin-cli-old (grimora.cs at commit 0b2bb70, the last file-based build); never by the new code"}
+{"Member":"TwoRealProcessesRacingStageAndFlushApplyEveryLineExactlyOnce","Args":"init --instance test-cross-process-race-<GUID>","Stdout":"instance 'test-cross-process-race-e678d526fa964cc5ad87714ae04e1ae2' ready at <HOME><SEP>.grimora<SEP>test-cross-process-race-e678d526fa964cc5ad87714ae04e1ae2<SEP>grimora.db<NL>","Stderr":"","ExitCode":0}
