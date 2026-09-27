@@ -1,0 +1,108 @@
+{"header":"GOLDEN written by the pinned oracle aitm.cs at commit bbb9b4d2f4788d3f1960438799331d57198c9fbe (slice 24 start); never by the new code"}
+{"Member":"RunParity","Args":"init","Stdout":"instance '<INSTANCE>' ready at <HOME><SEP>.grimora<SEP><INSTANCE><SEP>grimora.db<NL>","Stderr":"","ExitCode":0,"RawArgs":"init"}
+{"Member":"RunParity","Args":"brain learn node p4b:hard-target fact \"a short label\"","Stdout":"","Stderr":"","ExitCode":0,"RawArgs":"brain learn node p4b:hard-target fact \"a short label\""}
+{"Member":"RunParity","Args":"brain set-hard p4b:hard-target 1","Stdout":"p4b:hard-target hard=1.<NL>","Stderr":"","ExitCode":0,"RawArgs":"brain set-hard p4b:hard-target 1"}
+{"Member":"RunParity","Args":"init","Stdout":"instance '<INSTANCE>' ready at <HOME><SEP>.grimora<SEP><INSTANCE><SEP>grimora.db<NL>","Stderr":"","ExitCode":0,"RawArgs":"init"}
+{"Member":"RunParity","Args":"brain merge p4b:samekey p4b:samekey","Stdout":"nothing to merge (from == into).<NL>","Stderr":"","ExitCode":0,"RawArgs":"brain merge p4b:samekey p4b:samekey"}
+{"Member":"RunParity","Args":"init","Stdout":"instance '<INSTANCE>' ready at <HOME><SEP>.grimora<SEP><INSTANCE><SEP>grimora.db<NL>","Stderr":"","ExitCode":0,"RawArgs":"init"}
+{"Member":"RunParity","Args":"brain unlink p4b:s related p4b:o","Stdout":"no live triple 'p4b:s related p4b:o'.<NL>","Stderr":"","ExitCode":0,"RawArgs":"brain unlink p4b:s related p4b:o"}
+{"Member":"RunParity","Args":"init","Stdout":"instance '<INSTANCE>' ready at <HOME><SEP>.grimora<SEP><INSTANCE><SEP>grimora.db<NL>","Stderr":"","ExitCode":0,"RawArgs":"init"}
+{"Member":"RunParity","Args":"brain learn slot only two","Stdout":"usage: brain learn slot <frame> <name> <value> [--facet ..] [--multi] [--because ..]<NL>","Stderr":"","ExitCode":0,"RawArgs":"brain learn slot only two"}
+{"Member":"RunParity","Args":"init","Stdout":"instance '<INSTANCE>' ready at <HOME><SEP>.grimora<SEP><INSTANCE><SEP>grimora.db<NL>","Stderr":"","ExitCode":0,"RawArgs":"init"}
+{"Member":"RunParity","Args":"brain tidy","Stdout":"tidy: backfilled scheme=kind on 0 node(s).<NL>","Stderr":"","ExitCode":0,"RawArgs":"brain tidy"}
+{"Member":"RunParity","Args":"init","Stdout":"instance '<INSTANCE>' ready at <HOME><SEP>.grimora<SEP><INSTANCE><SEP>grimora.db<NL>","Stderr":"","ExitCode":0,"RawArgs":"init"}
+{"Member":"RunParity","Args":"brain learn node onlyonearg","Stdout":"usage: brain learn node <k> <kind> <label> [--gloss ..] [--scheme ..] [--hard]<NL>","Stderr":"","ExitCode":0,"RawArgs":"brain learn node onlyonearg"}
+{"Member":"RunParity","Args":"init","Stdout":"instance '<INSTANCE>' ready at <HOME><SEP>.grimora<SEP><INSTANCE><SEP>grimora.db<NL>","Stderr":"","ExitCode":0,"RawArgs":"init"}
+{"Member":"RunParity","Args":"brain learn node p4b:guard \"This is prose\" a label","Stdout":"rejected: node kind must be a short lowercase vocab token (rule/fact/concept/symbol/finding/contract/seam/codekind/project/reference/platform/layer). Yours looks like prose — order is <k> <kind> <label>, the statement goes in --gloss.<NL>","Stderr":"","ExitCode":0,"RawArgs":"brain learn node p4b:guard \"This is prose\" a label"}
+{"Member":"RunParity","Args":"init","Stdout":"instance '<INSTANCE>' ready at <HOME><SEP>.grimora<SEP><INSTANCE><SEP>grimora.db<NL>","Stderr":"","ExitCode":0,"RawArgs":"init"}
+{"Member":"RunParity","Args":"brain set-hard onlyone","Stdout":"usage: brain set-hard <node-key> <0|1><NL>","Stderr":"","ExitCode":0,"RawArgs":"brain set-hard onlyone"}
+{"Member":"RunParity","Args":"init","Stdout":"instance '<INSTANCE>' ready at <HOME><SEP>.grimora<SEP><INSTANCE><SEP>grimora.db<NL>","Stderr":"","ExitCode":0,"RawArgs":"init"}
+{"Member":"RunParity","Args":"brain forget p4b:never-existed","Stdout":"no live node 'p4b:never-existed'.<NL>","Stderr":"","ExitCode":0,"RawArgs":"brain forget p4b:never-existed"}
+{"Member":"RunParity","Args":"init","Stdout":"instance '<INSTANCE>' ready at <HOME><SEP>.grimora<SEP><INSTANCE><SEP>grimora.db<NL>","Stderr":"","ExitCode":0,"RawArgs":"init"}
+{"Member":"RunParity","Args":"brain learn","Stdout":"brain learn <node|triple|slot> …<NL>","Stderr":"","ExitCode":0,"RawArgs":"brain learn"}
+{"Member":"RunParity","Args":"init","Stdout":"instance '<INSTANCE>' ready at <HOME><SEP>.grimora<SEP><INSTANCE><SEP>grimora.db<NL>","Stderr":"","ExitCode":0,"RawArgs":"init"}
+{"Member":"RunParity","Args":"brain unlink subject predicate","Stdout":"usage: brain unlink <subject> <predicate> <object><NL>","Stderr":"","ExitCode":0,"RawArgs":"brain unlink subject predicate"}
+{"Member":"RunParity","Args":"init","Stdout":"instance '<INSTANCE>' ready at <HOME><SEP>.grimora<SEP><INSTANCE><SEP>grimora.db<NL>","Stderr":"","ExitCode":0,"RawArgs":"init"}
+{"Member":"RunParity","Args":"brain learn triple only two","Stdout":"usage: brain learn triple <s> <predicate> <o> [--because ..] [--hard]<NL>","Stderr":"","ExitCode":0,"RawArgs":"brain learn triple only two"}
+{"Member":"RunParity","Args":"init","Stdout":"instance '<INSTANCE>' ready at <HOME><SEP>.grimora<SEP><INSTANCE><SEP>grimora.db<NL>","Stderr":"","ExitCode":0,"RawArgs":"init"}
+{"Member":"RunParity","Args":"brain merge p4b:missing-src p4b:missing-dst","Stdout":"target 'p4b:missing-dst' is not a live node.<NL>","Stderr":"","ExitCode":0,"RawArgs":"brain merge p4b:missing-src p4b:missing-dst"}
+{"Member":"RunParity","Args":"init","Stdout":"instance '<INSTANCE>' ready at <HOME><SEP>.grimora<SEP><INSTANCE><SEP>grimora.db<NL>","Stderr":"","ExitCode":0,"RawArgs":"init"}
+{"Member":"RunParity","Args":"shed-node","Stdout":"","Stderr":"error: shed-node needs --key<NL>","ExitCode":2,"RawArgs":"shed-node"}
+{"Member":"RunParity","Args":"init","Stdout":"instance '<INSTANCE>' ready at <HOME><SEP>.grimora<SEP><INSTANCE><SEP>grimora.db<NL>","Stderr":"","ExitCode":0,"RawArgs":"init"}
+{"Member":"RunParity","Args":"shed-node --key p4b:never-existed","Stdout":"retired node 'p4b:never-existed' and its links.<NL>","Stderr":"","ExitCode":0,"RawArgs":"shed-node --key p4b:never-existed"}
+{"Member":"RunParity","Args":"init","Stdout":"instance '<INSTANCE>' ready at <HOME><SEP>.grimora<SEP><INSTANCE><SEP>grimora.db<NL>","Stderr":"","ExitCode":0,"RawArgs":"init"}
+{"Member":"RunParity","Args":"brain forget","Stdout":"usage: brain forget <node-key><NL>","Stderr":"","ExitCode":0,"RawArgs":"brain forget"}
+{"Member":"RunParity","Args":"init","Stdout":"instance '<INSTANCE>' ready at <HOME><SEP>.grimora<SEP><INSTANCE><SEP>grimora.db<NL>","Stderr":"","ExitCode":0,"RawArgs":"init"}
+{"Member":"RunParity","Args":"brain set-hard p4b:never-existed 1","Stdout":"no live node 'p4b:never-existed'.<NL>","Stderr":"","ExitCode":0,"RawArgs":"brain set-hard p4b:never-existed 1"}
+{"Member":"RunParity","Args":"init","Stdout":"instance '<INSTANCE>' ready at <HOME><SEP>.grimora<SEP><INSTANCE><SEP>grimora.db<NL>","Stderr":"","ExitCode":0,"RawArgs":"init"}
+{"Member":"RunParity","Args":"brain learn bogus","Stdout":"brain learn <node|triple|slot> …<NL>","Stderr":"","ExitCode":0,"RawArgs":"brain learn bogus"}
+{"Member":"RunParity","Args":"init","Stdout":"instance '<INSTANCE>' ready at <HOME><SEP>.grimora<SEP><INSTANCE><SEP>grimora.db<NL>","Stderr":"","ExitCode":0,"RawArgs":"init"}
+{"Member":"RunParity","Args":"brain distill","Stdout":"distilled: 0 rule nodes, 0 fact nodes, 0 symbol nodes, 0 related links (0 unresolved -> distill_log). source channels untouched.<NL>","Stderr":"","ExitCode":0,"RawArgs":"brain distill"}
+{"Member":"RunParity","Args":"init","Stdout":"instance '<INSTANCE>' ready at <HOME><SEP>.grimora<SEP><INSTANCE><SEP>grimora.db<NL>","Stderr":"","ExitCode":0,"RawArgs":"init"}
+{"Member":"RunParity","Args":"brain learn-batch --from \"/no/such/directory/grimora-slice24-fixture.txt\"","Stdout":"file not found: /no/such/directory/grimora-slice24-fixture.txt<NL>","Stderr":"","ExitCode":0,"RawArgs":"brain learn-batch --from \"/no/such/directory/grimora-slice24-fixture.txt\""}
+{"Member":"RunParity","Args":"init","Stdout":"instance '<INSTANCE>' ready at <HOME><SEP>.grimora<SEP><INSTANCE><SEP>grimora.db<NL>","Stderr":"","ExitCode":0,"RawArgs":"init"}
+{"Member":"RunParity","Args":"brain merge onlyone","Stdout":"usage: brain merge <from-key> <into-key><NL>","Stderr":"","ExitCode":0,"RawArgs":"brain merge onlyone"}
+{"Member":"RunParity","Args":"init","Stdout":"instance '<INSTANCE>' ready at <HOME><SEP>.grimora<SEP><INSTANCE><SEP>grimora.db<NL>","Stderr":"","ExitCode":0,"RawArgs":"init"}
+{"Member":"RunParity","Args":"brain learn-batch","Stdout":"","Stderr":"error: brain learn-batch needs --from <file><NL>","ExitCode":2,"RawArgs":"brain learn-batch"}
+{"Member":"RunParity","Args":"init","Stdout":"instance '<INSTANCE>' ready at <HOME><SEP>.grimora<SEP><INSTANCE><SEP>grimora.db<NL>","Stderr":"","ExitCode":0,"RawArgs":"init"}
+{"Member":"RunParity","Args":"brain learn node p4b:unlink-s fact \"subject label\"","Stdout":"","Stderr":"","ExitCode":0,"RawArgs":"brain learn node p4b:unlink-s fact \"subject label\""}
+{"Member":"RunParity","Args":"brain learn node p4b:unlink-o fact \"object label\"","Stdout":"","Stderr":"","ExitCode":0,"RawArgs":"brain learn node p4b:unlink-o fact \"object label\""}
+{"Member":"RunParity","Args":"brain learn triple p4b:unlink-s related p4b:unlink-o","Stdout":"","Stderr":"","ExitCode":0,"RawArgs":"brain learn triple p4b:unlink-s related p4b:unlink-o"}
+{"Member":"RunParity","Args":"brain unlink p4b:unlink-s related p4b:unlink-o","Stdout":"unlinked p4b:unlink-s related p4b:unlink-o.<NL>","Stderr":"","ExitCode":0,"RawArgs":"brain unlink p4b:unlink-s related p4b:unlink-o"}
+{"Member":"RunParity","Args":"init","Stdout":"instance '<INSTANCE>' ready at <HOME><SEP>.grimora<SEP><INSTANCE><SEP>grimora.db<NL>","Stderr":"","ExitCode":0,"RawArgs":"init"}
+{"Member":"RunParity","Args":"add --term p4b-distill-term --value \"a fixture fact value\" --category manual","Stdout":"added/updated 'p4b-distill-term' [unverified] (logged to mutations).<NL>","Stderr":"","ExitCode":0,"RawArgs":"add --term p4b-distill-term --value \"a fixture fact value\" --category manual"}
+{"Member":"RunParity","Args":"brain distill","Stdout":"distilled: 0 rule nodes, 1 fact nodes, 0 symbol nodes, 0 related links (0 unresolved -> distill_log). source channels untouched.<NL>","Stderr":"","ExitCode":0,"RawArgs":"brain distill"}
+{"Member":"RunParity","Args":"init","Stdout":"instance '<INSTANCE>' ready at <HOME><SEP>.grimora<SEP><INSTANCE><SEP>grimora.db<NL>","Stderr":"","ExitCode":0,"RawArgs":"init"}
+{"Member":"RunParity","Args":"brain learn node p4b:shed-target fact \"a short label\"","Stdout":"","Stderr":"","ExitCode":0,"RawArgs":"brain learn node p4b:shed-target fact \"a short label\""}
+{"Member":"RunParity","Args":"brain learn node p4b:other fact \"other label\"","Stdout":"","Stderr":"","ExitCode":0,"RawArgs":"brain learn node p4b:other fact \"other label\""}
+{"Member":"RunParity","Args":"brain learn triple p4b:shed-target related p4b:other","Stdout":"","Stderr":"","ExitCode":0,"RawArgs":"brain learn triple p4b:shed-target related p4b:other"}
+{"Member":"RunParity","Args":"shed-node --key p4b:shed-target","Stdout":"retired node 'p4b:shed-target' and its links.<NL>","Stderr":"","ExitCode":0,"RawArgs":"shed-node --key p4b:shed-target"}
+{"Member":"RunParity","Args":"init","Stdout":"instance '<INSTANCE>' ready at <HOME><SEP>.grimora<SEP><INSTANCE><SEP>grimora.db<NL>","Stderr":"","ExitCode":0,"RawArgs":"init"}
+{"Member":"RunParity","Args":"brain learn node p4b:forget-target fact \"a short label\"","Stdout":"","Stderr":"","ExitCode":0,"RawArgs":"brain learn node p4b:forget-target fact \"a short label\""}
+{"Member":"RunParity","Args":"brain learn node p4b:other fact \"other label\"","Stdout":"","Stderr":"","ExitCode":0,"RawArgs":"brain learn node p4b:other fact \"other label\""}
+{"Member":"RunParity","Args":"brain learn triple p4b:forget-target related p4b:other","Stdout":"","Stderr":"","ExitCode":0,"RawArgs":"brain learn triple p4b:forget-target related p4b:other"}
+{"Member":"RunParity","Args":"brain forget p4b:forget-target","Stdout":"forgot p4b:forget-target (node + its live edges/slots retired).<NL>","Stderr":"","ExitCode":0,"RawArgs":"brain forget p4b:forget-target"}
+{"Member":"RunParity","Args":"init","Stdout":"instance '<INSTANCE>' ready at <HOME><SEP>.grimora<SEP><INSTANCE><SEP>grimora.db<NL>","Stderr":"","ExitCode":0,"RawArgs":"init"}
+{"Member":"RunParity","Args":"brain learn node p4b:merge-src fact \"source label\"","Stdout":"","Stderr":"","ExitCode":0,"RawArgs":"brain learn node p4b:merge-src fact \"source label\""}
+{"Member":"RunParity","Args":"brain learn node p4b:merge-dst fact \"target label\"","Stdout":"","Stderr":"","ExitCode":0,"RawArgs":"brain learn node p4b:merge-dst fact \"target label\""}
+{"Member":"RunParity","Args":"brain learn node p4b:other fact \"other label\"","Stdout":"","Stderr":"","ExitCode":0,"RawArgs":"brain learn node p4b:other fact \"other label\""}
+{"Member":"RunParity","Args":"brain learn triple p4b:merge-src related p4b:other","Stdout":"","Stderr":"","ExitCode":0,"RawArgs":"brain learn triple p4b:merge-src related p4b:other"}
+{"Member":"RunParity","Args":"brain merge p4b:merge-src p4b:merge-dst","Stdout":"merged p4b:merge-src -> p4b:merge-dst.<NL>","Stderr":"","ExitCode":0,"RawArgs":"brain merge p4b:merge-src p4b:merge-dst"}
+{"Member":"RunParity","Args":"init","Stdout":"instance '<INSTANCE>' ready at <HOME><SEP>.grimora<SEP><INSTANCE><SEP>grimora.db<NL>","Stderr":"","ExitCode":0,"RawArgs":"init"}
+{"Member":"RunParity","Args":"brain learn node p4b:tidy-target fact \"a short label\"","Stdout":"","Stderr":"","ExitCode":0,"RawArgs":"brain learn node p4b:tidy-target fact \"a short label\""}
+{"Member":"RunParity","Args":"brain tidy","Stdout":"tidy: backfilled scheme=kind on 1 node(s).<NL>","Stderr":"","ExitCode":0,"RawArgs":"brain tidy"}
+{"Member":"RunParity","Args":"init","Stdout":"instance '<INSTANCE>' ready at <HOME><SEP>.grimora<SEP><INSTANCE><SEP>grimora.db<NL>","Stderr":"","ExitCode":0,"RawArgs":"init"}
+{"Member":"RunParity","Args":"brain learn-batch --from \"<HOME>/AppData/Local/Temp/grimora-slice24-learnbatch-fixture-<GUID>/batch.txt\"","Stdout":"learn-batch: 2 nodes, 1 triples, 1 slots (1 skipped).<NL>","Stderr":"skip (malformed): malformed line with no pipes<NL>","ExitCode":0,"RawArgs":"brain learn-batch --from \"<HOME><SEP>AppData<SEP>Local<SEP>Temp<SEP>grimora-slice24-learnbatch-fixture-44c3f486f67c4d59899d298a93af5b03<SEP>batch.txt\""}
+{"Member":"RunParity","Args":"init","Stdout":"instance '<INSTANCE>' ready at <HOME><SEP>.grimora<SEP><INSTANCE><SEP>grimora.db<NL>","Stderr":"","ExitCode":0,"RawArgs":"init"}
+{"Member":"RunParity","Args":"brain learn node p4b:node-key fact \"a short label\" --gloss \"a gloss\" --scheme test","Stdout":"","Stderr":"","ExitCode":0,"RawArgs":"brain learn node p4b:node-key fact \"a short label\" --gloss \"a gloss\" --scheme test"}
+{"Member":"RunParity","Args":"init","Stdout":"instance '<INSTANCE>' ready at <HOME><SEP>.grimora<SEP><INSTANCE><SEP>grimora.db<NL>","Stderr":"","ExitCode":0,"RawArgs":"init"}
+{"Member":"RunParity","Args":"brain learn node p4b:hook-config fact \"a short label\"","Stdout":"","Stderr":"","ExitCode":0,"RawArgs":"brain learn node p4b:hook-config fact \"a short label\""}
+{"Member":"RunParity","Args":"init","Stdout":"instance '<INSTANCE>' ready at <HOME><SEP>.grimora<SEP><INSTANCE><SEP>grimora.db<NL>","Stderr":"","ExitCode":0,"RawArgs":"init"}
+{"Member":"RunParity","Args":"brain learn node p4b:hook/config fact \"a short label\"","Stdout":"","Stderr":"","ExitCode":0,"RawArgs":"brain learn node p4b:hook/config fact \"a short label\""}
+{"Member":"RunParity","Args":"init","Stdout":"instance '<INSTANCE>' ready at <HOME><SEP>.grimora<SEP><INSTANCE><SEP>grimora.db<NL>","Stderr":"","ExitCode":0,"RawArgs":"init"}
+{"Member":"RunParity","Args":"brain learn node p4b:hook.config fact \"a short label\"","Stdout":"","Stderr":"","ExitCode":0,"RawArgs":"brain learn node p4b:hook.config fact \"a short label\""}
+{"Member":"RunParity","Args":"init","Stdout":"instance '<INSTANCE>' ready at <HOME><SEP>.grimora<SEP><INSTANCE><SEP>grimora.db<NL>","Stderr":"","ExitCode":0,"RawArgs":"init"}
+{"Member":"RunParity","Args":"brain learn node p4b:hook_config fact \"a short label\"","Stdout":"","Stderr":"","ExitCode":0,"RawArgs":"brain learn node p4b:hook_config fact \"a short label\""}
+{"Member":"RunParity","Args":"init","Stdout":"instance '<INSTANCE>' ready at <HOME><SEP>.grimora<SEP><INSTANCE><SEP>grimora.db<NL>","Stderr":"","ExitCode":0,"RawArgs":"init"}
+{"Member":"RunParity","Args":"brain learn node p4b:subject fact \"subject label\"","Stdout":"","Stderr":"","ExitCode":0,"RawArgs":"brain learn node p4b:subject fact \"subject label\""}
+{"Member":"RunParity","Args":"brain learn node p4b:object fact \"object label\"","Stdout":"","Stderr":"","ExitCode":0,"RawArgs":"brain learn node p4b:object fact \"object label\""}
+{"Member":"RunParity","Args":"brain learn triple p4b:subject related p4b:object --because \"a fixture reason\"","Stdout":"","Stderr":"","ExitCode":0,"RawArgs":"brain learn triple p4b:subject related p4b:object --because \"a fixture reason\""}
+{"Member":"RunParity","Args":"init","Stdout":"instance '<INSTANCE>' ready at <HOME><SEP>.grimora<SEP><INSTANCE><SEP>grimora.db<NL>","Stderr":"","ExitCode":0,"RawArgs":"init"}
+{"Member":"RunParity","Args":"brain learn node p4b:hook-config fact \"subject label\"","Stdout":"","Stderr":"","ExitCode":0,"RawArgs":"brain learn node p4b:hook-config fact \"subject label\""}
+{"Member":"RunParity","Args":"brain learn node p4b:object fact \"object label\"","Stdout":"","Stderr":"","ExitCode":0,"RawArgs":"brain learn node p4b:object fact \"object label\""}
+{"Member":"RunParity","Args":"brain learn triple p4b:hook-config related p4b:object","Stdout":"","Stderr":"","ExitCode":0,"RawArgs":"brain learn triple p4b:hook-config related p4b:object"}
+{"Member":"RunParity","Args":"init","Stdout":"instance '<INSTANCE>' ready at <HOME><SEP>.grimora<SEP><INSTANCE><SEP>grimora.db<NL>","Stderr":"","ExitCode":0,"RawArgs":"init"}
+{"Member":"RunParity","Args":"brain learn node p4b:hook/config fact \"subject label\"","Stdout":"","Stderr":"","ExitCode":0,"RawArgs":"brain learn node p4b:hook/config fact \"subject label\""}
+{"Member":"RunParity","Args":"brain learn node p4b:object fact \"object label\"","Stdout":"","Stderr":"","ExitCode":0,"RawArgs":"brain learn node p4b:object fact \"object label\""}
+{"Member":"RunParity","Args":"brain learn triple p4b:hook/config related p4b:object","Stdout":"","Stderr":"","ExitCode":0,"RawArgs":"brain learn triple p4b:hook/config related p4b:object"}
+{"Member":"RunParity","Args":"init","Stdout":"instance '<INSTANCE>' ready at <HOME><SEP>.grimora<SEP><INSTANCE><SEP>grimora.db<NL>","Stderr":"","ExitCode":0,"RawArgs":"init"}
+{"Member":"RunParity","Args":"brain learn node p4b:hook.config fact \"subject label\"","Stdout":"","Stderr":"","ExitCode":0,"RawArgs":"brain learn node p4b:hook.config fact \"subject label\""}
+{"Member":"RunParity","Args":"brain learn node p4b:object fact \"object label\"","Stdout":"","Stderr":"","ExitCode":0,"RawArgs":"brain learn node p4b:object fact \"object label\""}
+{"Member":"RunParity","Args":"brain learn triple p4b:hook.config related p4b:object","Stdout":"","Stderr":"","ExitCode":0,"RawArgs":"brain learn triple p4b:hook.config related p4b:object"}
+{"Member":"RunParity","Args":"init","Stdout":"instance '<INSTANCE>' ready at <HOME><SEP>.grimora<SEP><INSTANCE><SEP>grimora.db<NL>","Stderr":"","ExitCode":0,"RawArgs":"init"}
+{"Member":"RunParity","Args":"brain learn node p4b:hook_config fact \"subject label\"","Stdout":"","Stderr":"","ExitCode":0,"RawArgs":"brain learn node p4b:hook_config fact \"subject label\""}
+{"Member":"RunParity","Args":"brain learn node p4b:object fact \"object label\"","Stdout":"","Stderr":"","ExitCode":0,"RawArgs":"brain learn node p4b:object fact \"object label\""}
+{"Member":"RunParity","Args":"brain learn triple p4b:hook_config related p4b:object","Stdout":"","Stderr":"","ExitCode":0,"RawArgs":"brain learn triple p4b:hook_config related p4b:object"}
+{"Member":"RunParity","Args":"init","Stdout":"instance '<INSTANCE>' ready at <HOME><SEP>.grimora<SEP><INSTANCE><SEP>grimora.db<NL>","Stderr":"","ExitCode":0,"RawArgs":"init"}
+{"Member":"RunParity","Args":"brain learn node p4b:frame fact \"frame label\"","Stdout":"","Stderr":"","ExitCode":0,"RawArgs":"brain learn node p4b:frame fact \"frame label\""}
+{"Member":"RunParity","Args":"brain learn slot p4b:frame name value --facet text","Stdout":"","Stderr":"","ExitCode":0,"RawArgs":"brain learn slot p4b:frame name value --facet text"}
