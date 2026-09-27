@@ -30,11 +30,12 @@ public class RiderInspectionsAreEnforcedTests
     }
 
     [Theory]
-    [InlineData("verify.ps1")]
-    [InlineData(".github/workflows/ci.yml")]
-    public void Gate_is_wired_in(string file)
+    [InlineData("verify.ps1", "inspect.ps1")]
+    [InlineData("verify.sh", "inspect.sh")]
+    [InlineData(".github/workflows/ci.yml", "inspect.sh")]
+    public void Gate_is_wired_in(string file, string script)
     {
-        Assert.Contains("inspect.ps1", Read(file));
+        Assert.Contains(script, Read(file));
     }
 
     [Fact]
