@@ -77,7 +77,7 @@ public class StatsToolTests
     // do — it reads the last commit that still had it, the same git-show pattern
     // CliFlagCoverageGuardTests.ReadOracleSource already uses, but written to a temp file so `dotnet
     // run` can execute it (not just read its text).
-    private const string TokCsOracleCommit = "07a021d722108d838d364ac854fa28ae6b8a116a";
+    private const string TokCsOracleCommit = "3545d9512b8ac95553b0ed2364983c8b5e3080f5";
 
     private static string RunOldTokCs(string instance)
     {

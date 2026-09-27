@@ -11,7 +11,7 @@ namespace Grimora.Layout.Tests;
 /// flag the old code read (<c>add --why</c>, <c>learn --facet</c>) was silently ignored once grimora.cs was
 /// wired to a tool class. This test is the same check on the MCP side, made permanent: each of the 24
 /// golden MCP tools' parameter list (name, type, order, default) is pinned to the last pre-dispatch
-/// oracle (<c>bbb9b4d2f4788d3f1960438799331d57198c9fbe:mcp.cs</c>, the commit before mcp.cs's own methods
+/// oracle (<c>52968343e93812c133419702de1b7a9f417db86d:mcp.cs</c>, the commit before mcp.cs's own methods
 /// started delegating to Grimora.* tool classes) and must never silently drift.
 ///
 /// The rule this enforces: a parameter may only ever be added, renamed, retyped, or have its default
@@ -23,7 +23,7 @@ namespace Grimora.Layout.Tests;
 /// </summary>
 public partial class McpParameterParityTests
 {
-    public const string PreDispatchOracleCommit = "bbb9b4d2f4788d3f1960438799331d57198c9fbe";
+    public const string PreDispatchOracleCommit = "52968343e93812c133419702de1b7a9f417db86d";
 
 
     [Fact]

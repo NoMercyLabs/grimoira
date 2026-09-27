@@ -29,6 +29,10 @@ public partial class NoConsoleWritesUnderSrcTests
             "Console.Error so its one direct caller (grimora.cs) keeps today's behaviour unchanged.",
         ["Grimora.Brain/Tools/SpineImportTool.cs"] = "ExecuteCli's new stderr parameter defaults to " +
             "Console.Error so its callers (grimora.cs, BrainSeedTool) keep today's behaviour unchanged.",
+        ["Grimora.Server/Data/IndexJobQueue.cs"] = "the SessionEnd index queue's own background loop " +
+            "(RunAsync), not a request handler: there is no caller-supplied writer to report to when the " +
+            "project store itself cannot be opened, or when a handler's own failure cannot even be recorded " +
+            "as a finding. Console.Error is the last resort after the finding-log write already failed.",
         // The following files never call Console at runtime — each match below is inside an XML doc
         // comment or a // comment explaining how the *old* grimora.cs printed a row, kept for the reader
         // tracing behaviour back to its oracle. Slice 29 part 1's grep does not distinguish code from
