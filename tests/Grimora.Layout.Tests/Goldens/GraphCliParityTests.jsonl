@@ -5,10 +5,10 @@
 {"Member":"AssertParity","Args":"init","Stdout":"instance '<INSTANCE>' ready at <HOME><SEP>.grimora<SEP><INSTANCE><SEP>grimora.db<NL>","Stderr":"","ExitCode":0,"RawArgs":"init"}
 {"Member":"AssertParity","Args":"forget-project","Stdout":"","Stderr":"error: forget-project needs --name<NL>","ExitCode":2,"RawArgs":"forget-project"}
 {"Member":"AssertParity","Args":"init","Stdout":"instance '<INSTANCE>' ready at <HOME><SEP>.grimora<SEP><INSTANCE><SEP>grimora.db<NL>","Stderr":"","ExitCode":0,"RawArgs":"init"}
-{"Member":"AssertParity","Args":"project --name web --root /tmp/grimora-slice24-p3-web --lang ts","Stdout":"project 'web' registered.<NL>","Stderr":"","ExitCode":0,"RawArgs":"project --name web --root /tmp/grimora-slice24-p3-web --lang ts"}
-{"Member":"AssertParity","Args":"projects","Stdout":"  web        [ts]  /tmp/grimora-slice24-p3-web  (*.ts,*.tsx,*.vue,*.kt,*.cs)<NL>(1 project(s) registered)<NL>","Stderr":"","ExitCode":0,"RawArgs":"projects"}
+{"Member":"AssertParity","Args":"project --name web --root <TEMP>/grimora-slice24-p3-web --lang ts","Stdout":"project 'web' registered.<NL>","Stderr":"","ExitCode":0,"RawArgs":"project --name web --root <HOMEF>/AppData/Local/Temp/grimora-slice24-p3-web --lang ts"}
+{"Member":"AssertParity","Args":"projects","Stdout":"  web        [ts]  <HOMEF>/AppData/Local/Temp/grimora-slice24-p3-web  (*.ts,*.tsx,*.vue,*.kt,*.cs)<NL>(1 project(s) registered)<NL>","Stderr":"","ExitCode":0,"RawArgs":"projects"}
 {"Member":"AssertParity","Args":"init","Stdout":"instance '<INSTANCE>' ready at <HOME><SEP>.grimora<SEP><INSTANCE><SEP>grimora.db<NL>","Stderr":"","ExitCode":0,"RawArgs":"init"}
-{"Member":"AssertParity","Args":"project --name my-proj.v2 --root /tmp/some-dir/sub.v2 --lang ts","Stdout":"project 'my-proj.v2' registered.<NL>","Stderr":"","ExitCode":0,"RawArgs":"project --name my-proj.v2 --root /tmp/some-dir/sub.v2 --lang ts"}
+{"Member":"AssertParity","Args":"project --name my-proj.v2 --root <TEMP>/some-dir/sub.v2 --lang ts","Stdout":"project 'my-proj.v2' registered.<NL>","Stderr":"","ExitCode":0,"RawArgs":"project --name my-proj.v2 --root <HOMEF>/AppData/Local/Temp/some-dir/sub.v2 --lang ts"}
 {"Member":"AssertParity","Args":"init","Stdout":"instance '<INSTANCE>' ready at <HOME><SEP>.grimora<SEP><INSTANCE><SEP>grimora.db<NL>","Stderr":"","ExitCode":0,"RawArgs":"init"}
 {"Member":"AssertParity","Args":"candidates","Stdout":"(0 pending candidate(s) — promote with: grimora promote <id>)<NL>","Stderr":"","ExitCode":0,"RawArgs":"candidates"}
 {"Member":"AssertParity","Args":"init","Stdout":"instance '<INSTANCE>' ready at <HOME><SEP>.grimora<SEP><INSTANCE><SEP>grimora.db<NL>","Stderr":"","ExitCode":0,"RawArgs":"init"}
@@ -36,7 +36,7 @@
 {"Member":"AssertParity","Args":"init","Stdout":"instance '<INSTANCE>' ready at <HOME><SEP>.grimora<SEP><INSTANCE><SEP>grimora.db<NL>","Stderr":"","ExitCode":0,"RawArgs":"init"}
 {"Member":"AssertParity","Args":"project --name onlyname","Stdout":"","Stderr":"error: project needs --root<NL>","ExitCode":2,"RawArgs":"project --name onlyname"}
 {"Member":"AssertParity","Args":"init","Stdout":"instance '<INSTANCE>' ready at <HOME><SEP>.grimora<SEP><INSTANCE><SEP>grimora.db<NL>","Stderr":"","ExitCode":0,"RawArgs":"init"}
-{"Member":"AssertParity","Args":"project --name web --root /tmp/grimora-slice24-p3-web --lang ts","Stdout":"project 'web' registered.<NL>","Stderr":"","ExitCode":0,"RawArgs":"project --name web --root /tmp/grimora-slice24-p3-web --lang ts"}
+{"Member":"AssertParity","Args":"project --name web --root <TEMP>/grimora-slice24-p3-web --lang ts","Stdout":"project 'web' registered.<NL>","Stderr":"","ExitCode":0,"RawArgs":"project --name web --root <HOMEF>/AppData/Local/Temp/grimora-slice24-p3-web --lang ts"}
 {"Member":"AssertParity","Args":"init","Stdout":"instance '<INSTANCE>' ready at <HOME><SEP>.grimora<SEP><INSTANCE><SEP>grimora.db<NL>","Stderr":"","ExitCode":0,"RawArgs":"init"}
 {"Member":"AssertParity","Args":"graph-explain","Stdout":"usage: grimora graph-explain <symbol><NL>","Stderr":"","ExitCode":0,"RawArgs":"graph-explain"}
 {"Member":"AssertParity","Args":"init","Stdout":"instance '<INSTANCE>' ready at <HOME><SEP>.grimora<SEP><INSTANCE><SEP>grimora.db<NL>","Stderr":"","ExitCode":0,"RawArgs":"init"}

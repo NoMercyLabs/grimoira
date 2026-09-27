@@ -81,15 +81,25 @@ public static class OldVsNewCli
     public static Result Run(string dllPath, string instance, string arguments, [System.Runtime.CompilerServices.CallerFilePath] string callerFile = "", [System.Runtime.CompilerServices.CallerMemberName] string callerMember = "")
     {
         bool frozenClass = !CliGoldens.FreezeMode && CliGoldens.HasGolden(callerFile);
-        if (frozenClass && dllPath == InProcessDll) return RunInProcess(instance, arguments);
-        if (frozenClass && Path.GetFileName(dllPath) == "aitm.dll") return Replay(instance, arguments, callerFile, callerMember);
+        if (frozenClass && dllPath == InProcessDll) return Normalized(RunInProcess(instance, arguments));
+        if (frozenClass && Path.GetFileName(dllPath) == "aitm.dll") return Normalized(Replay(instance, arguments, callerFile, callerMember));
         Result live = RunLive(dllPath, instance, arguments);
         if (CliGoldens.FreezeMode && Path.GetFileName(dllPath) == "aitm.dll")
         {
             CliGoldens.Record(callerFile, callerMember, arguments, live.Stdout, live.Stderr, live.ExitCode, instance, PinnedHeader);
         }
-        return live;
+        return Normalized(live);
     }
+
+    // A parity test's AssertParity diffs old vs. new stdout/stderr directly, never through
+    // CliGoldens.Canonical(), so the same OS-artifact stripping Canonical() applies has to happen here
+    // instead — on every branch above, live or replayed, so a golden frozen on one OS still compares
+    // equal to a live run on another (see CliGoldens.StripDriveLetter).
+    private static Result Normalized(Result result) => result with
+    {
+        Stdout = CliGoldens.StripDriveLetter(result.Stdout),
+        Stderr = CliGoldens.StripDriveLetter(result.Stderr),
+    };
 
     private const string PinnedHeader =
         "GOLDEN written by the pinned oracle aitm.cs at commit bbb9b4d2f4788d3f1960438799331d57198c9fbe (slice 24 start); never by the new code";

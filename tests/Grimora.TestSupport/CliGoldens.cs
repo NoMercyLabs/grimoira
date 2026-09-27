@@ -118,6 +118,15 @@ public static partial class CliGoldens
         return WindowsDriveLetter().Replace(result, "/");
     }
 
+    /// <summary>The same drive-letter fix <see cref="Canonical"/> applies, exposed standalone for
+    /// OldVsNewCli.Run: its parity tests diff a live run's stdout/stderr directly against a replayed
+    /// golden (frozen on whichever OS ran GRIMORA_FREEZE=1), never through Canonical() itself, so a
+    /// "/no/such/dir" argument that Windows resolved to "C:/no/such/dir" at freeze time would otherwise
+    /// still carry that drive letter when replayed against a Linux run's driveless "/no/such/dir".
+    /// Applying it to both sides of every such comparison is safe: it is a no-op unless the spurious
+    /// drive-letter shape is actually present.</summary>
+    public static string StripDriveLetter(string text) => WindowsDriveLetter().Replace(text, "/");
+
     /// <summary>For a test whose oracle is a function (an mcp.dll call), not a CLI line: in freeze mode runs
     /// <paramref name="oracle"/> and writes its result as the golden for <paramref name="key"/>; otherwise
     /// returns that golden without running any oracle.</summary>

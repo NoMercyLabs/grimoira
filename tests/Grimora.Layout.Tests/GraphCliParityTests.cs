@@ -74,6 +74,19 @@ public class GraphCliParityTests
         return root;
     }
 
+    // A --root value that never has to exist on disk (project only stores the string), but still has to
+    // be a portable stand-in for "some path with a slash in it": a hardcoded "/tmp/..." literal is a real
+    // directory shape on Linux and nowhere in particular on Windows, so CliGoldens.Canonical's own
+    // <TEMP>-token collapse (built from this machine's real Path.GetTempPath()) either fires or doesn't
+    // depending only on which OS happens to be replaying the golden, desyncing the golden lookup. Building
+    // it from Path.GetTempPath() the same way CreateExtractFixtureRepo does makes both freeze and replay
+    // collapse it to <TEMP> identically, on every OS.
+    private static readonly string TempWebRoot =
+        Path.Combine(Path.GetTempPath(), "grimora-slice24-p3-web").Replace('\\', '/');
+
+    private static readonly string TempHyphenDotSlashRoot =
+        Path.Combine(Path.GetTempPath(), "some-dir", "sub.v2").Replace('\\', '/');
+
     public static IEnumerable<object[]> Scenarios()
     {
         (string name, string[] setup, string command)[] cases =
@@ -81,13 +94,13 @@ public class GraphCliParityTests
             // project — bare/help-shaped (missing --name is an error), a normal registration, one whose
             // --name and --root carry a hyphen, a dot and a slash, and a missing-required-flag error.
             ("project-bare", ["init"], "project"),
-            ("project-normal", ["init"], "project --name web --root /tmp/grimora-slice24-p3-web --lang ts"),
-            ("project-hyphen-dot-slash", ["init"], "project --name my-proj.v2 --root /tmp/some-dir/sub.v2 --lang ts"),
+            ("project-normal", ["init"], $"project --name web --root {TempWebRoot} --lang ts"),
+            ("project-hyphen-dot-slash", ["init"], $"project --name my-proj.v2 --root {TempHyphenDotSlashRoot} --lang ts"),
             ("project-missing-root", ["init"], "project --name onlyname"),
 
             // projects — empty and listed.
             ("projects-empty", ["init"], "projects"),
-            ("projects-listed", ["init", "project --name web --root /tmp/grimora-slice24-p3-web --lang ts"], "projects"),
+            ("projects-listed", ["init", $"project --name web --root {TempWebRoot} --lang ts"], "projects"),
 
             // forget-project — a name that was never registered (0 edges dropped) and a missing --name error.
             ("forget-project-miss", ["init"], "forget-project --name never-registered"),
@@ -305,7 +318,7 @@ public class GraphCliParityTests
         {
             string newDll = OldVsNewCli.BinCliDll();
             OldVsNewCli.Run(newDll, newInstance, "init");
-            OldVsNewCli.Run(newDll, newInstance, "project --name web --root /tmp/grimora-slice24-p3-web --lang ts");
+            OldVsNewCli.Run(newDll, newInstance, $"project --name web --root {TempWebRoot} --lang ts");
             string backupsDir = Path.Combine(GrimoraCliRunner.InstanceDir(newInstance), "backups");
             Assert.False(Directory.Exists(backupsDir));
 
