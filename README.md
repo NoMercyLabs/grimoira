@@ -1,4 +1,4 @@
-# aitm
+# grimora
 
 **Agent In The Middle.**
 
@@ -6,7 +6,7 @@ It sits between the input field and the model, and it keeps both sides on the ri
 
 It holds everything learned about the product being built. Every exchange is context that accumulates into where the product is going, so a decision argued four months ago still applies to a change made today. The job is to stop the same things being explained twice, and to stop the "you just broke this by fixing that" class of regression, because a decision made now still matters two years from now.
 
-One SQLite store per instance under `~/.aitm/<instance>/aitm.db`, with separate channels for verified facts, durable rules, absorbed docs, conversation history, and a code graph.
+One SQLite store per instance under `~/.grimora/<instance>/grimora.db`, with separate channels for verified facts, durable rules, absorbed docs, conversation history, and a code graph.
 
 The conversation channel is a primary asset, not noise around the facts. It carries the reasoning behind decisions, which is the part that prevents regressions; anything that ranks it as low-value defeats the purpose of the store.
 
@@ -14,7 +14,7 @@ The conversation channel is a primary asset, not noise around the facts. It carr
 
 | File | What it is |
 | --- | --- |
-| `aitm.cs` | The CLI. File-based C# app, builds to `bin-cli/`. |
+| `grimora.cs` | The CLI. File-based C# app, builds to `bin-cli/`. |
 | `mcp.cs` | MCP server exposing the store as tools. Builds to `bin/`. |
 | `brain-lib.mjs` | Shared lookup: tokenise, scan every channel, score, format. |
 | `index-code.mjs` | Bulk indexer for the public declaration surface of registered projects. |
@@ -23,17 +23,17 @@ The conversation channel is a primary asset, not noise around the facts. It carr
 
 ## Install as a plugin
 
-AITM is a Claude Code plugin. It bundles the MCP server (`.mcp.json`, launched via
-`run-mcp.mjs`), the knowledge skill (`skills/aitm/SKILL.md`), two agents
+Grimora is a Claude Code plugin. It bundles the MCP server (`.mcp.json`, launched via
+`run-mcp.mjs`), the knowledge skill (`skills/grimora/SKILL.md`), two agents
 (`agents/knowledge-lookup.md` for read-only lookups, `agents/knowledge-writer.md` for
 deciding what to stage and flush), a maintenance slash command
-(`commands/aitm-maintain.md`), and the hard-gate hooks only — see below.
+(`commands/grimora-maintain.md`), and the hard-gate hooks only — see below.
 
 The repo is its own marketplace, so it installs directly:
 
 ```
-/plugin marketplace add NoMercyLabs/aitm
-/plugin install aitm@nomercylabs
+/plugin marketplace add NoMercyLabs/grimora
+/plugin install grimora@nomercylabs
 ```
 
 `run-mcp.mjs` starts the MCP server from the published CLI; build output is gitignored and never shipped.
@@ -52,7 +52,7 @@ answers:
 - `index-on-edit.mjs` (PostToolUse `Write|Edit|MultiEdit|NotebookEdit`) — re-indexes
   the memory/docs channel when a `.md` memory or spec file is edited.
 - `run-hook.mjs` (UserPromptSubmit, PreCompact, SessionEnd) — forwards the event to the
-  published CLI (`aitm hook <event>`), which saves and restores the compaction anchors and
+  published CLI (`grimora hook <event>`), which saves and restores the compaction anchors and
   folds the finished session back into the store.
 
 Everything that used to judge the quality of Claude's own answer by pattern-matching
@@ -65,7 +65,7 @@ and has been deleted from the repo entirely (`docs/RESTRUCTURE.md` section 2.4):
 skill and the two agents reach the same tools with judgment instead of a blind script
 on every turn.
 
-If you previously wired AITM hooks by hand in `settings.json`, do not enable this
+If you previously wired Grimora hooks by hand in `settings.json`, do not enable this
 plugin until those direct entries are removed in the same sitting — running both at
 once double-executes a hook that appears in both places. Run
 `node hook-doctor.mjs --project C:/Projects/NoMercy` to check hook overlap without

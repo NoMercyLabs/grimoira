@@ -66,10 +66,10 @@ for (const [name, result] of [
 test("reindexes through the data folder's current build when CLAUDE_PLUGIN_DATA is set", () => {
   const data = path.resolve('fixture-data');
   const { spawned } = invoke({ status: 0 }, { CLAUDE_PLUGIN_DATA: data });
-  assert.deepEqual(spawned[0].slice(0, 2), ['dotnet', path.join(data, 'current', 'bin-cli', 'aitm.dll')]);
+  assert.deepEqual(spawned[0].slice(0, 2), ['dotnet', path.join(data, 'current', 'bin-cli', 'grimora.dll')]);
 });
 
 test("reindexes through the checkout's own bin-cli beside the script without a plugin data folder", () => {
   const { spawned } = invoke({ status: 0 });
-  assert.deepEqual(spawned[0].slice(0, 2), ['dotnet', path.join(path.resolve('fixture-checkout'), 'bin-cli', 'aitm.dll')]);
+  assert.deepEqual(spawned[0].slice(0, 2), ['dotnet', path.join(path.resolve('fixture-checkout'), 'bin-cli', 'grimora.dll')]);
 });

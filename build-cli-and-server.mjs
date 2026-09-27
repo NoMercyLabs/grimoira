@@ -71,8 +71,8 @@ export function buildAndPoint({ root, dataDir, publish }) {
     const target = join(buildsDir, hash.slice(0, 12));
     if (readStamp(join(target, 'bin-cli')) !== hash) {
       rmSync(target, { recursive: true, force: true }); // an unfinished earlier try: never current, never in use
-      publish(join(root, 'src', 'Aitm.Cli', 'Aitm.Cli.csproj'), join(target, 'bin-cli'));
-      publish(join(root, 'src', 'Aitm.Server', 'Aitm.Server.csproj'), join(target, 'bin-server'));
+      publish(join(root, 'src', 'Grimora.Cli', 'Grimora.Cli.csproj'), join(target, 'bin-cli'));
+      publish(join(root, 'src', 'Grimora.Server', 'Grimora.Server.csproj'), join(target, 'bin-server'));
       writeHashStamp(join(target, 'bin-cli'), hash);
     }
     const previous = realOrNull(liveBuildDir(dataDir));

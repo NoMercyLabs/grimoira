@@ -1,6 +1,6 @@
 {
   "mcpServers": {
-    "aitm": {
+    "grimora": {
       "command": "node",
       "args": ["${CLAUDE_PLUGIN_ROOT}/run-mcp.mjs"]
     }

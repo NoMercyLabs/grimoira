@@ -9,22 +9,22 @@ param([switch]$Quick)
 $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
 
-Write-Host 'building Aitm.sln...' -ForegroundColor Cyan
+Write-Host 'building Grimora.sln...' -ForegroundColor Cyan
 # RESTRUCTURE.md slice 24 bullet 4: every feature's actual logic now lives in the solution's source
-# projects; aitm.cs and mcp.cs (built below) are thin file-based hosts that reference them via
-# `#:project` and are NOT part of Aitm.sln (a file-based app cannot be an sln project), so this alone
-# would not produce bin-cli/aitm.exe or bin/mcp.dll — the two builds below still do that.
-dotnet build "$root/Aitm.sln" | Select-String -Pattern 'error|warning NU19|-> '
+# projects; grimora.cs and mcp.cs (built below) are thin file-based hosts that reference them via
+# `#:project` and are NOT part of Grimora.sln (a file-based app cannot be an sln project), so this alone
+# would not produce bin-cli/grimora.exe or bin/mcp.dll — the two builds below still do that.
+dotnet build "$root/Grimora.sln" | Select-String -Pattern 'error|warning NU19|-> '
 
 Write-Host 'building CLI...' -ForegroundColor Cyan
-# build-cli.ps1 publishes Aitm.Cli to bin-cli/ and keeps the aitm.cs build as bin-cli-old/ (sub-card 29e).
+# build-cli.ps1 publishes Grimora.Cli to bin-cli/ and keeps the grimora.cs build as bin-cli-old/ (sub-card 29e).
 & "$root/build-cli.ps1" | Select-String -Pattern 'error|warning NU19|-> '
 
 Write-Host 'building MCP server...' -ForegroundColor Cyan
 # A live session keeps bin/mcp.dll open, and the copy then fails with MSB3027 after ten retries.
 # The client respawns the server on demand, so stopping it here is cheaper than a confusing build error.
 Get-CimInstance Win32_Process -Filter "Name='dotnet.exe'" |
-    Where-Object { $_.CommandLine -match 'aitm.bin.mcp\.dll' } |
+    Where-Object { $_.CommandLine -match 'grimora.bin.mcp\.dll' } |
     ForEach-Object {
         Write-Host "  stopping MCP host pid $($_.ProcessId) (it holds bin/mcp.dll)" -ForegroundColor DarkGray
         Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue

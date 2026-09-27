@@ -1,4 +1,4 @@
-// Where the published AITM CLI lives (RESTRUCTURE.md slice 32a).
+// Where the published Grimora CLI lives (RESTRUCTURE.md slice 32a).
 //
 // An installed plugin builds into CLAUDE_PLUGIN_DATA: each build in <data>/builds/<stamp>/{bin-cli,bin-server},
 // and <data>/current points at the newest complete one (session-start.mjs, build-cli-and-server.mjs). Run from a
@@ -13,17 +13,17 @@ export function liveBuildDir(dataDir) {
 
 export function publishedCliDll(env, checkoutRoot) {
   const dataDir = env.CLAUDE_PLUGIN_DATA;
-  return dataDir ? join(liveBuildDir(dataDir), 'bin-cli', 'aitm.dll') : join(checkoutRoot, 'bin-cli', 'aitm.dll');
+  return dataDir ? join(liveBuildDir(dataDir), 'bin-cli', 'grimora.dll') : join(checkoutRoot, 'bin-cli', 'grimora.dll');
 }
 
 /**
  * Runs `dotnet <cli> hook <event>` with stdin, stdout and stderr inherited, so the hook's input and output pass
- * through byte for byte, and returns its exit code. The plugin root goes along as AITM_PLUGIN_ROOT, so a server
+ * through byte for byte, and returns its exit code. The plugin root goes along as Grimora_PLUGIN_ROOT, so a server
  * the hook starts finds the plugin files. A dotnet that cannot start fails open (0).
  */
 export function runCliHook(cli, event, pluginRoot) {
   const hook = spawnSync('dotnet', [cli, 'hook', event],
-    { stdio: 'inherit', windowsHide: true, env: { ...process.env, AITM_PLUGIN_ROOT: pluginRoot } });
+    { stdio: 'inherit', windowsHide: true, env: { ...process.env, Grimora_PLUGIN_ROOT: pluginRoot } });
   return hook.error ? 0 : (hook.status ?? 0);
 }
 
@@ -34,6 +34,6 @@ export function runCliHook(cli, event, pluginRoot) {
  */
 export function runCliMcp(cli, pluginRoot) {
   const server = spawnSync('dotnet', [cli, 'mcp'],
-    { stdio: 'inherit', windowsHide: true, env: { ...process.env, AITM_PLUGIN_ROOT: pluginRoot } });
+    { stdio: 'inherit', windowsHide: true, env: { ...process.env, Grimora_PLUGIN_ROOT: pluginRoot } });
   return server.error ? 0 : (server.status ?? 0);
 }

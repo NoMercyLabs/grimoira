@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { auditHooks } from './hook-doctor.mjs';
 
-const direct = name => ({ command: `node C:/Projects/aitm/${name}.mjs` });
+const direct = name => ({ command: `node C:/Projects/grimora/${name}.mjs` });
 const plugin = name => ({ command: 'node', args: [`\${CLAUDE_PLUGIN_ROOT}/${name}.mjs`] });
 const entry = hook => [{ hooks: [hook] }];
 
@@ -19,7 +19,7 @@ test('a dormant plugin overlap does not claim duplicate execution', () => {
 test('enabling an overlapping plugin reports duplicate execution', () => {
   const result = auditHooks(
     { hooks: { Stop: entry(direct('continue-guard')) } },
-    { enabledPlugins: { 'aitm@nomercylabs': true } },
+    { enabledPlugins: { 'grimora@nomercylabs': true } },
     { hooks: { Stop: entry(plugin('continue-guard')) } },
   );
   assert.equal(result.unsafe, true);

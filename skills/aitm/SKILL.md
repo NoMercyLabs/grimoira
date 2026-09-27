@@ -1,11 +1,11 @@
 ---
-name: aitm
-description: Find a NoMercy project fact, rule, past decision, cross-project impact, or known tool in AITM; record a verified finding for future sessions. Use for project knowledge, not generic coding questions.
+name: grimora
+description: Find a NoMercy project fact, rule, past decision, cross-project impact, or known tool in Grimora; record a verified finding for future sessions. Use for project knowledge, not generic coding questions.
 ---
 
-# AITM project knowledge
+# Grimora project knowledge
 
-AITM is a shared knowledge store, one instance per workspace (`nomercy` in NoMercy). It holds verified facts, standing rules, absorbed docs, past conversations, and a cross-project code graph.
+Grimora is a shared knowledge store, one instance per workspace (`nomercy` in NoMercy). It holds verified facts, standing rules, absorbed docs, past conversations, and a cross-project code graph.
 
 Its answers are leads with a source, not proof the current code still agrees. The source file and the running software are the real proof; a memory is context. Check the cited source before changing code or relying on a fact that matters. The user's current instruction and the target repo's own rules always outrank a stale entry.
 
@@ -37,21 +37,21 @@ Call one of these before renaming or reshaping anything another project depends 
 
 ## Code graph (no external tool needed)
 
-AITM's own `edges` table IS the code graph — every declaration and curated usage site across every
+Grimora's own `edges` table IS the code graph — every declaration and curated usage site across every
 registered project, one row per (symbol, file, line, project). These three tools read it directly, no
 LLM, no separate index to keep in sync:
 
 - `graph_query` — the most relevant symbols/files/docs for a natural-language question, one hop of
-  neighbors (declaration file, top consuming projects), grouped by project. CLI: `aitm graph-query <question>`.
+  neighbors (declaration file, top consuming projects), grouped by project. CLI: `grimora graph-query <question>`.
 - `graph_path` — shortest path between two symbols/files over the code graph (declaration + usage
-  edges), max depth 6, each hop printed with file:line. CLI: `aitm graph-path <A> <B>`.
+  edges), max depth 6, each hop printed with file:line. CLI: `grimora graph-path <A> <B>`.
 - `graph_explain` — what a symbol is (kind, definition file:line), who uses it (grouped by project, top
   10 sites), and docs/rules that mention it. "What it uses" is reported as not tracked rather than
-  guessed — there is no call-graph edge, only declaration/usage. CLI: `aitm graph-explain <symbol>`.
+  guessed — there is no call-graph edge, only declaration/usage. CLI: `grimora graph-explain <symbol>`.
 
 These replace the external `graphify` tool for this workspace: graphify's graph here only ever covered
 the root repo's docs and scripts (nested repos — the actual product code — were never in it), so any
-question about a real class, controller, or hub returned "no node matching" or a doc-only answer. AITM's
+question about a real class, controller, or hub returned "no node matching" or a doc-only answer. Grimora's
 edges table already spans every registered project because `index-code.mjs` walks them all.
 
 Refresh the index after code changes: `node index-code.mjs [--instance <name>] [--project <name>]`
@@ -85,7 +85,7 @@ Use the CLI `add` / `index-memory` commands instead if the MCP server is unavail
 
 ## Auth (gated, rare)
 
-- `idp_token` — mint a real IdP token for a subject, for automated test/API/SignalR calls. The only sanctioned way to authenticate for automated work; never weaken or bypass auth instead. Gated behind `AITM_ALLOW_TOKEN_MINT=1`; when gated, run the sibling script directly instead of the tool.
+- `idp_token` — mint a real IdP token for a subject, for automated test/API/SignalR calls. The only sanctioned way to authenticate for automated work; never weaken or bypass auth instead. Gated behind `Grimora_ALLOW_TOKEN_MINT=1`; when gated, run the sibling script directly instead of the tool.
 
 ## Rules
 
@@ -93,4 +93,4 @@ Use the CLI `add` / `index-memory` commands instead if the MCP server is unavail
 - Stage aggressively, flush before ending the turn. Re-deriving something twice costs more than writing it once.
 - For a shared contract change, check `impact`/`brain_impact` AND read the current consumers yourself. The graph can lag a fast-moving repo.
 - One repo at a time for `workspace_search`. Never point it at the whole monorepo root.
-- Claude may also run AITM hooks for indexing and pre-compaction saves. Other agents must make these reads and writes explicitly — do not assume a hook ran just because this skill is installed.
+- Claude may also run Grimora hooks for indexing and pre-compaction saves. Other agents must make these reads and writes explicitly — do not assume a hook ran just because this skill is installed.

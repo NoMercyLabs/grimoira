@@ -50,7 +50,7 @@ function branches() {
 // Every place a repo-relative path could legitimately be rooted: the monorepo itself, every nested
 // project under it, and the two sibling repos outside it. Enumerated from disk rather than listed by
 // hand — a hardcoded list is the thing that goes stale and makes this checker lie in its own way.
-const ROOTS = [ROOT, 'C:/Projects/aitm', 'C:/Projects/aaoa-dev/Mom-icons', ...REGISTERED.map((repo) => join(ROOT, repo))];
+const ROOTS = [ROOT, 'C:/Projects/grimora', 'C:/Projects/aaoa-dev/Mom-icons', ...REGISTERED.map((repo) => join(ROOT, repo))];
 const resolvesAnywhere = (p) => ROOTS.some((r) => existsSync(join(r, p)));
 
 const known = branches();

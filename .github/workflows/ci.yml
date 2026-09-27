@@ -16,14 +16,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          # The old-vs-new parity tests build aitm.cs and mcp.cs from a fixed older commit
-          # (tests/Aitm.TestSupport: OldVsNewCli, McpSnapshotHarness); a shallow clone lacks it.
+          # The old-vs-new parity tests build grimora.cs and mcp.cs from a fixed older commit
+          # (tests/Grimora.TestSupport: OldVsNewCli, McpSnapshotHarness); a shallow clone lacks it.
           fetch-depth: 0
 
       - uses: actions/setup-dotnet@v4
         with:
           # Pinned to global.json's exact SDK, not a floating '10.0.x': a different feature band
-          # names a file-based app's generated project "aitm.cs" instead of "aitm", which slips
+          # names a file-based app's generated project "grimora.cs" instead of "grimora", which slips
           # past Directory.Build.props's file-based-app guard and NU1008s on central package
           # management (see Directory.Build.props and the fix commit for the full story).
           global-json-file: global.json
@@ -34,32 +34,32 @@ jobs:
           node-version: '22'
 
       - name: Build CLI
-        # bin-cli/ is the published Aitm.Cli, the thin client of the server's POST /cli. bin-cli-old/
-        # is the kept aitm.cs build: the rollback, and the oracle the parity tests compare against.
+        # bin-cli/ is the published Grimora.Cli, the thin client of the server's POST /cli. bin-cli-old/
+        # is the kept grimora.cs build: the rollback, and the oracle the parity tests compare against.
         run: |
-          dotnet build aitm.cs -c Release -o bin-cli-old
-          dotnet publish src/Aitm.Cli/Aitm.Cli.csproj -c Release -o bin-cli -p:PublishAot=false
+          dotnet build grimora.cs -c Release -o bin-cli-old
+          dotnet publish src/Grimora.Cli/Grimora.Cli.csproj -c Release -o bin-cli -p:PublishAot=false
 
       - name: Build server
-        run: dotnet publish src/Aitm.Server/Aitm.Server.csproj -c Release -o bin-server -p:PublishAot=false
+        run: dotnet publish src/Grimora.Server/Grimora.Server.csproj -c Release -o bin-server -p:PublishAot=false
 
       - name: Build MCP server
         run: dotnet build mcp.cs -c Release -o bin
 
       # the owner, 2026-09-26: the code style "must be enforced by rules". A file the fixer would rewrite fails CI.
       - name: Code style
-        run: dotnet format style Aitm.sln --severity info --diagnostics IDE0005 IDE0008 IDE0028 IDE0090 IDE0300 IDE0301 IDE0305 IDE0370 --verify-no-changes
+        run: dotnet format style Grimora.sln --severity info --diagnostics IDE0005 IDE0008 IDE0028 IDE0090 IDE0300 IDE0301 IDE0305 IDE0370 --verify-no-changes
 
       # the owner, 2026-09-27: every warning Rider shows must fail the build. Rider's inspections are not Roslyn
-      # analyzers, so JetBrains' inspectcode (pinned in .config/dotnet-tools.json) runs against Aitm.sln.DotSettings.
+      # analyzers, so JetBrains' inspectcode (pinned in .config/dotnet-tools.json) runs against Grimora.sln.DotSettings.
       - name: Rider inspections
         shell: pwsh
         run: |
-          dotnet build Aitm.sln -c Debug --nologo -v q
+          dotnet build Grimora.sln -c Debug --nologo -v q
           ./inspect.ps1
 
       - name: Solution tests
-        run: dotnet test Aitm.sln -c Release
+        run: dotnet test Grimora.sln -c Release
 
       # A hook with a syntax error fails silently at runtime: the harness swallows it and the
       # enforcement it provides just stops happening. Parse every one on the way in.
@@ -86,7 +86,7 @@ jobs:
 
       - name: Vulnerable dependencies
         run: |
-          dotnet list aitm.csproj package --vulnerable --include-transitive 2>&1 | tee audit.txt
+          dotnet list grimora.csproj package --vulnerable --include-transitive 2>&1 | tee audit.txt
           dotnet list mcp.csproj package --vulnerable --include-transitive 2>&1 | tee -a audit.txt
           if grep -qiE '\bHigh\b|\bCritical\b' audit.txt; then
             echo "::error::high or critical advisory in the dependency tree"

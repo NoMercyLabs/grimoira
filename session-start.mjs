@@ -5,14 +5,14 @@
 // install or update there is no bin-cli/ or bin-server/. The published CLI and server therefore live in
 // CLAUDE_PLUGIN_DATA (kept across plugin updates), guarded by a build stamp like launch-mcp.mjs.
 //
-// - Build current: run `dotnet <data>/current/bin-cli/aitm.dll hook SessionStart`, stdin, stdout and the exit
-//   code passed straight through. The hook gets AITM_PLUGIN_ROOT, so a server it starts from the data folder
+// - Build current: run `dotnet <data>/current/bin-cli/grimora.dll hook SessionStart`, stdin, stdout and the exit
+//   code passed straight through. The hook gets Grimora_PLUGIN_ROOT, so a server it starts from the data folder
 //   still finds the files that ship in the plugin root (idp-impersonate.mjs, seeds/).
 // - A running server keeps the build it started from. The CLI's SessionStart compares the build stamp in its
 //   /health with the current build's: on a mismatch the old server finishes its calls in flight and exits, and
 //   the server of the current build starts (ServerHandover, slice 32b).
 // - Missing or stale: start build-cli-and-server.mjs detached, print one line, exit 0. A lock file makes
-//   sure two sessions never build at once. The session goes on without AITM until the build is done.
+//   sure two sessions never build at once. The session goes on without Grimora until the build is done.
 //
 // With no CLAUDE_PLUGIN_DATA (run from a checkout) the checkout's own bin-cli/ and bin-server/ are used, as
 // launch-mcp.mjs uses the checkout's bin/. build-cli.ps1 and build-server.ps1 own their freshness there, so
@@ -32,7 +32,7 @@ const LOCK = 'build.lock';
 /** Longer than any real build; a lock this old was left by a build that died. */
 const LOCK_EXPIRY_MS = 30 * 60 * 1000;
 
-export const BUILDING_LINE = 'AITM is building its CLI and server in the background (first session after an install or update); it is ready in a few minutes.';
+export const BUILDING_LINE = 'Grimora is building its CLI and server in the background (first session after an install or update); it is ready in a few minutes.';
 
 /** The folder holding bin-cli/ and bin-server/: the data folder's current build, else the checkout itself. */
 export function buildDir(dataDir, pluginData) {
@@ -42,7 +42,7 @@ export function buildDir(dataDir, pluginData) {
 export function isCurrent(root, dataDir, pluginData) {
   const dir = buildDir(dataDir, pluginData);
   const cliDir = join(dir, 'bin-cli');
-  if (!existsSync(join(cliDir, 'aitm.dll')) || !existsSync(join(dir, 'bin-server', 'Aitm.Server.dll'))) return false;
+  if (!existsSync(join(cliDir, 'grimora.dll')) || !existsSync(join(dir, 'bin-server', 'Grimora.Server.dll'))) return false;
   return !pluginData || readStamp(cliDir) === treeHash(root, BUILD_INPUTS);
 }
 
@@ -70,7 +70,7 @@ export function releaseLock(dataDir) {
 /**
  * Records the plugin root in <data>/plugin-root.txt, written to a temp file and renamed so a reader never sees
  * half a path. A server started without this hook (the logon task, a thin client of another slot) has no
- * AITM_PLUGIN_ROOT and finds idp-impersonate.mjs and seeds/ through this file (PluginFileLocator).
+ * Grimora_PLUGIN_ROOT and finds idp-impersonate.mjs and seeds/ through this file (PluginFileLocator).
  */
 export function recordPluginRoot(dataDir, root) {
   mkdirSync(dataDir, { recursive: true });
@@ -85,7 +85,7 @@ export function sessionStart({ root, dataDir, pluginData, runHook, startBuild, w
     try { recordPluginRoot(dataDir, root); } catch { /* best effort: the env var and the walk-up remain */ }
   }
   if (isCurrent(root, dataDir, pluginData)) {
-    return runHook(join(buildDir(dataDir, pluginData), 'bin-cli', 'aitm.dll'), { AITM_PLUGIN_ROOT: root });
+    return runHook(join(buildDir(dataDir, pluginData), 'bin-cli', 'grimora.dll'), { Grimora_PLUGIN_ROOT: root });
   }
   if (takeLock(dataDir)) {
     try {
@@ -113,7 +113,7 @@ function main() {
     root,
     dataDir: pluginData || root,
     pluginData: Boolean(pluginData),
-    runHook: (cli, env) => runCliHook(cli, 'SessionStart', env.AITM_PLUGIN_ROOT),
+    runHook: (cli, env) => runCliHook(cli, 'SessionStart', env.Grimora_PLUGIN_ROOT),
     startBuild: dataDir => startDetached(join(root, 'build-cli-and-server.mjs'), [dataDir]),
     write: line => process.stdout.write(`${line}\n`),
   });

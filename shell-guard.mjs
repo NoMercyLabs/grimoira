@@ -39,7 +39,7 @@ process.stdin.on('end', () => {
             `This is a ${inlineEval[3].length}-character inline "node -e" script. Its quotes have to survive ` +
             `the shell AND node, and on this machine that reliably breaks — it has cost several failed calls ` +
             `already. Write the script to a .mjs file in the scratchpad with the Write tool and run it by path. ` +
-            `Import shared helpers as file:///C:/Projects/aitm/brain-lib.mjs (a bare C:/ path is not a legal ESM ` +
+            `Import shared helpers as file:///C:/Projects/grimora/brain-lib.mjs (a bare C:/ path is not a legal ESM ` +
             `specifier on Windows).`,
         },
       }));
@@ -61,7 +61,7 @@ process.stdin.on('end', () => {
     if (fixed !== before2) notes.push('MSYS /c/ style paths rewritten to C:/');
 
     // Per token, not per match: a single global replace only converted the first backslash run and
-    // left "C:/Projects\aitm/x.mjs", which is still broken and harder to spot than the original.
+    // left "C:/Projects\grimora/x.mjs", which is still broken and harder to spot than the original.
     if (!isPwsh && /[A-Za-z]:\\/.test(fixed)) {
       const before3 = fixed;
       fixed = fixed.split(/(\s+)/).map((tok) =>
@@ -76,7 +76,7 @@ process.stdin.on('end', () => {
       hookSpecificOutput: {
         hookEventName: 'PreToolUse',
         permissionDecision: 'allow',
-        permissionDecisionReason: `aitm shell-guard: ${notes.join('; ')}.`,
+        permissionDecisionReason: `grimora shell-guard: ${notes.join('; ')}.`,
         updatedInput: { ...payload.tool_input, command: fixed },
       },
     }));

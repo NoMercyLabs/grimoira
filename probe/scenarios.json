@@ -14,8 +14,8 @@
     "spotChecks": 1
   },
   {
-    "id": "aitm-meaning",
-    "prompt": "what does aitm stand for again",
+    "id": "grimora-meaning",
+    "prompt": "what does grimora stand for again",
     "why": "One stated fact in the fact channel. Anything past a single lookup means the store is not the first place asked.",
     "expect": "answer",
     "mustContain": [

@@ -1,5 +1,5 @@
 {
-  "name": "aitm",
+  "name": "grimora",
   "description": "Per-project knowledge store with a hook-enforced read/write loop: answers codebase questions from a queryable store instead of the training prior, and learns from every search that has to fall through to the filesystem.",
   "version": "0.4.0",
   "author": {

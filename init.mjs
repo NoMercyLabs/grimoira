@@ -23,21 +23,21 @@ const step = (n, msg) => log(`\n[${n}] ${msg}`);
 
 const root = resolve(arg('--root') || process.env.CLAUDE_PROJECT_DIR || process.cwd());
 const instance = arg('--instance') || basename(root.replace(/[\\/]+$/, '')).toLowerCase().replace(/[^a-z0-9_-]/g, '');
-const dbPath = join(homedir(), '.aitm', instance, 'aitm.db');
+const dbPath = join(homedir(), '.grimora', instance, 'grimora.db');
 
-log(`aitm init`);
+log(`grimora init`);
 log(`  repo     ${root}`);
 log(`  instance ${instance}`);
 log(`  store    ${dbPath}`);
 
 // ---------------------------------------------------------------- 1. the CLI
 step(1, 'CLI');
-const exe = join(HERE, 'bin-cli', 'aitm.exe');
-const dll = join(HERE, 'bin-cli', 'aitm.dll');
+const exe = join(HERE, 'bin-cli', 'grimora.exe');
+const dll = join(HERE, 'bin-cli', 'grimora.dll');
 if (!existsSync(exe) && !existsSync(dll)) {
   log('  building (build output is not committed)…');
-  // bin-cli/ is the published Aitm.Cli, the thin client of the server (sub-card 29e); never aitm.cs.
-  const b = spawnSync('dotnet', ['publish', join(HERE, 'src', 'Aitm.Cli', 'Aitm.Cli.csproj'), '-c', 'Release', '-o', join(HERE, 'bin-cli'), '-p:PublishAot=false'], {
+  // bin-cli/ is the published Grimora.Cli, the thin client of the server (sub-card 29e); never grimora.cs.
+  const b = spawnSync('dotnet', ['publish', join(HERE, 'src', 'Grimora.Cli', 'Grimora.Cli.csproj'), '-c', 'Release', '-o', join(HERE, 'bin-cli'), '-p:PublishAot=false'], {
     stdio: quiet ? 'ignore' : 'inherit',
     timeout: 600000,
   });
@@ -46,10 +46,10 @@ if (!existsSync(exe) && !existsSync(dll)) {
     process.exit(1);
   }
 }
-// The thin client starts bin-server/Aitm.Server on its first verb, so it has to exist too.
-if (!existsSync(join(HERE, 'bin-server', 'Aitm.Server.dll'))) {
+// The thin client starts bin-server/Grimora.Server on its first verb, so it has to exist too.
+if (!existsSync(join(HERE, 'bin-server', 'Grimora.Server.dll'))) {
   log('  building the server…');
-  const s = spawnSync('dotnet', ['publish', join(HERE, 'src', 'Aitm.Server', 'Aitm.Server.csproj'), '-c', 'Release', '-o', join(HERE, 'bin-server'), '-p:PublishAot=false'], {
+  const s = spawnSync('dotnet', ['publish', join(HERE, 'src', 'Grimora.Server', 'Grimora.Server.csproj'), '-c', 'Release', '-o', join(HERE, 'bin-server'), '-p:PublishAot=false'], {
     stdio: quiet ? 'ignore' : 'inherit',
     timeout: 600000,
   });

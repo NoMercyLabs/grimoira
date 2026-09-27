@@ -6,13 +6,13 @@ bin-server/
 obj/
 *.user
 
-# aitm.cs and mcp.cs were file-based apps with no .csproj on disk, so *.csproj was a blanket rule
+# grimora.cs and mcp.cs were file-based apps with no .csproj on disk, so *.csproj was a blanket rule
 # against any stray generated project file. RESTRUCTURE.md slice 2 adds real, tracked .csproj files
 # under src/ and tests/ for the new solution; those are source, not build output.
-/aitm.csproj
+/grimora.csproj
 /mcp.csproj
 
-# Per-instance stores live in ~/.aitm, never in the repo.
+# Per-instance stores live in ~/.grimora, never in the repo.
 *.db
 *.db-journal
 *.db-wal

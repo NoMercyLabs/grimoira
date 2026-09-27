@@ -9,7 +9,7 @@ function check(name, actual, expected) {
   if (actual === expected) { passed++; } else { failed++; console.log(`FAIL ${name}: got ${actual}, want ${expected}`); }
 }
 
-const dir = mkdtempSync(join(tmpdir(), 'aitm-stamp-'));
+const dir = mkdtempSync(join(tmpdir(), 'grimora-stamp-'));
 try {
   const source = join(dir, 'mcp.cs');
   const bin = join(dir, 'bin');

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Check Claude hook registrations without running hooks or printing their commands.
-// An enabled plugin plus matching direct hooks runs the same AITM script twice.
+// An enabled plugin plus matching direct hooks runs the same Grimora script twice.
 import { readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -15,7 +15,7 @@ function hooks(data, directOnly) {
     for (const group of groups || []) {
       for (const hook of group.hooks || []) {
         const command = String(hook.command || '');
-        if (directOnly && !/(^|[/\\])aitm[/\\]/i.test(command)) continue;
+        if (directOnly && !/(^|[/\\])grimora[/\\]/i.test(command)) continue;
         for (const script of scripts([command, ...(hook.args || [])].join(' '))) {
           found.push(key(event, script.toLowerCase()));
         }
@@ -27,7 +27,7 @@ function hooks(data, directOnly) {
 
 export function auditHooks(user, project, plugin) {
   const enabled = { ...(user?.enabledPlugins || {}), ...(project?.enabledPlugins || {}) };
-  const pluginEnabledSetting = Object.entries(enabled).some(([name, value]) => /^aitm@/i.test(name) && value === true);
+  const pluginEnabledSetting = Object.entries(enabled).some(([name, value]) => /^grimora@/i.test(name) && value === true);
   const direct = [...hooks(user, true), ...hooks(project, true)];
   const pluginSet = new Set(hooks(plugin, false));
   const directCounts = new Map();
@@ -67,7 +67,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
       readJson(join(import.meta.dirname, 'hooks', 'hooks.json')),
     );
     if (process.argv.includes('--json')) console.log(JSON.stringify(result));
-    else console.log(`AITM hooks: ${result.pluginHooks} in plugin, ${result.directHooks} direct, ${result.overlap.length} overlapping, ${result.directOnly.length} direct only. Plugin enabled in settings: ${result.pluginEnabledSetting}. ${result.unsafe ? 'FAIL: duplicate hook launches possible.' : 'No duplicate indicated by settings.'}`);
+    else console.log(`Grimora hooks: ${result.pluginHooks} in plugin, ${result.directHooks} direct, ${result.overlap.length} overlapping, ${result.directOnly.length} direct only. Plugin enabled in settings: ${result.pluginEnabledSetting}. ${result.unsafe ? 'FAIL: duplicate hook launches possible.' : 'No duplicate indicated by settings.'}`);
     process.exitCode = result.unsafe ? 2 : 0;
   } catch (error) {
     console.error(error.message);

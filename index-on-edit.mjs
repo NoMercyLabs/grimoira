@@ -1,4 +1,4 @@
-// PostToolUse hook (Write|Edit|MultiEdit|NotebookEdit): keep the aitm brain's memory + docs channels
+// PostToolUse hook (Write|Edit|MultiEdit|NotebookEdit): keep the grimora brain's memory + docs channels
 // from silently drifting. Recall is hook-enforced but writes weren't — a memory `.md` or design spec
 // could be edited and nothing re-indexed it until a manual CLI run, so the brain lagged reality. After
 // any successful file edit this re-indexes the touched channel automatically.
@@ -9,7 +9,7 @@
 //   • edited file is under `<project>/.claude/docs/design/`                 -> index-docs   --from <that design dir>
 //   • anything else (source, config, MEMORY.md itself)                     -> silent no-op, exit 0
 //
-// Instance is resolved the same way every other aitm hook does it: basename(CLAUDE_PROJECT_DIR|cwd),
+// Instance is resolved the same way every other grimora hook does it: basename(CLAUDE_PROJECT_DIR|cwd),
 // lowercased, sanitized. For the memory case we additionally require the encoded `projects/<encoded>`
 // segment to end with that slug, so a cross-project memory edit can never index into the wrong instance.
 // Best-effort throughout: any error (and the no-op path) exits 0 — a reindex must never break the edit.
@@ -20,7 +20,7 @@ import { join, basename, dirname, resolve, sep } from 'node:path';
 import { publishedCliDll } from './published-cli.mjs';
 
 // The data folder's current build in an installed plugin, else the checkout's bin-cli beside this script.
-const AITM_DLL = publishedCliDll(process.env, import.meta.dirname);
+const Grimora_DLL = publishedCliDll(process.env, import.meta.dirname);
 
 // Case-insensitive (Windows) path-containment: is `child` inside `parent`?
 const norm = (p) => resolve(p).replace(/[\\/]+/g, sep).replace(/[\\/]+$/, '').toLowerCase();
@@ -42,10 +42,10 @@ process.stdin.on('end', () => {
       || payload.tool_input?.path;
     if (!filePath || typeof filePath !== 'string') process.exit(0);
 
-    // Instance == project slug, exactly the convention the other aitm hooks use.
+    // Instance == project slug, exactly the convention the other grimora hooks use.
     const proj = process.env.CLAUDE_PROJECT_DIR || payload.cwd || process.cwd();
     const slug = basename(proj.replace(/[\\/]+$/, '')).toLowerCase().replace(/[^a-z0-9_-]/g, '');
-    if (!slug || !existsSync(join(homedir(), '.aitm', slug, 'aitm.db'))) process.exit(0);
+    if (!slug || !existsSync(join(homedir(), '.grimora', slug, 'grimora.db'))) process.exit(0);
 
     const file = resolve(filePath);
 
@@ -87,18 +87,18 @@ process.stdin.on('end', () => {
 // the reverse makes the CLI treat --instance as the command and dump help). Best-effort, never throws.
 function reindex(command, fromDir, instance) {
   try {
-    const result = spawnSync('dotnet', [AITM_DLL, command, '--from', fromDir, '--instance', instance], {
+    const result = spawnSync('dotnet', [Grimora_DLL, command, '--from', fromDir, '--instance', instance], {
       timeout: 60000,
       stdio: 'ignore',
     });
     if (result.error || result.signal || result.status !== 0) {
       // Do not echo child output: indexed sources can contain private material.
       const reason = result.error?.code || result.signal || `exit ${result.status}`;
-      process.stderr.write(`aitm ${command}: indexing failed (${reason}); index may be stale\n`);
+      process.stderr.write(`grimora ${command}: indexing failed (${reason}); index may be stale\n`);
       return;
     }
-    process.stdout.write(`aitm ${command}: reindexed ${fromDir} -> ${instance}\n`);
+    process.stdout.write(`grimora ${command}: reindexed ${fromDir} -> ${instance}\n`);
   } catch {
-    process.stderr.write(`aitm ${command}: indexing failed; index may be stale\n`);
+    process.stderr.write(`grimora ${command}: indexing failed; index may be stale\n`);
   }
 }

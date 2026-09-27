@@ -2,20 +2,20 @@
 #:package Microsoft.Extensions.Hosting@9.0.0
 #:package Microsoft.Data.Sqlite@10.0.9
 // Pinned to the safe floor: Microsoft.Data.Sqlite otherwise resolves SQLitePCLRaw 2.1.10, which
-// carries GHSA-2m69-gcr7-jv3q. Keep in lockstep with aitm.cs.
+// carries GHSA-2m69-gcr7-jv3q. Keep in lockstep with grimora.cs.
 #:package SQLitePCLRaw.bundle_e_sqlite3@3.0.3
-#:project src/Aitm.Store/Aitm.Store.csproj
-#:project src/Aitm.Facts/Aitm.Facts.csproj
-#:project src/Aitm.Memory/Aitm.Memory.csproj
-#:project src/Aitm.Docs/Aitm.Docs.csproj
-#:project src/Aitm.Graph/Aitm.Graph.csproj
-#:project src/Aitm.Brain/Aitm.Brain.csproj
-#:project src/Aitm.Server/Aitm.Server.csproj
-// AITM MCP server: exposes the per-instance store (knowledge, the cross-project impact graph,
+#:project src/Grimora.Store/Grimora.Store.csproj
+#:project src/Grimora.Facts/Grimora.Facts.csproj
+#:project src/Grimora.Memory/Grimora.Memory.csproj
+#:project src/Grimora.Docs/Grimora.Docs.csproj
+#:project src/Grimora.Graph/Grimora.Graph.csproj
+#:project src/Grimora.Brain/Grimora.Brain.csproj
+#:project src/Grimora.Server/Grimora.Server.csproj
+// Grimora MCP server: exposes the per-instance store (knowledge, the cross-project impact graph,
 // history, findings) as tools the agent calls every session. stdio transport; all host logging
 // disabled so only tool output reaches the client.
-// Instance resolves from AITM_INSTANCE, else the project dir (CLAUDE_PROJECT_DIR or cwd) basename,
-// so the one user-scope server serves whatever repo the session runs in; store at ~/.aitm/<instance>/aitm.db.
+// Instance resolves from Grimora_INSTANCE, else the project dir (CLAUDE_PROJECT_DIR or cwd) basename,
+// so the one user-scope server serves whatever repo the session runs in; store at ~/.grimora/<instance>/grimora.db.
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
@@ -25,15 +25,15 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using ModelContextProtocol.Server;
-using Aitm.Store.Data;
-using Aitm.Store.Tools;
-using Aitm.Facts.Tools;
-using Aitm.Memory.Tools;
-using Aitm.Docs.Tools;
-using Aitm.Graph.Tools;
-using Aitm.Brain.Data;
-using Aitm.Brain.Tools;
-using Aitm.Server.Handover;
+using Grimora.Store.Data;
+using Grimora.Store.Tools;
+using Grimora.Facts.Tools;
+using Grimora.Memory.Tools;
+using Grimora.Docs.Tools;
+using Grimora.Graph.Tools;
+using Grimora.Brain.Data;
+using Grimora.Brain.Tools;
+using Grimora.Server.Handover;
 
 HostApplicationBuilder builder = Host.CreateApplicationBuilder(args);
 builder.Logging.ClearProviders();
@@ -41,11 +41,11 @@ builder.Services.AddMcpServer().WithStdioServerTransport().WithToolsFromAssembly
 await builder.Build().RunAsync();
 
 [McpServerToolType]
-public static class AitmTools
+public static class GrimoraTools
 {
     private static SqliteConnection Open()
     {
-        string path = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".aitm", ResolveInstance(), "aitm.db");
+        string path = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".grimora", ResolveInstance(), "grimora.db");
         // brain_stage and brain_flush now route through this Open() too (RESTRUCTURE.md slice 24, MCP
         // part 2), and unlike the other tools here neither ever required an already-`init`-ed instance
         // before: brain_stage is pure ledger-file append, and old mcp.cs's own inline brain_stage
@@ -58,7 +58,7 @@ public static class AitmTools
         con.Open();
         using (SqliteCommand busy = con.CreateCommand())
         {
-            // Matches aitm.cs: a momentary writer must block this connection, not kill it, and WAL
+            // Matches grimora.cs: a momentary writer must block this connection, not kill it, and WAL
             // keeps readers running while the long doc/chat indexers hold the write lock.
             busy.CommandText = "PRAGMA busy_timeout=30000; PRAGMA journal_mode=WAL;";
             busy.ExecuteNonQuery();
@@ -103,7 +103,7 @@ public static class AitmTools
 
     private static string ResolveInstance()
     {
-        string? env = Environment.GetEnvironmentVariable("AITM_INSTANCE");
+        string? env = Environment.GetEnvironmentVariable("Grimora_INSTANCE");
         if (!string.IsNullOrWhiteSpace(env)) return Slug(env);
         string? proj = Environment.GetEnvironmentVariable("CLAUDE_PROJECT_DIR");
         string dir = string.IsNullOrWhiteSpace(proj) ? Directory.GetCurrentDirectory() : proj;
@@ -147,10 +147,10 @@ public static class AitmTools
 
     // Locate the token-exchange engine (idp-impersonate.mjs) that ships alongside this source. The
     // compiled dll runs from bin/, so walk up from the assembly directory until the file appears; an
-    // explicit AITM_HOME overrides. One origin for the exchange — the tool never reimplements it.
+    // explicit Grimora_HOME overrides. One origin for the exchange — the tool never reimplements it.
     private static string? EnginePath()
     {
-        string? home = Environment.GetEnvironmentVariable("AITM_HOME");
+        string? home = Environment.GetEnvironmentVariable("Grimora_HOME");
         if (!string.IsNullOrEmpty(home))
         {
             string p = Path.Combine(home, "idp-impersonate.mjs");
@@ -167,13 +167,13 @@ public static class AitmTools
     }
 
     [McpServerTool]
-    [Description("INTERNAL TESTING. Get a test user token — use this whenever automated work needs a real user token (for an API/SignalR/test call) or you are blocked by a login screen. Mints a real IdP access token for a subject (user GUID, email, or username) via the supported token-exchange grant, with audience=nomercy-server so the media-server accepts it. Defaults to dev; pass realm=\"prod\". This is the ONLY sanctioned way to authenticate for automated work — never weaken/bypass auth or scrape a live session. To LOG A CLIENT IN (not just get a raw token) there are sibling scripts in the same aitm folder: idp-login-web.mjs (browser), idp-login-kmp.mjs (phone), idp-approve-device.mjs (TV); full guide in docs/test-login-and-token-exchange.md. GATED: this tool no-ops unless AITM_ALLOW_TOKEN_MINT=1 (an always-on impersonation primitive is a large blast radius) — when gated, run the script directly instead. Never fabricates a user. Reads the nomercy-api secret from env or nomercy-tv/.env.")]
+    [Description("INTERNAL TESTING. Get a test user token — use this whenever automated work needs a real user token (for an API/SignalR/test call) or you are blocked by a login screen. Mints a real IdP access token for a subject (user GUID, email, or username) via the supported token-exchange grant, with audience=nomercy-server so the media-server accepts it. Defaults to dev; pass realm=\"prod\". This is the ONLY sanctioned way to authenticate for automated work — never weaken/bypass auth or scrape a live session. To LOG A CLIENT IN (not just get a raw token) there are sibling scripts in the same grimora folder: idp-login-web.mjs (browser), idp-login-kmp.mjs (phone), idp-approve-device.mjs (TV); full guide in docs/test-login-and-token-exchange.md. GATED: this tool no-ops unless Grimora_ALLOW_TOKEN_MINT=1 (an always-on impersonation primitive is a large blast radius) — when gated, run the script directly instead. Never fabricates a user. Reads the nomercy-api secret from env or nomercy-tv/.env.")]
     public static string idp_token(string subject, string realm = "dev")
     {
-        if (Environment.GetEnvironmentVariable("AITM_ALLOW_TOKEN_MINT") != "1")
+        if (Environment.GetEnvironmentVariable("Grimora_ALLOW_TOKEN_MINT") != "1")
         {
             return "refused: token minting is gated. This tool impersonates a real user, so it is off by "
-                + "default. Set AITM_ALLOW_TOKEN_MINT=1 to enable it here, or run the script directly: "
+                + "default. Set Grimora_ALLOW_TOKEN_MINT=1 to enable it here, or run the script directly: "
                 + "node idp-impersonate.mjs <subject> [--prod]. To LOG A CLIENT IN instead of getting a "
                 + "raw token, use the workspace login drivers (C:/Projects/NoMercy/.claude/work/tools/idp).";
         }
@@ -182,7 +182,7 @@ public static class AitmTools
         if (realm != "dev" && realm != "prod") return $"unknown realm \"{realm}\" — use \"dev\" or \"prod\".";
 
         string? engine = EnginePath();
-        if (engine == null) return "cannot locate idp-impersonate.mjs — set AITM_HOME to the aitm checkout directory.";
+        if (engine == null) return "cannot locate idp-impersonate.mjs — set Grimora_HOME to the grimora checkout directory.";
 
         try
         {
@@ -241,7 +241,7 @@ public static class AitmTools
     }
 
     [McpServerTool]
-    [Description("Forget one memory (a migrated RULE/preference/decision) by its exact key — deletes the row from the memory channel and logs the deletion to the cold trail. Use to retire a rule that no longer holds. The key is the slug shown by aitm's memory tooling; a wrong key is a no-op.")]
+    [Description("Forget one memory (a migrated RULE/preference/decision) by its exact key — deletes the row from the memory channel and logs the deletion to the cold trail. Use to retire a rule that no longer holds. The key is the slug shown by grimora's memory tooling; a wrong key is a no-op.")]
     public static string shed_memory(string key)
     {
         using SqliteConnection con = Open();

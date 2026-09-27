@@ -18,9 +18,9 @@ function check(name, condition, detail = '') {
   else { failures.push(`${name}${detail ? ` — ${detail}` : ''}`); console.log(`  FAIL ${name}${detail ? ` — ${detail}` : ''}`); }
 }
 
-const dir = mkdtempSync(join(tmpdir(), 'aitm-test-'));
+const dir = mkdtempSync(join(tmpdir(), 'grimora-test-'));
 mkdirSync(dir, { recursive: true });
-const db = new DatabaseSync(join(dir, 'aitm.db'));
+const db = new DatabaseSync(join(dir, 'grimora.db'));
 
 db.exec(`
   CREATE TABLE facts(k TEXT PRIMARY KEY, term TEXT, aliases TEXT, category TEXT, value TEXT, source TEXT, notes TEXT, provenance TEXT DEFAULT 'unverified');
@@ -63,7 +63,7 @@ check('conversation history can place in results', chatPicks.some((p) => p.kindT
 // 4. A code symbol must match on a word boundary, not a substring.
 db.prepare('INSERT INTO edges(symbol,contract,project,file,line,usage,hardcoded) VALUES(?,?,?,?,?,?,0)')
   .run('aChromeCanTakeOverAndTheTrackerStandsDown', 'decl', 'p', '/x/a.kt', 1, 'kotlin declaration');
-const standPicks = search(db, tokenize('what does aitm stand for'), { limit: 5 });
+const standPicks = search(db, tokenize('what does grimora stand for'), { limit: 5 });
 check('substring token does not match a symbol', !standPicks.some((p) => p.kindTag === 'code'));
 
 db.prepare('INSERT INTO edges(symbol,contract,project,file,line,usage,hardcoded) VALUES(?,?,?,?,?,?,0)')

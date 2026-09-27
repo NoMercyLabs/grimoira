@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Grimora.TestSupport\Grimora.TestSupport.csproj" />
+    <!-- RESTRUCTURE.md slice 31/31b: the migrated-store parity cases below open a new instance's db
+         directly to apply GraphFileRelSchema (the same migration IndexCodeTool runs), so they need the
+         schema and graph tool assemblies — the other OldVsNewCli tests in this project never touch a
+         store directly and stay on Grimora.TestSupport alone. -->
+    <ProjectReference Include="..\..\src\Grimora.Store\Grimora.Store.csproj" />
+    <ProjectReference Include="..\..\src\Grimora.Graph\Grimora.Graph.csproj" />
+    <!-- CliClientTimeoutsCoverTheServerLimitTests reads ThinClient.RequestTimeout itself. Private: Grimora.Server.Tests
+         references this project, and the thin client's types would clash with Grimora.Brain's there. -->
+    <ProjectReference Include="..\..\src\Grimora.Cli\Grimora.Cli.csproj" PrivateAssets="all" />
+    <!-- ServerAddressMatchesAcrossCliAndServerTests (Slice P1): the pipe/socket-name derivation is
+         duplicated in Grimora.Cli.Tools and Grimora.Server.Data (the two projects cannot reference each
+         other; ReferenceDirectionTests), so this test project needs both to catch drift. -->
+    <ProjectReference Include="..\..\src\Grimora.Server\Grimora.Server.csproj" />
+  </ItemGroup>
+</Project>

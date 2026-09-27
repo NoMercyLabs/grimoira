@@ -11,7 +11,7 @@ function check(name, actual, expected) {
   if (actual === expected) { passed++; } else { failed++; console.log(`FAIL ${name}: got ${actual}, want ${expected}`); }
 }
 
-const workspace = mkdtempSync(join(tmpdir(), 'aitm-workspace-'));
+const workspace = mkdtempSync(join(tmpdir(), 'grimora-workspace-'));
 try {
   mkdirSync(join(workspace, '.claude', 'scripts'), { recursive: true });
   writeFileSync(join(workspace, '.claude', 'scripts', 'repos.sh'),

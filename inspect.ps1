@@ -1,13 +1,13 @@
 # Rider's own inspections, run headless. the owner, 2026-09-27: every warning Rider shows must fail the build.
-# The severities live in the checked-in Aitm.sln.DotSettings; a rule set to ERROR there fails this script.
-# Needs a restored solution (run `dotnet restore Aitm.sln` first); costs about 1.5 minutes and 2.8 GB of nuget cache.
-param([string]$Output = (Join-Path ([System.IO.Path]::GetTempPath()) 'aitm-inspect.sarif'))
+# The severities live in the checked-in Grimora.sln.DotSettings; a rule set to ERROR there fails this script.
+# Needs a restored solution (run `dotnet restore Grimora.sln` first); costs about 1.5 minutes and 2.8 GB of nuget cache.
+param([string]$Output = (Join-Path ([System.IO.Path]::GetTempPath()) 'grimora-inspect.sarif'))
 
 $ErrorActionPreference = 'Stop'
 Set-Location $PSScriptRoot
 & dotnet tool restore | Out-Null
 if ($LASTEXITCODE -ne 0) { throw 'dotnet tool restore failed' }
-& dotnet tool run jb inspectcode Aitm.sln --output=$Output --format=Sarif --no-build | Out-Null
+& dotnet tool run jb inspectcode Grimora.sln --output=$Output --format=Sarif --no-build | Out-Null
 if ($LASTEXITCODE -ne 0) { throw 'jb inspectcode failed' }
 
 $results = (Get-Content $Output -Raw | ConvertFrom-Json).runs[0].results | Where-Object { $_.level -eq 'error' }

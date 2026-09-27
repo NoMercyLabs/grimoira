@@ -1,4 +1,4 @@
-// Shared guard for any test that opens or writes an AITM store. A real, populated instance (e.g.
+// Shared guard for any test that opens or writes an Grimora store. A real, populated instance (e.g.
 // "nomercy") holds live facts, memory and history; a test must never resolve to one, even as a side
 // effect of a hook it drives end to end. Every test instance name in this repo already contains "test"
 // or "fixture" (agreement-test, graphtest, stagetest, workspace-tool-test, gatefixture, ...) — anything

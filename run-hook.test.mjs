@@ -16,13 +16,13 @@ const payload = JSON.stringify({ session_id: 'run-hook-test', cwd: join(tmpdir()
 function isolated(dataDir) {
   // Never the live service: a throwaway store has its own pipe. A hook starts the service on demand; it
   // holds the store's files, so a test stops it before deleting them, and it also ends itself after 3 idle seconds.
-  const store = mkdtempSync(join(tmpdir(), 'aitm-run-hook-store-'));
-  return { store, env: { ...process.env, CLAUDE_PLUGIN_DATA: dataDir, AITM_DATA_DIR: store, AITM_IDLE_SECONDS: '3' } };
+  const store = mkdtempSync(join(tmpdir(), 'grimora-run-hook-store-'));
+  return { store, env: { ...process.env, CLAUDE_PLUGIN_DATA: dataDir, Grimora_DATA_DIR: store, Grimora_IDLE_SECONDS: '3' } };
 }
 
 for (const event of events) {
   test(`${event}: no current build prints nothing, exits 0 and starts no build`, () => {
-    const dataDir = mkdtempSync(join(tmpdir(), 'aitm-run-hook-'));
+    const dataDir = mkdtempSync(join(tmpdir(), 'grimora-run-hook-'));
     const { store, env } = isolated(dataDir);
     try {
       const result = spawnSync(process.execPath, [script, event], { input: payload, encoding: 'utf8', env, timeout: 20000 });
@@ -38,15 +38,15 @@ for (const event of events) {
 }
 
 // The checkout's own bin-cli (build-cli.ps1) stands in for a finished build: <data>/current points at the checkout.
-const built = existsSync(join(import.meta.dirname, 'bin-cli', 'aitm.dll'));
+const built = existsSync(join(import.meta.dirname, 'bin-cli', 'grimora.dll'));
 for (const event of events) {
   test(`${event}: with a current build the slot's stdout and exit code equal the direct CLI call`,
     { skip: !built && 'needs bin-cli/ from build-cli.ps1' }, () => {
-      const dataDir = mkdtempSync(join(tmpdir(), 'aitm-run-hook-'));
+      const dataDir = mkdtempSync(join(tmpdir(), 'grimora-run-hook-'));
       const { store, env } = isolated(dataDir);
       try {
         symlinkSync(import.meta.dirname, join(dataDir, 'current'), process.platform === 'win32' ? 'junction' : 'dir');
-        const direct = spawnSync('dotnet', [join(dataDir, 'current', 'bin-cli', 'aitm.dll'), 'hook', event],
+        const direct = spawnSync('dotnet', [join(dataDir, 'current', 'bin-cli', 'grimora.dll'), 'hook', event],
           { input: payload, encoding: 'utf8', env, timeout: 30000 });
         const slot = spawnSync(process.execPath, [script, event], { input: payload, encoding: 'utf8', env, timeout: 30000 });
         assert.equal(slot.stdout, direct.stdout);
@@ -55,7 +55,7 @@ for (const event of events) {
       } finally {
         // unlink removes only the link; a recursive delete must never reach the checkout behind it.
         try { unlinkSync(join(dataDir, 'current')); } catch { /* not created */ }
-        spawnSync('dotnet', [join(import.meta.dirname, 'bin-cli', 'aitm.dll'), 'service', 'stop'], { env, timeout: 30000 });
+        spawnSync('dotnet', [join(import.meta.dirname, 'bin-cli', 'grimora.dll'), 'service', 'stop'], { env, timeout: 30000 });
         rmSync(dataDir, { recursive: true, force: true });
         rmSync(store, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 });
       }

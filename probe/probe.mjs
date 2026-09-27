@@ -1,4 +1,4 @@
-// Dispatch real Claude sessions at aitm and score what they actually do.
+// Dispatch real Claude sessions at grimora and score what they actually do.
 //
 // Reading the hooks tells you what they should do; only running a session tells you what happens. Each
 // scenario is a question with a verifiable answer, phrased the way it would really be asked, and scored
@@ -13,7 +13,7 @@
 // user settings file whose permissions.defaultMode is "dontAsk". Only the deny list is a wall.
 //
 //   node probe/probe.mjs                 run every scenario
-//   node probe/probe.mjs encoder-orientation aitm-meaning
+//   node probe/probe.mjs encoder-orientation grimora-meaning
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { join, dirname } from 'node:path';
@@ -86,14 +86,14 @@ function score(scenario, events, ms, stderr) {
   // The store answers in three ways and only one of them is a tool call: the UserPromptSubmit recall
   // injects facts before anything is asked, and a gate denial hands back content in place of the tool.
   // Counting MCP calls alone scored those as "never consulted the store", which is backwards.
-  const served = /aitm brain already holds|previous session read this directory|aitm recall \(auto/i;
+  const served = /grimora brain already holds|previous session read this directory|grimora recall \(auto/i;
   const gateServed = events.some((e) => {
     const c = e.message?.content;
     if (!Array.isArray(c)) return false;
     return c.some((b) => b.type === 'tool_result' && served.test(
       typeof b.content === 'string' ? b.content : JSON.stringify(b.content || '')));
   });
-  const storeCalls = calls.filter((c) => /aitm|brain|fact|rule|recall|doc/i.test(c.name));
+  const storeCalls = calls.filter((c) => /grimora|brain|fact|rule|recall|doc/i.test(c.name));
   const reads = calls.filter((c) => c.name === 'Read').map((c) => (c.input?.file_path || '').replace(/\\/g, '/'));
   // Separators are cosmetic. Demanding "packages/nomercy-player-core" failed a run that answered
   // "C:\Projects\NoMercy\packages\nomercy-player-core\" — correct, and richer than what was asked for.

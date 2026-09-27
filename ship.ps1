@@ -62,7 +62,7 @@ if ($MessageFile -and $MessageFile.StartsWith([IO.Path]::GetTempPath(), [StringC
 
 # The store write happens BEFORE the push wait, so a red CI or a dropped connection cannot lose it.
 if ($Fact) {
-    & "$PSScriptRoot/bin-cli/aitm.exe" add --instance $Instance --term $Term --value $Fact `
+    & "$PSScriptRoot/bin-cli/grimora.exe" add --instance $Instance --term $Term --value $Fact `
         --category $Category --provenance stated --source $sha | Select-Object -Last 1
 }
 

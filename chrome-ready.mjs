@@ -196,7 +196,7 @@ process.stdin.on('end', async () => {
     if (process.argv.includes('--prune-only')) {
       const live = await findAgentBrowser();
       const closed = live ? await pruneDuplicateTabs(live.port) : 0;
-      if (closed > 0) process.stdout.write(JSON.stringify({ systemMessage: `aitm: closed ${closed} duplicate tab(s).` }));
+      if (closed > 0) process.stdout.write(JSON.stringify({ systemMessage: `grimora: closed ${closed} duplicate tab(s).` }));
       process.exit(0);
     }
 
@@ -208,7 +208,7 @@ process.stdin.on('end', async () => {
     if (pruned > 0) notes.push(`closed ${pruned} duplicate tab(s)`);
     if (notes.length) {
       // Worth one line, because a browser appearing unbidden (or tabs vanishing) should be explicable.
-      process.stdout.write(JSON.stringify({ systemMessage: `aitm: ${notes.join('; ')}.` }));
+      process.stdout.write(JSON.stringify({ systemMessage: `grimora: ${notes.join('; ')}.` }));
     }
   } catch {
     // fail open — never block a browser call because the readiness check itself broke

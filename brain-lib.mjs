@@ -21,7 +21,7 @@ export function resolveInstance(payload = {}) {
   return basename(proj.replace(/[\\/]+$/, '')).toLowerCase().replace(/[^a-z0-9_-]/g, '');
 }
 
-export const dbPathFor = (instance) => join(homedir(), '.aitm', instance, 'aitm.db');
+export const dbPathFor = (instance) => join(homedir(), '.grimora', instance, 'grimora.db');
 
 export async function openRead(instance) {
   const path = dbPathFor(instance);
@@ -467,14 +467,14 @@ export function logGap(db, tool, query) {
 // Session-scoped gate ledger. The gate must never deadlock: a signature it has already answered for
 // is allowed straight through on the next attempt, so a genuine miss always reaches the filesystem.
 export function ledgerPath(instance, sessionId) {
-  return join(homedir(), '.aitm', instance, 'gate', `${String(sessionId || 'nosession').slice(0, 64)}.json`);
+  return join(homedir(), '.grimora', instance, 'gate', `${String(sessionId || 'nosession').slice(0, 64)}.json`);
 }
 
 // Shared by the PreCompact writer and the UserPromptSubmit reader. It lives here rather than in either
 // hook because importing a hook module RUNS it: compact-restore imported this one name from
 // compact-brief and thereby fired the whole brief hook on every prompt, printing its output too.
 export function briefPath(instance, sessionId) {
-  return join(homedir(), '.aitm', instance, 'compact', `${String(sessionId || 'x').slice(0, 64)}.md`);
+  return join(homedir(), '.grimora', instance, 'compact', `${String(sessionId || 'x').slice(0, 64)}.md`);
 }
 
 // Read the END of a transcript rather than all of it.

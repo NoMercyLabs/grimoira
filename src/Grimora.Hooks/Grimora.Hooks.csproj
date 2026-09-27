@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="../Grimora.Store/Grimora.Store.csproj" />
+    <ProjectReference Include="..\Grimora.Facts\Grimora.Facts.csproj" />
+    <ProjectReference Include="../Grimora.Memory/Grimora.Memory.csproj" />
+    <ProjectReference Include="..\Grimora.Docs\Grimora.Docs.csproj" />
+    <ProjectReference Include="..\Grimora.Graph\Grimora.Graph.csproj" />
+    <ProjectReference Include="..\Grimora.Brain\Grimora.Brain.csproj" />
+  </ItemGroup>
+</Project>
