@@ -36,6 +36,13 @@ $styleExit = $LASTEXITCODE
 $out | Select-Object -Last 5
 if ($styleExit -ne 0) { $failed += 'code style (dotnet format style)' }
 
+Write-Host '-- Rider inspections (inspect.ps1)' -ForegroundColor Cyan
+# Rider's own inspections, run headless from the pinned JetBrains tool against Aitm.sln.DotSettings.
+$out = & "$PSScriptRoot/inspect.ps1" 2>&1
+$inspectExit = $LASTEXITCODE
+$out | Select-Object -Last 15
+if ($inspectExit -ne 0) { $failed += 'Rider inspections (inspect.ps1)' }
+
 Write-Host '-- dotnet test Aitm.sln' -ForegroundColor Cyan
 # From slice 2 on (RESTRUCTURE.md section 4, "Exit check for every slice"): the new solution's own
 # test projects, run alongside the Node suites below until phase 2 finishes moving every feature.

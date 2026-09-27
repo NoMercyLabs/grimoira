@@ -50,6 +50,14 @@ jobs:
       - name: Code style
         run: dotnet format style Aitm.sln --severity info --diagnostics IDE0005 IDE0008 IDE0028 IDE0090 IDE0300 IDE0301 IDE0305 IDE0370 --verify-no-changes
 
+      # the owner, 2026-09-27: every warning Rider shows must fail the build. Rider's inspections are not Roslyn
+      # analyzers, so JetBrains' inspectcode (pinned in .config/dotnet-tools.json) runs against Aitm.sln.DotSettings.
+      - name: Rider inspections
+        shell: pwsh
+        run: |
+          dotnet restore Aitm.sln
+          ./inspect.ps1
+
       - name: Solution tests
         run: dotnet test Aitm.sln -c Release
 
