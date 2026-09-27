@@ -1,0 +1,2 @@
+{"header":"GOLDEN written by the oracle bin-cli-old (grimora.cs at commit 0b2bb70, the last file-based build); never by the new code"}
+{"Member":"ASeededEdgeMarkedHardcodedIsFlaggedAndAReSyncAddsNoEdgeMutations","Args":"init --instance test-seed-edges-tool-<GUID>","Stdout":"instance 'test-seed-edges-tool-3f7806a5e28e46c7bfd535e80e1637d4' ready at <HOME><SEP>.grimora<SEP>test-seed-edges-tool-3f7806a5e28e46c7bfd535e80e1637d4<SEP>grimora.db<NL>","Stderr":"","ExitCode":0}
