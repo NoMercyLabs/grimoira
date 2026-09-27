@@ -1,0 +1,10 @@
+{"header":"GOLDEN written by the oracle bin-cli-old (grimora.cs at commit 0b2bb70, the last file-based build); never by the new code"}
+{"Member":"MatchesTodaysCliOutputForOpenTodos","Args":"init --instance test-todos-old-<GUID>","Stdout":"instance 'test-todos-old-fd0745974e7f466b85ff535761bd00bd' ready at <HOME><SEP>.grimora<SEP>test-todos-old-fd0745974e7f466b85ff535761bd00bd<SEP>grimora.db<NL>","Stderr":"","ExitCode":0}
+{"Member":"MatchesTodaysCliOutputForOpenTodos","Args":"todo --instance test-todos-old-<GUID> --title todos-fixture-one","Stdout":"todo added.<NL>","Stderr":"","ExitCode":0}
+{"Member":"MatchesTodaysCliOutputForOpenTodos","Args":"todo --instance test-todos-old-<GUID> --title todos-fixture-two","Stdout":"todo added.<NL>","Stderr":"","ExitCode":0}
+{"Member":"MatchesTodaysCliOutputForOpenTodos","Args":"todos --instance test-todos-old-<GUID>","Stdout":"  #1  todos-fixture-one<NL>  #2  todos-fixture-two<NL>(2 open todo(s))<NL>","Stderr":"","ExitCode":0}
+{"Member":"MatchesTodaysCliOutputForOpenTodos","Args":"init --instance test-todos-new-<GUID>","Stdout":"instance 'test-todos-new-669d2be6d87d484c8b7012bbdfd9cae8' ready at <HOME><SEP>.grimora<SEP>test-todos-new-669d2be6d87d484c8b7012bbdfd9cae8<SEP>grimora.db<NL>","Stderr":"","ExitCode":0}
+{"Member":"MatchesTodaysCliOutputForOpenTodos","Args":"todo --instance test-todos-new-<GUID> --title todos-fixture-one","Stdout":"todo added.<NL>","Stderr":"","ExitCode":0}
+{"Member":"MatchesTodaysCliOutputForOpenTodos","Args":"todo --instance test-todos-new-<GUID> --title todos-fixture-two","Stdout":"todo added.<NL>","Stderr":"","ExitCode":0}
+{"Member":"CliShapeReportsZeroOpenTodosOnAFreshStore","Args":"init --instance test-todos-empty-<GUID>","Stdout":"instance 'test-todos-empty-e103134568064e65b67b4b4d90d38f2d' ready at <HOME><SEP>.grimora<SEP>test-todos-empty-e103134568064e65b67b4b4d90d38f2d<SEP>grimora.db<NL>","Stderr":"","ExitCode":0}
+{"Member":"CliShapeReportsZeroOpenTodosOnAFreshStore","Args":"todos --instance test-todos-empty-<GUID>","Stdout":"(0 open todo(s))<NL>","Stderr":"","ExitCode":0}
