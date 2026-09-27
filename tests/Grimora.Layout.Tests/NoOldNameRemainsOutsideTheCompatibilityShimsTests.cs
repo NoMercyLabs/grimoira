@@ -13,7 +13,6 @@ public sealed class NoOldNameRemainsOutsideTheCompatibilityShimsTests
         ["src/Grimora.Store/Data/LegacyEnvironment.cs"] = "compat shim: still reads the old env vars for one release.",
         ["src/Grimora.Store/Data/LegacyStore.cs"] = "compat shim: moves the old store folder once.",
         ["src/Grimora.Cli/Tools/LegacyEnvironment.cs"] = "compat shim: the CLI cannot reference Store, so it keeps its own copy.",
-        ["legacy-env.mjs"] = "compat shim for the plugin scripts: old env vars and old store folder.",
         ["tests/Grimora.Layout.Tests/LegacyStoreMoveTests.cs"] = "tests the store move, so it names the old folder.",
         ["tests/Grimora.Layout.Tests/LegacyCompatTests.cs"] = "tests the shims, so it names the old variables and folder.",
         ["tests/Grimora.Layout.Tests/NoOldNameRemainsOutsideTheCompatibilityShimsTests.cs"] = "this guard names the old name.",

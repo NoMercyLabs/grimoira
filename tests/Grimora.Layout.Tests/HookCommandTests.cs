@@ -54,20 +54,20 @@ public class HookCommandTests
         Assert.True(offenders.Count == 0, "shell-form hooks with an unquoted placeholder:\n" + string.Join('\n', offenders));
     }
 
-    // RESTRUCTURE.md slice 32a: a fresh install has no bin-cli/ (build output is gitignored), so SessionStart
-    // runs a Node step first. It builds the CLI and server into ${CLAUDE_PLUGIN_DATA} when they are missing or
+    // A fresh install has no bin-cli/ (build output is gitignored), so SessionStart runs the file-based app
+    // bootstrap.cs first. It builds the CLI and server into ${CLAUDE_PLUGIN_DATA} when they are missing or
     // stale, and otherwise runs `hook SessionStart` through the built CLI. Exec form (`args` set) keeps a path
     // with a space as one argument.
     [Fact]
-    public void SessionStartRunsTheBuildCheckStepFirst()
+    public void SessionStartRunsTheBootstrapAppFirst()
     {
         using JsonDocument doc = JsonDocument.Parse(File.ReadAllText(Path.Combine(RepoPaths.Root, "hooks", "hooks.json")));
         JsonElement hook = doc.RootElement.GetProperty("hooks").GetProperty("SessionStart")[0].GetProperty("hooks")[0];
 
-        Assert.Equal("node", hook.GetProperty("command").GetString());
+        Assert.Equal("dotnet", hook.GetProperty("command").GetString());
         string[] args = [.. hook.GetProperty("args").EnumerateArray().Select(a => a.GetString()!)];
-        Assert.Equal(["${CLAUDE_PLUGIN_ROOT}/session-start.mjs"], args);
-        Assert.True(File.Exists(Path.Combine(RepoPaths.Root, "session-start.mjs")));
+        Assert.Equal(["${CLAUDE_PLUGIN_ROOT}/bootstrap.cs"], args);
+        Assert.True(File.Exists(Path.Combine(RepoPaths.Root, "bootstrap.cs")));
     }
 
     // RESTRUCTURE.md slice 32a: "Every other hook slot and the headersHelper point at
@@ -88,12 +88,14 @@ public class HookCommandTests
         Assert.True(offenders.Count == 0, "hook slots that run build output from the plugin root:\n" + string.Join('\n', offenders));
     }
 
-    // RESTRUCTURE.md slice 30: the PreCompact, UserPromptSubmit and SessionEnd slots run `grimora hook <event>`
-    // from the published CLI, in the same portable exec form as SessionStart. SessionEnd is one slot: the
-    // server's /hooks/SessionEnd runs all three SessionEnd handlers, so three slots would run each three times.
+    // The PreCompact, UserPromptSubmit, PostToolUse and SessionEnd slots run `grimora hook <event>` from the
+    // built CLI in the plugin data folder, in exec form with no shell and no Node. While the first build runs
+    // there is no dll: dotnet prints its "Could not execute" text and exits 1 (documented in README.md).
+    // SessionEnd is one slot: the server's /hooks/SessionEnd runs all three SessionEnd handlers.
     [Theory]
     [InlineData("PreCompact")]
     [InlineData("UserPromptSubmit")]
+    [InlineData("PostToolUse")]
     [InlineData("SessionEnd")]
     public void TheEventRunsTheHookVerbOfThePublishedCli(string eventName)
     {
@@ -101,13 +103,9 @@ public class HookCommandTests
         JsonElement group = Assert.Single(doc.RootElement.GetProperty("hooks").GetProperty(eventName).EnumerateArray());
         JsonElement hook = Assert.Single(group.GetProperty("hooks").EnumerateArray());
 
-        // Slice 32a: through run-hook.mjs, which prints nothing and exits 0 while there is no build yet (a direct
-        // `dotnet <missing dll>` printed dotnet's error block and exited 1 on every prompt), and otherwise runs
-        // `hook <event>` from ${CLAUDE_PLUGIN_DATA}/current/bin-cli.
-        Assert.Equal("node", hook.GetProperty("command").GetString());
+        Assert.Equal("dotnet", hook.GetProperty("command").GetString());
         string[] args = [.. hook.GetProperty("args").EnumerateArray().Select(a => a.GetString()!)];
-        Assert.Equal(["${CLAUDE_PLUGIN_ROOT}/run-hook.mjs", eventName], args);
-        Assert.True(File.Exists(Path.Combine(RepoPaths.Root, "run-hook.mjs")));
+        Assert.Equal(["${CLAUDE_PLUGIN_DATA}/current/bin-cli/grimora.dll", "hook", eventName], args);
     }
 
     // The SessionEnd handlers index for seconds. Claude Code gives SessionEnd hooks a shared 1.5 s budget
@@ -123,7 +121,7 @@ public class HookCommandTests
 
     // A forwarded hook ends at its own deadline (HookForwarder.Deadlines), because an async command hook's
     // timeout is not enforced in an interactive session. The deadline must never outlast the slot that runs
-    // the event's handlers: the slot whose args run `hook <event>` (through run-hook.mjs).
+    // the event's handlers: the slot whose args run `hook <event>`.
     [Fact]
     public void EachForwardedHookDeadlineIsNotAboveItsSlotTimeout()
     {
@@ -144,6 +142,5 @@ public class HookCommandTests
         hook.TryGetProperty("args", out JsonElement a) ? [.. a.EnumerateArray().Select(x => x.GetString() ?? "")] : [];
 
     private static bool RunsHookVerb(JsonElement hook, string eventName) =>
-        ArgsOf(hook) is [.., "hook", { } last] && last == eventName
-        || ArgsOf(hook) is [{ } script, { } only] && script.EndsWith("/run-hook.mjs", StringComparison.Ordinal) && only == eventName;
+        ArgsOf(hook) is [.., "hook", { } last] && last == eventName;
 }

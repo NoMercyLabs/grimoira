@@ -28,14 +28,4 @@ Get-CimInstance Win32_Process -Filter "Name='dotnet.exe'" |
     }
 dotnet build "$root/mcp.cs" -c Release -o "$root/bin" | Select-String -Pattern 'error|warning NU19|-> '
 
-Write-Host 'parsing hooks...' -ForegroundColor Cyan
-$bad = 0
-Get-ChildItem "$root/*.mjs" | ForEach-Object {
-    node --check $_.FullName 2>$null
-    if ($LASTEXITCODE -ne 0) { Write-Host "  FAIL $($_.Name)" -ForegroundColor Red; $bad++ }
-}
-if ($bad -gt 0) { throw "$bad hook(s) failed to parse" }
-Write-Host "  all hooks parse" -ForegroundColor Green
-
-
 Write-Host 'ready' -ForegroundColor Green

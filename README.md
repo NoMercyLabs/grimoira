@@ -22,8 +22,8 @@ The conversation channel is a primary asset, not noise around the facts. It carr
 
 ## Install as a plugin
 
-Grimora is a Claude Code plugin. It bundles the MCP server (`.mcp.json`, launched via
-`run-mcp.mjs`), the knowledge skill (`skills/grimora/SKILL.md`), two agents
+Grimora is a Claude Code plugin. It bundles the MCP server (`.mcp.json`, launched through
+the published CLI), the knowledge skill (`skills/grimora/SKILL.md`), two agents
 (`agents/knowledge-lookup.md` for read-only lookups, `agents/knowledge-writer.md` for
 deciding what to stage and flush), a maintenance slash command
 (`commands/grimora-maintain.md`), and the hard-gate hooks only — see below.
@@ -35,7 +35,7 @@ The repo is its own marketplace, so it installs directly:
 /plugin install grimora@nomercylabs
 ```
 
-`run-mcp.mjs` starts the MCP server from the published CLI; build output is gitignored and never shipped.
+The plugin needs only `dotnet` (.NET 10 SDK). `.mcp.json` runs `dotnet ${CLAUDE_PLUGIN_DATA}/current/bin-cli/grimora.dll mcp`. Build output is gitignored and never shipped: on the first session after an install or update, the SessionStart step `bootstrap.cs` (a .NET file-based app) builds the CLI and server into the plugin data folder in the background and points `current` at the finished build. Until that build ends (a few minutes), the hooks and the MCP server have no dll: `dotnet` prints its "Could not execute" text and exits 1, so Claude Code may show a failed hook or a failed `grimora` MCP server for that first session. Reconnect it with `/mcp` after the build.
 
 ### What the plugin's hooks do
 
@@ -43,8 +43,8 @@ The repo is its own marketplace, so it installs directly:
 call and must run outside the model's reasoning, not the ones that grade Claude's own
 answers:
 
-- `run-hook.mjs` (UserPromptSubmit, PreCompact, PostToolUse `Write|Edit|MultiEdit|NotebookEdit`, SessionEnd) — forwards the event to the
-  published CLI (`grimora hook <event>`), which saves and restores the compaction anchors and
+- `dotnet .../grimora.dll hook <event>` (UserPromptSubmit, PreCompact, PostToolUse `Write|Edit|MultiEdit|NotebookEdit`, SessionEnd) — runs the event through the
+  published CLI, which saves and restores the compaction anchors and
   folds the finished session back into the store.
 
 Everything that used to judge the quality of Claude's own answer by pattern-matching

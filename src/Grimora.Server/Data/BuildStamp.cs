@@ -37,7 +37,7 @@ public static class BuildStamp
 
     /// <summary>
     /// The stamp of the published build this server runs from: <c>&lt;build&gt;/bin-cli/build-stamp.txt</c>
-    /// beside <c>&lt;build&gt;/bin-server</c>, written by build-cli-and-server.mjs (RESTRUCTURE.md slice 32a).
+    /// beside <c>&lt;build&gt;/bin-server</c>, written by bootstrap.cs (RESTRUCTURE.md slice 32a).
     /// Read once at start, so a server keeps reporting its own build after <c>current</c> moves on (slice
     /// 32b). Null for a build with no stamp (a checkout's bin-server, a test build).
     /// </summary>

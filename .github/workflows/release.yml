@@ -23,10 +23,6 @@ jobs:
           # Pinned to global.json's exact SDK — see ci.yml for why a floating '10.0.x' is unsafe here.
           global-json-file: global.json
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-
       - name: Resolve tag
         id: tag
         run: echo "value=${{ github.event.inputs.tag || github.ref_name }}" >> "$GITHUB_OUTPUT"
@@ -35,7 +31,7 @@ jobs:
       # version nobody can reference. Fail here rather than publish the mismatch.
       - name: Version matches the plugin manifest
         run: |
-          manifest=$(node -p "require('./.claude-plugin/plugin.json').version")
+          manifest=$(jq -r .version .claude-plugin/plugin.json)
           tag="${{ steps.tag.outputs.value }}"
           if [ "v$manifest" != "$tag" ]; then
             echo "::error::tag $tag does not match plugin.json version $manifest"
@@ -48,9 +44,6 @@ jobs:
           dotnet publish src/Grimora.Cli/Grimora.Cli.csproj -c Release -o bin-cli -p:PublishAot=false
           dotnet publish src/Grimora.Server/Grimora.Server.csproj -c Release -o bin-server -p:PublishAot=false
           dotnet build mcp.cs -c Release -o bin
-
-      - name: Parse hooks
-        run: for f in *.mjs; do node --check "$f" || exit 1; done
 
       - name: Package
         run: |

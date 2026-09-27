@@ -13,7 +13,7 @@ namespace Grimora.Server.Tests;
 // builds/<stamp12>/{bin-cli,bin-server} and a `current` link (slice 32a). Here two copies of this build's CLI and
 // server output stand in for build A and build B, told apart only by the stamp in bin-cli/build-stamp.txt. A
 // server from build A runs on the pipe/socket of a temp data dir (Slice P1) while `current` points at build B; then
-// `dotnet current/bin-cli/grimora.dll hook SessionStart` runs, as session-start.mjs runs it.
+// `dotnet current/bin-cli/grimora.dll hook SessionStart` runs, as bootstrap.cs runs it.
 public sealed class ServerHandsOverToTheCurrentBuildTests : IClassFixture<ServerHandsOverToTheCurrentBuildTests.TwoBuilds>, IDisposable
 {
     private readonly TwoBuilds _builds;
@@ -257,7 +257,7 @@ public sealed class ServerHandsOverToTheCurrentBuildTests : IClassFixture<Server
         {
             if (OperatingSystem.IsWindows())
             {
-                // A junction, as build-cli-and-server.mjs makes it: no admin rights needed.
+                // A junction, as bootstrap.cs makes it: no admin rights needed.
                 using Process mklink = Process.Start(new ProcessStartInfo("cmd.exe", $"/c mklink /J \"{Current}\" \"{target}\"")
                     { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true })!;
                 mklink.StandardOutput.ReadToEnd();

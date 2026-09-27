@@ -5,9 +5,9 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node",
+            "command": "dotnet",
             "args": [
-              "${CLAUDE_PLUGIN_ROOT}/session-start.mjs"
+              "${CLAUDE_PLUGIN_ROOT}/bootstrap.cs"
             ],
             "timeout": 15
           }
@@ -19,9 +19,10 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node",
+            "command": "dotnet",
             "args": [
-              "${CLAUDE_PLUGIN_ROOT}/run-hook.mjs",
+              "${CLAUDE_PLUGIN_DATA}/current/bin-cli/grimora.dll",
+              "hook",
               "UserPromptSubmit"
             ],
             "timeout": 10
@@ -35,9 +36,10 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node",
+            "command": "dotnet",
             "args": [
-              "${CLAUDE_PLUGIN_ROOT}/run-hook.mjs",
+              "${CLAUDE_PLUGIN_DATA}/current/bin-cli/grimora.dll",
+              "hook",
               "PostToolUse"
             ],
             "timeout": 65
@@ -50,13 +52,14 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node",
+            "command": "dotnet",
             "args": [
-              "${CLAUDE_PLUGIN_ROOT}/run-hook.mjs",
+              "${CLAUDE_PLUGIN_DATA}/current/bin-cli/grimora.dll",
+              "hook",
               "PreCompact"
             ],
             "timeout": 20,
-            "statusMessage": "Saving anchors before compaction\u2026"
+            "statusMessage": "Saving anchors before compaction…"
           }
         ]
       }
@@ -66,9 +69,10 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node",
+            "command": "dotnet",
             "args": [
-              "${CLAUDE_PLUGIN_ROOT}/run-hook.mjs",
+              "${CLAUDE_PLUGIN_DATA}/current/bin-cli/grimora.dll",
+              "hook",
               "SessionEnd"
             ],
             "timeout": 390,

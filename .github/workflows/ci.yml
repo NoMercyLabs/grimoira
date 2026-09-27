@@ -28,11 +28,6 @@ jobs:
           # management (see Directory.Build.props and the fix commit for the full story).
           global-json-file: global.json
 
-      - uses: actions/setup-node@v4
-        with:
-          # node:sqlite, which every hook reads the store through, lands in 22.
-          node-version: '22'
-
       - name: Build CLI
         # bin-cli/ is the published Grimora.Cli, the thin client of the server's POST /cli. bin-cli-old/
         # is the kept grimora.cs build: the rollback, and the oracle the parity tests compare against.
@@ -60,25 +55,6 @@ jobs:
 
       - name: Solution tests
         run: dotnet test Grimora.sln -c Release
-
-      # A hook with a syntax error fails silently at runtime: the harness swallows it and the
-      # enforcement it provides just stops happening. Parse every one on the way in.
-      - name: Parse hooks
-        run: |
-          status=0
-          for f in *.mjs; do
-            if node --check "$f"; then
-              echo "ok   $f"
-            else
-              echo "FAIL $f"
-              status=1
-            fi
-          done
-          exit $status
-
-      # The Node launch scripts keep their own tests (the ranking tests are C#: BrainSearchLibTests).
-      - name: Launch script tests
-        run: node --test
 
       - name: Cold start on a scratch instance
         run: dotnet bin-cli/grimora.dll init --full --root "$GITHUB_WORKSPACE" --instance ci-init --skip-chat

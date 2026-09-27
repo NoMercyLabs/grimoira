@@ -3,22 +3,21 @@ using Xunit;
 
 namespace Grimora.Layout.Tests;
 
-// RESTRUCTURE.md Slice P1: the `grimora` entry in .mcp.json is a stdio server: `node run-mcp.mjs`, which runs the
+// RESTRUCTURE.md Slice P1: the `grimora` entry in .mcp.json is a stdio server: `dotnet <data>/current/bin-cli/grimora.dll mcp`, the
 // published CLI's `mcp` verb (no http url, no headers, no headersHelper, nothing that carries a credential).
 // A SessionStart hook starts the service when /health does not answer, through the built CLI.
 public class McpJsonTests
 {
     [Fact]
-    public void GrimoraEntryIsAStdioServerThroughTheNoBuildNoNoiseStepWithNoHttpAndNoCredential()
+    public void GrimoraEntryIsAStdioServerThroughThePublishedCliWithNoHttpAndNoCredential()
     {
         using JsonDocument doc = JsonDocument.Parse(File.ReadAllText(Path.Combine(RepoPaths.Root, ".mcp.json")));
         JsonElement grimora = doc.RootElement.GetProperty("mcpServers").GetProperty("grimora");
 
-        Assert.Equal("node", grimora.GetProperty("command").GetString());
+        Assert.Equal("dotnet", grimora.GetProperty("command").GetString());
         Assert.Equal(
-            ["${CLAUDE_PLUGIN_ROOT}/run-mcp.mjs"],
+            ["${CLAUDE_PLUGIN_DATA}/current/bin-cli/grimora.dll", "mcp"],
             [.. grimora.GetProperty("args").EnumerateArray().Select(a => a.GetString()!)]);
-        Assert.True(File.Exists(Path.Combine(RepoPaths.Root, "run-mcp.mjs")));
         Assert.False(grimora.TryGetProperty("url", out _));
         Assert.False(grimora.TryGetProperty("headers", out _));
         Assert.False(grimora.TryGetProperty("headersHelper", out _));
@@ -32,11 +31,11 @@ public class McpJsonTests
         JsonElement groups = doc.RootElement.GetProperty("hooks").GetProperty("SessionStart");
         JsonElement hook = Assert.Single(Assert.Single(groups.EnumerateArray()).GetProperty("hooks").EnumerateArray());
 
-        // Slice 32a: SessionStart runs the Node step that builds the CLI when it is missing or stale and
-        // otherwise runs `hook SessionStart` through it. Exec form (`args` set) needs no quoting.
-        Assert.Equal("node", hook.GetProperty("command").GetString());
+        // SessionStart runs bootstrap.cs, which builds the CLI when it is missing or stale and otherwise runs
+        // `hook SessionStart` through it. Exec form (`args` set) needs no quoting.
+        Assert.Equal("dotnet", hook.GetProperty("command").GetString());
         Assert.Equal(
-            ["${CLAUDE_PLUGIN_ROOT}/session-start.mjs"],
+            ["${CLAUDE_PLUGIN_ROOT}/bootstrap.cs"],
             [.. hook.GetProperty("args").EnumerateArray().Select(a => a.GetString()!)]);
         Assert.True(hook.GetProperty("timeout").GetInt32() <= 20);
     }

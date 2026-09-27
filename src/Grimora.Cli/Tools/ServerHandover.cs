@@ -83,7 +83,7 @@ public static class ServerHandover
             TimeSpan.FromMilliseconds(100));
     }
 
-    /// <summary>The stamp build-cli-and-server.mjs writes into bin-cli/build-stamp.txt; null when there is none.</summary>
+    /// <summary>The stamp bootstrap.cs writes into bin-cli/build-stamp.txt; null when there is none.</summary>
     public static string? ReadStamp(string cliDirectory)
     {
         try

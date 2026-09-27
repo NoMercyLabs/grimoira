@@ -47,6 +47,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Grimora.Layout.Tests", "tes
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Grimora.TestSupport", "tests\Grimora.TestSupport\Grimora.TestSupport.csproj", "{96F396FB-B3D8-432E-8AEE-FEED00E16D39}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Grimora.Plugin.Tests", "tests\Grimora.Plugin.Tests\Grimora.Plugin.Tests.csproj", "{9CDA1A50-6F84-4B99-8BA5-825F15FB8748}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -297,6 +299,18 @@ Global
 		{96F396FB-B3D8-432E-8AEE-FEED00E16D39}.Release|x64.Build.0 = Release|Any CPU
 		{96F396FB-B3D8-432E-8AEE-FEED00E16D39}.Release|x86.ActiveCfg = Release|Any CPU
 		{96F396FB-B3D8-432E-8AEE-FEED00E16D39}.Release|x86.Build.0 = Release|Any CPU
+		{9CDA1A50-6F84-4B99-8BA5-825F15FB8748}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9CDA1A50-6F84-4B99-8BA5-825F15FB8748}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9CDA1A50-6F84-4B99-8BA5-825F15FB8748}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{9CDA1A50-6F84-4B99-8BA5-825F15FB8748}.Debug|x64.Build.0 = Debug|Any CPU
+		{9CDA1A50-6F84-4B99-8BA5-825F15FB8748}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{9CDA1A50-6F84-4B99-8BA5-825F15FB8748}.Debug|x86.Build.0 = Debug|Any CPU
+		{9CDA1A50-6F84-4B99-8BA5-825F15FB8748}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9CDA1A50-6F84-4B99-8BA5-825F15FB8748}.Release|Any CPU.Build.0 = Release|Any CPU
+		{9CDA1A50-6F84-4B99-8BA5-825F15FB8748}.Release|x64.ActiveCfg = Release|Any CPU
+		{9CDA1A50-6F84-4B99-8BA5-825F15FB8748}.Release|x64.Build.0 = Release|Any CPU
+		{9CDA1A50-6F84-4B99-8BA5-825F15FB8748}.Release|x86.ActiveCfg = Release|Any CPU
+		{9CDA1A50-6F84-4B99-8BA5-825F15FB8748}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -322,5 +336,6 @@ Global
 		{B765A419-1A7C-42EF-95AD-7D304390B9FE} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 		{DBE24E36-1498-4E69-ABD0-ACDFCA0D03B4} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 		{96F396FB-B3D8-432E-8AEE-FEED00E16D39} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
+		{9CDA1A50-6F84-4B99-8BA5-825F15FB8748} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 	EndGlobalSection
 EndGlobal
