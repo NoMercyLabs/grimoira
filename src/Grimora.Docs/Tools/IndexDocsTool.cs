@@ -42,6 +42,9 @@ public sealed partial class IndexDocsTool : ITool
                 if (IsOutdated(title, body)) { shedCount++; continue; }
                 string content = Compact(title + "\n" + body);
                 if (content.Length < 24) continue;
+                // Secrets in outputs (docs/RESTRUCTURE.md): a doc can carry a pasted token same as a chat
+                // message can (IndexChatTool already scrubs those) — scrub before it reaches the store.
+                (content, _) = SecretScrubber.Redact(content);
                 string k = $"{key}#{idx}";
 
                 using (SqliteCommand upsert = connection.CreateCommand())

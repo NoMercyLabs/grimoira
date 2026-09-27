@@ -22,6 +22,10 @@ public sealed class FindingTool : ITool
 
     public string ExecuteCli(SqliteConnection connection, string title, string detail, string source)
     {
+        // Secrets in outputs (docs/RESTRUCTURE.md): title/detail are free text an LLM wrote, same shape as
+        // a chat message IndexChatTool already scrubs.
+        (title, _) = SecretScrubber.Redact(title);
+        (detail, _) = SecretScrubber.Redact(detail);
         string ts = DateTime.UtcNow.ToString("o", System.Globalization.CultureInfo.InvariantCulture);
         using (SqliteCommand begin = connection.CreateCommand()) { begin.CommandText = "BEGIN"; begin.ExecuteNonQuery(); }
         using (SqliteCommand insert = connection.CreateCommand())
@@ -40,6 +44,8 @@ public sealed class FindingTool : ITool
 
     public string ExecuteMcp(SqliteConnection connection, string title, string detail, string source)
     {
+        (title, _) = SecretScrubber.Redact(title);
+        (detail, _) = SecretScrubber.Redact(detail);
         using SqliteCommand command = connection.CreateCommand();
         command.CommandText = "INSERT INTO findings(ts,title,detail,source,status) VALUES($t,$ti,$d,$s,'open')";
         command.Parameters.AddWithValue("$t", DateTime.UtcNow.ToString("o", System.Globalization.CultureInfo.InvariantCulture));

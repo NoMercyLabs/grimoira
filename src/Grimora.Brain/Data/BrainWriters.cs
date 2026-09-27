@@ -22,6 +22,12 @@ public static class BrainWriters
     /// <summary>Upsert a node: false (no write) if unchanged, else supersede the live row and return true.</summary>
     public static bool AddNode(SqliteConnection connection, string k, string kind, string label, string gloss, string scheme, bool hard, string why)
     {
+        // Secrets in outputs (docs/RESTRUCTURE.md): label/gloss are free text an LLM wrote, the same shape
+        // as a chat message IndexChatTool already scrubs — every brain write (brain_learn direct, or
+        // brain_stage replayed here by brain_flush) goes through this one writer, so scrubbing here closes
+        // the gap for both at once, and for a node of kind "fact" or "rule" too.
+        (label, _) = SecretScrubber.Redact(label);
+        (gloss, _) = SecretScrubber.Redact(gloss);
         string sig = $"{kind}|{label}|{gloss}|{scheme}|{(hard ? 1 : 0)}";
         string? before = ScalarText(connection, "SELECT kind||'|'||label||'|'||gloss||'|'||COALESCE(scheme,'')||'|'||hard FROM node_now WHERE k=$k", ("$k", k));
         if (before == sig) return false;
@@ -51,6 +57,8 @@ public static class BrainWriters
     public static TripleWrite AddTriple(SqliteConnection connection, string s, string p, string o, string because, string src, bool hard, string why, TextWriter? stderr = null)
     {
         TextWriter target = stderr ?? Console.Error;
+        // Secrets in outputs: "because" is free text explaining the triple, same shape as node label/gloss.
+        (because, _) = SecretScrubber.Redact(because);
         if (ScalarLong(connection, "SELECT count(*) FROM pred_vocab WHERE p=$p", ("$p", p)) == 0)
         {
             target.WriteLine($"unknown predicate '{p}' — add it to pred_vocab first.");
@@ -80,6 +88,9 @@ public static class BrainWriters
     /// is set-valued (add unless the exact value is already live).</summary>
     public static bool AddSlot(SqliteConnection connection, string frame, string name, string value, string facet, bool multi, string because, string src, string why)
     {
+        // Secrets in outputs: a slot's value/because are free text same as a node's label/gloss.
+        (value, _) = SecretScrubber.Redact(value);
+        (because, _) = SecretScrubber.Redact(because);
         if (multi)
         {
             if (ScalarLong(connection, "SELECT count(*) FROM slot_now WHERE frame_k=$f AND name=$n AND value=$v", ("$f", frame), ("$n", name), ("$v", value)) > 0)

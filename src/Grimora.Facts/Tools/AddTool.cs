@@ -26,6 +26,11 @@ public sealed class AddTool : ITool
         if (prov is not ("stated" or "extracted" or "inferred" or "unverified"))
             throw new ArgumentException("--provenance must be stated, extracted, inferred, or unverified");
 
+        // Secrets in outputs (docs/RESTRUCTURE.md): value/notes are free text, same shape as a chat message
+        // IndexChatTool already scrubs.
+        (value, _) = SecretScrubber.Redact(value);
+        (notes, _) = SecretScrubber.Redact(notes);
+
         using (SqliteCommand begin = connection.CreateCommand()) { begin.CommandText = "BEGIN"; begin.ExecuteNonQuery(); }
         UpsertFact(connection, term, term, aliases, category, value, source, notes, why);
         using (SqliteCommand update = connection.CreateCommand())
