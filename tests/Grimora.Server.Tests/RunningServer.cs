@@ -23,13 +23,14 @@ internal sealed class RunningServer : IDisposable
         _process = process;
     }
 
-    public static RunningServer Start(string dataDir)
+    public static RunningServer Start(string dataDir, IReadOnlyDictionary<string, string>? environment = null)
     {
         ProcessStartInfo psi = new("dotnet") { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true };
         psi.ArgumentList.Add(Path.Combine(ServerDir, "Grimora.Server.dll"));
         psi.Environment["GRIMORA_DATA_DIR"] = dataDir;
         psi.Environment.Remove("CLAUDE_PROJECT_DIR");
         psi.Environment.Remove("GRIMORA_INSTANCE");
+        foreach ((string key, string value) in environment ?? new Dictionary<string, string>()) psi.Environment[key] = value;
         Process process = Process.Start(psi)!;
         _ = process.StandardOutput.ReadToEndAsync();
         _ = process.StandardError.ReadToEndAsync();

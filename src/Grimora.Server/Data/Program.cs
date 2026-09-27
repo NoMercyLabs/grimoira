@@ -16,7 +16,9 @@ string projectRoot = Environment.GetEnvironmentVariable("CLAUDE_PROJECT_DIR") ??
 
 Directory.CreateDirectory(dataDir);
 
-FileStream? instanceLock = ProcessOwner.TryAcquireSingleInstanceLock(dataDir);
+// `using` keeps the lock handle alive to the end of the program, after the exit record is written. A plain local is
+// dead after the null check, so a garbage collection (the stop runs one) would close it and free the lock early.
+using FileStream? instanceLock = ProcessOwner.TryAcquireSingleInstanceLock(dataDir);
 if (instanceLock is null)
 {
     Console.Error.WriteLine(
