@@ -55,7 +55,7 @@ jobs:
       - name: Rider inspections
         shell: pwsh
         run: |
-          dotnet restore Aitm.sln
+          dotnet build Aitm.sln -c Debug --nologo -v q
           ./inspect.ps1
 
       - name: Solution tests

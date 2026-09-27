@@ -114,7 +114,7 @@ public static class CliDispatch
                             GetFlag("--from") ?? throw new ArgumentException("index-chat needs --from <session.jsonl | transcript dir>")));
                         break;
                     case "index-packages":
-                        // --from is what every other index-* command takes; accepting only --_root here silently
+                        // --from is what every other index-* command takes; accepting only --root here silently
                         // indexed the current directory instead of the one that was asked for.
                         stdout.WriteLine(new IndexPackagesTool().Execute(_db, GetFlag("--root") ?? GetFlag("--from") ?? cwd));
                         break;
@@ -283,7 +283,7 @@ public static class CliDispatch
                     case "loop":
                         // Removed in phase 2 (RESTRUCTURE.md section 2.1, drop 4 of 4): loop only ever wrote
                         // loop-state.json for loop-guard.mjs and session-continue.mjs, both dropped in the same
-                        // pass; the NoMercy task record's _stop-check does this job now. start/tick/clear existed
+                        // pass; the NoMercy task record's stop-check does this job now. start/tick/clear existed
                         // only as loop's own sub-verbs, so this one message covers all three call shapes.
                         stderr.WriteLine("error: removed in 0.4: aitm loop is gone; the NoMercy task record replaces it.\n");
                         return 2;
@@ -371,7 +371,7 @@ public static class CliDispatch
         // the flag-audit guard reads the verbs' flags from it.
         private string? GetFlag(string name) => FlagValue(a, name);
 
-        // Generic _instance resolution (explicit --_instance already won at the call site): AITM_INSTANCE,
+        // Generic instance resolution (explicit --instance already won at the call site): AITM_INSTANCE,
         // else the project dir (CLAUDE_PROJECT_DIR or cwd) basename — the same binary serves any repo, no config.
         private string ResolveInstance()
         {
