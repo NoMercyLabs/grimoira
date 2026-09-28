@@ -128,8 +128,10 @@ _ = indexQueue.RunAsync();
 // (RESTRUCTURE.md slice 32b: the old server finishes its calls in flight, then exits). A /cli verb that outlived
 // its timeout runs on its own thread with no request behind it, so the drain waits for it too.
 // Every stop leaves CleanExitRecord before the process frees server.lock: the ids of the calls this run started
-// and whether it drained them within LongTimeout. A call whose connection the stop closed unread then provably never
-// ran, so the client resends it (RefusedConnectionRetry); any other lost call is reported, never repeated.
+// and whether it drained them within LongTimeout. If a connection closes before its request is read, the
+// record can prove that call never ran, so the client resends it (RefusedConnectionRetry); any other lost call
+// is reported, never repeated. The stop closing an accepted but unread connection is proven on Windows only;
+// Unix sockets may serve a request on an existing connection during graceful shutdown (issue #4).
 CallRing startedCalls = new();
 System.Diagnostics.Stopwatch stopClock = new();
 app.Lifetime.ApplicationStopping.Register(stopClock.Start);

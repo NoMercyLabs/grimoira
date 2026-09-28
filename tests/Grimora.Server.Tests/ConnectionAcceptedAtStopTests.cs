@@ -46,16 +46,13 @@ public sealed class ConnectionAcceptedAtStopTests : IDisposable
     // the service leaves proof that it never ran: a clean-exit record covering the moment the call was sent,
     // written only when every call that did start was answered. The client resends on that proof alone.
     //
-    // Confirmed Windows-only (grimora/issues/4): on Linux CI this same accepted-but-unread connection gets
-    // served successfully during the graceful-shutdown window instead of being dropped, so the call is
-    // never lost and this assertion's premise doesn't hold there. Skipped on non-Windows until issue #4 is
-    // decided (either the server actively drops such connections on every platform, or this guarantee is
-    // documented as Windows-only) — never re-enable this without resolving that issue first.
+    // Windows-only contract (grimora/issues/4): Linux CI served this request during graceful shutdown,
+    // so the call was not lost and this assertion's premise did not hold. macOS has not been measured.
     [Fact]
     public async Task ACallDroppedByTheStopIsCoveredByTheCleanExitRecord()
     {
-        // xUnit 2.9.2's [Fact] Skip needs a compile-time constant, so the platform check that decides
-        // whether this guarantee even applies (see the comment above) has to live here instead.
+        // xUnit 2.9.2's [Fact] Skip needs a compile-time constant, so this Windows-only assertion uses
+        // a runtime platform check.
         if (!OperatingSystem.IsWindows()) return;
 
         using RunningServer server = RunningServer.Start(_dataDir);

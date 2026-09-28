@@ -23,7 +23,7 @@ namespace Grimora.Layout.Tests;
 public partial class BrainReadCliParityTests
 {
     private static string StripVolatile(string s) =>
-        IsoTimestamp().Replace(ParenthesisedTimingMs().Replace(s, "(<ms>)"), "<ts>");
+        LastGapDate().Replace(IsoTimestamp().Replace(ParenthesisedTimingMs().Replace(s, "(<ms>)"), "<ts>"), "(last <date>)");
 
     private static (string stdout, string stderr, int exitCode) RunNormalized(
         OldVsNewCli.Result result, string instance, string dbPath)
@@ -160,4 +160,8 @@ public partial class BrainReadCliParityTests
 
     [GeneratedRegex(@"\(\d+[.,]\d+ms\)", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex ParenthesisedTimingMs();
+
+    // The two CLI processes seed their own gap in sequence and can straddle UTC midnight.
+    [GeneratedRegex(@"\(last \d{4}-\d{2}-\d{2}\)", RegexOptions.None, RegexTimeout.Milliseconds)]
+    private static partial Regex LastGapDate();
 }

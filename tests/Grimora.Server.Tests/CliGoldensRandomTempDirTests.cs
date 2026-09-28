@@ -38,4 +38,14 @@ public class CliGoldensRandomTempDirTests
         Assert.Equal(canonicalWindows, canonicalLinux);
         Assert.Contains("grimora-hooks-<RAND>", canonicalWindows);
     }
+
+    [Fact]
+    public void GapDisplayDateDoesNotPinGoldenToFreezeDay()
+    {
+        string frozen = "  1x [query] missing  (last 2026-09-27)";
+        string today = "  1x [query] missing  (last 2026-09-28)";
+
+        Assert.Equal(CliGoldens.Canonical(frozen), CliGoldens.Canonical(today));
+        Assert.Contains("(last <DATE>)", CliGoldens.Canonical(today));
+    }
 }

@@ -107,6 +107,9 @@ public static partial class CliGoldens
         result = Elapsed().Replace(result, "<MS>ms");
         result = Timestamp().Replace(result, "<TS>");
         result = CompactTimestamp().Replace(result, "<TS>");
+        // A gap's display date is the UTC day on which its test fixture was seeded. Frozen goldens
+        // and live runs can be on different days, even while retaining the same output shape.
+        result = GapLastDate().Replace(result, "(last <DATE>)");
         result = RandomTempDir().Replace(result, "grimora-$1-<RAND>");
         result = result.Replace(Backslash.ToString(), "/", StringComparison.Ordinal);
         if (TempDirForward.Length > 0)
@@ -227,6 +230,9 @@ public static partial class CliGoldens
     // freeze and a later replay.
     [GeneratedRegex(@"\d{8}-\d{9}", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex CompactTimestamp();
+
+    [GeneratedRegex(@"\(last \d{4}-\d{2}-\d{2}\)", RegexOptions.None, RegexTimeout.Milliseconds)]
+    private static partial Regex GapLastDate();
 
     // Directory.CreateTempSubdirectory("grimora-<name>-") appends its own random suffix, never equal
     // between a golden freeze and a later replay (e.g. a fixture folder Server.Tests seeds a CLI oracle

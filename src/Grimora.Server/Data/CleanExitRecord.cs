@@ -18,10 +18,12 @@ public enum LostCallVerdict
 /// <summary>
 /// What the last service run left in the data directory when it stopped: when it held server.lock, whether it
 /// drained every call within its limit (<see cref="Clean"/>), and the ids (<c>X-Grimora-Call</c>) of the calls it
-/// started, from a ring of the last 256 (CallRing). A stopping service closes a connection whose
-/// request it never read, and on Windows a client can be connected to a pipe instance the service never read from,
-/// so a call can be lost however the stop is ordered. The client resends such a call only when this record proves
-/// the call never started (<see cref="Judge"/>). The service deletes the record when it starts
+/// started, from a ring of the last 256 (CallRing). On Windows, shutdown can close a named-pipe connection
+/// before reading its request, even if the client connected before shutdown began. The no-lost-calls-at-stop
+/// guarantee for this case is Windows-specific. On Unix sockets, an already connected request may instead be
+/// served during graceful shutdown; no equivalent connection-drop guarantee is claimed for Linux or macOS.
+/// If a call gets no answer, the client resends it only when this record proves the call never started
+/// (<see cref="Judge"/>). The service deletes the record when it starts
 /// (<see cref="DeleteStale"/>), so a record always belongs to the last run. Shared with Grimora.Cli as a linked file.
 /// </summary>
 public sealed record CleanExitRecord(DateTime StartedUtc, DateTime ExitedUtc, bool Clean, bool Wrapped, DateTime OldestKeptStartUtc, IReadOnlyList<string> CallIds)
