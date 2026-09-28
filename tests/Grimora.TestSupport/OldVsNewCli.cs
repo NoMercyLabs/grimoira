@@ -66,8 +66,8 @@ public static class OldVsNewCli
         string newInstance = GrimoraCliRunner.NewTestInstance("oracle-new");
         try
         {
-            return (Run(OracleDll(callerFile, callerMember), oldInstance, arguments, callerFile, callerMember),
-                Run(BinCliDll(callerFile, callerMember), newInstance, arguments, callerFile, callerMember));
+            return (Run(OracleDll(callerFile, callerMember), oldInstance, arguments, callerFile: callerFile, callerMember: callerMember),
+                Run(BinCliDll(callerFile, callerMember), newInstance, arguments, callerFile: callerFile, callerMember: callerMember));
         }
         finally
         {
@@ -78,12 +78,12 @@ public static class OldVsNewCli
 
     /// <summary>Runs one command against one binary on one instance. Exposed so a test can seed a store
     /// (e.g. <c>add</c> a fact) identically on both instances before comparing a later verb.</summary>
-    public static Result Run(string dllPath, string instance, string arguments, [System.Runtime.CompilerServices.CallerFilePath] string callerFile = "", [System.Runtime.CompilerServices.CallerMemberName] string callerMember = "")
+    public static Result Run(string dllPath, string instance, string arguments, string? dataDir = null, [System.Runtime.CompilerServices.CallerFilePath] string callerFile = "", [System.Runtime.CompilerServices.CallerMemberName] string callerMember = "")
     {
         bool frozenClass = !CliGoldens.FreezeMode && CliGoldens.HasGolden(callerFile);
         if (frozenClass && dllPath == InProcessDll) return Normalized(RunInProcess(instance, arguments));
         if (frozenClass && Path.GetFileName(dllPath) == "aitm.dll") return Normalized(Replay(instance, arguments, callerFile, callerMember));
-        Result live = RunLive(dllPath, instance, arguments);
+        Result live = RunLive(dllPath, instance, arguments, dataDir);
         if (CliGoldens.FreezeMode && Path.GetFileName(dllPath) == "aitm.dll")
         {
             CliGoldens.Record(callerFile, callerMember, arguments, live.Stdout, live.Stderr, live.ExitCode, instance, PinnedHeader);
@@ -125,7 +125,7 @@ public static class OldVsNewCli
         return new Result(stdout.ToString(), stderr.ToString(), exit);
     }
 
-    private static Result RunLive(string dllPath, string instance, string arguments)
+    private static Result RunLive(string dllPath, string instance, string arguments, string? dataDir)
     {
         if (OperatingSystem.IsWindows()) SetConsoleOutputCP(65001);
         // The verb has to be argv[0] (grimora.cs reads `a[0]` as the command), so --instance goes after it.
@@ -137,6 +137,7 @@ public static class OldVsNewCli
             StandardOutputEncoding = System.Text.Encoding.UTF8,
             StandardErrorEncoding = System.Text.Encoding.UTF8,
         };
+        if (dataDir is not null) psi.Environment["GRIMORA_DATA_DIR"] = dataDir;
         // The pinned oracle (aitm.dll) still keeps its store under C:/Users/dev/.aitm; hand it the instance and take it back.
         bool oracle = Path.GetFileName(dllPath) == "aitm.dll";
         if (oracle) OldStore.ToOld(instance);

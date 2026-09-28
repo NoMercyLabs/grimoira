@@ -23,9 +23,9 @@ public class RecallToolTests
         try
         {
             GrimoraCliRunner.Run($"init --instance {instance}");
-            GrimoraCliRunner.Run($"index-chat --instance {instance} --from \"{transcript}\"");
+            GrimoraCliRunner.Seed($"index-chat --instance {instance} --from \"{transcript}\"");
 
-            (string stdout, int exitCode) = GrimoraCliRunner.Run($"recall --instance {instance} recallclitopic");
+            (string stdout, int exitCode) = GrimoraCliRunner.Seed($"recall --instance {instance} recallclitopic");
             Assert.Equal(0, exitCode);
             string expected = Normalize(stdout);
 
@@ -52,7 +52,7 @@ public class RecallToolTests
         {
             GrimoraCliRunner.Run($"init --instance {instance}");
 
-            (string stdout, int exitCode) = GrimoraCliRunner.Run($"recall --instance {instance} nothing-ever-matches-this-term");
+            (string stdout, int exitCode) = GrimoraCliRunner.Seed($"recall --instance {instance} nothing-ever-matches-this-term");
             Assert.Equal(0, exitCode);
             string expected = Normalize(stdout);
 
@@ -61,7 +61,7 @@ public class RecallToolTests
             string actual = Normalize(new RecallTool().ExecuteCli(connection, "nothing-ever-matches-this-term"));
 
             Assert.Equal(expected, actual);
-            Assert.Contains("no chat history matches", actual);
+            Assert.Contains("0 total chat matches", actual);
         }
         finally
         {
@@ -85,7 +85,7 @@ public class RecallToolTests
         try
         {
             GrimoraCliRunner.Run($"init --instance {instance}");
-            GrimoraCliRunner.Run($"index-chat --instance {instance} --from \"{transcript}\"");
+            GrimoraCliRunner.Seed($"index-chat --instance {instance} --from \"{transcript}\"");
 
             string dbPath = GrimoraCliRunner.InstanceDbPath(instance);
             using SqliteConnection connection = StoreConnection.Open(dbPath);
@@ -110,7 +110,7 @@ public class RecallToolTests
         try
         {
             GrimoraCliRunner.Run($"init --instance {instance}");
-            GrimoraCliRunner.Run($"index-chat --instance {instance} --from \"{transcript}\"");
+            GrimoraCliRunner.Seed($"index-chat --instance {instance} --from \"{transcript}\"");
 
             Environment.SetEnvironmentVariable("GRIMORA_INSTANCE", instance);
             string expected = (string)InvokeMcpRecall("recallmcptopic")!;

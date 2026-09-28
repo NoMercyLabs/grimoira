@@ -31,8 +31,8 @@ public static class McpToolFactory
             if (tool.McpName is null) continue;
             McpServerTool built = tool switch
             {
-                WorkspaceCapabilitiesTool capabilities => BuildWorkspaceCapabilitiesTool(capabilities, projectRoot, runner),
-                WorkspaceSearchTool search => BuildWorkspaceSearchTool(search, projectRoot, runner),
+                WorkspaceCapabilitiesTool capabilities => BuildWorkspaceCapabilitiesTool(capabilities, projectRoot, runner, store, httpContextAccessor),
+                WorkspaceSearchTool search => BuildWorkspaceSearchTool(search, projectRoot, runner, store, httpContextAccessor),
                 _ => BuildStoreBackedTool(tool, store, httpContextAccessor),
             };
             tools.Add(built);
@@ -57,8 +57,8 @@ public static class McpToolFactory
             if (tool.McpName is null) continue;
             functions.Add(tool switch
             {
-                WorkspaceCapabilitiesTool capabilities => PlainFunction(capabilities.McpName, capabilities.Help, CapabilitiesInvoker(capabilities, projectRoot, runner)),
-                WorkspaceSearchTool search => PlainFunction(search.McpName, search.Help, SearchInvoker(search, projectRoot, runner)),
+                WorkspaceCapabilitiesTool capabilities => PlainFunction(capabilities.McpName, capabilities.Help, CapabilitiesInvoker(capabilities, projectRoot, runner, store, httpContextAccessor)),
+                WorkspaceSearchTool search => PlainFunction(search.McpName, search.Help, SearchInvoker(search, projectRoot, runner, store, httpContextAccessor)),
                 _ => BuildStoreBackedFunction(tool, store, httpContextAccessor, gateTimeout ?? DefaultGateTimeout),
             });
         }
@@ -129,24 +129,33 @@ public static class McpToolFactory
         return new LockingAiFunction(inner, store, httpContextAccessor, gateTimeout);
     }
 
-    private static McpServerTool BuildWorkspaceCapabilitiesTool(WorkspaceCapabilitiesTool tool, string projectRoot, IProcessRunner runner) =>
-        McpServerTool.Create(CapabilitiesInvoker(tool, projectRoot, runner),
+    private static McpServerTool BuildWorkspaceCapabilitiesTool(WorkspaceCapabilitiesTool tool, string projectRoot, IProcessRunner runner, ProjectStore store, IHttpContextAccessor context) =>
+        McpServerTool.Create(CapabilitiesInvoker(tool, projectRoot, runner, store, context),
             new McpServerToolCreateOptions { Name = tool.McpName, Description = tool.Help });
 
-    private static McpServerTool BuildWorkspaceSearchTool(WorkspaceSearchTool tool, string projectRoot, IProcessRunner runner) =>
-        McpServerTool.Create(SearchInvoker(tool, projectRoot, runner),
+    private static McpServerTool BuildWorkspaceSearchTool(WorkspaceSearchTool tool, string projectRoot, IProcessRunner runner, ProjectStore store, IHttpContextAccessor context) =>
+        McpServerTool.Create(SearchInvoker(tool, projectRoot, runner, store, context),
             new McpServerToolCreateOptions { Name = tool.McpName, Description = tool.Help });
 
-    private static Func<string, string> CapabilitiesInvoker(WorkspaceCapabilitiesTool tool, string projectRoot, IProcessRunner runner)
+    private static Func<string, string> CapabilitiesInvoker(WorkspaceCapabilitiesTool tool, string projectRoot, IProcessRunner runner, ProjectStore store, IHttpContextAccessor context)
     {
-        string Invoke(string query) => tool.Execute(query, projectRoot, runner);
+        string Invoke(string query) => tool.Execute(query, ResolveWorkspaceRoot(projectRoot, store, context), runner);
         return Invoke;
     }
 
-    private static Func<string, string, string, bool, string> SearchInvoker(WorkspaceSearchTool tool, string projectRoot, IProcessRunner runner)
+    private static Func<string, string, string, bool, string> SearchInvoker(WorkspaceSearchTool tool, string projectRoot, IProcessRunner runner, ProjectStore store, IHttpContextAccessor context)
     {
         string Invoke(string repository, string pattern, string path = "", bool names = false) =>
-            tool.Execute(repository, pattern, path, names, projectRoot, runner);
+            tool.Execute(repository, pattern, path, names, ResolveWorkspaceRoot(projectRoot, store, context), runner);
         return Invoke;
+    }
+
+    private static string ResolveWorkspaceRoot(string configured, ProjectStore store, IHttpContextAccessor context)
+    {
+        string requestRoot = RequestProjectResolver.ProjectDirHeaderOf(context.HttpContext) ?? configured;
+        ProjectHandle handle = store.Acquire(RequestProjectResolver.Resolve(context.HttpContext));
+        handle.Gate.Wait();
+        try { return WorkspaceRootResolver.Resolve(requestRoot, handle.Connection); }
+        finally { handle.Gate.Release(); }
     }
 }

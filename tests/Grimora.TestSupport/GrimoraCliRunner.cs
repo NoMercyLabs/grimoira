@@ -15,10 +15,6 @@ namespace Grimora.TestSupport;
 /// </summary>
 public static class GrimoraCliRunner
 {
-    // A test-* store older than this has no owner left: another agent's run would still be touching it
-    // (writing to it, at least once, well within an hour), so anything past this is safe to sweep.
-    private static readonly TimeSpan StaleInstanceAge = TimeSpan.FromHours(1);
-
     // WAL-mode sqlite (StoreConnection.ApplyPragmas) can leave a native file handle on the -wal/-shm file
     // for a few hundred milliseconds after SqliteConnection.ClearAllPools() returns on Windows, so a
     // Directory.Delete right after it intermittently throws IOException/UnauthorizedAccessException. Same
@@ -27,13 +23,11 @@ public static class GrimoraCliRunner
     private const int DeleteMaxRetries = 20;
     private const int DeleteRetryDelayMs = 250;
 
-    // Runs once per test process, the first time anything in this class is touched — effectively "at test
-    // run start" for every test project that uses GrimoraCliRunner. Clears out instances no run of this class
-    // still owns, so a store leaked by a lock that outlasted DeleteMaxRetries * DeleteRetryDelayMs (5s)
-    // doesn't accumulate under ~/.grimora forever.
+    // At process exit, only inspect stores created by this process. The verifier fails if one remains.
     static GrimoraCliRunner()
     {
-        SweepStaleInstances();
+        // Do not scan and delete other runs' test stores as a side effect of starting a test.
+        // Ownership cannot be inferred from age, and locked leftovers made every test wait minutes.
         // A test that fails before its own cleanup must not leave a test-* folder in the real home.
         AppDomain.CurrentDomain.ProcessExit += (_, _) => RemoveCreatedInstances();
     }
@@ -42,10 +36,17 @@ public static class GrimoraCliRunner
 
     private static void RemoveCreatedInstances()
     {
+        List<string> survivors = [];
         foreach (string instance in Created)
         {
             try { DeleteInstance(instance); }
-            catch (Exception) { /* best effort at process exit */ }
+            catch (Exception) { /* report surviving directory below */ }
+            if (Directory.Exists(InstanceDir(instance))) survivors.Add(instance);
+        }
+        if (survivors.Count > 0)
+        {
+            Console.Error.WriteLine("test store cleanup failed: " + string.Join(", ", survivors));
+            Environment.ExitCode = 1;
         }
     }
 
@@ -70,36 +71,9 @@ public static class GrimoraCliRunner
         if (Directory.Exists(dir))
         {
             try { DeleteDirectoryWithRetry(dir); }
-            catch (IOException)
-            {
-                // A real bin-cli call (RunBinCli, or OldVsNewCli's no-golden fallback) spawns a background
-                // grimora server that keeps the db file open until it goes idle (Program.cs's IdleExit),
-                // well past DeleteMaxRetries * DeleteRetryDelayMs (5s). Leave it for SweepStaleInstances,
-                // the same way it already handles a store any other leaked lock left behind.
-            }
+            catch (IOException e) { throw new IOException($"test store cleanup failed: {dir}", e); }
         }
         OldStore.Delete(instance);
-    }
-
-    /// <summary>Removes every <c>test-*</c> instance directory under <c>~/.grimora</c> that has not been
-    /// written to in over an hour. Never touches anything younger — a run from another agent's worktree may
-    /// still own it. Exposed (not just run from the static constructor) so a test can call it directly and
-    /// assert on exactly what it does and does not remove.</summary>
-    public static void SweepStaleInstances()
-    {
-        string root = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".grimora");
-        if (!Directory.Exists(root)) return;
-        DateTime cutoffUtc = DateTime.UtcNow - StaleInstanceAge;
-        foreach (string dir in Directory.EnumerateDirectories(root, "test-*"))
-        {
-            try
-            {
-                if (Directory.GetLastWriteTimeUtc(dir) >= cutoffUtc) continue;
-                DeleteDirectoryWithRetry(dir);
-            }
-            catch (IOException) { /* still locked, or another sweep/agent won the race; leave it for next time */ }
-            catch (UnauthorizedAccessException) { /* same */ }
-        }
     }
 
     private static void DeleteDirectoryWithRetry(string dir, int maxRetries = DeleteMaxRetries, int retryDelayMs = DeleteRetryDelayMs)
@@ -154,15 +128,15 @@ public static class GrimoraCliRunner
     /// client, i.e. today's code, not the oracle. For a test that needs a genuine separate OS process (a
     /// cross-process file-lock race, for instance), not a stdout comparison: goldens replay a fixed answer,
     /// which cannot stand in for two real processes racing each other.</summary>
-    public static (string stdout, int exitCode) RunBinCli(string arguments)
+    public static (string stdout, int exitCode) RunBinCli(string arguments, string? dataDir = null)
     {
-        (string stdout, string stderr, int exitCode) = RunProcess(FindBinCliDll(), arguments);
+        (string stdout, string stderr, int exitCode) = RunProcess(FindBinCliDll(), arguments, dataDir);
         if (exitCode != 0 && string.IsNullOrEmpty(stdout))
             throw new InvalidOperationException($"'{arguments}' exited {exitCode}\nSTDERR:\n{stderr}");
         return (stdout, exitCode);
     }
 
-    private static (string stdout, string stderr, int exitCode) RunProcess(string dll, string arguments)
+    private static (string stdout, string stderr, int exitCode) RunProcess(string dll, string arguments, string? dataDir)
     {
         // The child inherits this process's console; on Windows its output code page decides how it encodes
         // non-ASCII text, so switch it to UTF-8 first (no-op on Linux/macOS).
@@ -176,6 +150,7 @@ public static class GrimoraCliRunner
             StandardOutputEncoding = System.Text.Encoding.UTF8,
             StandardErrorEncoding = System.Text.Encoding.UTF8,
         };
+        if (dataDir is not null) psi.Environment["GRIMORA_DATA_DIR"] = dataDir;
         using Process process = Process.Start(psi) ?? throw new InvalidOperationException($"could not start dotnet {dll}");
         string stdout = process.StandardOutput.ReadToEnd();
         string stderr = process.StandardError.ReadToEnd();

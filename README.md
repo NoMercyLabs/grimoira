@@ -6,7 +6,7 @@ Claude forgets everything when a session ends. Grimora keeps what matters: facts
 
 ## What it does for you
 
-Claude reaches Grimora through 24 tools and through the `grimora` command. Day to day, it can:
+Claude reaches Grimora through 26 tools and through the `grimora` command. Day to day, it can:
 
 - Look up a verified fact, such as a base URL, a file path, a config key or a port. If Grimora does not know, it says so and logs the gap. It does not guess.
 - Recall a standing rule or a past decision about how to work in a project.
@@ -71,6 +71,21 @@ grimora projects --instance demo
 grimora stats --instance demo
 ```
 
+To search an entire transcript population, use `chat` rather than the short ranked `recall` answer:
+
+```
+grimora index-chat --from ~/.claude/projects/<project> --instance demo
+grimora chat list --session <session-id> --kind human --page-size 500 --instance demo
+grimora chat first --session <session-id> --instance demo
+grimora chat list --kind assistant --from 2026-09-26 --to 2026-09-29 --page 2 --instance demo
+grimora chat list --kind tool_result_doc --path "friends message.md" --full --instance demo
+grimora chat count --match '"KMP" AND "deploy"' --by month --instance demo
+grimora chat commands --command /goal --full --page-size 500 --instance demo
+grimora chat parity --old ~/.aitm/<instance>/aitm.db --instance demo
+```
+
+`chat list` defaults to short previews and reports the total, shown, and remaining rows. Increase `--page` until the remaining count is zero; `--full` returns whole text. `--kind human` includes slash commands and excludes compaction, hook, skill, sidechain, and system messages. MCP callers can use `chat_list` for paged session, kind, time, and path filters, or `chat_count` for FTS match counts. `chat import-missing --old <db>` imports any rows found by the parity check, after backing up the current store.
+
 A miss looks like this, on purpose. Grimora refuses rather than guesses:
 
 ```
@@ -90,7 +105,7 @@ You rarely need `grimora service start` by hand; the first call starts it for yo
 
 ## Privacy
 
-Grimora stores facts, rules, absorbed docs, conversation history, todos, findings, and a code graph of declarations and usage sites, never your source code itself. All of it stays in your data folder.
+Grimora stores facts, rules, absorbed docs, conversation history, todos, findings, and a code graph of declarations and usage sites, never your source code itself. All of it stays in your data folder. The conversation index includes user messages, assistant replies, pasted content, and results of reading untracked files; these can contain private text from a transcript, even when the original file has been deleted.
 
 Before conversation text is stored, Grimora replaces token-shaped strings with a redaction marker. It covers JWTs, bearer tokens, common key prefixes such as GitHub, OpenAI, AWS and Slack, and PEM private keys. If a check cannot finish in time, the whole text is redacted rather than left unscrubbed.
 

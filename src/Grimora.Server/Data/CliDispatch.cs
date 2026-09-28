@@ -23,6 +23,9 @@ public static class CliDispatch
     public static int Run(string[] args, string cwd, TextWriter stdout, TextWriter stderr)
         => new Dispatcher(args, cwd, stdout, stderr, null, null, null).Dispatch();
 
+    public static int Run(string[] args, string cwd, TextWriter stdout, TextWriter stderr, string dataDir)
+        => new Dispatcher(args, cwd, stdout, stderr, null, dataDir, null).Dispatch();
+
     /// <summary>Slice 29c: the server form for <c>POST /cli</c>. The project is already resolved from the
     /// request (<paramref name="instance"/>), the store root is the server's data directory, and the verb
     /// runs on the project's one open connection (<see cref="ProjectHandle.Connection"/>, held under its
@@ -59,7 +62,7 @@ public static class CliDispatch
         {
             string cmd = a.Length > 0 ? a[0] : "help";
             _instance = fixedInstance ?? GetFlag("--instance") ?? ResolveInstance();
-            // dataDir is only ever non-null from RunOnStore (the server already resolved its own realm). The
+            // dataDir is set by the server or by an isolated CLI test. The
             // plain Run path (every in-process CLI call, including GrimoraCliRunner.Run in tests) must honour
             // GRIMORA_DATA_DIR the same way ServerAddress/HookPaths do — hardcoding ~/.grimora here silently
             // wrote `init`/`project` to the real user store instead of a test's isolated GRIMORA_DATA_DIR,
@@ -154,6 +157,24 @@ public static class CliDispatch
                         stdout.WriteLine(new IndexChatTool().Execute(_db,
                             GetFlag("--from") ?? throw new ArgumentException("index-chat needs --from <session.jsonl | transcript dir>")));
                         break;
+                    case "chat":
+                        ChatQueryTool chat = new();
+                        string subverb = Positionals().Skip(1).FirstOrDefault() ?? "";
+                        string sessionFilter = GetFlag("--session") ?? "";
+                        int page = int.TryParse(GetFlag("--page"), out int requestedPage) ? requestedPage : 1;
+                        int pageSize = int.TryParse(GetFlag("--page-size"), out int requestedSize) ? requestedSize : 50;
+                        bool chatFull = a.Contains("--full");
+                        stdout.WriteLine(subverb switch
+                        {
+                            "list" => chat.List(_db, sessionFilter, GetFlag("--kind") ?? "", GetFlag("--from") ?? "", GetFlag("--to") ?? "", page, pageSize, chatFull, GetFlag("--match") ?? "", GetFlag("--path") ?? ""),
+                            "first" => chat.First(_db, sessionFilter),
+                            "count" => chat.Count(_db, GetFlag("--match") ?? "", GetFlag("--kind") ?? "human", GetFlag("--by") ?? "", sessionFilter),
+                            "commands" => chat.Commands(_db, sessionFilter, page, pageSize, chatFull, GetFlag("--command") ?? ""),
+                            "parity" => new ChatMigrationTool().Compare(_db, GetFlag("--old") ?? throw new ArgumentException("chat parity needs --old <legacy database>")),
+                            "import-missing" => new ChatMigrationTool().ImportMissing(_db, GetFlag("--old") ?? throw new ArgumentException("chat import-missing needs --old <legacy database>")),
+                            _ => "usage: chat <list|first|count|commands|parity|import-missing> [--session id] [--kind kind] [--match fts] [--page N] [--page-size N] [--full]",
+                        });
+                        break;
                     case "index-packages":
                         // --from is what every other index-* command takes; accepting only --root here silently
                         // indexed the current directory instead of the one that was asked for.
@@ -199,7 +220,7 @@ public static class CliDispatch
                         stdout.WriteLine(new RecompactDocsTool().Execute(_db));
                         break;
                     case "recall":
-                        stdout.WriteLine(new RecallTool().ExecuteCli(_db, string.Join(' ', Positionals().Skip(1))));
+                        stdout.WriteLine(new RecallTool().ExecuteCli(_db, string.Join(' ', Positionals().Skip(1)), GetFlag("--kind") ?? ""));
                         break;
                     case "redact-chat":
                         stdout.WriteLine(new RedactChatTool().Execute(_db, _root, a.Contains("--dry-run")));
@@ -353,6 +374,7 @@ public static class CliDispatch
                             "add [--provenance stated|inferred]  add a fact (provenance: who established it)",
                             "query <terms>                       look up a verified fact",
                             "recall <terms>                      search past chat history",
+                            "chat <list|first|count|commands>   enumerate transcript history with totals",
                             "index-chat --from <path>            ingest session transcript(s) into chat",
                             "index-packages [--root <dir>]       index package.json identities",
                             "index-docs --from <dir>             absorb AI-meta docs, chunked by section",

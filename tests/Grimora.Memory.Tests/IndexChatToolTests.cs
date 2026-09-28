@@ -18,7 +18,7 @@ public class IndexChatToolTests
         {
             // Oracle: today's grimora.cs IndexChat()/IndexChatFile() (grimora.cs:2289/2298).
             GrimoraCliRunner.Run($"init --instance {oldInstance}");
-            (string stdout, int exitCode) = GrimoraCliRunner.Run($"index-chat --instance {oldInstance} --from \"{transcript}\"");
+            (string stdout, int exitCode) = GrimoraCliRunner.Seed($"index-chat --instance {oldInstance} --from \"{transcript}\"");
             Assert.Equal(0, exitCode);
             string expected = stdout.Trim();
 
@@ -32,14 +32,14 @@ public class IndexChatToolTests
             }
 
             Assert.Equal(expected, actual);
-            Assert.Contains("2 message(s)", actual);
-            Assert.Contains("done: 2 user message(s) indexed", actual);
+            Assert.Contains("5 turn(s)", actual);
+            Assert.Contains("done: 5 turn(s) indexed", actual);
 
             using SqliteConnection check = new($"Data Source={dbPath};Mode=ReadOnly");
             check.Open();
             using SqliteCommand count = check.CreateCommand();
             count.CommandText = "SELECT count(*) FROM chat";
-            Assert.Equal(2L, (long)(count.ExecuteScalar() ?? 0L));
+            Assert.Equal(5L, (long)(count.ExecuteScalar() ?? 0L));
         }
         finally
         {
@@ -94,7 +94,7 @@ public class IndexChatToolTests
             using (SqliteConnection connection = StoreConnection.Open(dbPath))
             {
                 string first = new IndexChatTool().Execute(connection, transcript).Trim();
-                Assert.Contains("2 message(s)", first);
+                Assert.Contains("5 turn(s)", first);
             }
 
             long afterFirst;
@@ -111,7 +111,7 @@ public class IndexChatToolTests
                 string second = new IndexChatTool().Execute(connection, transcript).Trim();
                 // The second run re-reads the same 2 messages (upsert), so it reports 2 again, not 4 —
                 // the assertion that proves the run was idempotent, not merely repeatable.
-                Assert.Contains("2 message(s)", second);
+                Assert.Contains("5 turn(s)", second);
             }
 
             using SqliteConnection recheck = new($"Data Source={dbPath};Mode=ReadOnly");
@@ -120,12 +120,12 @@ public class IndexChatToolTests
             recount.CommandText = "SELECT count(*) FROM chat";
             long afterSecond = (long)(recount.ExecuteScalar() ?? 0L);
 
-            Assert.Equal(2L, afterFirst);
+            Assert.Equal(5L, afterFirst);
             Assert.Equal(afterFirst, afterSecond);
 
             using SqliteCommand ftsCount = recheck.CreateCommand();
             ftsCount.CommandText = "SELECT count(*) FROM chat_fts";
-            Assert.Equal(2L, (long)(ftsCount.ExecuteScalar() ?? 0L));
+            Assert.Equal(5L, (long)(ftsCount.ExecuteScalar() ?? 0L));
         }
         finally
         {
@@ -153,7 +153,7 @@ public class IndexChatToolTests
         try
         {
             GrimoraCliRunner.Run($"init --instance {oldInstance}");
-            GrimoraCliRunner.Run($"index-chat --instance {oldInstance} --from \"{transcript}\"");
+            GrimoraCliRunner.Seed($"index-chat --instance {oldInstance} --from \"{transcript}\"");
             string oldDbPath = GrimoraCliRunner.InstanceDbPath(oldInstance);
             string oldStoredText = ReadAllChatText(oldDbPath);
 
@@ -270,7 +270,7 @@ public class IndexChatToolTests
         try
         {
             GrimoraCliRunner.Run($"init --instance {instance}");
-            (string stdout, int exitCode) = GrimoraCliRunner.Run($"index-chat --instance {instance} --from \"{missingFile}\"");
+            (string stdout, int exitCode) = GrimoraCliRunner.Seed($"index-chat --instance {instance} --from \"{missingFile}\"");
             Assert.Equal(0, exitCode);
             string expected = stdout.Trim();
 
@@ -280,7 +280,7 @@ public class IndexChatToolTests
 
             Assert.Equal(expected, actual);
             Assert.Contains("not found", actual);
-            Assert.Contains("done: 0 user message(s) indexed", actual);
+            Assert.Contains("done: 0 turn(s) indexed", actual);
         }
         finally
         {

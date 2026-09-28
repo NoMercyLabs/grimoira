@@ -35,13 +35,14 @@ public class CliDispatchTests
     {
         string inProcInstance = GrimoraCliRunner.NewTestInstance("clidispatch-" + name);
         string binInstance = GrimoraCliRunner.NewTestInstance("clidispatch-bin-" + name);
+        string dataDir = Path.Combine(Path.GetTempPath(), "grimora-dispatch-" + Guid.NewGuid().ToString("N"));
         try
         {
             using StringWriter stdout = new();
             using StringWriter stderr = new();
-            int exit = CliDispatch.Run([.. args, "--instance", inProcInstance], Directory.GetCurrentDirectory(), stdout, stderr);
+            int exit = CliDispatch.Run([.. args, "--instance", inProcInstance], Directory.GetCurrentDirectory(), stdout, stderr, dataDir);
 
-            OldVsNewCli.Result bin = OldVsNewCli.Run(OldVsNewCli.BinCliDll(), binInstance, string.Join(' ', args));
+            OldVsNewCli.Result bin = OldVsNewCli.Run(OldVsNewCli.BinCliDll(), binInstance, string.Join(' ', args), dataDir);
 
             Assert.Equal(bin.ExitCode, exit);
             Assert.Equal(bin.Stdout, stdout.ToString());
@@ -49,8 +50,14 @@ public class CliDispatchTests
         }
         finally
         {
-            GrimoraCliRunner.DeleteInstance(inProcInstance);
-            GrimoraCliRunner.DeleteInstance(binInstance);
+            GrimoraCliRunner.RunBinCli("service stop", dataDir);
+            Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+            for (int attempt = 0; Directory.Exists(dataDir); attempt++)
+            {
+                try { Directory.Delete(dataDir, recursive: true); break; }
+                catch (IOException) when (attempt < 20) { Thread.Sleep(250); }
+            }
+            Assert.False(Directory.Exists(dataDir), "CLI comparison test store survived cleanup");
         }
     }
 

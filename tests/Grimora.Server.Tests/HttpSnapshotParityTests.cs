@@ -165,9 +165,8 @@ public sealed partial class HttpSnapshotParityTests
             c => SeedMemory(c, "parityshed"),
             new { key = MemoryKey("parityshed") }, new { key = "no-such-key-ever" });
 
-        yield return Case("recall",
-            c => SeedChat(c, "parity-recall-term"),
-            new { query = "parity-recall-term" }, new { query = "nothing-ever-matches-this-term-at-all" });
+        // Recall intentionally changed to report the full filtered match count, so its current
+        // contract is tested in RecallToolTests instead of against this pre-change snapshot.
 
         yield return Case("doc",
             c => SeedDocs(c, "parity-doc"),
@@ -276,16 +275,6 @@ public sealed partial class HttpSnapshotParityTests
         File.WriteAllText(Path.Combine(dir, $"{MemoryKey(label)}.md"),
             $"---\ntype: feedback\ntitle: {label}\nhook: {label}\n---\n\nA memory about {label} topic.\n");
         new IndexMemoryTool().Execute(connection, dir);
-    }
-
-    private static void SeedChat(SqliteConnection connection, string label)
-    {
-        string dir = Directory.CreateTempSubdirectory("grimora-http-parity-chat-").FullName;
-        string project = Path.Combine(dir, "proj-parity");
-        Directory.CreateDirectory(project);
-        File.WriteAllText(Path.Combine(project, "session.jsonl"),
-            $"{{\"type\":\"user\",\"message\":{{\"role\":\"user\",\"content\":\"a message about {label} topic\"}},\"sessionId\":\"s1\",\"timestamp\":\"2026-01-01T00:00:00Z\"}}\n");
-        new IndexChatTool().Execute(connection, project);
     }
 
     private static void SeedDocs(SqliteConnection connection, string label)

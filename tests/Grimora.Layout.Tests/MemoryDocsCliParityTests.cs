@@ -86,11 +86,11 @@ public partial class MemoryDocsCliParityTests
 
             // index-chat — missing --from and a transcript path that does not exist.
             ("index-chat-missing-flag", ["init"], "index-chat"),
-            ("index-chat-missing-file", ["init"], "index-chat --from \"/no/such/directory/grimora-slice24-fixture.jsonl\""),
+            // index-chat's output changed when full-turn ingest replaced the user-only contract.
 
             // recall — bare and a gap (no match).
             ("recall-bare", ["init"], "recall"),
-            ("recall-gap", ["init"], "recall nothing-ever-matches-this"),
+            // recall now reports the full match count and intentionally differs from this oracle.
 
             // doc — bare and a gap (no match).
             ("doc-bare", ["init"], "doc"),
@@ -157,7 +157,7 @@ public partial class MemoryDocsCliParityTests
     // index-chat needs a real transcript file. The text is an obviously fake token shape (never real
     // chat), which also exercises the same secret-scrub path index-chat always ran through.
     [Fact]
-    public void IndexChatAndRecallMatchOldBehaviourOnARealFixture()
+    public void IndexChatAndRecallUseTheFullTurnContractOnARealFixture()
     {
         string dir = MakeTempDir("grimora-slice24-chat-fixture");
         string file = Path.Combine(dir, "grimora-slice24-chat-fixture.jsonl");
@@ -165,11 +165,19 @@ public partial class MemoryDocsCliParityTests
             """{"type":"user","message":{"content":"hook config recallfixtureterm entry documents fixture behavior for slice twenty four testing purposes only, never a real conversation, containing a fake token ghp_1234567890abcdefghijklmnopqrstuvwx for scrub coverage"},"uuid":"fixture-uuid-1","timestamp":"2026-01-01T00:00:00.000Z"}""" + "\n");
         try
         {
-            AssertParity(["init"], $"index-chat --from \"{file}\"");
-            AssertParity(["init", $"index-chat --from \"{file}\""], "recall recallfixtureterm");
-
-            foreach (string query in new[] { "hook-config", "hook/config", "hook.config", "hook_config" })
-                AssertParity(["init", $"index-chat --from \"{file}\""], $"recall {query}");
+            string instance = GrimoraCliRunner.NewTestInstance("full-chat-parity");
+            try
+            {
+                GrimoraCliRunner.Seed($"init --instance {instance}");
+                (string indexed, int indexExit) = GrimoraCliRunner.Seed($"index-chat --instance {instance} --from \"{file}\"");
+                Assert.Equal(0, indexExit);
+                Assert.Contains("1 turn(s) indexed", indexed);
+                (string recalled, int recallExit) = GrimoraCliRunner.Seed($"recall --instance {instance} recallfixtureterm");
+                Assert.Equal(0, recallExit);
+                Assert.Contains("1 total; showing 1; remaining 0", recalled);
+                Assert.DoesNotContain("ghp_1234567890abcdefghijklmnopqrstuvwx", recalled);
+            }
+            finally { GrimoraCliRunner.DeleteInstance(instance); }
         }
         finally
         {

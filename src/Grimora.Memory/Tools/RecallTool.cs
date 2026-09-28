@@ -1,6 +1,7 @@
 using System.Text;
 using Grimora.Store.Data;
 using Grimora.Store.Tools;
+using Grimora.Memory.Schema;
 using Microsoft.Data.Sqlite;
 
 namespace Grimora.Memory.Tools;
@@ -39,18 +40,24 @@ public sealed class RecallTool : ITool
         "recall <text>                        search past conversations (CLI: up to 5 hits, with score). " +
         "MCP recall(query): up to 4 hits.";
 
-    public string ExecuteCli(SqliteConnection connection, string terms)
+    public string ExecuteCli(SqliteConnection connection, string terms, string kind = "")
     {
+        ChatHistorySchema.Ensure(connection);
         string match = BuildMatch(terms);
         if (match.Length == 0) return "no usable terms.";
 
+        string filter = KindFilter(kind);
+        long total = CountMatches(connection, match, filter, kind);
+
         using SqliteCommand cmd = connection.CreateCommand();
-        cmd.CommandText = """
-            SELECT ch.session,ch.ts,ch.text,m.score
-            FROM (SELECT k, bm25(chat_fts) AS score FROM chat_fts WHERE chat_fts MATCH $m ORDER BY score LIMIT 5) m
-            JOIN chat ch ON ch.k=m.k ORDER BY m.score
+        cmd.CommandText = $"""
+            SELECT ch.session,ch.ts,ch.text,bm25(chat_fts) AS score
+            FROM chat_fts JOIN chat ch ON ch.k=chat_fts.k
+            WHERE chat_fts MATCH $m {filter}
+            ORDER BY score LIMIT 5
             """;
         cmd.Parameters.AddWithValue("$m", match);
+        if (kind.Length > 0 && kind != "all") cmd.Parameters.AddWithValue("$kind", kind);
 
         StringBuilder sb = new();
         int n = 0;
@@ -65,39 +72,64 @@ public sealed class RecallTool : ITool
                 n++;
             }
         }
-        if (n == 0) return $"no chat history matches \"{terms}\".";
+        if (n == 0) return $"0 total chat matches for \"{terms}\".";
         // Each row was appended with AppendLine on top of its own embedded trailing "\n" (grimora.cs's old
         // RecallCmd did the same via one Console.WriteLine per row) — CLI dispatch wraps this return
         // value in one more Console.WriteLine, so the AppendLine terminator on the LAST row would double
         // up into an extra blank line the old CLI never had. Strip exactly that one terminator; the
         // embedded "\n" stays, so the final Console.WriteLine reproduces the old row's own line ending.
-        return StripOneTrailingNewLine(sb.ToString());
+        return $"{total} total; showing {n}; remaining {Math.Max(0, total - n)}\n" + StripOneTrailingNewLine(sb.ToString());
     }
 
-    public string ExecuteMcp(SqliteConnection connection, string query)
+    public string ExecuteMcp(SqliteConnection connection, string query, string kind = "")
     {
+        ChatHistorySchema.Ensure(connection);
         string match = McpMatch(query);
         if (match.Length == 0) return "no usable query terms.";
         try
         {
+            string filter = KindFilter(kind);
+            long total = CountMatches(connection, match, filter, kind);
             using SqliteCommand cmd = connection.CreateCommand();
-            cmd.CommandText = """
-                SELECT ch.ts,ch.text
-                FROM (SELECT k, bm25(chat_fts) AS s FROM chat_fts WHERE chat_fts MATCH $m ORDER BY s LIMIT 4) x
-                JOIN chat ch ON ch.k=x.k ORDER BY x.s
+            cmd.CommandText = $"""
+                SELECT ch.ts,ch.text,bm25(chat_fts) AS s
+                FROM chat_fts JOIN chat ch ON ch.k=chat_fts.k
+                WHERE chat_fts MATCH $m {filter}
+                ORDER BY s LIMIT 4
                 """;
             cmd.Parameters.AddWithValue("$m", match);
+            if (kind.Length > 0 && kind != "all") cmd.Parameters.AddWithValue("$kind", kind);
             StringBuilder sb = new();
+            int shown = 0;
             using (SqliteDataReader reader = cmd.ExecuteReader())
             {
-                while (reader.Read()) sb.AppendLine($"• [{reader.GetString(0)}] {Clip(reader.GetString(1), CellCap)}");
+                while (reader.Read()) { sb.AppendLine($"• [{reader.GetString(0)}] {Clip(reader.GetString(1), CellCap)}"); shown++; }
             }
-            return sb.Length == 0 ? $"no chat history matches \"{query}\".{McpLogGap(connection, query)}" : OutputBudget.Clip(sb.ToString());
+            return sb.Length == 0 ? $"0 total chat matches for \"{query}\".{McpLogGap(connection, query)}" :
+                $"{total} total; showing {shown}; remaining {Math.Max(0, total - shown)}\n" + OutputBudget.Clip(sb.ToString());
         }
         catch (SqliteException)
         {
             return "chat history not indexed yet for this instance (run: grimora index-chat --from <transcript dir>).";
         }
+    }
+
+    private static string KindFilter(string kind) => kind switch
+    {
+        "" => "AND ch.kind IN ('human','slash_command')",
+        "all" => "",
+        "human" or "assistant" or "compaction_summary" or "hook_feedback" or "skill_body" or "agent_report" or
+            "system_notice" or "loop_prompt" or "slash_command" or "tool_result_doc" => "AND ch.kind=$kind",
+        _ => throw new ArgumentException("unknown chat kind", nameof(kind)),
+    };
+
+    private static long CountMatches(SqliteConnection connection, string match, string filter, string kind)
+    {
+        using SqliteCommand count = connection.CreateCommand();
+        count.CommandText = $"SELECT count(*) FROM chat_fts JOIN chat ch ON ch.k=chat_fts.k WHERE chat_fts MATCH $m {filter}";
+        count.Parameters.AddWithValue("$m", match);
+        if (kind.Length > 0 && kind != "all") count.Parameters.AddWithValue("$kind", kind);
+        return (long)(count.ExecuteScalar() ?? 0L);
     }
 
     private static string McpLogGap(SqliteConnection connection, string query)

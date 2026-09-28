@@ -1,5 +1,9 @@
 using Grimora.Brain.Data;
 using Grimora.Server.Handover;
+using Grimora.Graph.Schema;
+using Grimora.Store.Data;
+using Grimora.Store.Schema;
+using Microsoft.Data.Sqlite;
 using Xunit;
 
 namespace Grimora.Server.Tests.Handover;
@@ -60,6 +64,42 @@ public class WorkspaceCapabilitiesToolTests
         {
             Directory.Delete(root, recursive: true);
         }
+    }
+
+    [Fact]
+    public void FindsWorkspaceScriptFromKnownProjectRootWithoutEnvironmentVariable()
+    {
+        string root = Path.Combine(Path.GetTempPath(), "grimora-workspace-root-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(root, ".claude", "scripts"));
+        File.WriteAllText(Path.Combine(root, ".claude", "scripts", "workspace-capabilities.py"), "");
+        try
+        {
+            FakeRunner runner = new();
+            string result = new WorkspaceCapabilitiesTool().Execute("build watermarking", root, runner);
+            Assert.Contains("build-stamp.mjs", result);
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
+    [Fact]
+    public void ResolvesWorkspaceFromRegisteredNestedProjectWhenServerCwdIsElsewhere()
+    {
+        string root = Path.Combine(Path.GetTempPath(), "grimora-workspace-registry-" + Guid.NewGuid().ToString("N"));
+        string nested = Path.Combine(root, "packages", "player");
+        Directory.CreateDirectory(nested);
+        Directory.CreateDirectory(Path.Combine(root, ".claude", "scripts"));
+        File.WriteAllText(Path.Combine(root, ".claude", "scripts", "workspace-capabilities.py"), "");
+        try
+        {
+            using SqliteConnection connection = StoreConnection.Open(Path.Combine(root, "store.db"));
+            SchemaRunner.Apply(connection, [new GraphSchema()]);
+            using SqliteCommand project = connection.CreateCommand();
+            project.CommandText = "INSERT INTO projects(name,root) VALUES('player',$root)";
+            project.Parameters.AddWithValue("$root", nested);
+            project.ExecuteNonQuery();
+            Assert.Equal(root, WorkspaceRootResolver.Resolve(Path.GetTempPath(), connection));
+        }
+        finally { SqliteConnection.ClearAllPools(); Directory.Delete(root, recursive: true); }
     }
 
     [Fact]

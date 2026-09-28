@@ -54,7 +54,7 @@ public sealed class GrimoraMcpStdioTests : IDisposable
         IList<McpClientTool> tools = await client.ListToolsAsync();
         CallToolResult result = await client.CallToolAsync("history", new Dictionary<string, object?> { ["term"] = "stdio-term" });
 
-        Assert.Equal(GoldenListsTests.GoldenMcpTools.OrderBy(n => n), tools.Select(t => t.Name).OrderBy(n => n));
+        Assert.Equal(GoldenListsTests.GoldenMcpTools.Append("chat_list").Append("chat_count").OrderBy(n => n), tools.Select(t => t.Name).OrderBy(n => n));
         Assert.NotEqual(true, result.IsError);
         Assert.Contains("stdio-term", ((TextContentBlock)result.Content[0]).Text);
         Assert.All(tools, t => Assert.Equal(JsonValueKind.Object, t.JsonSchema.ValueKind));

@@ -31,6 +31,7 @@ public sealed class WorkspaceCapabilitiesTool : ITool
             return "Provide a task description between 1 and 1000 characters.";
 
         string script = Path.Combine(projectRoot, "scripts", "workspace-capabilities.py");
+        if (!File.Exists(script)) script = Path.Combine(projectRoot, ".claude", "scripts", "workspace-capabilities.py");
         if (!File.Exists(script)) return "Workspace lookup unavailable: set CLAUDE_PROJECT_DIR to the NoMercy workspace root.";
 
         List<string> args = ["--limit", "3", "--", query];

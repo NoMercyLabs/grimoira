@@ -29,6 +29,8 @@ public static class AllMcpTools
         new MemTool(usageSignal),
         new ShedMemoryTool(),
         new RecallTool(),
+        new ChatQueryTool(),
+        new ChatCountTool(),
         new DocTool(),
         new ImpactTool(),
         new GraphQueryTool(),

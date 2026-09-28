@@ -31,6 +31,7 @@ public sealed class WorkspaceSearchTool : ITool
             return "Provide a registered repository and fixed text pattern of at most 200 characters.";
 
         string script = Path.Combine(projectRoot, "scripts", "workspace-search.py");
+        if (!File.Exists(script)) script = Path.Combine(projectRoot, ".claude", "scripts", "workspace-search.py");
         if (!File.Exists(script)) return "Workspace search unavailable: set CLAUDE_PROJECT_DIR to the NoMercy workspace root.";
 
         List<string> args = ["--repo", repository, "--pattern", pattern, "--max-results", "15", "--timeout", "10"];

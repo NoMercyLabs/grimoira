@@ -29,7 +29,7 @@ internal static class CliEndpoint
     private static readonly HashSet<string> LongVerbs = new(StringComparer.Ordinal)
     {
         "index-chat", "index-docs", "index-memory", "index-packages", "import", "redact-chat",
-        "recompact-docs", "backup", "spine-import", "seed-edges",
+        "recompact-docs", "backup", "spine-import", "seed-edges", "chat",
     };
 
     private static readonly HashSet<string> LongBrainVerbs = new(StringComparer.Ordinal)

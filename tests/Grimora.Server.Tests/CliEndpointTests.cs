@@ -320,10 +320,13 @@ public sealed partial class CliEndpointTests : IDisposable
             try { Directory.Delete(dir, recursive: true); } catch (IOException) { }
         }
         try { Directory.Delete(_dataDir, recursive: true); } catch (IOException) { } catch (UnauthorizedAccessException) { }
-        Environment.SetEnvironmentVariable("GRIMORA_DATA_DIR", _binDataDir);
-        try { GrimoraCliRunner.Seed("service stop"); } catch (Exception) { }
-        Environment.SetEnvironmentVariable("GRIMORA_DATA_DIR", _savedDataDir);
-        try { Directory.Delete(_binDataDir, recursive: true); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+        GrimoraCliRunner.RunBinCli("service stop", _binDataDir);
+        for (int attempt = 0; Directory.Exists(_binDataDir); attempt++)
+        {
+            try { Directory.Delete(_binDataDir, recursive: true); break; }
+            catch (IOException) when (attempt < 20) { Thread.Sleep(250); }
+        }
+        Assert.False(Directory.Exists(_binDataDir), "bin CLI test store survived cleanup");
     }
 
     [GeneratedRegex(@"\(\d+[.,]\d+ms\)", RegexOptions.None, RegexTimeout.Milliseconds)]

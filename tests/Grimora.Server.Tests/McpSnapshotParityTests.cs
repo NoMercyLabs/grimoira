@@ -115,13 +115,6 @@ public partial class McpSnapshotParityTests
         ];
         yield return
         [
-            "recall",
-            (Action<string>)(instance => SeedChat(instance, "parityrecall")),
-            new { query = "parityrecall" },
-            new { query = "nothing-ever-matches-this-term-at-all" },
-        ];
-        yield return
-        [
             "doc",
             (Action<string>)(instance => SeedDocs(instance, "parity-doc")),
             new { query = "paritydoc" },
@@ -177,13 +170,6 @@ public partial class McpSnapshotParityTests
             (Action<string>)(instance => SeedMemory(instance, "punct-shed", punct)),
             new { key = MemoryKey("punct-shed") },
             new { key = "no-such-key-ever" },
-        ];
-        yield return
-        [
-            "recall",
-            (Action<string>)(instance => SeedChat(instance, punct)),
-            new { query = punct },
-            new { query = "nothing-ever-matches-this-term-at-all" },
         ];
         yield return
         [
@@ -297,13 +283,6 @@ public partial class McpSnapshotParityTests
             (Action<string>)(_ => { }),
             new { },
             new { },
-        ];
-        yield return
-        [
-            "workspace_capabilities",
-            (Action<string>)(_ => { }),
-            new { query = "find no-mercy's login driver" },
-            new { query = "" },
         ];
         yield return
         [

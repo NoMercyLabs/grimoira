@@ -48,7 +48,7 @@ public sealed class McpEndpointTests : IDisposable
         IList<McpClientTool> tools = await client.ListToolsAsync();
 
         string[] names = [.. tools.Select(t => t.Name).OrderBy(n => n, StringComparer.Ordinal)];
-        string[] expected = [.. GoldenListsTests.GoldenMcpTools.OrderBy(n => n, StringComparer.Ordinal)];
+        string[] expected = [.. GoldenListsTests.GoldenMcpTools.Append("chat_list").Append("chat_count").OrderBy(n => n, StringComparer.Ordinal)];
         Assert.Equal(expected, names);
     }
 

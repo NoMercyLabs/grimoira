@@ -11,7 +11,7 @@ namespace Grimora.Brain.Tests;
 /// reported failure with no useful message, and leaking the instance directory under `~/.grimora` for good
 /// (confirmed independently: several `test-*` directories sit there today with nothing left to clean them
 /// up). These tests pin the fix: DeleteInstance must retry past a transient lock instead of surfacing it,
-/// and a periodic sweep must clear out only what nothing owns any more.
+/// and a test must leave no store of its own behind.
 /// </summary>
 public class GrimoraCliRunnerCleanupTests
 {
@@ -41,30 +41,13 @@ public class GrimoraCliRunnerCleanupTests
     }
 
     [Fact]
-    public void SweepStaleInstancesRemovesOnlyInstancesOlderThanOneHour()
+    public void ATestStoreDoesNotSurviveCleanup()
     {
-        string staleInstance = GrimoraCliRunner.NewTestInstance("sweep-stale");
-        string staleDir = GrimoraCliRunner.InstanceDir(staleInstance);
-        Directory.CreateDirectory(staleDir);
-        File.WriteAllText(Path.Combine(staleDir, "marker.txt"), "x");
-        Directory.SetLastWriteTimeUtc(staleDir, DateTime.UtcNow.AddHours(-2));
-
-        string freshInstance = GrimoraCliRunner.NewTestInstance("sweep-fresh");
-        string freshDir = GrimoraCliRunner.InstanceDir(freshInstance);
-        Directory.CreateDirectory(freshDir);
-        File.WriteAllText(Path.Combine(freshDir, "marker.txt"), "x");
-
-        try
-        {
-            GrimoraCliRunner.SweepStaleInstances();
-
-            Assert.False(Directory.Exists(staleDir), "a test-* store untouched for over an hour should be swept");
-            Assert.True(Directory.Exists(freshDir), "a store touched within the last hour must survive — another agent's run may still own it");
-        }
-        finally
-        {
-            if (Directory.Exists(staleDir)) Directory.Delete(staleDir, recursive: true);
-            if (Directory.Exists(freshDir)) Directory.Delete(freshDir, recursive: true);
-        }
+        string instance = GrimoraCliRunner.NewTestInstance("cleanup-proof");
+        string dir = GrimoraCliRunner.InstanceDir(instance);
+        Directory.CreateDirectory(dir);
+        File.WriteAllText(Path.Combine(dir, "marker.txt"), "x");
+        GrimoraCliRunner.DeleteInstance(instance);
+        Assert.False(Directory.Exists(dir));
     }
 }

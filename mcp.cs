@@ -150,7 +150,7 @@ public static class GrimoraTools
     public static string recall(string query)
     {
         using SqliteConnection con = Open();
-        return new RecallTool().ExecuteMcp(con, query);
+        return new RecallTool().ExecuteMcp(con, query, "");
     }
 
     [McpServerTool]

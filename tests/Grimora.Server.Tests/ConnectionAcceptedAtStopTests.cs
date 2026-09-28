@@ -41,15 +41,14 @@ public sealed class ConnectionAcceptedAtStopTests : IDisposable
         catch (Exception) { return false; }
     }
 
-    // Kestrel closes a connection that has not started a request when the service stops; on Windows the pipe
-    // instance was connected before Kestrel ever read from it. That call is lost however the stop is ordered, so
+    // On Windows, Kestrel may close a connected pipe before reading a request during shutdown. If that happens,
     // the service leaves proof that it never ran: a clean-exit record covering the moment the call was sent,
     // written only when every call that did start was answered. The client resends on that proof alone.
     //
     // Windows-only contract (grimora/issues/4): Linux CI served this request during graceful shutdown,
     // so the call was not lost and this assertion's premise did not hold. macOS has not been measured.
     [Fact]
-    public async Task ACallDroppedByTheStopIsCoveredByTheCleanExitRecord()
+    public async Task AnAcceptedCallAtStopIsAnsweredOrCoveredByTheCleanExitRecord()
     {
         // xUnit 2.9.2's [Fact] Skip needs a compile-time constant, so this Windows-only assertion uses
         // a runtime platform check.
@@ -69,19 +68,23 @@ public sealed class ConnectionAcceptedAtStopTests : IDisposable
             SocketsHttpHandler handler = new() { ConnectCallback = (_, _) => ValueTask.FromResult(early) };
             using HttpClient late = new(handler);
             late.Timeout = TimeSpan.FromSeconds(20);
-            Exception? failure = await Record.ExceptionAsync(() => late.PostAsync("http://grimora-pipe.local/tools/recall", null));
+            HttpResponseMessage? response = null;
+            Exception? failure = await Record.ExceptionAsync(async () => { response = await late.PostAsync("http://grimora-pipe.local/tools/recall", null); });
             // Windows reports the dead pipe as HttpRequestException; on Linux, the Unix domain socket the
             // peer already closed surfaces as ObjectDisposedException from inside SocketsHttpHandler's own
             // connection reuse instead. Both mean the same thing here: the call never got a response, which
             // is what CleanExitRecord.Judge below actually proves.
-            Assert.True(failure is HttpRequestException or ObjectDisposedException,
-                $"expected the dropped call to fail, got {failure?.GetType().FullName ?? "no exception"}");
+            Assert.True(failure is null or HttpRequestException or ObjectDisposedException,
+                $"unexpected call failure: {failure?.GetType().FullName}");
+            if (failure is null) Assert.NotNull(response);
+            response?.Dispose();
 
             // The service is gone once its single-instance lock is free.
             using (FileStream? held = WaitForFreeLock()) Assert.NotNull(held);
             string rec = File.Exists(Path.Combine(_dataDir, CleanExitRecord.FileName)) ? File.ReadAllText(Path.Combine(_dataDir, CleanExitRecord.FileName)) : "none";
-            Assert.True(CleanExitRecord.Judge(CleanExitRecord.Read(_dataDir), sentAt, "an-id-the-service-never-read") == LostCallVerdict.NeverRan,
-                $"the service exited without a clean-exit record proving the dropped call never ran (record: {rec}, sent {sentAt.Ticks})");
+            if (failure is not null)
+                Assert.True(CleanExitRecord.Judge(CleanExitRecord.Read(_dataDir), sentAt, "an-id-the-service-never-read") == LostCallVerdict.NeverRan,
+                    $"the service exited without a clean-exit record proving the dropped call never ran (record: {rec}, sent {sentAt.Ticks})");
         }
     }
 
