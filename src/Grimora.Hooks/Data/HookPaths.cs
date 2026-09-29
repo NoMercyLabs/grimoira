@@ -59,6 +59,16 @@ public static class HookPaths
         return Path.Combine(InstanceDir(instance), "compact", $"{sid}.md");
     }
 
+    /// <summary>Where the verbatim compaction ledger lives, next to <see cref="BriefPath"/>: the brief is a
+    /// budget-limited summary of what the owner said since the last compaction, the ledger is the full record
+    /// (every user, mid-turn, peer and assistant entry) a brief that hit its budget points back to.</summary>
+    public static string LedgerPath(string instance, string? sessionId)
+    {
+        string sid = string.IsNullOrEmpty(sessionId) ? "x" : sessionId;
+        if (sid.Length > 64) sid = sid[..64];
+        return Path.Combine(InstanceDir(instance), "compact", $"{sid}.ledger.md");
+    }
+
     /// <summary>Where an instance's own directory lives, same layout as grimora.cs and the other hosts
     /// (RESTRUCTURE.md slice 21): <c>&lt;data dir&gt;/&lt;instance&gt;</c>, where the data dir honours
     /// <c>GRIMORA_DATA_DIR</c> the same way the CLI and server do, instead of always hardcoding
