@@ -1,7 +1,5 @@
 using System.Text.Json;
-using System.Text.RegularExpressions;
 using Grimora.Hooks.Data;
-using Grimora.Store.Data;
 
 namespace Grimora.Hooks.Tools;
 
@@ -13,7 +11,7 @@ namespace Grimora.Hooks.Tools;
 /// a second call after the same compaction return an empty string, same as the .mjs's fail-open catch
 /// plus <c>process.exit(0)</c>.
 /// </summary>
-public static partial class CompactRestoreTool
+public static class CompactRestoreTool
 {
     public static string Execute(string stdin) => Execute(stdin, projectDir: null);
 
@@ -68,35 +66,31 @@ public static partial class CompactRestoreTool
             : null;
 
     // A best-effort check, not a hard gate: if the ledger cannot be read or the transcript is already
-    // gone, this says nothing rather than blocking the restore. "Ledger has fewer the owner entries than the
-    // transcript has user turns" is the only signal available without re-running the same filtering the
-    // ledger already applied, so a legitimate gap (noise the ledger correctly dropped) can also trigger
-    // it — it is a prompt to look, not proof of loss.
+    // gone, this says nothing rather than blocking the restore. Runs the same classifier CompactBriefTool
+    // used to write the ledger (not a separate line count of every "type": "user" entry — that counted
+    // tool-result turns and task-notification queue entries too, so it fired on every compaction), takes
+    // the the owner-family entries up to the last compaction boundary — the ones that should already be on
+    // disk — and checks each is actually contained in the ledger text, verbatim (CRLF/LF-insensitive).
     private static string LossPrefix(string ledgerPath, string? transcriptPath)
     {
         try
         {
             if (transcriptPath is null || !File.Exists(transcriptPath) || !File.Exists(ledgerPath)) return "";
 
-            int transcriptUserCount = 0;
-            foreach (string line in File.ReadAllLines(transcriptPath))
-            {
-                if (string.IsNullOrWhiteSpace(line)) continue;
-                try
-                {
-                    using JsonDocument d = JsonDocument.Parse(line);
-                    if (GetString(d.RootElement, "type") == "user") transcriptUserCount++;
-                }
-                catch
-                {
-                    // partial write
-                }
-            }
+            List<JsonElement> entries = CompactBriefTool.ReadEntries(transcriptPath);
+            List<CompactBriefTool.ClassifiedEntry> classified = CompactBriefTool.ClassifyEntries(entries);
+            int boundary = CompactBriefTool.LastCompactionBoundaryIndex(entries);
 
-            int ledgerOwnerCount = OwnerLedgerLine().MatchesOrEmpty(File.ReadAllText(ledgerPath)).Count;
-            if (ledgerOwnerCount >= transcriptUserCount) return "";
+            List<string> ownerTexts = [.. classified
+                .Where(c => c.Index <= boundary && CompactBriefTool.IsOwnerFamily(c.Who))
+                .Select(c => c.Text)];
+            if (ownerTexts.Count == 0) return "";
 
-            return $"LEDGER LOSS: ledger {ledgerOwnerCount} of transcript {transcriptUserCount}\n\n";
+            string ledgerText = NormalizeNewlines(File.ReadAllText(ledgerPath));
+            int missing = ownerTexts.Count(t => !ledgerText.Contains(NormalizeNewlines(t), StringComparison.Ordinal));
+            if (missing == 0) return "";
+
+            return $"LEDGER LOSS: {missing} of {ownerTexts.Count} the owner messages are not in {ledgerPath}\n\n";
         }
         catch
         {
@@ -104,6 +98,5 @@ public static partial class CompactRestoreTool
         }
     }
 
-    [GeneratedRegex(@"^- \[[^\]]*\] the owner", RegexOptions.Multiline, RegexTimeout.Milliseconds)]
-    private static partial Regex OwnerLedgerLine();
+    private static string NormalizeNewlines(string text) => text.Replace("\r\n", "\n");
 }

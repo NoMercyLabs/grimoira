@@ -39,11 +39,11 @@ public static partial class CompactBriefTool
             List<JsonElement> entries = ReadEntries(transcriptPath);
             List<string> files = TouchedFiles(entries);
             List<(string status, string content)> todos = OpenTodos(entries);
-            List<(string timestamp, string who, string text)> ledgerEntries = LedgerEntries(entries);
+            List<ClassifiedEntry> classified = ClassifyEntries(entries);
             List<(string root, string branch, int dirty, string head)> repos = RepoState(files);
 
             string ledgerPath = HookPaths.LedgerPath(instance, sessionId);
-            string ledger = BuildLedger(ledgerEntries);
+            string ledger = BuildLedger(classified);
             try
             {
                 Directory.CreateDirectory(Path.GetDirectoryName(ledgerPath)!);
@@ -54,7 +54,8 @@ public static partial class CompactBriefTool
                 // best effort
             }
 
-            List<string> said = Directives(entries, ledgerPath);
+            int boundary = LastCompactionBoundaryIndex(entries);
+            List<string> said = Directives(classified, boundary, ledgerPath);
 
             string brief = BuildBrief(said, repos, files, todos, ledgerPath);
 
@@ -156,7 +157,7 @@ public static partial class CompactBriefTool
             ? v.GetString()
             : null;
 
-    private static List<JsonElement> ReadEntries(string path)
+    internal static List<JsonElement> ReadEntries(string path)
     {
         List<JsonElement> outp = [];
         foreach (string line in File.ReadAllLines(path))
@@ -194,10 +195,12 @@ public static partial class CompactBriefTool
     // this fall back to newest-first, and even then it says so instead of silently dropping the rest.
     private const int DirectiveBudgetChars = 24_000;
 
-    private static List<string> Directives(List<JsonElement> entries, string ledgerPath)
+    // Filters the one classifier's output down to what's new since the last compaction, in transcript
+    // order (ClassifyEntries already walks the transcript in one pass, so no separate "typed" then
+    // "mid-turn" loops to drift out of order or double-count a dedupe).
+    private static List<string> Directives(List<ClassifiedEntry> classified, int boundary, string ledgerPath)
     {
-        int boundary = LastCompactionBoundaryIndex(entries);
-        List<string> said = OwnerEntriesSince(entries, boundary);
+        List<string> said = [.. classified.Where(c => c.Index > boundary && IsOwnerFamily(c.Who)).Select(c => c.Text)];
 
         int total = said.Sum(s => s.Length);
         if (total <= DirectiveBudgetChars) return said;
@@ -221,72 +224,16 @@ public static partial class CompactBriefTool
         return kept;
     }
 
-    // Same recognition rules as LedgerEntries's the owner/the owner (mid-turn)/the owner (answer) branches, kept
-    // separate because LedgerEntries already applied its own dedupe and does not preserve the transcript
-    // index Directives needs to cut at the compaction boundary.
-    private static List<string> OwnerEntriesSince(List<JsonElement> entries, int boundary)
-    {
-        List<string> said = [];
-        HashSet<string> askUserQuestionToolIds = [];
-        for (int i = 0; i < entries.Count; i++)
-        {
-            JsonElement e = entries[i];
-            if (e.ValueKind != JsonValueKind.Object) continue;
-            if (IsNoiseEntry(e)) continue;
-
-            string type = GetString(e, "type") ?? "";
-            if (type == "assistant")
-            {
-                foreach (JsonElement b in BlocksOf(e))
-                {
-                    if (GetString(b, "type") == "tool_use" && GetString(b, "name") == "AskUserQuestion")
-                    {
-                        string? toolId = GetString(b, "id");
-                        if (toolId is not null) askUserQuestionToolIds.Add(toolId);
-                    }
-                }
-                continue;
-            }
-
-            if (type != "user") continue;
-            if (i <= boundary) continue;
-
-            if (TryGetAnswers(e, askUserQuestionToolIds) is { Count: > 0 } answers)
-            {
-                foreach ((string question, string answer) in answers) said.Add($"{question}: {answer}");
-                continue;
-            }
-
-            string trimmed = ExtractUserText(e).Trim();
-            if (trimmed.Length == 0 || trimmed.StartsWith('<') || trimmed.StartsWith("Caveat:", StringComparison.Ordinal)) continue;
-            if (ContinuedSummaryStart().IsMatchOrFalse(trimmed)) continue;
-            if (HookFeedbackNotice().IsMatchOrFalse(trimmed[..Math.Min(60, trimmed.Length)])) continue;
-            said.Add(ConsecutiveWhitespace().ReplaceOrKeep(trimmed, " "));
-        }
-
-        for (int i = 0; i < entries.Count; i++)
-        {
-            if (i <= boundary) continue;
-            JsonElement e = entries[i];
-            if (e.ValueKind != JsonValueKind.Object || IsNoiseEntry(e)) continue;
-            if (GetString(e, "type") != "attachment") continue;
-            if (!e.TryGetProperty("attachment", out JsonElement att)) continue;
-            if (GetString(att, "type") != "queued_command") continue;
-            if (GetString(att, "commandMode") == "task-notification") continue;
-            bool isPeer = att.TryGetProperty("origin", out JsonElement origin) && GetString(origin, "kind") == "peer";
-            if (isPeer) continue; // a peer's words are not the owner's directive
-            string prompt = (GetString(att, "prompt") ?? "").Trim();
-            if (prompt.Length > 0) said.Add(prompt);
-        }
-
-        return said;
-    }
+    /// <summary>the owner's own words, whichever shape they arrived in: typed, a mid-turn queued message, or
+    /// an AskUserQuestion answer. Used both to cut <see cref="Directives"/> at the compaction boundary and,
+    /// at restore time, to judge whether the ledger carried them all.</summary>
+    internal static bool IsOwnerFamily(string who) => who is "the owner" or "the owner (mid-turn)" or "the owner (answer)";
 
     private static bool IsNoiseEntry(JsonElement e) =>
         (e.TryGetProperty("isSidechain", out JsonElement sc) && sc.ValueKind == JsonValueKind.True) ||
         (e.TryGetProperty("isMeta", out JsonElement meta) && meta.ValueKind == JsonValueKind.True);
 
-    private static int LastCompactionBoundaryIndex(List<JsonElement> entries)
+    internal static int LastCompactionBoundaryIndex(List<JsonElement> entries)
     {
         int boundary = -1;
         for (int i = 0; i < entries.Count; i++)
@@ -347,18 +294,28 @@ public static partial class CompactBriefTool
         foreach (JsonElement b in content.EnumerateArray()) yield return b;
     }
 
-    // The verbatim ledger PreCompact writes on every compaction: the full transcript, never cut, never
-    // limited to the last few — the brief above is what fits in a budget, this is where the rest lives.
-    // Order is transcript order, which is also why re-running this on the same transcript is deterministic.
-    private static List<(string timestamp, string who, string text)> LedgerEntries(List<JsonElement> entries)
+    /// <summary>One transcript entry, recognised as the owner's, a peer's, or Arc's own words.
+    /// <paramref name="Index"/> is the entry's position in the transcript the classifier read, so a caller
+    /// can cut at a compaction boundary computed on the same list.</summary>
+    internal readonly record struct ClassifiedEntry(int Index, string Timestamp, string Who, string Text);
+
+    // The one recogniser for what counts as said, in transcript order, with its own dedupe rules applied
+    // once: LedgerEntries and Directives (nee OwnerEntriesSince) used to each run their own pass and could
+    // drift — a mid-turn queued message landed after every typed message regardless of when it was queued,
+    // and a duplicate queued_command could be counted twice by one and once by the other. The verbatim
+    // ledger PreCompact writes on every compaction takes every classified entry, never cut, never limited
+    // to the last few; the brief takes only the the owner-family entries after the compaction boundary. Order
+    // is transcript order, which is also why re-running this on the same transcript is deterministic.
+    internal static List<ClassifiedEntry> ClassifyEntries(List<JsonElement> entries)
     {
-        List<(string timestamp, string who, string text)> outp = [];
+        List<ClassifiedEntry> outp = [];
         HashSet<string> seenAssistantText = [];
         HashSet<string> seenQueued = [];
         HashSet<string> askUserQuestionToolIds = [];
 
-        foreach (JsonElement e in entries)
+        for (int i = 0; i < entries.Count; i++)
         {
+            JsonElement e = entries[i];
             if (e.ValueKind != JsonValueKind.Object || IsNoiseEntry(e)) continue;
             string type = GetString(e, "type") ?? "";
             string timestamp = GetString(e, "timestamp") ?? "";
@@ -370,7 +327,7 @@ public static partial class CompactBriefTool
                 {
                     foreach ((string question, string answer) in answers)
                     {
-                        outp.Add((timestamp, "the owner (answer)", $"{question}: {answer}"));
+                        outp.Add(new ClassifiedEntry(i, timestamp, "the owner (answer)", $"{question}: {answer}"));
                     }
                     continue;
                 }
@@ -379,7 +336,7 @@ public static partial class CompactBriefTool
                 if (trimmed.Length == 0 || trimmed.StartsWith('<') || trimmed.StartsWith("Caveat:", StringComparison.Ordinal)) continue;
                 if (ContinuedSummaryStart().IsMatchOrFalse(trimmed)) continue;
                 if (HookFeedbackNotice().IsMatchOrFalse(trimmed[..Math.Min(60, trimmed.Length)])) continue;
-                outp.Add((timestamp, "the owner", trimmed));
+                outp.Add(new ClassifiedEntry(i, timestamp, "the owner", trimmed));
             }
             else if (type == "assistant")
             {
@@ -394,14 +351,14 @@ public static partial class CompactBriefTool
                         string text = (GetString(b, "text") ?? "").Trim();
                         if (text.Length == 0) continue;
                         if (!seenAssistantText.Add($"{msgId}\u0000{text}")) continue;
-                        outp.Add((timestamp, "Arc", text));
+                        outp.Add(new ClassifiedEntry(i, timestamp, "Arc", text));
                     }
                     else if (btype == "tool_use" && GetString(b, "name") == "AskUserQuestion")
                     {
                         string? toolId = GetString(b, "id");
                         if (toolId is not null) askUserQuestionToolIds.Add(toolId);
                         string question = AskUserQuestionText(b);
-                        if (question.Length > 0) outp.Add((timestamp, "Arc (question)", question));
+                        if (question.Length > 0) outp.Add(new ClassifiedEntry(i, timestamp, "Arc (question)", question));
                     }
                 }
             }
@@ -421,11 +378,11 @@ public static partial class CompactBriefTool
                     string sender = FromNameAttribute().MatchOrEmpty(prompt) is { Success: true } m2
                         ? m2.Groups[1].Value
                         : GetString(origin, "name") ?? "unknown";
-                    outp.Add((timestamp, $"Peer {sender}", prompt));
+                    outp.Add(new ClassifiedEntry(i, timestamp, $"Peer {sender}", prompt));
                 }
                 else
                 {
-                    outp.Add((timestamp, "the owner (mid-turn)", prompt));
+                    outp.Add(new ClassifiedEntry(i, timestamp, "the owner (mid-turn)", prompt));
                 }
             }
         }
@@ -445,12 +402,32 @@ public static partial class CompactBriefTool
         return string.Join(" | ", parts);
     }
 
-    private static string BuildLedger(List<(string timestamp, string who, string text)> ledgerEntries)
+    // One block per entry, not one line: "- [ts] who: text" broke the moment text itself held a line
+    // break (a multi-line message written verbatim, which item B requires) — the restore-time loss regex
+    // then miscounted, unable to tell a continuation line from the next entry.
+    private static string BuildLedger(List<ClassifiedEntry> classified)
     {
-        List<string> lines = ["# Compaction ledger — verbatim, never truncated", ""];
-        foreach ((string timestamp, string who, string text) in ledgerEntries)
+        int owner = classified.Count(c => c.Who == "the owner");
+        int midTurn = classified.Count(c => c.Who == "the owner (mid-turn)");
+        int answer = classified.Count(c => c.Who == "the owner (answer)");
+        int arc = classified.Count(c => c.Who == "Arc");
+        int arcQuestion = classified.Count(c => c.Who == "Arc (question)");
+        int peer = classified.Count(c => c.Who.StartsWith("Peer ", StringComparison.Ordinal));
+
+        List<string> lines =
+        [
+            "# Compaction ledger — verbatim, never truncated",
+            "",
+            $"Entries: {classified.Count} (the owner {owner}, the owner (mid-turn) {midTurn}, the owner (answer) {answer}, " +
+                $"Arc {arc}, Arc (question) {arcQuestion}, Peer {peer})",
+            "",
+        ];
+        foreach (ClassifiedEntry c in classified)
         {
-            lines.Add($"- [{timestamp}] {who}: {text}");
+            lines.Add($"## {c.Who} — {c.Timestamp}");
+            lines.Add("");
+            lines.Add(c.Text);
+            lines.Add("");
         }
         return string.Join("\n", lines) + "\n";
     }
@@ -551,8 +528,6 @@ public static partial class CompactBriefTool
     private static partial Regex ContinuedSummaryStart();
     [GeneratedRegex("hook (feedback|additional context)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, RegexTimeout.Milliseconds)]
     private static partial Regex HookFeedbackNotice();
-    [GeneratedRegex(@"\s+", RegexOptions.None, RegexTimeout.Milliseconds)]
-    private static partial Regex ConsecutiveWhitespace();
     [GeneratedRegex("from-name=\"([^\"]*)\"", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex FromNameAttribute();
 }
