@@ -271,6 +271,217 @@ public class CompactLedgerTests
     }
 
     [Fact]
+    public void ToolResultAndTaskNotificationNoiseNeverTriggersLedgerLoss()
+    {
+        string projectDir = NewTempProjectDir();
+        string instance = HookPaths.ResolveInstance(projectDir);
+        try
+        {
+            string transcriptPath = Path.Combine(projectDir, "transcript.jsonl");
+            List<string> lines = [];
+            for (int i = 0; i < 50; i++)
+            {
+                lines.Add(JsonSerializer.Serialize(new
+                {
+                    type = "user",
+                    message = new { content = new object[] { new { type = "tool_result", tool_use_id = $"t{i}", content = "ok" } } },
+                    timestamp = "2026-09-30T09:00:00Z",
+                }));
+            }
+            for (int i = 0; i < 3; i++)
+            {
+                lines.Add(JsonSerializer.Serialize(new
+                {
+                    type = "attachment",
+                    attachment = new { type = "queued_command", prompt = $"Background task {i} finished.", commandMode = "task-notification", source_uuid = $"tn-{i}" },
+                    uuid = $"u-tn-{i}",
+                    timestamp = "2026-09-30T09:01:00Z",
+                }));
+            }
+            string[] ownerMessages = ["the owner message one.", "the owner message two.", "the owner message three."];
+            foreach (string m in ownerMessages)
+            {
+                lines.Add(JsonSerializer.Serialize(new { type = "user", message = new { content = m }, timestamp = "2026-09-30T09:02:00Z" }));
+            }
+            lines.Add(JsonSerializer.Serialize(new
+            {
+                type = "user",
+                message = new { content = "This session is being continued from a previous conversation that ran out of context." },
+                timestamp = "2026-09-30T09:03:00Z",
+            }));
+            File.WriteAllLines(transcriptPath, lines);
+
+            CompactBriefTool.Execute(Payload(transcriptPath, projectDir, "sess-noloss"));
+            string promptPayload = JsonSerializer.Serialize(new { cwd = projectDir, session_id = "sess-noloss", transcript_path = transcriptPath });
+            string restore = CompactRestoreTool.Execute(promptPayload);
+
+            Assert.DoesNotContain("LEDGER LOSS", restore);
+        }
+        finally
+        {
+            GrimoraCliRunner.DeleteInstance(instance);
+            Directory.Delete(projectDir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void MissingLedgerEntryIsReportedAsLedgerLoss()
+    {
+        string projectDir = NewTempProjectDir();
+        string instance = HookPaths.ResolveInstance(projectDir);
+        try
+        {
+            string transcriptPath = Path.Combine(projectDir, "transcript.jsonl");
+            string[] ownerMessages = ["First message.", "Second message.", "Third message."];
+            List<string> lines = [];
+            foreach (string m in ownerMessages)
+            {
+                lines.Add(JsonSerializer.Serialize(new { type = "user", message = new { content = m }, timestamp = "2026-09-30T09:02:00Z" }));
+            }
+            lines.Add(JsonSerializer.Serialize(new
+            {
+                type = "user",
+                message = new { content = "This session is being continued from a previous conversation that ran out of context." },
+                timestamp = "2026-09-30T09:03:00Z",
+            }));
+            File.WriteAllLines(transcriptPath, lines);
+
+            CompactBriefTool.Execute(Payload(transcriptPath, projectDir, "sess-loss"));
+
+            string ledgerPath = HookPaths.LedgerPath(instance, "sess-loss");
+            string ledger = File.ReadAllText(ledgerPath);
+            File.WriteAllText(ledgerPath, ledger.Replace("Second message.", "REDACTED"));
+
+            string promptPayload = JsonSerializer.Serialize(new { cwd = projectDir, session_id = "sess-loss", transcript_path = transcriptPath });
+            string restore = CompactRestoreTool.Execute(promptPayload);
+
+            Assert.Contains("LEDGER LOSS: 1 of 3", restore);
+        }
+        finally
+        {
+            GrimoraCliRunner.DeleteInstance(instance);
+            Directory.Delete(projectDir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void TypedMidTurnTypedOrderIsPreservedInBrief()
+    {
+        string projectDir = NewTempProjectDir();
+        string instance = HookPaths.ResolveInstance(projectDir);
+        try
+        {
+            string transcriptPath = Path.Combine(projectDir, "transcript.jsonl");
+            File.WriteAllLines(transcriptPath,
+            [
+                JsonSerializer.Serialize(new { type = "user", message = new { content = "Typed one." }, timestamp = "2026-09-30T10:00:00Z" }),
+                JsonSerializer.Serialize(new
+                {
+                    type = "attachment",
+                    attachment = new { type = "queued_command", prompt = "Mid turn one.", commandMode = "prompt", source_uuid = "q-order-1" },
+                    uuid = "u-order-1",
+                    timestamp = "2026-09-30T10:01:00Z",
+                }),
+                JsonSerializer.Serialize(new { type = "user", message = new { content = "Typed two." }, timestamp = "2026-09-30T10:02:00Z" }),
+            ]);
+
+            string stdout = CompactBriefTool.Execute(Payload(transcriptPath, projectDir, "sess-order"));
+
+            int i1 = stdout.IndexOf("Typed one.", StringComparison.Ordinal);
+            int i2 = stdout.IndexOf("Mid turn one.", StringComparison.Ordinal);
+            int i3 = stdout.IndexOf("Typed two.", StringComparison.Ordinal);
+            Assert.True(i1 >= 0 && i2 >= 0 && i3 >= 0, stdout);
+            Assert.True(i1 < i2, "Typed one. must appear before Mid turn one.");
+            Assert.True(i2 < i3, "Mid turn one. must appear before Typed two.");
+        }
+        finally
+        {
+            GrimoraCliRunner.DeleteInstance(instance);
+            Directory.Delete(projectDir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void MultiLineMessageKeepsItsLineBreaksInBriefAndLedger()
+    {
+        string projectDir = NewTempProjectDir();
+        string instance = HookPaths.ResolveInstance(projectDir);
+        try
+        {
+            string transcriptPath = Path.Combine(projectDir, "transcript.jsonl");
+            string multiline = "Line one.\nLine two.\nLine three.";
+            File.WriteAllLines(transcriptPath,
+            [
+                JsonSerializer.Serialize(new { type = "user", message = new { content = multiline }, timestamp = "2026-09-30T10:00:00Z" }),
+            ]);
+
+            string stdout = CompactBriefTool.Execute(Payload(transcriptPath, projectDir, "sess-multiline"));
+            string ledger = File.ReadAllText(HookPaths.LedgerPath(instance, "sess-multiline"));
+
+            Assert.Contains(multiline, stdout);
+            Assert.Contains(multiline, ledger);
+        }
+        finally
+        {
+            GrimoraCliRunner.DeleteInstance(instance);
+            Directory.Delete(projectDir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void DuplicateQueuedCommandBySourceUuidAppearsOnceInBriefAndLedger()
+    {
+        string projectDir = NewTempProjectDir();
+        string instance = HookPaths.ResolveInstance(projectDir);
+        try
+        {
+            string transcriptPath = Path.Combine(projectDir, "transcript.jsonl");
+            File.WriteAllLines(transcriptPath,
+            [
+                JsonSerializer.Serialize(new
+                {
+                    type = "attachment",
+                    attachment = new { type = "queued_command", prompt = "Also check the timeout.", commandMode = "prompt", source_uuid = "dup-1" },
+                    uuid = "u-dup-1a",
+                    timestamp = "2026-09-30T10:01:00Z",
+                }),
+                JsonSerializer.Serialize(new
+                {
+                    type = "attachment",
+                    attachment = new { type = "queued_command", prompt = "Also check the timeout.", commandMode = "prompt", source_uuid = "dup-1" },
+                    uuid = "u-dup-1b",
+                    timestamp = "2026-09-30T10:01:05Z",
+                }),
+            ]);
+
+            string stdout = CompactBriefTool.Execute(Payload(transcriptPath, projectDir, "sess-dup"));
+            string ledger = File.ReadAllText(HookPaths.LedgerPath(instance, "sess-dup"));
+
+            int briefCount = CountOccurrences(stdout, "Also check the timeout.");
+            int ledgerCount = CountOccurrences(ledger, "Also check the timeout.");
+            Assert.Equal(1, briefCount);
+            Assert.Equal(1, ledgerCount);
+        }
+        finally
+        {
+            GrimoraCliRunner.DeleteInstance(instance);
+            Directory.Delete(projectDir, recursive: true);
+        }
+    }
+
+    private static int CountOccurrences(string haystack, string needle)
+    {
+        int count = 0;
+        int index = 0;
+        while ((index = haystack.IndexOf(needle, index, StringComparison.Ordinal)) >= 0)
+        {
+            count++;
+            index += needle.Length;
+        }
+        return count;
+    }
+
+    [Fact]
     public void LedgerGenerationIsDeterministic()
     {
         string projectDir = NewTempProjectDir();
