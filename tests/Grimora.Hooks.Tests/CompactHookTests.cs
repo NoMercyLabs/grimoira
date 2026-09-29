@@ -125,7 +125,9 @@ public class CompactHookTests
             string additionalContext = doc.RootElement.GetProperty("hookSpecificOutput").GetProperty("additionalContext").GetString()!;
             Assert.Equal("UserPromptSubmit", hookEventName);
             Assert.Contains("Fix the widget so it stops crashing on empty input.", additionalContext);
-            Assert.False(File.Exists(HookPaths.BriefPath(instance, "sess-2")));
+            // Changed by the compaction-ledger fix: the brief is marked restored, not deleted, so it
+            // (and its ledger) stay on disk for the owner to open later.
+            Assert.True(File.Exists(HookPaths.BriefPath(instance, "sess-2")));
 
             string second = CompactRestoreTool.Execute(promptPayload);
             Assert.Equal("", second);

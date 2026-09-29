@@ -124,6 +124,10 @@ public sealed class HooksEndpointTests : IDisposable
         {
             Directory.CreateDirectory(Path.GetDirectoryName(briefPath)!);
             File.WriteAllText(briefPath, "# Carried across compaction\n\n- \"a directive long enough to be kept\"\n");
+            // The compaction-ledger fix marks a restore rather than deleting the brief, so a fresh seed
+            // (standing in for a fresh compaction) must also clear any earlier restore's marker — the CLI
+            // and HTTP runs each get their own "first restore since this brief was written".
+            try { File.Delete(briefPath + ".restored"); } catch { /* best effort */ }
         }
         string payload = JsonSerializer.Serialize(new { cwd = _projectDir, session_id = "s2", prompt = "go on" });
 

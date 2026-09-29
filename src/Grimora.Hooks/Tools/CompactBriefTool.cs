@@ -35,15 +35,30 @@ public static partial class CompactBriefTool
             if (transcriptPath is null || !File.Exists(transcriptPath)) return "";
 
             string instance = HookPaths.ResolveInstance(GetString(payload, "cwd"), projectDir);
+            string? sessionId = GetString(payload, "session_id");
             List<JsonElement> entries = ReadEntries(transcriptPath);
             List<string> files = TouchedFiles(entries);
             List<(string status, string content)> todos = OpenTodos(entries);
-            List<string> said = Directives(entries);
+            List<(string timestamp, string who, string text)> ledgerEntries = LedgerEntries(entries);
             List<(string root, string branch, int dirty, string head)> repos = RepoState(files);
 
-            string brief = BuildBrief(said, repos, files, todos);
+            string ledgerPath = HookPaths.LedgerPath(instance, sessionId);
+            string ledger = BuildLedger(ledgerEntries);
+            try
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(ledgerPath)!);
+                File.WriteAllText(ledgerPath, ledger);
+            }
+            catch
+            {
+                // best effort
+            }
 
-            string outPath = HookPaths.BriefPath(instance, GetString(payload, "session_id"));
+            List<string> said = Directives(entries, ledgerPath);
+
+            string brief = BuildBrief(said, repos, files, todos, ledgerPath);
+
+            string outPath = HookPaths.BriefPath(instance, sessionId);
             try
             {
                 Directory.CreateDirectory(Path.GetDirectoryName(outPath)!);
@@ -72,7 +87,8 @@ public static partial class CompactBriefTool
         List<string> said,
         List<(string root, string branch, int dirty, string head)> repos,
         List<string> files,
-        List<(string status, string content)> todos)
+        List<(string status, string content)> todos,
+        string ledgerPath)
     {
         List<string> lines = ["# Carried across compaction", ""];
 
@@ -127,6 +143,11 @@ public static partial class CompactBriefTool
             lines.Add("");
         }
 
+        lines.Add("## Full verbatim record");
+        lines.Add("");
+        lines.Add($"Every entry - the owner's, the peers', and Arc's own replies - is kept whole in {ledgerPath}");
+        lines.Add("");
+
         return string.Join("\n", lines);
     }
 
@@ -167,43 +188,271 @@ public static partial class CompactBriefTool
     }
 
     // The user's own words are the directive; a summary reliably keeps the task and drops the
-    // constraints.
-    private static List<string> Directives(List<JsonElement> entries)
+    // constraints. Everything the owner said since the last compaction boundary carries whole — no
+    // per-message cut, no "last 4 only" — because a mid-turn instruction 5 messages back is exactly as
+    // binding as the most recent one. Only when the combined text would blow the brief's own budget does
+    // this fall back to newest-first, and even then it says so instead of silently dropping the rest.
+    private const int DirectiveBudgetChars = 24_000;
+
+    private static List<string> Directives(List<JsonElement> entries, string ledgerPath)
+    {
+        int boundary = LastCompactionBoundaryIndex(entries);
+        List<string> said = OwnerEntriesSince(entries, boundary);
+
+        int total = said.Sum(s => s.Length);
+        if (total <= DirectiveBudgetChars) return said;
+
+        List<string> kept = [];
+        int used = 0;
+        int cutIndex = said.Count;
+        for (int i = said.Count - 1; i >= 0; i--)
+        {
+            int len = said[i].Length;
+            if (used + len > DirectiveBudgetChars && kept.Count > 0) { cutIndex = i + 1; break; }
+            kept.Insert(0, said[i]);
+            used += len;
+            cutIndex = i;
+        }
+
+        if (cutIndex > 0)
+        {
+            kept.Add($"{cutIndex} earlier messages since the last compaction are in the ledger: {ledgerPath}");
+        }
+        return kept;
+    }
+
+    // Same recognition rules as LedgerEntries's the owner/the owner (mid-turn)/the owner (answer) branches, kept
+    // separate because LedgerEntries already applied its own dedupe and does not preserve the transcript
+    // index Directives needs to cut at the compaction boundary.
+    private static List<string> OwnerEntriesSince(List<JsonElement> entries, int boundary)
     {
         List<string> said = [];
-        foreach (JsonElement e in entries)
+        HashSet<string> askUserQuestionToolIds = [];
+        for (int i = 0; i < entries.Count; i++)
         {
+            JsonElement e = entries[i];
             if (e.ValueKind != JsonValueKind.Object) continue;
-            if (GetString(e, "type") != "user") continue;
-            if (e.TryGetProperty("isMeta", out JsonElement metaEl) && metaEl.ValueKind == JsonValueKind.True) continue;
+            if (IsNoiseEntry(e)) continue;
 
-            string text = "";
-            if (e.TryGetProperty("message", out JsonElement msg) && msg.TryGetProperty("content", out JsonElement content))
+            string type = GetString(e, "type") ?? "";
+            if (type == "assistant")
             {
-                if (content.ValueKind == JsonValueKind.String)
+                foreach (JsonElement b in BlocksOf(e))
                 {
-                    text = content.GetString() ?? "";
-                }
-                else if (content.ValueKind == JsonValueKind.Array)
-                {
-                    List<string> parts = [];
-                    foreach (JsonElement b in content.EnumerateArray())
+                    if (GetString(b, "type") == "tool_use" && GetString(b, "name") == "AskUserQuestion")
                     {
-                        if (GetString(b, "type") == "text") parts.Add(GetString(b, "text") ?? "");
+                        string? toolId = GetString(b, "id");
+                        if (toolId is not null) askUserQuestionToolIds.Add(toolId);
                     }
-                    text = string.Join(" ", parts);
                 }
+                continue;
             }
 
-            string trimmed = text.Trim();
-            if (trimmed.Length < 12 || trimmed.StartsWith('<') || trimmed.StartsWith("Caveat:", StringComparison.Ordinal)) continue;
+            if (type != "user") continue;
+            if (i <= boundary) continue;
+
+            if (TryGetAnswers(e, askUserQuestionToolIds) is { Count: > 0 } answers)
+            {
+                foreach ((string question, string answer) in answers) said.Add($"{question}: {answer}");
+                continue;
+            }
+
+            string trimmed = ExtractUserText(e).Trim();
+            if (trimmed.Length == 0 || trimmed.StartsWith('<') || trimmed.StartsWith("Caveat:", StringComparison.Ordinal)) continue;
             if (ContinuedSummaryStart().IsMatchOrFalse(trimmed)) continue;
             if (HookFeedbackNotice().IsMatchOrFalse(trimmed[..Math.Min(60, trimmed.Length)])) continue;
-
-            string cleaned = ConsecutiveWhitespace().ReplaceOrKeep(trimmed, " ");
-            said.Add(cleaned.Length > 400 ? cleaned[..400] : cleaned);
+            said.Add(ConsecutiveWhitespace().ReplaceOrKeep(trimmed, " "));
         }
-        return said.Count > 4 ? said[^4..] : said;
+
+        for (int i = 0; i < entries.Count; i++)
+        {
+            if (i <= boundary) continue;
+            JsonElement e = entries[i];
+            if (e.ValueKind != JsonValueKind.Object || IsNoiseEntry(e)) continue;
+            if (GetString(e, "type") != "attachment") continue;
+            if (!e.TryGetProperty("attachment", out JsonElement att)) continue;
+            if (GetString(att, "type") != "queued_command") continue;
+            if (GetString(att, "commandMode") == "task-notification") continue;
+            bool isPeer = att.TryGetProperty("origin", out JsonElement origin) && GetString(origin, "kind") == "peer";
+            if (isPeer) continue; // a peer's words are not the owner's directive
+            string prompt = (GetString(att, "prompt") ?? "").Trim();
+            if (prompt.Length > 0) said.Add(prompt);
+        }
+
+        return said;
+    }
+
+    private static bool IsNoiseEntry(JsonElement e) =>
+        (e.TryGetProperty("isSidechain", out JsonElement sc) && sc.ValueKind == JsonValueKind.True) ||
+        (e.TryGetProperty("isMeta", out JsonElement meta) && meta.ValueKind == JsonValueKind.True);
+
+    private static int LastCompactionBoundaryIndex(List<JsonElement> entries)
+    {
+        int boundary = -1;
+        for (int i = 0; i < entries.Count; i++)
+        {
+            JsonElement e = entries[i];
+            if (GetString(e, "type") != "user") continue;
+            string text = ExtractUserText(e).Trim();
+            if (ContinuedSummaryStart().IsMatchOrFalse(text)) boundary = i;
+        }
+        return boundary;
+    }
+
+    private static string ExtractUserText(JsonElement e)
+    {
+        if (!e.TryGetProperty("message", out JsonElement msg) || !msg.TryGetProperty("content", out JsonElement content)) return "";
+        if (content.ValueKind == JsonValueKind.String) return content.GetString() ?? "";
+        if (content.ValueKind != JsonValueKind.Array) return "";
+        List<string> parts = [];
+        foreach (JsonElement b in content.EnumerateArray())
+        {
+            if (GetString(b, "type") == "text") parts.Add(GetString(b, "text") ?? "");
+        }
+        return string.Join(" ", parts);
+    }
+
+    /// <summary>If <paramref name="e"/> is a user turn answering one of <paramref name="askUserQuestionToolIds"/>,
+    /// the question/answer pairs Claude Code recorded in its own <c>toolUseResult.answers</c> map — the
+    /// structured record, not the "The user answered: ..." string glued together for display.</summary>
+    private static List<(string question, string answer)>? TryGetAnswers(JsonElement e, HashSet<string> askUserQuestionToolIds)
+    {
+        if (!e.TryGetProperty("message", out JsonElement msg) || !msg.TryGetProperty("content", out JsonElement content)) return null;
+        if (content.ValueKind != JsonValueKind.Array) return null;
+
+        bool answersAskUserQuestion = false;
+        foreach (JsonElement b in content.EnumerateArray())
+        {
+            if (GetString(b, "type") != "tool_result") continue;
+            string? toolUseId = GetString(b, "tool_use_id");
+            if (toolUseId is not null && askUserQuestionToolIds.Contains(toolUseId)) answersAskUserQuestion = true;
+        }
+        if (!answersAskUserQuestion) return null;
+
+        if (!e.TryGetProperty("toolUseResult", out JsonElement tur) || !tur.TryGetProperty("answers", out JsonElement answersEl)) return null;
+        if (answersEl.ValueKind != JsonValueKind.Object) return null;
+
+        List<(string question, string answer)> outp = [];
+        foreach (JsonProperty p in answersEl.EnumerateObject())
+        {
+            outp.Add((p.Name, p.Value.ValueKind == JsonValueKind.String ? p.Value.GetString() ?? "" : ""));
+        }
+        return outp;
+    }
+
+    private static IEnumerable<JsonElement> BlocksOf(JsonElement e)
+    {
+        if (!e.TryGetProperty("message", out JsonElement msg) || !msg.TryGetProperty("content", out JsonElement content)) yield break;
+        if (content.ValueKind != JsonValueKind.Array) yield break;
+        foreach (JsonElement b in content.EnumerateArray()) yield return b;
+    }
+
+    // The verbatim ledger PreCompact writes on every compaction: the full transcript, never cut, never
+    // limited to the last few — the brief above is what fits in a budget, this is where the rest lives.
+    // Order is transcript order, which is also why re-running this on the same transcript is deterministic.
+    private static List<(string timestamp, string who, string text)> LedgerEntries(List<JsonElement> entries)
+    {
+        List<(string timestamp, string who, string text)> outp = [];
+        HashSet<string> seenAssistantText = [];
+        HashSet<string> seenQueued = [];
+        HashSet<string> askUserQuestionToolIds = [];
+
+        foreach (JsonElement e in entries)
+        {
+            if (e.ValueKind != JsonValueKind.Object || IsNoiseEntry(e)) continue;
+            string type = GetString(e, "type") ?? "";
+            string timestamp = GetString(e, "timestamp") ?? "";
+
+            if (type == "user")
+            {
+                List<(string question, string answer)>? answers = TryGetAnswers(e, askUserQuestionToolIds);
+                if (answers is { Count: > 0 })
+                {
+                    foreach ((string question, string answer) in answers)
+                    {
+                        outp.Add((timestamp, "the owner (answer)", $"{question}: {answer}"));
+                    }
+                    continue;
+                }
+
+                string trimmed = ExtractUserText(e).Trim();
+                if (trimmed.Length == 0 || trimmed.StartsWith('<') || trimmed.StartsWith("Caveat:", StringComparison.Ordinal)) continue;
+                if (ContinuedSummaryStart().IsMatchOrFalse(trimmed)) continue;
+                if (HookFeedbackNotice().IsMatchOrFalse(trimmed[..Math.Min(60, trimmed.Length)])) continue;
+                outp.Add((timestamp, "the owner", trimmed));
+            }
+            else if (type == "assistant")
+            {
+                string? msgId = e.TryGetProperty("message", out JsonElement m) && m.TryGetProperty("id", out JsonElement idEl) && idEl.ValueKind == JsonValueKind.String
+                    ? idEl.GetString()
+                    : null;
+                foreach (JsonElement b in BlocksOf(e))
+                {
+                    string? btype = GetString(b, "type");
+                    if (btype == "text")
+                    {
+                        string text = (GetString(b, "text") ?? "").Trim();
+                        if (text.Length == 0) continue;
+                        if (!seenAssistantText.Add($"{msgId}\u0000{text}")) continue;
+                        outp.Add((timestamp, "Arc", text));
+                    }
+                    else if (btype == "tool_use" && GetString(b, "name") == "AskUserQuestion")
+                    {
+                        string? toolId = GetString(b, "id");
+                        if (toolId is not null) askUserQuestionToolIds.Add(toolId);
+                        string question = AskUserQuestionText(b);
+                        if (question.Length > 0) outp.Add((timestamp, "Arc (question)", question));
+                    }
+                }
+            }
+            else if (type == "attachment")
+            {
+                if (!e.TryGetProperty("attachment", out JsonElement att)) continue;
+                if (GetString(att, "type") != "queued_command") continue;
+                if (GetString(att, "commandMode") == "task-notification") continue;
+
+                string dedupeKey = GetString(att, "source_uuid") ?? GetString(e, "uuid") ?? "";
+                if (dedupeKey.Length > 0 && !seenQueued.Add(dedupeKey)) continue;
+
+                string prompt = (GetString(att, "prompt") ?? "").Trim();
+                bool isPeer = att.TryGetProperty("origin", out JsonElement origin) && GetString(origin, "kind") == "peer";
+                if (isPeer)
+                {
+                    string sender = FromNameAttribute().MatchOrEmpty(prompt) is { Success: true } m2
+                        ? m2.Groups[1].Value
+                        : GetString(origin, "name") ?? "unknown";
+                    outp.Add((timestamp, $"Peer {sender}", prompt));
+                }
+                else
+                {
+                    outp.Add((timestamp, "the owner (mid-turn)", prompt));
+                }
+            }
+        }
+        return outp;
+    }
+
+    private static string AskUserQuestionText(JsonElement toolUseBlock)
+    {
+        if (!toolUseBlock.TryGetProperty("input", out JsonElement input)) return "";
+        if (!input.TryGetProperty("questions", out JsonElement questions) || questions.ValueKind != JsonValueKind.Array) return "";
+        List<string> parts = [];
+        foreach (JsonElement q in questions.EnumerateArray())
+        {
+            string? text = GetString(q, "question");
+            if (!string.IsNullOrEmpty(text)) parts.Add(text);
+        }
+        return string.Join(" | ", parts);
+    }
+
+    private static string BuildLedger(List<(string timestamp, string who, string text)> ledgerEntries)
+    {
+        List<string> lines = ["# Compaction ledger — verbatim, never truncated", ""];
+        foreach ((string timestamp, string who, string text) in ledgerEntries)
+        {
+            lines.Add($"- [{timestamp}] {who}: {text}");
+        }
+        return string.Join("\n", lines) + "\n";
     }
 
     private static List<string> TouchedFiles(List<JsonElement> entries)
@@ -304,4 +553,6 @@ public static partial class CompactBriefTool
     private static partial Regex HookFeedbackNotice();
     [GeneratedRegex(@"\s+", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex ConsecutiveWhitespace();
+    [GeneratedRegex("from-name=\"([^\"]*)\"", RegexOptions.None, RegexTimeout.Milliseconds)]
+    private static partial Regex FromNameAttribute();
 }
