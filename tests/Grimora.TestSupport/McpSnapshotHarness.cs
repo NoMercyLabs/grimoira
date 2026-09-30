@@ -143,7 +143,7 @@ public static class McpSnapshotHarness
 {
     // The commit this worktree branched from (origin/master, before any slice-24 mcp.cs edit) —
     // mcp.cs there is the pre-dispatch oracle every wired tool must still match byte for byte.
-    public const string PreSlice24Commit = "52968343e93812c133419702de1b7a9f417db86d";
+    public const string PreSlice24Commit = "c5400d481f4670933836a4a63ca0515050c802c0";
 
     private static readonly SemaphoreSlim BuildLock = new(1, 1);
 

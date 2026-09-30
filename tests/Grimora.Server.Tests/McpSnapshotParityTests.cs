@@ -28,8 +28,8 @@ public partial class McpSnapshotParityTests
             (IReadOnlyList<string> oldTools, _) = McpProcess.Run(oldDll, instance, []);
             (IReadOnlyList<string> newTools, _) = McpProcess.Run(newDll, instance, []);
 
-            // keycloak_token was removed on purpose (Grimora holds no secrets); the pinned snapshot still lists it.
-            Assert.Equal(oldTools.Where(t => t != "keycloak_token").OrderBy(t => t, StringComparer.Ordinal), newTools.OrderBy(t => t, StringComparer.Ordinal));
+            // idp_token was removed on purpose (Grimora holds no secrets); the pinned snapshot still lists it.
+            Assert.Equal(oldTools.Where(t => t != "idp_token").OrderBy(t => t, StringComparer.Ordinal), newTools.OrderBy(t => t, StringComparer.Ordinal));
             Assert.Contains("fact", newTools);
             Assert.Contains("history", newTools);
         }

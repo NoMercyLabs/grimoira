@@ -24,7 +24,7 @@ public static class OldVsNewCli
     // The commit grimora.cs stood at when slice 24 began (RESTRUCTURE.md:523) — last touched by 9b94e7c,
     // one commit before this. Every part of the slice builds its "before" binary from here, so a part
     // that lands after another still compares against the same untouched starting point.
-    public const string OracleCommit = "52968343e93812c133419702de1b7a9f417db86d";
+    public const string OracleCommit = "c5400d481f4670933836a4a63ca0515050c802c0";
 
     private static readonly string RepoRoot = FindRepoRoot();
     private static readonly string SnapshotDir =
@@ -102,7 +102,7 @@ public static class OldVsNewCli
     };
 
     private const string PinnedHeader =
-        "GOLDEN written by the pinned oracle aitm.cs at commit 52968343e93812c133419702de1b7a9f417db86d (slice 24 start); never by the new code";
+        "GOLDEN written by the pinned oracle aitm.cs at commit c5400d481f4670933836a4a63ca0515050c802c0 (slice 24 start); never by the new code";
 
     private static Result Replay(string instance, string arguments, string callerFile, string callerMember)
     {
