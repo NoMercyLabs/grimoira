@@ -63,19 +63,15 @@ public sealed class GrimoraMcpParityTests
             string normalText = await CallText(client, toolName, normalArgs);
             string errorText = await CallText(client, toolName, errorArgs);
 
+            // Both sides are driven one call at a time (McpProcess.Run's default, McpClient's awaits), so
+            // brain_flush is pinned exactly and compared like every other tool.
             if (toolName == "brain_flush")
             {
-                // The snapshot races its own pipelined flushes (see HttpSnapshotParityTests); the new path is
-                // sequential, so its shape is pinned exactly.
-                Assert.Matches(@"^(nothing staged\.|flushed [01] learning\(s\))", HttpSnapshotParityTests.StripTimestamps(oldResults[0]));
-                Assert.Equal("flushed 1 learning(s) into the brain.", HttpSnapshotParityTests.StripTimestamps(normalText));
-                Assert.Equal("nothing staged.", HttpSnapshotParityTests.StripTimestamps(errorText));
+                Assert.Equal("flushed 1 learning(s) into the brain.", HttpSnapshotParityTests.StripTimestamps(oldResults[0]));
+                Assert.Equal("nothing staged.", HttpSnapshotParityTests.StripTimestamps(oldResults[1]));
             }
-            else
-            {
-                Assert.Equal(HttpSnapshotParityTests.StripTimestamps(oldResults[0]), HttpSnapshotParityTests.StripTimestamps(normalText));
-                Assert.Equal(HttpSnapshotParityTests.StripTimestamps(oldResults[1]), HttpSnapshotParityTests.StripTimestamps(errorText));
-            }
+            Assert.Equal(HttpSnapshotParityTests.StripTimestamps(oldResults[0]), HttpSnapshotParityTests.StripTimestamps(normalText));
+            Assert.Equal(HttpSnapshotParityTests.StripTimestamps(oldResults[1]), HttpSnapshotParityTests.StripTimestamps(errorText));
         }
         finally
         {

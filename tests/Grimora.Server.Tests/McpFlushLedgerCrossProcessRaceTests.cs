@@ -45,13 +45,13 @@ public sealed class McpFlushLedgerCrossProcessRaceTests
                     [
                         ("brain_stage", new { kind = "node", key = keyA, a = "concept", b = "Race A", c = "", because = "", hard = false }),
                         ("brain_flush", new { }),
-                    ]));
+                    ], pipelined: true));
                 Task<(IReadOnlyList<string> toolNames, IReadOnlyList<string> results)> taskB = Task.Run(() =>
                     McpProcess.Run(mcpDll, instance,
                     [
                         ("brain_stage", new { kind = "node", key = keyB, a = "concept", b = "Race B", c = "", because = "", hard = false }),
                         ("brain_flush", new { }),
-                    ]));
+                    ], pipelined: true));
 
                 (IReadOnlyList<string> toolNames, IReadOnlyList<string> results)[] outcomes = await Task.WhenAll(taskA, taskB);
 

@@ -28,8 +28,8 @@ public partial class McpSnapshotParityTests
             (IReadOnlyList<string> oldTools, _) = McpProcess.Run(oldDll, instance, []);
             (IReadOnlyList<string> newTools, _) = McpProcess.Run(newDll, instance, []);
 
-            // idp_token was removed on purpose (Grimora holds no secrets); the pinned snapshot still lists it.
-            Assert.Equal(oldTools.Where(t => t != "idp_token").OrderBy(t => t, StringComparer.Ordinal), newTools.OrderBy(t => t, StringComparer.Ordinal));
+            // keycloak_token was removed on purpose (Grimora holds no secrets); the pinned snapshot still lists it.
+            Assert.Equal(oldTools.Where(t => t != "keycloak_token").OrderBy(t => t, StringComparer.Ordinal), newTools.OrderBy(t => t, StringComparer.Ordinal));
             Assert.Contains("fact", newTools);
             Assert.Contains("history", newTools);
         }
@@ -272,11 +272,9 @@ public partial class McpSnapshotParityTests
             new { kind = "node", key = "parity-stage-node", a = "fact", b = "a short label", c = "a longer gloss" },
             new { kind = "node", key = "parity-stage-node", a = "fact", b = new string('x', 200), c = "" },
         ];
-        // No seed: the harness fires both calls concurrently (McpProcess.Run sends every call before
-        // waiting on a response), and brain_flush reads-then-deletes the same ledger file, so seeding
-        // one line makes the two concurrent calls race on that file (confirmed: this must run against
-        // an empty ledger, giving "nothing staged." both times, on both sides — still a real parity
-        // check, just not one that exercises a non-empty flush).
+        // No seed: an empty ledger gives "nothing staged." both times, on both sides. The non-empty flush
+        // is covered by HttpSnapshotParityTests and GrimoraMcpParityTests, which seed one line and drive
+        // both sides one call at a time.
         yield return
         [
             "brain_flush",

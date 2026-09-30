@@ -13,9 +13,14 @@ namespace Grimora.TestSupport;
 public static class McpProcess
 {
     /// <summary>Starts <c>dotnet &lt;dllPath&gt;</c> with the given instance, sends <c>tools/list</c> and
-    /// then each call in order, and returns the tool names and each call's result text, in order.</summary>
+    /// then each call in order, and returns the tool names and each call's result text, in order.
+    /// By default each call goes out only after the previous reply arrived, the way an awaiting client
+    /// (Claude Code, McpClient) drives a server; the pinned pre-slice-24 oracle has no lock around its
+    /// <c>pending-learn.jsonl</c> read-then-delete, so two <c>brain_flush</c> calls sent back to back can
+    /// throw inside it. <paramref name="pipelined"/> sends every call up front, for the tests that
+    /// deliberately race today's <c>bin/mcp.dll</c> (McpFlushLedgerRaceTests).</summary>
     public static (IReadOnlyList<string> toolNames, IReadOnlyList<string> results) Run(
-        string dllPath, string instance, IReadOnlyList<(string Name, object Args)> calls, int timeoutMs = 15000)
+        string dllPath, string instance, IReadOnlyList<(string Name, object Args)> calls, int timeoutMs = 15000, bool pipelined = false)
     {
         ProcessStartInfo psi = new("dotnet", $"\"{dllPath}\"")
         {
@@ -44,14 +49,17 @@ public static class McpProcess
         Send(process, new { jsonrpc = "2.0", id = 0, method = "initialize", @params = new { protocolVersion = "2024-11-05", capabilities = new { }, clientInfo = new { name = "test", version = "1" } } });
         Send(process, new { jsonrpc = "2.0", method = "notifications/initialized" });
         Send(process, new { jsonrpc = "2.0", id = 1, method = "tools/list", @params = new { } });
+        Stopwatch budget = Stopwatch.StartNew();
+        int Remaining() => (int)Math.Max(0, timeoutMs - budget.ElapsedMilliseconds);
         for (int i = 0; i < calls.Count; i++)
-            Send(process, new { jsonrpc = "2.0", id = 100 + i, method = "tools/call", @params = new { name = calls[i].Name, arguments = calls[i].Args } });
-
-        if (!SpinWait(() => Snapshot(lines, gate).Any(l => ContainsId(l, 1)) && calls.All(_ => true) && CallsComplete(lines, gate, calls.Count), timeoutMs))
         {
-            // best effort: proceed with whatever arrived: a missing line surfaces as a clear assertion
-            // failure downstream rather than a hang.
+            Send(process, new { jsonrpc = "2.0", id = 100 + i, method = "tools/call", @params = new { name = calls[i].Name, arguments = calls[i].Args } });
+            // A reply that never comes ends the wait at the shared budget; a missing line then surfaces as
+            // a clear assertion failure downstream rather than a hang.
+            if (!pipelined && !SpinWait(() => CallsComplete(lines, gate, i + 1), Remaining())) break;
         }
+
+        SpinWait(() => Snapshot(lines, gate).Any(l => ContainsId(l, 1)) && CallsComplete(lines, gate, calls.Count), Remaining());
 
         try { process.Kill(entireProcessTree: true); } catch { /* best effort */ }
         process.WaitForExit(2000);

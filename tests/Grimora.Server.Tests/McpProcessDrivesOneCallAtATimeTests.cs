@@ -28,4 +28,15 @@ public sealed class McpProcessDrivesOneCallAtATimeTests
         Assert.Equal("arrived-before-reply:100,101", results[1]);
         Assert.Equal("arrived-before-reply:100,101,102", results[2]);
     }
+
+    [Fact]
+    public void PipelinedModeStillSendsEveryCallUpFront()
+    {
+        string fake = FakeMcpServer.EnsureBuilt();
+
+        (_, IReadOnlyList<string> results) = McpProcess.Run(fake, "unused",
+            [("first", new { }), ("second", new { })], pipelined: true);
+
+        Assert.Equal("arrived-before-reply:100,101", results[0]);
+    }
 }

@@ -6,8 +6,8 @@ namespace Grimora.Server.Tests;
 /// <summary>
 /// Reproduces, against the real compiled <c>bin/mcp.dll</c> over stdio, the timing hole this slice
 /// investigates: a client is free to pipeline <c>brain_stage</c> then <c>brain_flush</c> then a second
-/// <c>brain_flush</c> without waiting for each reply (<see cref="McpProcess.Run"/> sends every call before
-/// any reply arrives, the same shape a real client using request pipelining would produce), and the MCP
+/// <c>brain_flush</c> without waiting for each reply (<see cref="McpProcess.Run"/> with <c>pipelined: true</c>
+/// sends every call before any reply arrives, the same shape a real client using request pipelining would produce), and the MCP
 /// host dispatches each <c>tools/call</c> concurrently rather than one at a time. Before the
 /// <c>LedgerGate</c> fix (<c>Grimora.Brain.Tools.BrainStageTool.cs</c>), two such calls racing the same
 /// <c>pending-learn.jsonl</c> could apply the same staged line twice — a
@@ -37,7 +37,7 @@ public sealed class McpFlushLedgerRaceTests
                     ("brain_stage", new { kind = "node", key = $"flush-race-node-{i}", a = "concept", b = "Race Label", c = "", because = "", hard = false }),
                     ("brain_flush", new { }),
                     ("brain_flush", new { }),
-                ]);
+                ], pipelined: true);
 
                 string stageResult = results[0];
                 string flush1 = results[1];

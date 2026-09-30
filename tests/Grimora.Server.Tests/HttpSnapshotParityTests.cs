@@ -103,31 +103,16 @@ public sealed partial class HttpSnapshotParityTests
             string normalText = await CallText(client, toolName, normalArgs);
             string errorText = await CallText(client, toolName, errorArgs);
 
+            // brain_flush's two replies are timing-free on both sides now that McpProcess.Run drives the
+            // pinned oracle one call at a time (the same way McpClient awaits each call here): the
+            // seeded learning is flushed on the first call, and the second is a clean no-op.
             if (toolName == "brain_flush")
             {
-                // Finding (brain-flush-timing investigation): the pre-slice-24 oracle (McpSnapshotHarness's
-                // pinned mcp.dll@bbb9b4d) is driven over stdio by McpProcess.Run, which sends every
-                // tools/call before any reply arrives — a client pipelining brain_flush right behind
-                // brain_stage, or a second brain_flush right behind the first. That old snapshot has no
-                // synchronization at all around pending-learn.jsonl, so two such calls can race its
-                // read-modify-write: one flush's read can land between another's delete and re-create (or
-                // between brain_stage's own append landing on disk), reporting "nothing staged." for a
-                // learning that either was already staged or is about to be — a real, pre-existing timing
-                // hole in that immutable snapshot, not something this test can fix. The new (HTTP) side
-                // fixed the equivalent hole in BrainStageTool/BrainFlushTool.ExecuteMcp with a per-ledger
-                // async gate (BrainStageTool.cs's LedgerGate) and is additionally called here with real,
-                // sequentially-awaited McpClient calls (no pipelining), so its shape is pinned exactly:
-                // the seeded learning is flushed on the first call, and the second is a clean no-op.
-                Assert.Matches(@"^(nothing staged\.|flushed [01] learning\(s\))", StripTimestamps(oldResults[0]));
-                Assert.Matches(@"^(nothing staged\.|flushed [01] learning\(s\))", StripTimestamps(oldResults[1]));
-                Assert.Equal("flushed 1 learning(s) into the brain.", StripTimestamps(normalText));
-                Assert.Equal("nothing staged.", StripTimestamps(errorText));
+                Assert.Equal("flushed 1 learning(s) into the brain.", StripTimestamps(oldResults[0]));
+                Assert.Equal("nothing staged.", StripTimestamps(oldResults[1]));
             }
-            else
-            {
-                Assert.Equal(StripTimestamps(oldResults[0]), StripTimestamps(normalText));
-                Assert.Equal(StripTimestamps(oldResults[1]), StripTimestamps(errorText));
-            }
+            Assert.Equal(StripTimestamps(oldResults[0]), StripTimestamps(normalText));
+            Assert.Equal(StripTimestamps(oldResults[1]), StripTimestamps(errorText));
         }
         finally
         {
