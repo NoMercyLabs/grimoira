@@ -41,10 +41,42 @@ public sealed class PluginFixture : IDisposable
 
     public void ChangeServerSource(string text) => File.WriteAllText(Path.Combine(Root, "src", "Grimora.Server", "Program.cs"), text);
 
-    public ProcessStartInfo Start(bool pluginData = true)
+    /// <summary>
+    /// A second plugin root beside the installed one: the cache folder of an earlier plugin version, whose
+    /// bootstrap.cs a session started before the update still runs at every SessionStart (compaction too).
+    /// Its source differs from Root's, so its tree hash never matches the build `current` points at.
+    /// </summary>
+    public string AddStaleRoot(string version)
+    {
+        string stale = Path.Combine(Dir, "cache", version);
+        foreach (string file in Directory.GetFiles(Root, "*", SearchOption.AllDirectories))
+        {
+            string to = Path.Combine(stale, Path.GetRelativePath(Root, file));
+            Directory.CreateDirectory(Path.GetDirectoryName(to)!);
+            File.Copy(file, to);
+        }
+
+        File.WriteAllText(Path.Combine(stale, "src", "Grimora.Server", "Program.cs"), $"// {version}\nreturn 0;");
+        return stale;
+    }
+
+    /// <summary>
+    /// The registry Claude Code keeps at ~/.claude/plugins/installed_plugins.json, two folders above a plugin's
+    /// data folder; here it sits one folder above Data, and bootstrap.cs walks up to it the same way. The shape is
+    /// the real file's (version 2, one list of installs per "name@marketplace" key, each with an installPath).
+    /// </summary>
+    public void WriteInstalledPlugins(string installPath, string key = "grimora@nomercylabs")
+    {
+        string escaped = installPath.Replace("\\", "\\\\");
+        File.WriteAllText(Path.Combine(Dir, "installed_plugins.json"),
+            "{\n  \"version\": 2,\n  \"plugins\": {\n    \"" + key + "\": [\n      {\n        \"scope\": \"user\",\n        \"installPath\": \""
+            + escaped + "\",\n        \"version\": \"1.0.0\",\n        \"installedAt\": \"2026-09-27T14:24:24.782Z\",\n        \"lastUpdated\": \"2026-09-30T01:07:46.825Z\"\n      }\n    ]\n  }\n}\n");
+    }
+
+    public ProcessStartInfo Start(bool pluginData = true, string? root = null)
     {
         ProcessStartInfo info = new("dotnet") { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true, RedirectStandardInput = true };
-        info.ArgumentList.Add(Path.Combine(Root, "bootstrap.cs"));
+        info.ArgumentList.Add(Path.Combine(root ?? Root, "bootstrap.cs"));
         if (pluginData)
         {
             info.Environment["CLAUDE_PLUGIN_DATA"] = Data;
@@ -57,9 +89,9 @@ public sealed class PluginFixture : IDisposable
         return info;
     }
 
-    public (int Exit, string Out, string Err) Run(bool pluginData = true)
+    public (int Exit, string Out, string Err) Run(bool pluginData = true, string? root = null)
     {
-        using Process p = Process.Start(Start(pluginData))!;
+        using Process p = Process.Start(Start(pluginData, root))!;
         p.StandardInput.Close();
         Task<string> err = p.StandardError.ReadToEndAsync();
         string output = p.StandardOutput.ReadToEnd();
