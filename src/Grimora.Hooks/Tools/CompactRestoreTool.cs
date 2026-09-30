@@ -40,6 +40,7 @@ public static class CompactRestoreTool
             try { File.WriteAllText(restoredMarkerPath, ""); } catch { /* best effort */ }
 
             string lossPrefix = LossPrefix(HookPaths.LedgerPath(instance, sessionId), transcriptPath);
+            string failurePrefix = FailurePrefix(CompactBriefTool.ErrorLogPath(instance, sessionId), path);
 
             var envelope = new
             {
@@ -47,7 +48,7 @@ public static class CompactRestoreTool
                 {
                     hookEventName = "UserPromptSubmit",
                     additionalContext =
-                        $"{lossPrefix}{brief}\n\nThese are facts recorded at compaction time, not a plan. Continue the work in " +
+                        $"{failurePrefix}{lossPrefix}{brief}\n\nThese are facts recorded at compaction time, not a plan. Continue the work in " +
                         "progress; do not re-derive this state by reading files, and do not restate it back to the owner.",
                 },
             };
@@ -56,6 +57,25 @@ public static class CompactRestoreTool
         catch
         {
             // fail open
+            return "";
+        }
+    }
+
+    /// <summary>If the last PreCompact attempt for this session failed (its error log is newer than the
+    /// brief being restored — the brief on disk is then a stale one from an earlier, successful
+    /// compaction), says so; otherwise says nothing. Best effort: never blocks the restore.</summary>
+    private static string FailurePrefix(string errorLogPath, string briefPath)
+    {
+        try
+        {
+            if (!File.Exists(errorLogPath)) return "";
+            if (File.GetLastWriteTimeUtc(errorLogPath) <= File.GetLastWriteTimeUtc(briefPath)) return "";
+            string firstLine = File.ReadLines(errorLogPath).FirstOrDefault() ?? "";
+            return $"GRIMORA COMPACTION LEDGER FAILED: the last compaction attempt failed ({firstLine}). " +
+                $"The brief below is from an earlier compaction. See {errorLogPath}\n\n";
+        }
+        catch
+        {
             return "";
         }
     }
@@ -78,7 +98,7 @@ public static class CompactRestoreTool
             if (transcriptPath is null || !File.Exists(transcriptPath) || !File.Exists(ledgerPath)) return "";
 
             List<JsonElement> entries = CompactBriefTool.ReadEntries(transcriptPath);
-            List<CompactBriefTool.ClassifiedEntry> classified = CompactBriefTool.ClassifyEntries(entries);
+            (List<CompactBriefTool.ClassifiedEntry> classified, _) = CompactBriefTool.ClassifyEntries(entries);
             int boundary = CompactBriefTool.LastCompactionBoundaryIndex(entries);
 
             List<string> ownerTexts = [.. classified

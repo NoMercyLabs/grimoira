@@ -27,6 +27,8 @@ public static partial class CompactBriefTool
     /// <param name="projectDir">The project the caller resolved (<see cref="HookPaths.ProjectDir"/>), or null.</param>
     public static string Execute(string stdin, string? projectDir)
     {
+        string? instance = null;
+        string? sessionId = null;
         try
         {
             using JsonDocument doc = JsonDocument.Parse(string.IsNullOrWhiteSpace(stdin) ? "{}" : stdin);
@@ -34,16 +36,16 @@ public static partial class CompactBriefTool
             string? transcriptPath = GetString(payload, "transcript_path");
             if (transcriptPath is null || !File.Exists(transcriptPath)) return "";
 
-            string instance = HookPaths.ResolveInstance(GetString(payload, "cwd"), projectDir);
-            string? sessionId = GetString(payload, "session_id");
+            instance = HookPaths.ResolveInstance(GetString(payload, "cwd"), projectDir);
+            sessionId = GetString(payload, "session_id");
             List<JsonElement> entries = ReadEntries(transcriptPath);
             List<string> files = TouchedFiles(entries);
             List<(string status, string content)> todos = OpenTodos(entries);
-            List<ClassifiedEntry> classified = ClassifyEntries(entries);
+            (List<ClassifiedEntry> classified, int skipped) = ClassifyEntries(entries);
             List<(string root, string branch, int dirty, string head)> repos = RepoState(files);
 
             string ledgerPath = HookPaths.LedgerPath(instance, sessionId);
-            string ledger = BuildLedger(classified);
+            string ledger = BuildLedger(classified, skipped);
             try
             {
                 Directory.CreateDirectory(Path.GetDirectoryName(ledgerPath)!);
@@ -77,11 +79,46 @@ public static partial class CompactBriefTool
                 "versus still uncommitted, and every unfinished item. Concrete anchors survive compaction; " +
                 $"impressions do not.\n\n{brief}\n";
         }
+        catch (Exception ex)
+        {
+            // No longer fail open silently: a real 3,076-line transcript once hit an unguarded shape and
+            // Execute returned "" with nothing written anywhere, so the loss was invisible until someone
+            // went looking. The compaction itself must still never be blocked, so this still returns —
+            // just never blank, and always with a trail on disk.
+            return WriteFailure(ex, instance, sessionId, projectDir);
+        }
+    }
+
+    /// <summary>Never silent: writes the exception and its stack to
+    /// <c>&lt;instance&gt;/compact/&lt;sessionId&gt;.error.log</c> and returns plain text starting
+    /// "GRIMORA COMPACTION LEDGER FAILED:" naming the exception type, its message, and the log path.
+    /// <see cref="CompactRestoreTool"/> checks this same log's timestamp against the brief's.</summary>
+    private static string WriteFailure(Exception ex, string? instance, string? sessionId, string? projectDir)
+    {
+        string message = $"GRIMORA COMPACTION LEDGER FAILED: {ex.GetType().Name}: {ex.Message}";
+        try
+        {
+            string inst = instance ?? HookPaths.ResolveInstance(null, projectDir);
+            string logPath = ErrorLogPath(inst, sessionId);
+            Directory.CreateDirectory(Path.GetDirectoryName(logPath)!);
+            File.WriteAllText(logPath, $"{ex.GetType().FullName}: {ex.Message}\n{ex.StackTrace}\n");
+            return $"{message}\nDetails: {logPath}\n";
+        }
         catch
         {
-            // fail open — a compaction must never be blocked by bookkeeping
-            return "";
+            // even the failure report is best effort — a compaction must never be blocked by bookkeeping
+            return $"{message}\n";
         }
+    }
+
+    /// <summary>Same path shape as <see cref="HookPaths.BriefPath"/> and <see cref="HookPaths.LedgerPath"/>
+    /// (duplicated the same way <see cref="HookPaths"/> itself duplicates data-dir resolution rather than
+    /// widening that class's own contract for one caller).</summary>
+    internal static string ErrorLogPath(string instance, string? sessionId)
+    {
+        string sid = string.IsNullOrEmpty(sessionId) ? "x" : sessionId;
+        if (sid.Length > 64) sid = sid[..64];
+        return Path.Combine(HookPaths.InstanceDir(instance), "compact", $"{sid}.error.log");
     }
 
     private static string BuildBrief(
@@ -157,6 +194,19 @@ public static partial class CompactBriefTool
             ? v.GetString()
             : null;
 
+    /// <summary>The one guarded read every property lookup below goes through: a real 3,076-line
+    /// transcript crashed <see cref="TryGetAnswers"/> with "requires an element of type 'Object', but the
+    /// target element has type 'String'" because <c>toolUseResult</c> is not always an object (1,167 of
+    /// 49,697 real values were a bare string, 1,962 an array). <c>JsonElement.TryGetProperty</c>
+    /// throws <see cref="InvalidOperationException"/> when called on anything but an object; this never
+    /// calls it on anything else.</summary>
+    private static bool TryGetObjectProperty(JsonElement e, string prop, out JsonElement value)
+    {
+        if (e.ValueKind == JsonValueKind.Object && e.TryGetProperty(prop, out value)) return true;
+        value = default;
+        return false;
+    }
+
     internal static List<JsonElement> ReadEntries(string path)
     {
         List<JsonElement> outp = [];
@@ -180,9 +230,8 @@ public static partial class CompactBriefTool
     {
         foreach (JsonElement e in entries)
         {
-            if (e.ValueKind != JsonValueKind.Object) continue;
-            if (!e.TryGetProperty("message", out JsonElement msg)) continue;
-            if (!msg.TryGetProperty("content", out JsonElement content)) continue;
+            if (!TryGetObjectProperty(e, "message", out JsonElement msg)) continue;
+            if (!TryGetObjectProperty(msg, "content", out JsonElement content)) continue;
             if (content.ValueKind != JsonValueKind.Array) continue;
             foreach (JsonElement b in content.EnumerateArray()) yield return b;
         }
@@ -240,23 +289,46 @@ public static partial class CompactBriefTool
         {
             JsonElement e = entries[i];
             if (GetString(e, "type") != "user") continue;
+            // The real marker Claude Code writes on the injected summary turn; the "This session is being
+            // continued..." text match is now only a fallback for a transcript that predates the marker.
+            bool isCompactSummary = TryGetObjectProperty(e, "isCompactSummary", out JsonElement cs) && cs.ValueKind == JsonValueKind.True;
             string text = ExtractUserText(e).Trim();
-            if (ContinuedSummaryStart().IsMatchOrFalse(text)) boundary = i;
+            if (isCompactSummary || ContinuedSummaryStart().IsMatchOrFalse(text)) boundary = i;
         }
         return boundary;
     }
 
     private static string ExtractUserText(JsonElement e)
     {
-        if (!e.TryGetProperty("message", out JsonElement msg) || !msg.TryGetProperty("content", out JsonElement content)) return "";
+        if (!TryGetObjectProperty(e, "message", out JsonElement msg) || !TryGetObjectProperty(msg, "content", out JsonElement content)) return "";
         if (content.ValueKind == JsonValueKind.String) return content.GetString() ?? "";
         if (content.ValueKind != JsonValueKind.Array) return "";
-        List<string> parts = [];
+
+        // A pasted file arrives as its own block, separate from the typed text around it. Kept whole and
+        // ahead of the typed text — losing which lines came from the paste versus what the owner typed about
+        // it is exactly the kind of "impression, not anchor" a compaction summary would otherwise leave.
+        List<string> documents = [];
+        List<string> textParts = [];
         foreach (JsonElement b in content.EnumerateArray())
         {
-            if (GetString(b, "type") == "text") parts.Add(GetString(b, "text") ?? "");
+            string? btype = GetString(b, "type");
+            if (btype == "text")
+            {
+                textParts.Add(GetString(b, "text") ?? "");
+            }
+            else if (btype == "document")
+            {
+                string title = GetString(b, "title") ?? "";
+                string data = TryGetObjectProperty(b, "source", out JsonElement source) ? GetString(source, "data") ?? "" : "";
+                documents.Add($"[document: {title}]\n{data}");
+            }
         }
-        return string.Join(" ", parts);
+
+        string textJoined = string.Join(" ", textParts);
+        string docJoined = string.Join("\n\n", documents);
+        if (docJoined.Length == 0) return textJoined;
+        if (textJoined.Length == 0) return docJoined;
+        return $"{docJoined}\n\n{textJoined}";
     }
 
     /// <summary>If <paramref name="e"/> is a user turn answering one of <paramref name="askUserQuestionToolIds"/>,
@@ -264,7 +336,7 @@ public static partial class CompactBriefTool
     /// structured record, not the "The user answered: ..." string glued together for display.</summary>
     private static List<(string question, string answer)>? TryGetAnswers(JsonElement e, HashSet<string> askUserQuestionToolIds)
     {
-        if (!e.TryGetProperty("message", out JsonElement msg) || !msg.TryGetProperty("content", out JsonElement content)) return null;
+        if (!TryGetObjectProperty(e, "message", out JsonElement msg) || !TryGetObjectProperty(msg, "content", out JsonElement content)) return null;
         if (content.ValueKind != JsonValueKind.Array) return null;
 
         bool answersAskUserQuestion = false;
@@ -276,7 +348,10 @@ public static partial class CompactBriefTool
         }
         if (!answersAskUserQuestion) return null;
 
-        if (!e.TryGetProperty("toolUseResult", out JsonElement tur) || !tur.TryGetProperty("answers", out JsonElement answersEl)) return null;
+        // toolUseResult is not always an object (a bare string or an array on a malformed/unrelated
+        // entry) — TryGetObjectProperty(tur, ...) below refuses to call TryGetProperty on it when it
+        // isn't, instead of throwing InvalidOperationException the way a raw tur.TryGetProperty(...) did.
+        if (!TryGetObjectProperty(e, "toolUseResult", out JsonElement tur) || !TryGetObjectProperty(tur, "answers", out JsonElement answersEl)) return null;
         if (answersEl.ValueKind != JsonValueKind.Object) return null;
 
         List<(string question, string answer)> outp = [];
@@ -289,7 +364,7 @@ public static partial class CompactBriefTool
 
     private static IEnumerable<JsonElement> BlocksOf(JsonElement e)
     {
-        if (!e.TryGetProperty("message", out JsonElement msg) || !msg.TryGetProperty("content", out JsonElement content)) yield break;
+        if (!TryGetObjectProperty(e, "message", out JsonElement msg) || !TryGetObjectProperty(msg, "content", out JsonElement content)) yield break;
         if (content.ValueKind != JsonValueKind.Array) yield break;
         foreach (JsonElement b in content.EnumerateArray()) yield return b;
     }
@@ -306,93 +381,129 @@ public static partial class CompactBriefTool
     // ledger PreCompact writes on every compaction takes every classified entry, never cut, never limited
     // to the last few; the brief takes only the the owner-family entries after the compaction boundary. Order
     // is transcript order, which is also why re-running this on the same transcript is deterministic.
-    internal static List<ClassifiedEntry> ClassifyEntries(List<JsonElement> entries)
+    internal static (List<ClassifiedEntry> Entries, int Skipped) ClassifyEntries(List<JsonElement> entries)
     {
         List<ClassifiedEntry> outp = [];
         HashSet<string> seenAssistantText = [];
         HashSet<string> seenQueued = [];
         HashSet<string> askUserQuestionToolIds = [];
+        int skipped = 0;
 
         for (int i = 0; i < entries.Count; i++)
         {
             JsonElement e = entries[i];
             if (e.ValueKind != JsonValueKind.Object || IsNoiseEntry(e)) continue;
-            string type = GetString(e, "type") ?? "";
-            string timestamp = GetString(e, "timestamp") ?? "";
 
-            if (type == "user")
+            // One bad entry must never kill the whole classification pass: every guard above this method
+            // already refuses to call TryGetProperty on the wrong shape, but this is the backstop for
+            // whatever shape neither of us has seen yet — it costs one entry, counted and reported in the
+            // ledger header, not the whole compaction.
+            try
             {
-                List<(string question, string answer)>? answers = TryGetAnswers(e, askUserQuestionToolIds);
-                if (answers is { Count: > 0 })
-                {
-                    foreach ((string question, string answer) in answers)
-                    {
-                        outp.Add(new ClassifiedEntry(i, timestamp, "the owner (answer)", $"{question}: {answer}"));
-                    }
-                    continue;
-                }
+                string type = GetString(e, "type") ?? "";
+                string timestamp = GetString(e, "timestamp") ?? "";
 
-                string trimmed = ExtractUserText(e).Trim();
-                if (trimmed.Length == 0 || trimmed.StartsWith('<') || trimmed.StartsWith("Caveat:", StringComparison.Ordinal)) continue;
-                if (ContinuedSummaryStart().IsMatchOrFalse(trimmed)) continue;
-                if (HookFeedbackNotice().IsMatchOrFalse(trimmed[..Math.Min(60, trimmed.Length)])) continue;
-                outp.Add(new ClassifiedEntry(i, timestamp, "the owner", trimmed));
+                if (type == "user")
+                {
+                    List<(string question, string answer)>? answers = TryGetAnswers(e, askUserQuestionToolIds);
+                    if (answers is { Count: > 0 })
+                    {
+                        foreach ((string question, string answer) in answers)
+                        {
+                            outp.Add(new ClassifiedEntry(i, timestamp, "the owner (answer)", $"{question}: {answer}"));
+                        }
+                        continue;
+                    }
+
+                    bool isCompactSummary = TryGetObjectProperty(e, "isCompactSummary", out JsonElement cs) && cs.ValueKind == JsonValueKind.True;
+                    if (isCompactSummary) continue;
+
+                    string trimmed = ExtractUserText(e).Trim();
+                    if (trimmed.Length == 0 || trimmed.StartsWith('<') || trimmed.StartsWith("Caveat:", StringComparison.Ordinal)) continue;
+                    if (ContinuedSummaryStart().IsMatchOrFalse(trimmed)) continue;
+                    if (HookFeedbackNotice().IsMatchOrFalse(trimmed[..Math.Min(60, trimmed.Length)])) continue;
+                    outp.Add(new ClassifiedEntry(i, timestamp, "the owner", trimmed));
+                }
+                else if (type == "assistant")
+                {
+                    string? msgId = TryGetObjectProperty(e, "message", out JsonElement m) && TryGetObjectProperty(m, "id", out JsonElement idEl) && idEl.ValueKind == JsonValueKind.String
+                        ? idEl.GetString()
+                        : null;
+                    foreach (JsonElement b in BlocksOf(e))
+                    {
+                        string? btype = GetString(b, "type");
+                        if (btype == "text")
+                        {
+                            string text = (GetString(b, "text") ?? "").Trim();
+                            if (text.Length == 0) continue;
+                            if (!seenAssistantText.Add($"{msgId}\u0000{text}")) continue;
+                            outp.Add(new ClassifiedEntry(i, timestamp, "Arc", text));
+                        }
+                        else if (btype == "tool_use" && GetString(b, "name") == "AskUserQuestion")
+                        {
+                            string? toolId = GetString(b, "id");
+                            if (toolId is not null) askUserQuestionToolIds.Add(toolId);
+                            string question = AskUserQuestionText(b);
+                            if (question.Length > 0) outp.Add(new ClassifiedEntry(i, timestamp, "Arc (question)", question));
+                        }
+                    }
+                }
+                else if (type == "attachment")
+                {
+                    if (!TryGetObjectProperty(e, "attachment", out JsonElement att)) continue;
+                    if (GetString(att, "type") != "queued_command") continue;
+                    if (GetString(att, "commandMode") == "task-notification") continue;
+
+                    string dedupeKey = GetString(att, "source_uuid") ?? GetString(e, "uuid") ?? "";
+                    if (dedupeKey.Length > 0 && !seenQueued.Add(dedupeKey)) continue;
+
+                    string prompt = ExtractPrompt(att);
+                    bool isPeer = TryGetObjectProperty(att, "origin", out JsonElement origin) && GetString(origin, "kind") == "peer";
+                    if (isPeer)
+                    {
+                        string sender = FromNameAttribute().MatchOrEmpty(prompt) is { Success: true } m2
+                            ? m2.Groups[1].Value
+                            : GetString(origin, "name") ?? "unknown";
+                        outp.Add(new ClassifiedEntry(i, timestamp, $"Peer {sender}", prompt));
+                    }
+                    else
+                    {
+                        outp.Add(new ClassifiedEntry(i, timestamp, "the owner (mid-turn)", prompt));
+                    }
+                }
             }
-            else if (type == "assistant")
+            catch
             {
-                string? msgId = e.TryGetProperty("message", out JsonElement m) && m.TryGetProperty("id", out JsonElement idEl) && idEl.ValueKind == JsonValueKind.String
-                    ? idEl.GetString()
-                    : null;
-                foreach (JsonElement b in BlocksOf(e))
-                {
-                    string? btype = GetString(b, "type");
-                    if (btype == "text")
-                    {
-                        string text = (GetString(b, "text") ?? "").Trim();
-                        if (text.Length == 0) continue;
-                        if (!seenAssistantText.Add($"{msgId}\u0000{text}")) continue;
-                        outp.Add(new ClassifiedEntry(i, timestamp, "Arc", text));
-                    }
-                    else if (btype == "tool_use" && GetString(b, "name") == "AskUserQuestion")
-                    {
-                        string? toolId = GetString(b, "id");
-                        if (toolId is not null) askUserQuestionToolIds.Add(toolId);
-                        string question = AskUserQuestionText(b);
-                        if (question.Length > 0) outp.Add(new ClassifiedEntry(i, timestamp, "Arc (question)", question));
-                    }
-                }
-            }
-            else if (type == "attachment")
-            {
-                if (!e.TryGetProperty("attachment", out JsonElement att)) continue;
-                if (GetString(att, "type") != "queued_command") continue;
-                if (GetString(att, "commandMode") == "task-notification") continue;
-
-                string dedupeKey = GetString(att, "source_uuid") ?? GetString(e, "uuid") ?? "";
-                if (dedupeKey.Length > 0 && !seenQueued.Add(dedupeKey)) continue;
-
-                string prompt = (GetString(att, "prompt") ?? "").Trim();
-                bool isPeer = att.TryGetProperty("origin", out JsonElement origin) && GetString(origin, "kind") == "peer";
-                if (isPeer)
-                {
-                    string sender = FromNameAttribute().MatchOrEmpty(prompt) is { Success: true } m2
-                        ? m2.Groups[1].Value
-                        : GetString(origin, "name") ?? "unknown";
-                    outp.Add(new ClassifiedEntry(i, timestamp, $"Peer {sender}", prompt));
-                }
-                else
-                {
-                    outp.Add(new ClassifiedEntry(i, timestamp, "the owner (mid-turn)", prompt));
-                }
+                skipped++;
             }
         }
-        return outp;
+        return (outp, skipped);
+    }
+
+    /// <summary>A queued command's prompt: the plain string it usually is, or — 601 of 2,476 real
+    /// <c>queued_command</c> prompts on the 8 largest transcripts sampled, every one of them the owner's own
+    /// mid-turn words — an array of blocks (text, image, or a mix) the way a pasted screenshot arrives.
+    /// Image blocks become the literal marker "[image]"; blocks are joined in order, one per line.</summary>
+    private static string ExtractPrompt(JsonElement att)
+    {
+        if (!TryGetObjectProperty(att, "prompt", out JsonElement promptEl)) return "";
+        if (promptEl.ValueKind == JsonValueKind.String) return (promptEl.GetString() ?? "").Trim();
+        if (promptEl.ValueKind != JsonValueKind.Array) return "";
+
+        List<string> parts = [];
+        foreach (JsonElement block in promptEl.EnumerateArray())
+        {
+            string? btype = GetString(block, "type");
+            if (btype == "image") parts.Add("[image]");
+            else if (btype == "text") parts.Add(GetString(block, "text") ?? "");
+        }
+        return string.Join("\n", parts).Trim();
     }
 
     private static string AskUserQuestionText(JsonElement toolUseBlock)
     {
-        if (!toolUseBlock.TryGetProperty("input", out JsonElement input)) return "";
-        if (!input.TryGetProperty("questions", out JsonElement questions) || questions.ValueKind != JsonValueKind.Array) return "";
+        if (!TryGetObjectProperty(toolUseBlock, "input", out JsonElement input)) return "";
+        if (!TryGetObjectProperty(input, "questions", out JsonElement questions) || questions.ValueKind != JsonValueKind.Array) return "";
         List<string> parts = [];
         foreach (JsonElement q in questions.EnumerateArray())
         {
@@ -405,7 +516,7 @@ public static partial class CompactBriefTool
     // One block per entry, not one line: "- [ts] who: text" broke the moment text itself held a line
     // break (a multi-line message written verbatim, which item B requires) — the restore-time loss regex
     // then miscounted, unable to tell a continuation line from the next entry.
-    private static string BuildLedger(List<ClassifiedEntry> classified)
+    private static string BuildLedger(List<ClassifiedEntry> classified, int skipped)
     {
         int owner = classified.Count(c => c.Who == "the owner");
         int midTurn = classified.Count(c => c.Who == "the owner (mid-turn)");
@@ -420,8 +531,9 @@ public static partial class CompactBriefTool
             "",
             $"Entries: {classified.Count} (the owner {owner}, the owner (mid-turn) {midTurn}, the owner (answer) {answer}, " +
                 $"Arc {arc}, Arc (question) {arcQuestion}, Peer {peer})",
-            "",
         ];
+        if (skipped > 0) lines.Add($"Skipped: {skipped}");
+        lines.Add("");
         foreach (ClassifiedEntry c in classified)
         {
             lines.Add($"## {c.Who} — {c.Timestamp}");
@@ -441,7 +553,7 @@ public static partial class CompactBriefTool
             if (GetString(b, "type") != "tool_use") continue;
             string? name = GetString(b, "name");
             if (name is not ("Edit" or "Write" or "NotebookEdit")) continue;
-            if (!b.TryGetProperty("input", out JsonElement input)) continue;
+            if (!TryGetObjectProperty(b, "input", out JsonElement input)) continue;
             string? fp = GetString(input, "file_path");
             if (fp is null || ScratchPath().IsMatchOrFalse(fp)) continue;
             if (seen.Add(fp)) files.Add(fp);
@@ -455,8 +567,8 @@ public static partial class CompactBriefTool
         foreach (JsonElement b in Blocks(entries))
         {
             if (GetString(b, "type") != "tool_use" || GetString(b, "name") != "TodoWrite") continue;
-            if (!b.TryGetProperty("input", out JsonElement input)) continue;
-            if (!input.TryGetProperty("todos", out JsonElement arr) || arr.ValueKind != JsonValueKind.Array) continue;
+            if (!TryGetObjectProperty(b, "input", out JsonElement input)) continue;
+            if (!TryGetObjectProperty(input, "todos", out JsonElement arr) || arr.ValueKind != JsonValueKind.Array) continue;
 
             todos.Clear();
             foreach (JsonElement t in arr.EnumerateArray())
