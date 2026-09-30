@@ -67,6 +67,45 @@ public sealed class PluginFixture : IDisposable
         return (p.ExitCode, output.Trim(), err.Result.Trim());
     }
 
+    /// <summary>Runs bootstrap.cs with the given arguments in the foreground (a `--build` or `--point` verb).</summary>
+    public (int Exit, string Out, string Err) RunVerb(params string[] args)
+    {
+        ProcessStartInfo info = Start();
+        foreach (string a in args)
+        {
+            info.ArgumentList.Add(a);
+        }
+
+        using Process p = Process.Start(info)!;
+        p.StandardInput.Close();
+        Task<string> err = p.StandardError.ReadToEndAsync();
+        string output = p.StandardOutput.ReadToEnd();
+        p.WaitForExit();
+        return (p.ExitCode, output.Trim(), err.Result.Trim());
+    }
+
+    /// <summary>Points `current` at a folder the way a finished build left it: a junction on Windows, a symlink elsewhere.</summary>
+    public void LinkCurrentTo(string target)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Directory.CreateSymbolicLink(Current, target);
+            return;
+        }
+
+        ProcessStartInfo info = new("cmd.exe") { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true };
+        foreach (string a in new[] { "/c", "mklink", "/J", Current, target })
+        {
+            info.ArgumentList.Add(a);
+        }
+
+        using Process mk = Process.Start(info)!;
+        mk.StandardOutput.ReadToEnd();
+        mk.StandardError.ReadToEnd();
+        mk.WaitForExit();
+        Assert.Equal(0, mk.ExitCode);
+    }
+
     /// <summary>Waits until the detached build ended: the lock is gone.</summary>
     public void WaitForBuild()
     {
