@@ -10,7 +10,7 @@
       "name": "grimora",
       "source": "./",
       "description": "Per-project knowledge store with a hook-enforced read/write loop for agent sessions.",
-      "version": "1.0.0"
+      "version": "1.0.1"
     }
   ]
 }

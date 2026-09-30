@@ -20,6 +20,11 @@ jobs:
           # (tests/Grimora.TestSupport: OldVsNewCli, McpSnapshotHarness); a shallow clone lacks it.
           fetch-depth: 0
 
+      # 2026-09-30: installs update only on a version change; 31 commits sat unshipped behind 1.0.0.
+      - name: Plugin version bumped
+        if: github.event_name == 'pull_request'
+        run: .github/scripts/check-plugin-version.sh "${{ github.event.pull_request.base.sha }}"
+
       - uses: actions/setup-dotnet@v4
         with:
           # Pinned to global.json's exact SDK, not a floating '10.0.x': a different feature band
