@@ -514,4 +514,61 @@ public class CompactLedgerTests
             Directory.Delete(projectDir, recursive: true);
         }
     }
+
+    // Session 04669dbd (2026-09-30) had 13 auto-compactions; the ledger on disk stopped at the first one and
+    // never gained the two messages typed later. Every PreCompact run must rewrite the ledger from the whole
+    // transcript, so a message added after any earlier run is in it, whatever the prompt shape.
+    [Fact]
+    public void EveryPreCompactRunRewritesTheLedgerWithEveryMessageSoFar()
+    {
+        string projectDir = NewTempProjectDir();
+        string instance = HookPaths.ResolveInstance(projectDir);
+        try
+        {
+            string transcriptPath = Path.Combine(projectDir, "transcript.jsonl");
+            string ledgerPath = HookPaths.LedgerPath(instance, "sess-every-run");
+            const string first = "First directive, typed before the first compaction.";
+            const string second = "Second directive, typed after the first compaction.";
+            const string third = "Third directive, typed after the second compaction.";
+
+            File.WriteAllLines(transcriptPath,
+            [
+                JsonSerializer.Serialize(new { type = "user", message = new { content = first }, timestamp = "2026-09-30T10:00:00Z" }),
+            ]);
+            CompactBriefTool.Execute(Payload(transcriptPath, projectDir, "sess-every-run"));
+            string ledgerAfterFirstRun = File.ReadAllText(ledgerPath);
+            Assert.Contains(first, ledgerAfterFirstRun);
+
+            // Array prompt shape, appended after a compaction boundary.
+            File.AppendAllLines(transcriptPath,
+            [
+                JsonSerializer.Serialize(new { type = "system", subtype = "compact_boundary", timestamp = "2026-09-30T10:01:00Z" }),
+                JsonSerializer.Serialize(new { type = "user", message = new { content = new[] { new { type = "text", text = second } } }, timestamp = "2026-09-30T10:02:00Z" }),
+            ]);
+            CompactBriefTool.Execute(Payload(transcriptPath, projectDir, "sess-every-run"));
+            string ledgerAfterSecondRun = File.ReadAllText(ledgerPath);
+            Assert.NotEqual(ledgerAfterFirstRun, ledgerAfterSecondRun);
+            Assert.Contains(first, ledgerAfterSecondRun);
+            Assert.Contains(second, ledgerAfterSecondRun);
+
+            // String prompt shape, appended after a second boundary.
+            File.AppendAllLines(transcriptPath,
+            [
+                JsonSerializer.Serialize(new { type = "system", subtype = "compact_boundary", timestamp = "2026-09-30T10:03:00Z" }),
+                JsonSerializer.Serialize(new { type = "user", message = new { content = third }, timestamp = "2026-09-30T10:04:00Z" }),
+            ]);
+            CompactBriefTool.Execute(Payload(transcriptPath, projectDir, "sess-every-run"));
+            string ledgerAfterThirdRun = File.ReadAllText(ledgerPath);
+            Assert.NotEqual(ledgerAfterSecondRun, ledgerAfterThirdRun);
+            Assert.Contains(first, ledgerAfterThirdRun);
+            Assert.Contains(second, ledgerAfterThirdRun);
+            Assert.Contains(third, ledgerAfterThirdRun);
+            Assert.Contains("Entries: 3 (the owner 3,", ledgerAfterThirdRun);
+        }
+        finally
+        {
+            GrimoraCliRunner.DeleteInstance(instance);
+            Directory.Delete(projectDir, recursive: true);
+        }
+    }
 }
