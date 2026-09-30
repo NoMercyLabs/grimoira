@@ -157,22 +157,26 @@ public static partial class CliGoldens
         if (instance is not null) result = result.Replace(InstanceMarker, instance, StringComparison.Ordinal);
         string[] frozen = SplitArguments(Expand(golden.RawArgs));
         string[] current = SplitArguments(arguments);
+        // The swaps belong to one test: a folder named by an earlier call of the same test (project --root)
+        // shows up in a later call's output, so every swap that test learned so far applies, longest first.
+        // Test classes run in parallel, so each test keeps its own map (a swap learned by another test must
+        // not rewrite this one's output), and the map is snapshotted before sorting: sorting the live
+        // dictionary while another thread adds to it threw ArgumentException out of Enumerable.ToArray.
+        ConcurrentDictionary<string, string> swaps = Replacements.GetOrAdd($"{callerFile}|{callerMember}", _ => new());
         if (frozen.Length == current.Length)
         {
             foreach ((string was, string now) in frozen.Zip(current).Where(p => p.First != p.Second && p.First.Length > 3))
             {
-                Replacements[was] = now;
-                Replacements[was.Replace(Path.DirectorySeparatorChar, (char)47)] = now.Replace(Path.DirectorySeparatorChar, (char)47);
+                swaps[was] = now;
+                swaps[was.Replace(Path.DirectorySeparatorChar, (char)47)] = now.Replace(Path.DirectorySeparatorChar, (char)47);
             }
         }
-        // A folder named by an earlier call of the same test (project --root) shows up in a later call's output,
-        // so every swap learned so far applies, longest first.
-        foreach (KeyValuePair<string, string> swap in Replacements.OrderByDescending(p => p.Key.Length))
+        foreach (KeyValuePair<string, string> swap in swaps.ToArray().OrderByDescending(p => p.Key.Length))
             result = result.Replace(swap.Key, swap.Value, StringComparison.Ordinal);
         return result;
     }
 
-    private static readonly ConcurrentDictionary<string, string> Replacements = new();
+    private static readonly ConcurrentDictionary<string, ConcurrentDictionary<string, string>> Replacements = new();
 
     public static void Record(string callerFile, string member, string arguments, string stdout, string stderr, int exitCode,
         string? instance = null, string? header = null)
