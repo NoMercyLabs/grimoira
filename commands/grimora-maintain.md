@@ -11,7 +11,7 @@ Argument: `$ARGUMENTS` — the verb name, plus whatever flags that verb needs.
 
 ## Before running anything
 
-1. Locate the built CLI: `bin-cli/grimora.exe` under this plugin's own checkout (`${CLAUDE_PLUGIN_ROOT}` when running as an installed plugin, otherwise the grimora repo root). If it is missing, run `./build-cli.ps1` first.
+1. Locate the built CLI. As an installed plugin it is `<config>/plugins/data/grimora-<marketplace>/current/bin-cli/grimora.dll`, where `<config>` is `$CLAUDE_CONFIG_DIR` or `~/.claude` (glob `grimora-*` when the marketplace name is unknown). In a source checkout it is `bin-cli/grimora.dll` under the repo root; if that is missing, run `./build-cli.sh` (or `build-cli.ps1`) first. If the installed `current` folder is missing, the background build after an install or update has not finished: say so and stop.
 2. Resolve the instance the same way every other Grimora entry point does: an explicit `--instance` the user names, else `GRIMORA_INSTANCE`, else the current workspace's folder name. Do not hardcode a default instance — a different workspace has a different one.
 3. If the requested verb is destructive (`shed-*`, `forget-project`) and the user gave no explicit key/name/path, ask for it — do not guess an argument that deletes data.
 
@@ -35,7 +35,7 @@ Argument: `$ARGUMENTS` — the verb name, plus whatever flags that verb needs.
 Build the command as:
 
 ```
-bin-cli/grimora.exe <verb> --instance <resolved instance> [flags from the table above]
+dotnet <path to grimora.dll> <verb> --instance <resolved instance> [flags from the table above]
 ```
 
 Run it, capture stdout/stderr, and report:

@@ -19,7 +19,7 @@ Its answers are leads with a source. The source file and the running code are st
 
 ## How it works
 
-Grimora is a Claude Code plugin. It ships a skill, two agents, a maintenance command, an MCP server, and a small set of hooks. The MCP server and the hooks call a thin `grimora` command. That command talks to a background service over a local named pipe (a Unix socket on macOS and Linux), so no network port is open. The service starts on the first call and exits after 30 quiet minutes. Hooks save your place before Claude compacts a conversation and fold the finished session into the store. Everything lives in SQLite files on your disk, one file per project instance.
+Grimora is a Claude Code plugin. It ships two skills (`grimora` for everyday use, `grimora-init` for the first start), two agents, a maintenance command, an MCP server, and a small set of hooks. The MCP server and the hooks call a thin `grimora` command. That command talks to a background service over a local named pipe (a Unix socket on macOS and Linux), so no network port is open. The service starts on the first call and exits after 30 quiet minutes. Hooks save your place before Claude compacts a conversation and fold the finished session into the store. Everything lives in SQLite files on your disk, one file per project instance.
 
 ## Install
 
@@ -37,7 +37,7 @@ The repository is private for now. You need access to `NoMercyLabs/grimora` on G
 
 ## First start
 
-Nothing asks you anything. There is no login and no setup screen.
+There is no login and no setup screen. When you want to choose what Grimora indexes, ask Claude to "set up grimora": the `grimora-init` skill asks three questions (where the store lives, which projects to index, what to import), runs the setup, and proves the first answer. Without it, the first call creates an empty store for the project and the hooks fill it session by session.
 
 The first session after an install or an update has no built command yet. A one-time step starts a background build and Claude Code may show a failed hook or a failed `grimora` connection in `/mcp` for that first session, because the build has not finished. The build takes a few minutes. Reconnect with `/mcp` once it is done; your session works normally in the meantime, just without Grimora.
 
