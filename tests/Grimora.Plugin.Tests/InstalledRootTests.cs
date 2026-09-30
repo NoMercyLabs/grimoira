@@ -26,7 +26,11 @@ public class InstalledRootTests
         (int exit, string output, string err) = f.Run(root: stale);
         Thread.Sleep(3000); // long enough for a build that must not start to have taken the lock
 
-        Assert.Equal(0, exit);
+        // The hook still runs through `current` (the installed build, told the installed root), so the session keeps
+        // its SessionStart brief; its exit code passes through as on the installed path.
+        Assert.Equal(3, exit);
+        Assert.Contains("hook SessionStart", output);
+        Assert.Contains("ROOT=" + f.Root, output);
         Assert.False(File.Exists(Path.Combine(f.Data, "build.lock")), "the stale root started a build");
         Assert.Equal(installedBuild, f.CurrentTarget());
         Assert.Single(f.Builds());

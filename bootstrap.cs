@@ -22,6 +22,7 @@
 using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 
 const string Building = "Grimora is building its CLI and server in the background (first session after an install or update); it is ready in a few minutes.";
 string[] buildInputs = ["src", "Directory.Build.props", "Directory.Packages.props", "global.json"];
@@ -44,6 +45,19 @@ bool installed = !string.IsNullOrEmpty(pluginData);
 string dataDir = installed ? pluginData! : root;
 string buildDir = installed ? Path.Combine(dataDir, "current") : dataDir;
 
+// A session started before a plugin update keeps running the old cache folder's bootstrap.cs at every SessionStart
+// (compaction too). Its tree never matches the installed build, so it used to rebuild its own tree, move `current`
+// back to it and write its own root into plugin-root.txt (2026-09-30: twice in one morning). Only the root Claude
+// Code records as installed may do either; a stale root says so in one line and runs the hook through `current`
+// as it is, so the session keeps its brief.
+string? installedRoot = installed ? InstalledRootOrNull() : null;
+if (installedRoot is not null && !PathsEqual(installedRoot, root))
+{
+    Console.Out.WriteLine($"Grimora: this session runs a stale plugin root ({root}); the installed root is {installedRoot}, so current and plugin-root.txt are left to it; restart the session to pick it up.");
+    string cli = Path.Combine(buildDir, "bin-cli", "grimora.dll");
+    return File.Exists(cli) ? RunHook(cli, installedRoot) : 0;
+}
+
 if (installed)
 {
     try { RecordPluginRoot(); } catch { /* best effort: the env var and the walk-up remain */ }
@@ -51,7 +65,7 @@ if (installed)
 
 if (IsCurrent())
 {
-    return RunHook(Path.Combine(buildDir, "bin-cli", "grimora.dll"));
+    return RunHook(Path.Combine(buildDir, "bin-cli", "grimora.dll"), root);
 }
 
 if (installed)
@@ -159,7 +173,58 @@ void RecordPluginRoot()
     File.Move(temp, file, true);
 }
 
-int RunHook(string cli)
+// The installed root, from the registry Claude Code keeps two folders above the data folder
+// (~/.claude/plugins/installed_plugins.json: {"version":2,"plugins":{"<name>@<marketplace>":[{"installPath":...},...]}}),
+// looked up by this plugin's name from .claude-plugin/plugin.json. Null when the registry, the manifest or the
+// plugin's entry cannot be read: then today's behaviour stands (this root builds and records itself), so a
+// checkout with a data folder, a first install, or a registry whose shape changed never loses Grimora.
+string? InstalledRootOrNull()
+{
+    try
+    {
+        string name = JsonDocument.Parse(File.ReadAllText(Path.Combine(root, ".claude-plugin", "plugin.json"))).RootElement.GetProperty("name").GetString()!;
+        string? registry = null;
+        for (string? dir = Path.GetDirectoryName(Path.GetFullPath(dataDir)); dir is not null && registry is null; dir = Path.GetDirectoryName(dir))
+        {
+            string candidate = Path.Combine(dir, "installed_plugins.json");
+            registry = File.Exists(candidate) ? candidate : null;
+        }
+
+        if (registry is null)
+        {
+            return null;
+        }
+
+        using JsonDocument doc = JsonDocument.Parse(File.ReadAllText(registry));
+        foreach (JsonProperty plugin in doc.RootElement.GetProperty("plugins").EnumerateObject())
+        {
+            if (!plugin.Name.StartsWith(name + "@", StringComparison.Ordinal) || plugin.Value.ValueKind != JsonValueKind.Array)
+            {
+                continue;
+            }
+
+            List<string> paths = [.. plugin.Value.EnumerateArray()
+                .Select(install => install.TryGetProperty("installPath", out JsonElement p) ? p.GetString() : null)
+                .Where(p => !string.IsNullOrEmpty(p))
+                .Select(p => Path.GetFullPath(p!))];
+            if (paths.Count == 0)
+            {
+                continue;
+            }
+
+            // Several scopes (user, project) may install the same plugin; this root is installed when any of them is it.
+            return paths.FirstOrDefault(p => PathsEqual(p, root)) ?? paths[0];
+        }
+
+        return null;
+    }
+    catch
+    {
+        return null;
+    }
+}
+
+int RunHook(string cli, string pluginRoot)
 {
     try
     {
@@ -167,7 +232,7 @@ int RunHook(string cli)
         info.ArgumentList.Add(cli);
         info.ArgumentList.Add("hook");
         info.ArgumentList.Add("SessionStart");
-        info.Environment["GRIMORA_PLUGIN_ROOT"] = root;
+        info.Environment["GRIMORA_PLUGIN_ROOT"] = pluginRoot;
         using Process hook = Process.Start(info)!; // no redirects: stdin, stdout and stderr are inherited
         hook.WaitForExit();
         return hook.ExitCode;

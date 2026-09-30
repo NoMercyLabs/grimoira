@@ -22,6 +22,8 @@ public sealed class PluginFixture : IDisposable
             + "if (args.Length > 0 && args[0] == \"sleep\") { System.Threading.Thread.Sleep(60000); }\nreturn 3;");
         WriteProject("Grimora.Server", "Grimora.Server", "return 0;");
         File.WriteAllText(Path.Combine(Root, "Directory.Build.props"), "<Project />");
+        Directory.CreateDirectory(Path.Combine(Root, ".claude-plugin"));
+        File.WriteAllText(Path.Combine(Root, ".claude-plugin", "plugin.json"), "{ \"name\": \"grimora\", \"version\": \"1.0.0\" }");
         if (withData)
         {
             Directory.CreateDirectory(Data);
