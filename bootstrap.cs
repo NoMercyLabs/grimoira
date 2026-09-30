@@ -15,6 +15,8 @@
 // - `--build <data>`: the detached build. It never writes into a folder that may be in use; it moves `current`
 //   only after a complete build and stamp; it keeps the previous build as the rollback and deletes older ones
 //   only when a trial rename proves nothing holds them.
+// - `--point <link> <target>`: the `current` swap on its own (a repair by hand, and the tests); the previous link
+//   stays when it fails.
 //
 // With no CLAUDE_PLUGIN_DATA (a checkout) the checkout's own bin-cli/ and bin-server/ are used.
 using System.Diagnostics;
@@ -32,6 +34,11 @@ if (args.Length == 2 && args[0] == "--build")
     return Build(args[1]);
 }
 
+if (args.Length == 3 && args[0] == "--point")
+{
+    return Point(args[1], args[2]);
+}
+
 string? pluginData = Environment.GetEnvironmentVariable("CLAUDE_PLUGIN_DATA");
 bool installed = !string.IsNullOrEmpty(pluginData);
 string dataDir = installed ? pluginData! : root;
@@ -45,6 +52,11 @@ if (installed)
 if (IsCurrent())
 {
     return RunHook(Path.Combine(buildDir, "bin-cli", "grimora.dll"));
+}
+
+if (installed)
+{
+    try { WarnIfCurrentIsBroken(); } catch { /* best effort: the build below repairs it */ }
 }
 
 if (TakeLock())
@@ -66,6 +78,44 @@ bool IsCurrent()
     }
 
     return !installed || ReadStamp(cliDir) == TreeHash();
+}
+
+// A fresh install has no build yet and `current` is expected to be missing: that is the Building line. After a
+// complete build a missing `current`, and at any time a dangling one, means every hook slot and the MCP server
+// run against nothing (2026-09-30: a failed swap left it missing and nothing said so). One line: what is wrong,
+// the log, the repair.
+void WarnIfCurrentIsBroken()
+{
+    string? problem = null;
+    if (!LinkExists(buildDir))
+    {
+        string buildsDir = Path.Combine(dataDir, "builds");
+        bool anyCompleteBuild = Directory.Exists(buildsDir)
+            && Directory.GetDirectories(buildsDir).Any(b => File.Exists(Path.Combine(b, "bin-cli", "build-stamp.txt")));
+        if (anyCompleteBuild)
+        {
+            problem = $"{buildDir} is missing";
+        }
+    }
+    else
+    {
+        // Directory.Exists is true for a dangling junction on Windows (it does not follow it) and false for a dangling
+        // symlink elsewhere, so the end of the link chain is checked itself.
+        FileSystemInfo? end = null;
+        try { end = Directory.ResolveLinkTarget(buildDir, true); } catch { /* unreadable reparse data */ }
+        if (end is not null ? !end.Exists : !Directory.Exists(buildDir))
+        {
+            problem = $"{buildDir} points at a missing folder ({end?.FullName ?? "unreadable target"})";
+        }
+    }
+
+    if (problem is null)
+    {
+        return;
+    }
+
+    string repair = $"dotnet \"{Path.Combine(root, "bootstrap.cs")}\" --build \"{dataDir}\"";
+    Console.Out.WriteLine($"Grimora: {problem}: no hook and no MCP server can run until it is repaired; see {Path.Combine(dataDir, "build.log")}; repair: {repair}");
 }
 
 bool TakeLock()
@@ -203,6 +253,22 @@ int Build(string data)
     }
 }
 
+// The swap on its own, for the tests and for a repair by hand: exit 0 with `link` resolving to `target`, or exit 1
+// with the reason on stderr and the previous `link` untouched.
+int Point(string link, string target)
+{
+    try
+    {
+        PointCurrent(link, target);
+        return 0;
+    }
+    catch (Exception error)
+    {
+        Console.Error.WriteLine($"bootstrap: {error.Message}");
+        return 1;
+    }
+}
+
 void Publish(string project, string output, FileStream log)
 {
     // PublishAot=false: the same choice as build-cli.ps1 and build-server.ps1.
@@ -240,46 +306,115 @@ string? RealOrNull(string path)
     }
 }
 
-// A Windows junction needs no admin rights (mklink /J; the BCL has no junction call). It cannot be renamed over
-// an existing one, so it is replaced; a hook starting in that moment fails open and the next one runs.
+// `current` must never be missing, not even for a failed swap: every hook slot and the MCP server run through it.
+// The new link is built beside the old one as `current.next`, checked to resolve to the target, and only then
+// moved over `current`. A Windows junction needs no admin rights (mklink /J; the BCL has no junction call) but
+// cannot be renamed over an existing one, so there the old junction goes for the instant the rename takes and
+// is put back if that rename fails. Elsewhere rename(2) replaces the symlink atomically. Paths are normalised
+// first: mklink refuses a forward-slash path, which is what a Git Bash caller passes (2026-09-30).
 void PointCurrent(string link, string target)
 {
-    if (OperatingSystem.IsWindows())
+    link = Path.GetFullPath(link);
+    target = Path.GetFullPath(target);
+    string want = RealOrNull(target) ?? throw new DirectoryNotFoundException($"current cannot point at {target}: no such folder");
+    string next = $"{link}.next";
+    try
     {
-        if (Directory.Exists(link) || File.Exists(link))
+        RemoveLink(next);
+        CreateLink(next, target);
+        string? resolved = RealOrNull(next);
+        if (!PathsEqual(resolved, want))
         {
-            Directory.Delete(link, false); // removes the junction only, never its target
+            throw new IOException($"{next} resolves to {resolved ?? "nothing"}, not {want}");
         }
 
-        ProcessStartInfo info = new("cmd.exe") { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true };
-        info.ArgumentList.Add("/c");
-        info.ArgumentList.Add("mklink");
-        info.ArgumentList.Add("/J");
-        info.ArgumentList.Add(link);
-        info.ArgumentList.Add(target);
-        using Process mk = Process.Start(info)!;
-        mk.StandardOutput.ReadToEnd();
-        mk.StandardError.ReadToEnd();
-        mk.WaitForExit();
-        if (mk.ExitCode != 0)
+        if (OperatingSystem.IsWindows())
         {
-            throw new InvalidOperationException($"mklink /J {link} failed (exit {mk.ExitCode})");
+            string? previous = RealOrNull(link);
+            RemoveLink(link);
+            try
+            {
+                Directory.Move(next, link); // renames the junction itself; it never follows it
+            }
+            catch
+            {
+                if (previous is not null)
+                {
+                    CreateLink(link, previous);
+                }
+
+                throw;
+            }
+
+            return;
         }
 
+        // File.Move cannot do this: .NET follows the link, sees a directory and refuses. rename(2) replaces atomically.
+        if (Native.rename(next, link) != 0)
+        {
+            throw new IOException($"rename {next} to {link} failed (errno {System.Runtime.InteropServices.Marshal.GetLastPInvokeError()})");
+        }
+    }
+    finally
+    {
+        try { RemoveLink(next); } catch { /* a leftover temp link is harmless; the next swap removes it */ }
+    }
+}
+
+bool PathsEqual(string? a, string? b) =>
+    a is not null && b is not null && string.Equals(Path.TrimEndingDirectorySeparator(a), Path.TrimEndingDirectorySeparator(b),
+        OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
+
+// True for a folder, a file, or a link entry whose target is gone (Directory.Exists follows the link and says no).
+bool LinkExists(string path)
+{
+    if (Directory.Exists(path) || File.Exists(path))
+    {
+        return true;
+    }
+
+    FileAttributes attributes = new DirectoryInfo(path).Attributes;
+    return (int)attributes != -1 && attributes.HasFlag(FileAttributes.ReparsePoint);
+}
+
+// Removes the link entry only, never what it points at. A real folder in the way is an error, not something to delete.
+void RemoveLink(string path)
+{
+    if (!LinkExists(path))
+    {
         return;
     }
 
-    string next = $"{link}.next";
-    if (File.Exists(next) || Directory.Exists(next))
+    if (File.Exists(path) && !new FileInfo(path).Attributes.HasFlag(FileAttributes.Directory))
     {
-        File.Delete(next);
+        File.Delete(path);
+        return;
     }
 
-    Directory.CreateSymbolicLink(next, target);
-    // File.Move cannot do this: .NET follows the link, sees a directory and refuses. rename(2) replaces atomically.
-    if (Native.rename(next, link) != 0)
+    Directory.Delete(path, false);
+}
+
+void CreateLink(string link, string target)
+{
+    if (!OperatingSystem.IsWindows())
     {
-        throw new IOException($"rename {next} to {link} failed (errno {System.Runtime.InteropServices.Marshal.GetLastPInvokeError()})");
+        Directory.CreateSymbolicLink(link, target);
+        return;
+    }
+
+    ProcessStartInfo info = new("cmd.exe") { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true };
+    info.ArgumentList.Add("/c");
+    info.ArgumentList.Add("mklink");
+    info.ArgumentList.Add("/J");
+    info.ArgumentList.Add(link);
+    info.ArgumentList.Add(target);
+    using Process mk = Process.Start(info)!;
+    mk.StandardOutput.ReadToEnd();
+    string error = mk.StandardError.ReadToEnd();
+    mk.WaitForExit();
+    if (mk.ExitCode != 0)
+    {
+        throw new InvalidOperationException($"mklink /J {link} failed (exit {mk.ExitCode}): {error.Trim()}");
     }
 }
 
