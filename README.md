@@ -28,7 +28,7 @@ Requirements:
 - Claude Code.
 - The .NET 10 SDK (`dotnet`). The plugin builds its own command and service with it. Nothing else is required — no Node, no separate runtime.
 
-The repository is private for now. You need access to `NoMercyLabs/grimora` on GitHub. Then, in Claude Code:
+In Claude Code:
 
 ```
 /plugin marketplace add NoMercyLabs/grimora
@@ -156,7 +156,7 @@ dotnet test Grimora.sln
 
 ## Contributing
 
-The design notes are in `docs/`. `docs/RESTRUCTURE.md` explains how the code is laid out and why. Read it before you change a project boundary.
+`docs/ARCHITECTURE.md` explains how the code is laid out and why. Read it before you change a project boundary. Design history lives in a private ledger; code comments that cite `RESTRUCTURE.md` slices refer to it.
 
 ## Licence
 
