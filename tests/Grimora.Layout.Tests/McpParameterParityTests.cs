@@ -11,7 +11,7 @@ namespace Grimora.Layout.Tests;
 /// flag the old code read (<c>add --why</c>, <c>learn --facet</c>) was silently ignored once grimora.cs was
 /// wired to a tool class. This test is the same check on the MCP side, made permanent: each of the 24
 /// golden MCP tools' parameter list (name, type, order, default) is pinned to the last pre-dispatch
-/// oracle (<c>52968343e93812c133419702de1b7a9f417db86d:mcp.cs</c>, the commit before mcp.cs's own methods
+/// oracle (<c>c5400d481f4670933836a4a63ca0515050c802c0:mcp.cs</c>, the commit before mcp.cs's own methods
 /// started delegating to Grimora.* tool classes) and must never silently drift.
 ///
 /// The rule this enforces: a parameter may only ever be added, renamed, retyped, or have its default
@@ -23,7 +23,7 @@ namespace Grimora.Layout.Tests;
 /// </summary>
 public partial class McpParameterParityTests
 {
-    public const string PreDispatchOracleCommit = "52968343e93812c133419702de1b7a9f417db86d";
+    public const string PreDispatchOracleCommit = "c5400d481f4670933836a4a63ca0515050c802c0";
 
 
     [Fact]
@@ -35,7 +35,7 @@ public partial class McpParameterParityTests
         Dictionary<string, string> oracle = ExtractSignatures(oracleSource);
         Dictionary<string, string> current = ExtractSignatures(currentSource);
 
-        oracle.Remove("keycloak_token"); // removed on purpose: Grimora holds no secrets (rule, 2026-09-26); the pinned oracle still has it
+        oracle.Remove("idp_token"); // removed on purpose: Grimora holds no secrets (rule, 2026-09-26); the pinned oracle still has it
         Assert.Equal(24, oracle.Count);
         foreach ((string tool, string oracleParams) in oracle.OrderBy(p => p.Key, StringComparer.Ordinal))
         {
