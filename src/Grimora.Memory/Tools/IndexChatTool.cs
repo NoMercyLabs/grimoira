@@ -76,12 +76,16 @@ public sealed class IndexChatTool : ITool
                     }
                 }
                 // A user turn reads through the one transcript recogniser so a pasted document block is kept,
-                // ahead of the typed text, exactly as the PreCompact ledger keeps it.
-                string? text = type == "user" ? TranscriptClassifier.ExtractUserText(root) : ExtractText(message);
-                if (string.IsNullOrWhiteSpace(text)) continue;
-                text = text.Trim();
+                // ahead of the typed text, as the PreCompact ledger keeps it. Text blocks keep their line break
+                // (the stored text of an existing row must not change on re-index), and the kind is judged on
+                // the typed text alone, so a document pasted with "/goal ..." is still a slash command.
+                (string documents, string typed) = type == "user"
+                    ? TranscriptClassifier.SplitUserText(root, "\n")
+                    : ("", ExtractText(message) ?? "");
+                if (string.IsNullOrWhiteSpace(typed) && string.IsNullOrWhiteSpace(documents)) continue;
                 string role = type;
-                string kind = Classify(root, role, text);
+                string kind = Classify(root, role, typed.Trim());
+                string text = TranscriptClassifier.JoinUserText((documents, typed)).Trim();
                 if (role == "user" && PastedContent(text) is { } pasted)
                 {
                     string pastedKey = session + ":" + (GetString(root, "uuid") ?? "") + ":pasted";

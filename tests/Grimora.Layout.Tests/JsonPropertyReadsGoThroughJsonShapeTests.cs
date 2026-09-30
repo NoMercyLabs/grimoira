@@ -40,7 +40,7 @@ public partial class JsonPropertyReadsGoThroughJsonShapeTests
     }
 
     [Fact]
-    public void TheOneHelperExistsAndIsTheOnlyPlaceThatCallsIt()
+    public void TheOneHelperExistsAndCallsTryGetProperty()
     {
         string full = Path.Combine(RepoPaths.Root, "src", TheOneHelper.Replace('/', Path.DirectorySeparatorChar));
         Assert.True(File.Exists(full), $"expected the shared JSON guard at src/{TheOneHelper}");

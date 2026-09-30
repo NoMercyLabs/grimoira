@@ -1,7 +1,7 @@
 using System.Text.Json;
-using static Grimora.Store.Data.JsonShape;
 using Grimora.Hooks.Data;
 using Grimora.Memory.Data;
+using static Grimora.Store.Data.JsonShape;
 
 namespace Grimora.Hooks.Tools;
 

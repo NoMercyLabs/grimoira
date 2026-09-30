@@ -1,7 +1,7 @@
 using System.Text.Json;
-using static Grimora.Store.Data.JsonShape;
 using Grimora.Store.Tools;
 using Microsoft.Data.Sqlite;
+using static Grimora.Store.Data.JsonShape;
 
 namespace Grimora.Brain.Tools;
 

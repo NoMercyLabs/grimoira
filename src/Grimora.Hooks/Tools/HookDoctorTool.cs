@@ -1,8 +1,8 @@
 using Grimora.Store.Data;
 using System.Text.Json;
-using static Grimora.Store.Data.JsonShape;
 using System.Text.RegularExpressions;
 using Grimora.Store.Tools;
+using static Grimora.Store.Data.JsonShape;
 
 namespace Grimora.Hooks.Tools;
 

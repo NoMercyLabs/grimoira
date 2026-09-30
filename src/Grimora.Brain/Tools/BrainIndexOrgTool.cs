@@ -1,10 +1,10 @@
 using Grimora.Store.Data;
 using System.Text.Json;
-using static Grimora.Store.Data.JsonShape;
 using Grimora.Brain.Data;
 using Grimora.Store.Tools;
 using Microsoft.Data.Sqlite;
 using System.Text.RegularExpressions;
+using static Grimora.Store.Data.JsonShape;
 
 namespace Grimora.Brain.Tools;
 

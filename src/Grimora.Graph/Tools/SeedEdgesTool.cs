@@ -1,7 +1,7 @@
 using Grimora.Store.Tools;
 using System.Text.Json;
-using static Grimora.Store.Data.JsonShape;
 using Microsoft.Data.Sqlite;
+using static Grimora.Store.Data.JsonShape;
 
 namespace Grimora.Graph.Tools;
 
@@ -22,7 +22,7 @@ public sealed class SeedEdgesTool : ITool
         if (!File.Exists(seedPath)) return $"no spine file at {Path.GetFullPath(seedPath)}";
 
         using JsonDocument doc = JsonDocument.Parse(File.ReadAllText(seedPath));
-        if (!TryGetObjectProperty(doc.RootElement, "edges", out JsonElement edges) || edges.ValueKind != JsonValueKind.Array) return "spine has no edges section.";
+        if (!TryGetObjectProperty(doc.RootElement, "edges", out JsonElement edges) || edges.ValueKind != JsonValueKind.Array) return "spine has no edges array.";
 
         static string S(JsonElement e, string n) => GetString(e, n) ?? "";
         static int I(JsonElement e, string n) => TryGetObjectProperty(e, n, out JsonElement v) && v.ValueKind == JsonValueKind.Number ? v.GetInt32() : 0;

@@ -75,11 +75,25 @@ public static partial class TranscriptClassifier
     /// space. A pasted file arrives as its own <c>document</c> block, separate from the typed text around
     /// it; it is kept whole and ahead of the typed text, because losing which lines came from the paste
     /// versus what the owner typed about it is exactly the kind of impression a summary would leave.</summary>
-    public static string ExtractUserText(JsonElement e)
+    public static string ExtractUserText(JsonElement e) => JoinUserText(SplitUserText(e, " "));
+
+    /// <summary>The pasted documents ahead of the typed text, as one string; either part may be empty.</summary>
+    public static string JoinUserText((string Documents, string Typed) parts)
     {
-        if (!TryGetObjectProperty(e, "message", out JsonElement msg) || !TryGetObjectProperty(msg, "content", out JsonElement content)) return "";
-        if (content.ValueKind == JsonValueKind.String) return content.GetString() ?? "";
-        if (content.ValueKind != JsonValueKind.Array) return "";
+        if (parts.Documents.Length == 0) return parts.Typed;
+        if (parts.Typed.Length == 0) return parts.Documents;
+        return $"{parts.Documents}\n\n{parts.Typed}";
+    }
+
+    /// <summary>A user turn's text in two parts: the pasted <c>document</c> blocks, and the typed text blocks
+    /// joined with <paramref name="textSeparator"/> (the brief uses a space; the chat index keeps the line
+    /// break between blocks so a re-index stores the same text it always did). A caller that classifies the
+    /// turn does so on <c>Typed</c>, so a document pasted with a slash command is still a slash command.</summary>
+    public static (string Documents, string Typed) SplitUserText(JsonElement e, string textSeparator)
+    {
+        if (!TryGetObjectProperty(e, "message", out JsonElement msg) || !TryGetObjectProperty(msg, "content", out JsonElement content)) return ("", "");
+        if (content.ValueKind == JsonValueKind.String) return ("", content.GetString() ?? "");
+        if (content.ValueKind != JsonValueKind.Array) return ("", "");
 
         List<string> documents = [];
         List<string> textParts = [];
@@ -98,11 +112,7 @@ public static partial class TranscriptClassifier
             }
         }
 
-        string textJoined = string.Join(" ", textParts);
-        string docJoined = string.Join("\n\n", documents);
-        if (docJoined.Length == 0) return textJoined;
-        if (textJoined.Length == 0) return docJoined;
-        return $"{docJoined}\n\n{textJoined}";
+        return (string.Join("\n\n", documents), string.Join(textSeparator, textParts));
     }
 
     /// <summary>If <paramref name="e"/> is a user turn answering one of <paramref name="askUserQuestionToolIds"/>,
