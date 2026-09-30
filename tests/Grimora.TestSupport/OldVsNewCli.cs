@@ -111,8 +111,8 @@ public static class OldVsNewCli
         // a later step of the test reads exists (a test that reads that store compares the current code with itself there).
         RunInProcess(instance, arguments);
         return new Result(
-            CliGoldens.ForThisRun(golden, golden.Stdout, arguments, instance),
-            CliGoldens.ForThisRun(golden, golden.Stderr, arguments, instance),
+            CliGoldens.ForThisRun(golden, golden.Stdout, arguments, instance, callerFile, callerMember),
+            CliGoldens.ForThisRun(golden, golden.Stderr, arguments, instance, callerFile, callerMember),
             golden.ExitCode);
     }
 

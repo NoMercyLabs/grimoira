@@ -151,7 +151,7 @@ public static partial class CliGoldens
 
     /// <summary>The golden's text as this run should see it: the frozen run's random arguments (fixture
     /// folders, ids) are swapped for the arguments this run passed, the frozen instance name for this instance.</summary>
-    public static string ForThisRun(Entry golden, string text, string arguments, string? instance)
+    public static string ForThisRun(Entry golden, string text, string arguments, string? instance, string callerFile, string callerMember)
     {
         string result = Expand(text);
         if (instance is not null) result = result.Replace(InstanceMarker, instance, StringComparison.Ordinal);
