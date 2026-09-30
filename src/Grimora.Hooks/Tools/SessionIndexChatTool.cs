@@ -1,4 +1,5 @@
 using System.Text.Json;
+using static Grimora.Store.Data.JsonShape;
 using Grimora.Hooks.Data;
 using Grimora.Memory.Tools;
 using Microsoft.Data.Sqlite;
@@ -52,9 +53,4 @@ public static class SessionIndexChatTool
         using SqliteConnection connection = HookStore.Open(HookPaths.DbPath(instance));
         new IndexChatTool().Execute(connection, transcriptPath);
     }
-
-    private static string? GetString(JsonElement e, string prop) =>
-        e.ValueKind == JsonValueKind.Object && e.TryGetProperty(prop, out JsonElement v) && v.ValueKind == JsonValueKind.String
-            ? v.GetString()
-            : null;
 }

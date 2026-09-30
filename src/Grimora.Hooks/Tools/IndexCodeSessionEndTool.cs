@@ -1,4 +1,5 @@
 using System.Text.Json;
+using static Grimora.Store.Data.JsonShape;
 using Grimora.Brain.Schema;
 using Grimora.Graph.Tools;
 using Grimora.Hooks.Data;
@@ -58,9 +59,4 @@ public static class IndexCodeSessionEndTool
         if (legacyConsumesSchema.Statements.Count > 0)
             SchemaRunner.Run(connection, [legacyConsumesSchema], backupDir);
     }
-
-    private static string? GetString(JsonElement e, string prop) =>
-        e.ValueKind == JsonValueKind.Object && e.TryGetProperty(prop, out JsonElement v) && v.ValueKind == JsonValueKind.String
-            ? v.GetString()
-            : null;
 }

@@ -1,5 +1,6 @@
 using Grimora.Store.Tools;
 using System.Text.Json;
+using static Grimora.Store.Data.JsonShape;
 using Microsoft.Data.Sqlite;
 
 namespace Grimora.Graph.Tools;
@@ -21,10 +22,10 @@ public sealed class SeedEdgesTool : ITool
         if (!File.Exists(seedPath)) return $"no spine file at {Path.GetFullPath(seedPath)}";
 
         using JsonDocument doc = JsonDocument.Parse(File.ReadAllText(seedPath));
-        if (!doc.RootElement.TryGetProperty("edges", out JsonElement edges)) return "spine has no edges section.";
+        if (!TryGetObjectProperty(doc.RootElement, "edges", out JsonElement edges) || edges.ValueKind != JsonValueKind.Array) return "spine has no edges section.";
 
-        static string S(JsonElement e, string n) => e.TryGetProperty(n, out JsonElement v) && v.ValueKind == JsonValueKind.String ? v.GetString() ?? "" : "";
-        static int I(JsonElement e, string n) => e.TryGetProperty(n, out JsonElement v) && v.ValueKind == JsonValueKind.Number ? v.GetInt32() : 0;
+        static string S(JsonElement e, string n) => GetString(e, n) ?? "";
+        static int I(JsonElement e, string n) => TryGetObjectProperty(e, n, out JsonElement v) && v.ValueKind == JsonValueKind.Number ? v.GetInt32() : 0;
 
         // file_rel (RESTRUCTURE.md slice 31b): same column-exists guard GraphFileRelSchema.HasColumn
         // already gives every reader, so a v3 store (no column yet) inserts exactly as before.

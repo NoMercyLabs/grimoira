@@ -1,5 +1,6 @@
 using Grimora.Store.Data;
 using System.Text.Json;
+using static Grimora.Store.Data.JsonShape;
 using System.Text.RegularExpressions;
 using Grimora.Hooks.Data;
 using Microsoft.Data.Sqlite;
@@ -188,9 +189,9 @@ public static partial class PatternWatchTool
                 try
                 {
                     using JsonDocument trailDoc = JsonDocument.Parse(File.ReadAllText(trailPath));
-                    if (trailDoc.RootElement.TryGetProperty("sigs", out JsonElement sigsEl) && sigsEl.ValueKind == JsonValueKind.Array)
+                    if (TryGetObjectProperty(trailDoc.RootElement, "sigs", out JsonElement sigsEl) && sigsEl.ValueKind == JsonValueKind.Array)
                         sigs = [.. sigsEl.EnumerateArray().Select(e => e.GetString() ?? "")];
-                    if (trailDoc.RootElement.TryGetProperty("cmds", out JsonElement cmdsEl) && cmdsEl.ValueKind == JsonValueKind.Array)
+                    if (TryGetObjectProperty(trailDoc.RootElement, "cmds", out JsonElement cmdsEl) && cmdsEl.ValueKind == JsonValueKind.Array)
                         cmds = [.. cmdsEl.EnumerateArray().Select(e => e.GetString() ?? "")];
                 }
                 catch { /* first command */ }
@@ -229,15 +230,9 @@ public static partial class PatternWatchTool
 
     private static string? GetToolInputCommand(JsonElement payload)
     {
-        if (payload.ValueKind != JsonValueKind.Object || !payload.TryGetProperty("tool_input", out JsonElement input)
-            || input.ValueKind != JsonValueKind.Object) return null;
+        if (!TryGetObjectProperty(payload, "tool_input", out JsonElement input) || input.ValueKind != JsonValueKind.Object) return null;
         return GetString(input, "command");
     }
-
-    private static string? GetString(JsonElement e, string prop) =>
-        e.ValueKind == JsonValueKind.Object && e.TryGetProperty(prop, out JsonElement v) && v.ValueKind == JsonValueKind.String
-            ? v.GetString()
-            : null;
 
     [GeneratedRegex(@"\.(mjs|cjs|js|ts|py|ps1|sh|bat|cmd|rb|pl)$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, RegexTimeout.Milliseconds)]
     private static partial Regex ScriptFileExtension();

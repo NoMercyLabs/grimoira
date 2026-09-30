@@ -1,4 +1,5 @@
 using System.Text.Json;
+using static Grimora.Store.Data.JsonShape;
 
 namespace Grimora.Cli.Tools;
 
@@ -45,9 +46,9 @@ public static class ServiceCommand
             if (!response.IsSuccessStatusCode) return "stopped";
             using JsonDocument doc = JsonDocument.Parse(response.Content.ReadAsStringAsync().GetAwaiter().GetResult());
             JsonElement root = doc.RootElement;
-            string version = root.TryGetProperty("version", out JsonElement v) ? v.GetString() ?? "?" : "?";
-            string build = root.TryGetProperty("buildStamp", out JsonElement b) && b.ValueKind == JsonValueKind.String ? b.GetString()! : "none";
-            int seconds = root.TryGetProperty("idleExitSeconds", out JsonElement i) ? i.GetInt32() : ServerAddress.DefaultIdleMinutes * 60;
+            string version = GetString(root, "version") ?? "?";
+            string build = GetString(root, "buildStamp") ?? "none";
+            int seconds = TryGetObjectProperty(root, "idleExitSeconds", out JsonElement i) && i.ValueKind == JsonValueKind.Number ? i.GetInt32() : ServerAddress.DefaultIdleMinutes * 60;
             string idle = seconds % 60 == 0 ? $"{seconds / 60} min" : $"{seconds} s";
             return $"running (version {version}, build {build}, idle exit {idle})";
         }

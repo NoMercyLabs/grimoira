@@ -1,4 +1,5 @@
 using System.Text.Json;
+using static Grimora.Store.Data.JsonShape;
 using Grimora.Store.Tools;
 using Microsoft.Data.Sqlite;
 
@@ -44,7 +45,7 @@ public sealed class BrainIndexInfraTool : ITool
 
         foreach ((string section, string kind, string scheme) in Sections)
         {
-            if (!spec.TryGetProperty(section, out JsonElement items) || items.ValueKind != JsonValueKind.Array) continue;
+            if (!TryGetObjectProperty(spec, section, out JsonElement items) || items.ValueKind != JsonValueKind.Array) continue;
             foreach (JsonElement item in items.EnumerateArray())
             {
                 string id = Str(item, "id");
@@ -61,7 +62,7 @@ public sealed class BrainIndexInfraTool : ITool
                 string runsOn = Str(item, "runsOn");
                 if (runsOn.Length > 0)
                     links.Add(new { s = key, p = "belongs_in", o = $"host:{runsOn}", because = Str(item, "why") });
-                if (item.TryGetProperty("consumes", out JsonElement consumes) && consumes.ValueKind == JsonValueKind.Array)
+                if (TryGetObjectProperty(item, "consumes", out JsonElement consumes) && consumes.ValueKind == JsonValueKind.Array)
                     foreach (JsonElement c in consumes.EnumerateArray())
                         if (c.ValueKind == JsonValueKind.String)
                             links.Add(new { s = key, p = "consumes", o = c.GetString() ?? "", because = "" });
@@ -77,9 +78,7 @@ public sealed class BrainIndexInfraTool : ITool
         return string.Join("\n", lines);
     }
 
-    private static string Str(JsonElement e, string name) =>
-        e.TryGetProperty(name, out JsonElement v) && v.ValueKind == JsonValueKind.String ? v.GetString() ?? "" : "";
+    private static string Str(JsonElement e, string name) => GetString(e, name) ?? "";
 
-    private static bool Bool(JsonElement e, string name) =>
-        e.TryGetProperty(name, out JsonElement v) && v.ValueKind == JsonValueKind.True;
+    private static bool Bool(JsonElement e, string name) => IsTrue(e, name);
 }

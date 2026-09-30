@@ -1,6 +1,7 @@
 using Grimora.Store.Data;
 using System.Diagnostics;
 using System.Text.Json;
+using static Grimora.Store.Data.JsonShape;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 
@@ -99,11 +100,9 @@ public static partial class ProcessOwner
                 {
                     using JsonDocument doc = JsonDocument.Parse(File.ReadAllText(filename));
                     JsonElement root2 = doc.RootElement;
-                    if (root2.TryGetProperty("version", out JsonElement v) && v.GetInt32() == 1
-                        && root2.TryGetProperty("state", out JsonElement s)
-                        && (s.GetString() == "exited" || s.GetString() == "failed")
-                        && root2.TryGetProperty("ended_at", out JsonElement ended)
-                        && ended.GetString() is { } endedAt)
+                    if (TryGetObjectProperty(root2, "version", out JsonElement v) && v.ValueKind == JsonValueKind.Number && v.GetInt32() == 1
+                        && GetString(root2, "state") is "exited" or "failed"
+                        && GetString(root2, "ended_at") is { } endedAt)
                     {
                         completed.Add((filename, endedAt));
                     }
@@ -223,11 +222,11 @@ public static partial class ProcessOwner
                 JsonElement r = doc.RootElement;
                 records.Add(new Dictionary<string, object?>
                 {
-                    ["id"] = r.TryGetProperty("id", out JsonElement id) ? id.GetString() : null,
-                    ["owner_pid"] = r.TryGetProperty("owner", out JsonElement owner) && owner.TryGetProperty("pid", out JsonElement pid) ? pid.GetInt32() : null,
-                    ["child_pid"] = r.TryGetProperty("child_pid", out JsonElement cp) && cp.ValueKind != JsonValueKind.Null ? cp.GetInt32() : null,
-                    ["state"] = r.TryGetProperty("state", out JsonElement st) ? st.GetString() : null,
-                    ["launched_at"] = r.TryGetProperty("launched_at", out JsonElement la) ? la.GetString() : null,
+                    ["id"] = GetString(r, "id"),
+                    ["owner_pid"] = TryGetObjectProperty(r, "owner", out JsonElement owner) && TryGetObjectProperty(owner, "pid", out JsonElement pid) && pid.ValueKind == JsonValueKind.Number ? pid.GetInt32() : null,
+                    ["child_pid"] = TryGetObjectProperty(r, "child_pid", out JsonElement cp) && cp.ValueKind == JsonValueKind.Number ? cp.GetInt32() : null,
+                    ["state"] = GetString(r, "state"),
+                    ["launched_at"] = GetString(r, "launched_at"),
                     ["liveness"] = "not verified; record is not permission to terminate a PID",
                 });
             }

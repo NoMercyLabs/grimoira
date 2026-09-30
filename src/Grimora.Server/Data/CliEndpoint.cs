@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text.Json;
+using static Grimora.Store.Data.JsonShape;
 using Microsoft.Data.Sqlite;
 
 namespace Grimora.Server.Data;
@@ -50,12 +51,10 @@ internal static class CliEndpoint
         try
         {
             using JsonDocument body = await JsonDocument.ParseAsync(context.Request.Body, cancellationToken: context.RequestAborted);
-            if (!body.RootElement.TryGetProperty("args", out JsonElement argsElement) || argsElement.ValueKind != JsonValueKind.Array)
+            if (!TryGetObjectProperty(body.RootElement, "args", out JsonElement argsElement) || argsElement.ValueKind != JsonValueKind.Array)
                 return Answer(2, "", "error: the body needs \"args\": [...].");
             string[] args = [.. argsElement.EnumerateArray().Select(e => e.GetString() ?? "")];
-            string? bodyCwd = body.RootElement.TryGetProperty("cwd", out JsonElement cwdElement) && cwdElement.ValueKind == JsonValueKind.String
-                ? cwdElement.GetString()
-                : null;
+            string? bodyCwd = GetString(body.RootElement, "cwd");
 
             string cwd = !string.IsNullOrWhiteSpace(bodyCwd) ? bodyCwd
                 : RequestProjectResolver.ProjectDirHeaderOf(context) ?? Directory.GetCurrentDirectory();

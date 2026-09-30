@@ -1,5 +1,6 @@
 using Grimora.Store.Data;
 using System.Text.Json;
+using static Grimora.Store.Data.JsonShape;
 using System.Text.RegularExpressions;
 using Grimora.Store.Tools;
 
@@ -75,16 +76,14 @@ public sealed partial class HookDoctorTool : ITool
 
     private static IEnumerable<(string Name, bool Value)> EnabledPlugins(JsonElement doc)
     {
-        if (doc.ValueKind != JsonValueKind.Object || !doc.TryGetProperty("enabledPlugins", out JsonElement ep)
-            || ep.ValueKind != JsonValueKind.Object) yield break;
+        if (!TryGetObjectProperty(doc, "enabledPlugins", out JsonElement ep) || ep.ValueKind != JsonValueKind.Object) yield break;
         foreach (JsonProperty p in ep.EnumerateObject())
             yield return (p.Name, p.Value.ValueKind == JsonValueKind.True);
     }
 
     private static IEnumerable<string> Hooks(JsonElement data, bool directOnly)
     {
-        if (data.ValueKind != JsonValueKind.Object || !data.TryGetProperty("hooks", out JsonElement hooksEl)
-            || hooksEl.ValueKind != JsonValueKind.Object) yield break;
+        if (!TryGetObjectProperty(data, "hooks", out JsonElement hooksEl) || hooksEl.ValueKind != JsonValueKind.Object) yield break;
 
         foreach (JsonProperty eventProp in hooksEl.EnumerateObject())
         {
@@ -92,16 +91,14 @@ public sealed partial class HookDoctorTool : ITool
             if (eventProp.Value.ValueKind != JsonValueKind.Array) continue;
             foreach (JsonElement group in eventProp.Value.EnumerateArray())
             {
-                if (group.ValueKind != JsonValueKind.Object || !group.TryGetProperty("hooks", out JsonElement hookList)
-                    || hookList.ValueKind != JsonValueKind.Array) continue;
+                if (!TryGetObjectProperty(group, "hooks", out JsonElement hookList) || hookList.ValueKind != JsonValueKind.Array) continue;
                 foreach (JsonElement hook in hookList.EnumerateArray())
                 {
                     string command = GetString(hook, "command") ?? "";
                     if (directOnly && !GrimoraInstallPath().IsMatchOrFalse(command)) continue;
 
                     List<string> parts = [command];
-                    if (hook.ValueKind == JsonValueKind.Object && hook.TryGetProperty("args", out JsonElement args)
-                        && args.ValueKind == JsonValueKind.Array)
+                    if (TryGetObjectProperty(hook, "args", out JsonElement args) && args.ValueKind == JsonValueKind.Array)
                         parts.AddRange(args.EnumerateArray().Select(a => a.ValueKind == JsonValueKind.String ? a.GetString() ?? "" : ""));
 
                     string joined = string.Join(" ", parts);
@@ -111,11 +108,6 @@ public sealed partial class HookDoctorTool : ITool
             }
         }
     }
-
-    private static string? GetString(JsonElement e, string prop) =>
-        e.ValueKind == JsonValueKind.Object && e.TryGetProperty(prop, out JsonElement v) && v.ValueKind == JsonValueKind.String
-            ? v.GetString()
-            : null;
 
     [GeneratedRegex(@"[a-z0-9-]+\.mjs\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, RegexTimeout.Milliseconds)]
     private static partial Regex HookScriptName();

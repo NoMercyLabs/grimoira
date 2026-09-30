@@ -1,4 +1,5 @@
 using System.Text.Json;
+using static Grimora.Store.Data.JsonShape;
 using Grimora.Facts.Data;
 using Grimora.Store.Data;
 using Grimora.Store.Tools;
@@ -34,11 +35,10 @@ public sealed class IndexPackagesTool : ITool
             using (doc)
             {
                 JsonElement r = doc.RootElement;
-                if (r.ValueKind != JsonValueKind.Object || !r.TryGetProperty("name", out JsonElement nameEl)) continue;
-                string? name = nameEl.GetString();
+                string? name = GetString(r, "name");
                 if (string.IsNullOrEmpty(name)) continue;
-                string version = r.TryGetProperty("version", out JsonElement v) ? v.GetString() ?? "" : "";
-                string desc = r.TryGetProperty("description", out JsonElement d) ? d.GetString() ?? "" : "";
+                string version = GetString(r, "version") ?? "";
+                string desc = GetString(r, "description") ?? "";
                 string rel = Path.GetRelativePath(root, file).Replace('\\', '/');
                 string dir = Path.GetDirectoryName(rel)?.Replace('\\', '/') ?? ".";
                 string value = $"{name} v{version}" + (desc.Length > 0 ? $" — {desc}" : "") + $". Package at {dir}/.";

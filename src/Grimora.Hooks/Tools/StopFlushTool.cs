@@ -1,4 +1,5 @@
 using System.Text.Json;
+using static Grimora.Store.Data.JsonShape;
 using Grimora.Brain.Tools;
 using Grimora.Hooks.Data;
 using Microsoft.Data.Sqlite;
@@ -37,13 +38,9 @@ public static class StopFlushTool
         {
             using JsonDocument doc = JsonDocument.Parse(string.IsNullOrWhiteSpace(stdin) ? "{}" : stdin);
             JsonElement payload = doc.RootElement;
-            string? cwd = payload.TryGetProperty("cwd", out JsonElement cwdEl) && cwdEl.ValueKind == JsonValueKind.String
-                ? cwdEl.GetString()
-                : null;
+            string? cwd = GetString(payload, "cwd");
             instance = HookPaths.ResolveInstance(cwd, projectDir);
-            sessionId = payload.TryGetProperty("session_id", out JsonElement sidEl) && sidEl.ValueKind == JsonValueKind.String
-                ? sidEl.GetString() ?? ""
-                : "";
+            sessionId = GetString(payload, "session_id") ?? "";
         }
         catch (JsonException)
         {

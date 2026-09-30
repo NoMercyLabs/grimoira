@@ -1,5 +1,7 @@
 using System.Text.Json;
+using static Grimora.Store.Data.JsonShape;
 using Grimora.Hooks.Data;
+using Grimora.Memory.Data;
 
 namespace Grimora.Hooks.Tools;
 
@@ -80,11 +82,6 @@ public static class CompactRestoreTool
         }
     }
 
-    private static string? GetString(JsonElement e, string prop) =>
-        e.ValueKind == JsonValueKind.Object && e.TryGetProperty(prop, out JsonElement v) && v.ValueKind == JsonValueKind.String
-            ? v.GetString()
-            : null;
-
     // A best-effort check, not a hard gate: if the ledger cannot be read or the transcript is already
     // gone, this says nothing rather than blocking the restore. Runs the same classifier CompactBriefTool
     // used to write the ledger (not a separate line count of every "type": "user" entry — that counted
@@ -97,12 +94,12 @@ public static class CompactRestoreTool
         {
             if (transcriptPath is null || !File.Exists(transcriptPath) || !File.Exists(ledgerPath)) return "";
 
-            List<JsonElement> entries = CompactBriefTool.ReadEntries(transcriptPath);
-            (List<CompactBriefTool.ClassifiedEntry> classified, _) = CompactBriefTool.ClassifyEntries(entries);
-            int boundary = CompactBriefTool.LastCompactionBoundaryIndex(entries);
+            List<JsonElement> entries = TranscriptClassifier.ReadEntries(transcriptPath);
+            (List<TranscriptClassifier.ClassifiedEntry> classified, _) = TranscriptClassifier.ClassifyEntries(entries);
+            int boundary = TranscriptClassifier.LastCompactionBoundaryIndex(entries);
 
             List<string> ownerTexts = [.. classified
-                .Where(c => c.Index <= boundary && CompactBriefTool.IsOwnerFamily(c.Who))
+                .Where(c => c.Index <= boundary && TranscriptClassifier.IsOwnerFamily(c.Who))
                 .Select(c => c.Text)];
             if (ownerTexts.Count == 0) return "";
 

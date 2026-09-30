@@ -1,4 +1,5 @@
 using System.Text.Json;
+using static Grimora.Store.Data.JsonShape;
 using Grimora.Docs.Tools;
 using Grimora.Hooks.Data;
 using Grimora.Memory.Tools;
@@ -108,13 +109,7 @@ public static class IndexOnEditTool
 
     private static string? GetToolInputPath(JsonElement payload)
     {
-        if (payload.ValueKind != JsonValueKind.Object || !payload.TryGetProperty("tool_input", out JsonElement input)
-            || input.ValueKind != JsonValueKind.Object) return null;
+        if (!TryGetObjectProperty(payload, "tool_input", out JsonElement input) || input.ValueKind != JsonValueKind.Object) return null;
         return GetString(input, "file_path") ?? GetString(input, "notebook_path") ?? GetString(input, "path");
     }
-
-    private static string? GetString(JsonElement e, string prop) =>
-        e.ValueKind == JsonValueKind.Object && e.TryGetProperty(prop, out JsonElement v) && v.ValueKind == JsonValueKind.String
-            ? v.GetString()
-            : null;
 }

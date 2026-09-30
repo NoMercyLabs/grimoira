@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text.Json;
+using static Grimora.Store.Data.JsonShape;
 
 namespace Grimora.Cli.Tools;
 
@@ -114,11 +115,7 @@ public static class ServerHandover
             try
             {
                 using JsonDocument doc = JsonDocument.Parse(body);
-                string? stamp = doc.RootElement.ValueKind == JsonValueKind.Object
-                    && doc.RootElement.TryGetProperty("buildStamp", out JsonElement value)
-                    && value.ValueKind == JsonValueKind.String
-                        ? value.GetString()
-                        : null;
+                string? stamp = GetString(doc.RootElement, "buildStamp");
                 return new Running(true, stamp);
             }
             catch (JsonException)

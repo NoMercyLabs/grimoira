@@ -2,10 +2,12 @@ using System.Security.Cryptography;
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
+using Grimora.Memory.Data;
 using Grimora.Memory.Schema;
 using Grimora.Store.Data;
 using Grimora.Store.Tools;
 using Microsoft.Data.Sqlite;
+using static Grimora.Store.Data.JsonShape;
 
 namespace Grimora.Memory.Tools;
 
@@ -48,55 +50,83 @@ public sealed class IndexChatTool : ITool
             {
                 JsonElement root = doc.RootElement;
                 if (root.ValueKind != JsonValueKind.Object) continue;
-                string type = String(root, "type") ?? "";
+                string type = GetString(root, "type") ?? "";
                 if (type is not ("user" or "assistant")) continue;
-                if (!root.TryGetProperty("message", out JsonElement message) || message.ValueKind != JsonValueKind.Object) continue;
-                if (message.TryGetProperty("content", out JsonElement blocks) && blocks.ValueKind == JsonValueKind.Array)
+                if (!TryGetObjectProperty(root, "message", out JsonElement message) || message.ValueKind != JsonValueKind.Object) continue;
+                if (TryGetObjectProperty(message, "content", out JsonElement blocks) && blocks.ValueKind == JsonValueKind.Array)
                 {
                     foreach (JsonElement block in blocks.EnumerateArray())
                     {
                         if (block.ValueKind != JsonValueKind.Object) continue;
-                        if (type == "assistant" && String(block, "type") == "tool_use" && String(block, "name") == "Read" &&
-                            String(block, "id") is { } id && block.TryGetProperty("input", out JsonElement input) &&
-                            String(input, "file_path") is { } filePath)
+                        if (type == "assistant" && GetString(block, "type") == "tool_use" && GetString(block, "name") == "Read" &&
+                            GetString(block, "id") is { } id && TryGetObjectProperty(block, "input", out JsonElement input) &&
+                            GetString(input, "file_path") is { } filePath)
                             readPaths[id] = filePath;
-                        if (type == "user" && String(block, "type") == "tool_result" &&
-                            String(block, "tool_use_id") is { } resultId && readPaths.TryGetValue(resultId, out string? sourcePath) &&
-                            String(block, "content") is { Length: > 0 } resultText &&
-                            ShouldKeepRead(sourcePath, String(root, "cwd"), trackedPaths))
+                        if (type == "user" && GetString(block, "type") == "tool_result" &&
+                            GetString(block, "tool_use_id") is { } resultId && readPaths.TryGetValue(resultId, out string? sourcePath) &&
+                            GetString(block, "content") is { Length: > 0 } resultText &&
+                            ShouldKeepRead(sourcePath, GetString(root, "cwd"), trackedPaths))
                         {
-                            string docKey = session + ":" + (String(root, "uuid") ?? resultId) + ":doc:" + resultId;
-                            Store(connection, transaction, docKey, session, String(root, "timestamp") ?? "", "tool",
+                            string docKey = session + ":" + (GetString(root, "uuid") ?? resultId) + ":doc:" + resultId;
+                            Store(connection, transaction, docKey, session, GetString(root, "timestamp") ?? "", "tool",
                                 "tool_result_doc", resultText, sourcePath,
-                                root.TryGetProperty("isSidechain", out JsonElement docSide) && docSide.ValueKind == JsonValueKind.True);
+                                IsTrue(root, "isSidechain"));
                             stored++;
                         }
                     }
                 }
-                string? text = ExtractText(message);
+                // A user turn reads through the one transcript recogniser so a pasted document block is kept,
+                // ahead of the typed text, exactly as the PreCompact ledger keeps it.
+                string? text = type == "user" ? TranscriptClassifier.ExtractUserText(root) : ExtractText(message);
                 if (string.IsNullOrWhiteSpace(text)) continue;
                 text = text.Trim();
                 string role = type;
                 string kind = Classify(root, role, text);
                 if (role == "user" && PastedContent(text) is { } pasted)
                 {
-                    string pastedKey = session + ":" + (String(root, "uuid") ?? "") + ":pasted";
-                    Store(connection, transaction, pastedKey, session, String(root, "timestamp") ?? "", "tool",
+                    string pastedKey = session + ":" + (GetString(root, "uuid") ?? "") + ":pasted";
+                    Store(connection, transaction, pastedKey, session, GetString(root, "timestamp") ?? "", "tool",
                         "tool_result_doc", pasted, "pasted_content", false);
                     stored++;
                 }
                 (text, _) = SecretScrubber.Redact(text);
-                string ts = String(root, "timestamp") ?? "";
-                string uuid = String(root, "uuid") ?? "";
+                string ts = GetString(root, "timestamp") ?? "";
+                string uuid = GetString(root, "uuid") ?? "";
                 string k = session + ":" + (uuid.Length > 0 ? uuid : Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(role + "\0" + ts + "\0" + text))));
                 if (IsDuplicate(connection, transaction, k, session, ts, role, text)) continue;
                 Store(connection, transaction, k, session, ts, role, kind, text, null,
-                    root.TryGetProperty("isSidechain", out JsonElement side) && side.ValueKind == JsonValueKind.True);
+                    IsTrue(root, "isSidechain"));
                 stored++;
             }
         }
+        stored += StoreClassifiedEntries(connection, transaction, path, session);
         transaction.Commit();
         sb.AppendLine($"  {session}: {stored} turn(s)");
+        return stored;
+    }
+
+    /// <summary>The owner's words the streaming pass above cannot see: an AskUserQuestion answer lives in
+    /// <c>toolUseResult.answers</c> on a turn whose only block is a tool_result, and a mid-turn message is a
+    /// <c>type: attachment</c> entry, not a user turn. Both come from the one transcript recogniser the
+    /// PreCompact ledger uses (<see cref="TranscriptClassifier"/>), so the chat index and the ledger agree
+    /// on what was said. Peers' queued messages are kept as agent_report, never as the owner's own words.</summary>
+    private static int StoreClassifiedEntries(SqliteConnection connection, SqliteTransaction transaction, string path, string session)
+    {
+        int stored = 0;
+        (List<TranscriptClassifier.ClassifiedEntry> entries, _) = TranscriptClassifier.ClassifyEntries(TranscriptClassifier.ReadEntries(path));
+        foreach (TranscriptClassifier.ClassifiedEntry entry in entries)
+        {
+            bool isPeer = entry.Who.StartsWith("Peer ", StringComparison.Ordinal);
+            if (!isPeer && entry.Who is not ("the owner (answer)" or "the owner (mid-turn)")) continue;
+            string text = isPeer ? $"{entry.Who}: {entry.Text}" : entry.Text;
+            if (string.IsNullOrWhiteSpace(text)) continue;
+            (text, _) = SecretScrubber.Redact(text);
+            string kind = isPeer ? "agent_report" : "human";
+            string k = session + ":" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(entry.Who + "\0" + entry.Timestamp + "\0" + text)));
+            if (IsDuplicate(connection, transaction, k, session, entry.Timestamp, "user", text)) continue;
+            Store(connection, transaction, k, session, entry.Timestamp, "user", kind, text, null, false);
+            stored++;
+        }
         return stored;
     }
 
@@ -197,18 +227,18 @@ public sealed class IndexChatTool : ITool
     {
         if (role == "assistant") return "assistant";
         string start = text.TrimStart();
-        if (root.TryGetProperty("isCompactSummary", out JsonElement compact) && compact.ValueKind == JsonValueKind.True ||
+        if (IsTrue(root, "isCompactSummary") ||
             start.StartsWith("This session is being continued", StringComparison.OrdinalIgnoreCase)) return "compaction_summary";
         if (start.StartsWith("<command-name>/", StringComparison.OrdinalIgnoreCase)) return "slash_command";
         if (start.StartsWith("Stop hook feedback:", StringComparison.OrdinalIgnoreCase) ||
             start.StartsWith("<command", StringComparison.OrdinalIgnoreCase)) return "hook_feedback";
-        if (root.TryGetProperty("attributionSkill", out _) || start.StartsWith("<skill", StringComparison.OrdinalIgnoreCase) ||
+        if (TryGetObjectProperty(root, "attributionSkill", out _) || start.StartsWith("<skill", StringComparison.OrdinalIgnoreCase) ||
             start.StartsWith("# Workflow authoring reference", StringComparison.OrdinalIgnoreCase)) return "skill_body";
         if (start.StartsWith("<task-notification>", StringComparison.OrdinalIgnoreCase)) return "agent_report";
-        if (root.TryGetProperty("isMeta", out JsonElement meta) && meta.ValueKind == JsonValueKind.True ||
-            String(root, "promptSource") == "system" || start.StartsWith("<system-reminder>", StringComparison.OrdinalIgnoreCase))
+        if (IsTrue(root, "isMeta") ||
+            GetString(root, "promptSource") == "system" || start.StartsWith("<system-reminder>", StringComparison.OrdinalIgnoreCase))
             return "system_notice";
-        if (root.TryGetProperty("isSidechain", out JsonElement side) && side.ValueKind == JsonValueKind.True) return "agent_report";
+        if (IsTrue(root, "isSidechain")) return "agent_report";
         if (start.StartsWith("Check ", StringComparison.OrdinalIgnoreCase) && start.Contains("run ", StringComparison.OrdinalIgnoreCase)) return "loop_prompt";
         if (start.StartsWith('/') || PastedContent(start) is { } pasted &&
             (pasted.TrimStart().StartsWith('/') || pasted.Contains("\n/goal ", StringComparison.OrdinalIgnoreCase))) return "slash_command";
@@ -228,18 +258,15 @@ public sealed class IndexChatTool : ITool
 
     private static string? ExtractText(JsonElement message)
     {
-        if (!message.TryGetProperty("content", out JsonElement content)) return null;
+        if (!TryGetObjectProperty(message, "content", out JsonElement content)) return null;
         if (content.ValueKind == JsonValueKind.String) return content.GetString();
         if (content.ValueKind != JsonValueKind.Array) return null;
         StringBuilder sb = new();
         foreach (JsonElement block in content.EnumerateArray())
         {
-            if (block.ValueKind == JsonValueKind.Object && String(block, "type") == "text" && String(block, "text") is { } text)
+            if (block.ValueKind == JsonValueKind.Object && GetString(block, "type") == "text" && GetString(block, "text") is { } text)
                 sb.AppendLine(text);
         }
         return sb.Length == 0 ? null : sb.ToString();
     }
-
-    private static string? String(JsonElement element, string property) =>
-        element.ValueKind == JsonValueKind.Object && element.TryGetProperty(property, out JsonElement value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
 }

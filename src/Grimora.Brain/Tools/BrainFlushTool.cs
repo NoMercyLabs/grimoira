@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using static Grimora.Store.Data.JsonShape;
 using Grimora.Brain.Data;
 using Grimora.Store.Tools;
 using Microsoft.Data.Sqlite;
@@ -143,11 +144,9 @@ public sealed class BrainFlushTool : ITool
         File.Move(tempPath, path, overwrite: true);
     }
 
-    private static string JStr(JsonElement e, string name) =>
-        e.TryGetProperty(name, out JsonElement v) && v.ValueKind == JsonValueKind.String ? v.GetString() ?? "" : "";
+    private static string JStr(JsonElement e, string name) => GetString(e, name) ?? "";
 
-    private static bool JBool(JsonElement e, string name) =>
-        e.TryGetProperty(name, out JsonElement v) && v.ValueKind == JsonValueKind.True;
+    private static bool JBool(JsonElement e, string name) => IsTrue(e, name);
 
     private static void BeginTransaction(SqliteConnection connection)
     {

@@ -1,5 +1,6 @@
 using Grimora.Store.Data;
 using System.Text.Json;
+using static Grimora.Store.Data.JsonShape;
 using Grimora.Brain.Data;
 using Grimora.Store.Tools;
 using Microsoft.Data.Sqlite;
@@ -62,14 +63,14 @@ public sealed partial class BrainIndexOrgTool : ITool
                 if (isFork) forks++;
                 string name = Str(r, "name");
                 string key = $"repo:{org}/{name}";
-                string lang = r.TryGetProperty("primaryLanguage", out JsonElement pl) && pl.ValueKind == JsonValueKind.Object
+                string lang = TryGetObjectProperty(r, "primaryLanguage", out JsonElement pl) && pl.ValueKind == JsonValueKind.Object
                     ? Str(pl, "name") : "";
                 List<string> topics = [];
-                if (r.TryGetProperty("repositoryTopics", out JsonElement topEl) && topEl.ValueKind == JsonValueKind.Array)
+                if (TryGetObjectProperty(r, "repositoryTopics", out JsonElement topEl) && topEl.ValueKind == JsonValueKind.Array)
                     foreach (JsonElement t in topEl.EnumerateArray())
                     {
                         string tn = Str(t, "name");
-                        if (tn.Length == 0 && t.TryGetProperty("topic", out JsonElement tp)) tn = Str(tp, "name");
+                        if (tn.Length == 0 && TryGetObjectProperty(t, "topic", out JsonElement tp)) tn = Str(tp, "name");
                         if (tn.Length > 0) topics.Add(tn);
                     }
                 string url = Str(r, "url");
@@ -84,7 +85,7 @@ public sealed partial class BrainIndexOrgTool : ITool
                     Bool(r, "isPrivate") ? "private" : "public",
                     isArchived ? "ARCHIVED" : "",
                     isFork ? "fork" : "",
-                    $"default branch {(r.TryGetProperty("defaultBranchRef", out JsonElement db) && db.ValueKind == JsonValueKind.Object ? Str(db, "name") : "unknown")}",
+                    $"default branch {(TryGetObjectProperty(r, "defaultBranchRef", out JsonElement db) && db.ValueKind == JsonValueKind.Object ? Str(db, "name") : "unknown")}",
                     Str(r, "pushedAt") is { Length: >= 10 } pa ? $"last pushed {pa[..10]}" : "",
                     local is not null ? $"cloned at {local}" : "not cloned locally",
                     pkg is not null ? $"publishes npm package {pkg}" : "",
@@ -169,10 +170,7 @@ public sealed partial class BrainIndexOrgTool : ITool
         {
             using JsonDocument doc = JsonDocument.Parse(File.ReadAllText(Path.Combine(dir, "package.json")));
             JsonElement root = doc.RootElement;
-            bool priv = root.TryGetProperty("private", out JsonElement p) && p.ValueKind == JsonValueKind.True;
-            return root.TryGetProperty("name", out JsonElement n) && n.ValueKind == JsonValueKind.String && !priv
-                ? n.GetString()
-                : null;
+            return IsTrue(root, "private") ? null : GetString(root, "name");
         }
         catch
         {
@@ -180,11 +178,9 @@ public sealed partial class BrainIndexOrgTool : ITool
         }
     }
 
-    private static string Str(JsonElement e, string name) =>
-        e.TryGetProperty(name, out JsonElement v) && v.ValueKind == JsonValueKind.String ? v.GetString() ?? "" : "";
+    private static string Str(JsonElement e, string name) => GetString(e, name) ?? "";
 
-    private static bool Bool(JsonElement e, string name) =>
-        e.TryGetProperty(name, out JsonElement v) && v.ValueKind == JsonValueKind.True;
+    private static bool Bool(JsonElement e, string name) => IsTrue(e, name);
 
     [GeneratedRegex(@"\.git$", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex RemoteUrlGitSuffix();
