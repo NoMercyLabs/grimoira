@@ -330,20 +330,43 @@ void PointCurrent(string link, string target)
 
         if (OperatingSystem.IsWindows())
         {
+            // Neither the move nor the restore can be made to fail from outside (mklink /J accepts a missing target),
+            // so the tests inject the failures here; unset everywhere else.
+            string fault = Environment.GetEnvironmentVariable("GRIMORA_BOOTSTRAP_FAULT") ?? "";
             string? previous = RealOrNull(link);
             RemoveLink(link);
             try
             {
-                Directory.Move(next, link); // renames the junction itself; it never follows it
-            }
-            catch
-            {
-                if (previous is not null)
+                if (fault.Contains("move", StringComparison.Ordinal))
                 {
-                    CreateLink(link, previous);
+                    throw new IOException("injected move failure");
                 }
 
-                throw;
+                Directory.Move(next, link); // renames the junction itself; it never follows it
+            }
+            catch (Exception moveError)
+            {
+                string repair = $"repair: dotnet \"{Path.Combine(root, "bootstrap.cs")}\" --build \"{Path.GetDirectoryName(link)}\"";
+                if (previous is null)
+                {
+                    throw new IOException($"move {next} to {link} failed ({moveError.Message}); there was no previous {link} to restore, so it is missing; {repair}");
+                }
+
+                try
+                {
+                    if (fault.Contains("restore", StringComparison.Ordinal))
+                    {
+                        throw new IOException("injected restore failure");
+                    }
+
+                    CreateLink(link, previous);
+                }
+                catch (Exception restoreError)
+                {
+                    throw new IOException($"move {next} to {link} failed ({moveError.Message}) and the restore of {link} -> {previous} failed too ({restoreError.Message}); {link} is missing; {repair}");
+                }
+
+                throw new IOException($"move {next} to {link} failed ({moveError.Message}); {link} was restored to {previous}");
             }
 
             return;
