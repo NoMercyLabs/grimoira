@@ -5,7 +5,7 @@ using Xunit;
 
 namespace Grimora.Layout.Tests;
 
-// the owner: "purge all .mjs". The plugin needs only `dotnet`. No Node script is tracked, and nothing that ships
+// Rule (2026-09-27): "purge all .mjs". The plugin needs only `dotnet`. No Node script is tracked, and nothing that ships
 // or gates the plugin runs `node`, and the README does not ask the user to install it.
 public partial class NoNodeRemainsTests
 {

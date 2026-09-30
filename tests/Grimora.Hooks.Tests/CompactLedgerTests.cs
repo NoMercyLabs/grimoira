@@ -7,7 +7,7 @@ using Xunit;
 namespace Grimora.Hooks.Tests;
 
 /// <summary>
-/// PreCompact must carry the owner's own words whole, not the first 400 characters of the last 4 messages
+/// PreCompact must carry the user's own words whole, not the first 400 characters of the last 4 messages
 /// (the bug CompactBriefTool.Directives() had): every typed message, every mid-turn queued message,
 /// every AskUserQuestion answer, and — in the verbatim ledger it now also writes — every peer message and
 /// every assistant reply too.
@@ -298,8 +298,8 @@ public class CompactLedgerTests
                     timestamp = "2026-09-30T09:01:00Z",
                 }));
             }
-            string[] ownerMessages = ["the owner message one.", "the owner message two.", "the owner message three."];
-            foreach (string m in ownerMessages)
+            string[] userMessages = ["User message one.", "User message two.", "User message three."];
+            foreach (string m in userMessages)
             {
                 lines.Add(JsonSerializer.Serialize(new { type = "user", message = new { content = m }, timestamp = "2026-09-30T09:02:00Z" }));
             }
@@ -332,9 +332,9 @@ public class CompactLedgerTests
         try
         {
             string transcriptPath = Path.Combine(projectDir, "transcript.jsonl");
-            string[] ownerMessages = ["First message.", "Second message.", "Third message."];
+            string[] userMessages = ["First message.", "Second message.", "Third message."];
             List<string> lines = [];
-            foreach (string m in ownerMessages)
+            foreach (string m in userMessages)
             {
                 lines.Add(JsonSerializer.Serialize(new { type = "user", message = new { content = m }, timestamp = "2026-09-30T09:02:00Z" }));
             }
@@ -563,7 +563,7 @@ public class CompactLedgerTests
             Assert.Contains(first, ledgerAfterThirdRun);
             Assert.Contains(second, ledgerAfterThirdRun);
             Assert.Contains(third, ledgerAfterThirdRun);
-            Assert.Contains("Entries: 3 (the owner 3,", ledgerAfterThirdRun);
+            Assert.Contains("Entries: 3 (User 3,", ledgerAfterThirdRun);
         }
         finally
         {

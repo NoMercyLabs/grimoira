@@ -5,7 +5,7 @@ using Xunit;
 
 namespace Grimora.Layout.Tests;
 
-// the owner, 2026-09-27: "i see powershell scripts but no bash equivalents". Every root *.ps1 has a *.sh twin with
+// Rule (2026-09-27): "i see powershell scripts but no bash equivalents". Every root *.ps1 has a *.sh twin with
 // the same flags, and the other way round; CI on Linux runs the twins, never pwsh.
 public partial class EveryPowerShellScriptHasABashTwinTests
 {

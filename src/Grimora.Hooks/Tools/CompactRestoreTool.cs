@@ -37,7 +37,7 @@ public static class CompactRestoreTool
             string brief = File.ReadAllText(path);
             if (brief.Trim().Length < 40) return "";
 
-            // Mark, never delete: the brief and its ledger stay on disk (the owner can still open them), but
+            // Mark, never delete: the brief and its ledger stay on disk (the user can still open them), but
             // this compaction's restore only fires once.
             try { File.WriteAllText(restoredMarkerPath, ""); } catch { /* best effort */ }
 
@@ -51,7 +51,7 @@ public static class CompactRestoreTool
                     hookEventName = "UserPromptSubmit",
                     additionalContext =
                         $"{failurePrefix}{lossPrefix}{brief}\n\nThese are facts recorded at compaction time, not a plan. Continue the work in " +
-                        "progress; do not re-derive this state by reading files, and do not restate it back to the owner.",
+                        "progress; do not re-derive this state by reading files, and do not restate it back to the user.",
                 },
             };
             return JsonSerializer.Serialize(envelope);
@@ -86,7 +86,7 @@ public static class CompactRestoreTool
     // gone, this says nothing rather than blocking the restore. Runs the same classifier CompactBriefTool
     // used to write the ledger (not a separate line count of every "type": "user" entry — that counted
     // tool-result turns and task-notification queue entries too, so it fired on every compaction), takes
-    // the the owner-family entries up to the last compaction boundary — the ones that should already be on
+    // the user-family entries up to the last compaction boundary — the ones that should already be on
     // disk — and checks each is actually contained in the ledger text, verbatim (CRLF/LF-insensitive).
     private static string LossPrefix(string ledgerPath, string? transcriptPath)
     {
@@ -98,16 +98,16 @@ public static class CompactRestoreTool
             (List<TranscriptClassifier.ClassifiedEntry> classified, _) = TranscriptClassifier.ClassifyEntries(entries);
             int boundary = TranscriptClassifier.LastCompactionBoundaryIndex(entries);
 
-            List<string> ownerTexts = [.. classified
-                .Where(c => c.Index <= boundary && TranscriptClassifier.IsOwnerFamily(c.Who))
+            List<string> userTexts = [.. classified
+                .Where(c => c.Index <= boundary && TranscriptClassifier.IsUserFamily(c.Who))
                 .Select(c => c.Text)];
-            if (ownerTexts.Count == 0) return "";
+            if (userTexts.Count == 0) return "";
 
             string ledgerText = NormalizeNewlines(File.ReadAllText(ledgerPath));
-            int missing = ownerTexts.Count(t => !ledgerText.Contains(NormalizeNewlines(t), StringComparison.Ordinal));
+            int missing = userTexts.Count(t => !ledgerText.Contains(NormalizeNewlines(t), StringComparison.Ordinal));
             if (missing == 0) return "";
 
-            return $"LEDGER LOSS: {missing} of {ownerTexts.Count} the owner messages are not in {ledgerPath}\n\n";
+            return $"LEDGER LOSS: {missing} of {userTexts.Count} user messages are not in {ledgerPath}\n\n";
         }
         catch
         {

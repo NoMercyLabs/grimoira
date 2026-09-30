@@ -121,7 +121,7 @@ public sealed class IndexChatTool : ITool
         foreach (TranscriptClassifier.ClassifiedEntry entry in entries)
         {
             bool isPeer = entry.Who.StartsWith("Peer ", StringComparison.Ordinal);
-            if (!isPeer && entry.Who is not ("the owner (answer)" or "the owner (mid-turn)")) continue;
+            if (!isPeer && entry.Who is not ("User (answer)" or "User (mid-turn)")) continue;
             string text = isPeer ? $"{entry.Who}: {entry.Text}" : entry.Text;
             if (string.IsNullOrWhiteSpace(text)) continue;
             (text, _) = SecretScrubber.Redact(text);

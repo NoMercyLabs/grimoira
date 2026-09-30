@@ -9,9 +9,9 @@ namespace Grimora.Store.Tests;
 public class InstanceResolutionParityTests
 {
     [Theory]
-    [InlineData("NoMercy", null, "/home/owner/work")]
-    [InlineData(null, "/home/owner/projects/grimora", "/tmp")]
-    [InlineData(null, null, "/home/owner/projects/My Repo!!")]
+    [InlineData("NoMercy", null, "/home/dev/work")]
+    [InlineData(null, "/home/dev/projects/grimora", "/tmp")]
+    [InlineData(null, null, "/home/dev/projects/My Repo!!")]
     [InlineData(null, null, "/")]
     [InlineData("Weird Name_2", null, "/tmp")]
     [InlineData(null, "C:\\Projects\\NoMercy\\", "/tmp")]

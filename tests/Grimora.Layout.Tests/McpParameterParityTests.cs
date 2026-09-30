@@ -35,7 +35,7 @@ public partial class McpParameterParityTests
         Dictionary<string, string> oracle = ExtractSignatures(oracleSource);
         Dictionary<string, string> current = ExtractSignatures(currentSource);
 
-        oracle.Remove("idp_token"); // removed on purpose: Grimora holds no secrets (the owner); the pinned oracle still has it
+        oracle.Remove("keycloak_token"); // removed on purpose: Grimora holds no secrets (rule, 2026-09-26); the pinned oracle still has it
         Assert.Equal(24, oracle.Count);
         foreach ((string tool, string oracleParams) in oracle.OrderBy(p => p.Key, StringComparer.Ordinal))
         {

@@ -11,7 +11,7 @@ namespace Grimora.Hooks.Tests;
 /// nothing) because <c>toolUseResult</c> and other fields are not always the JSON object shape the
 /// classifier assumed: on the 8 largest real transcripts, <c>user.toolUseResult</c> was a string 1,167
 /// times and an array 1,962 times, <c>queued_command.prompt</c> was an array (not a string) 601 times —
-/// every one of them the owner's own mid-turn words — and a compaction boundary is really marked by
+/// every one of them the user's own mid-turn words — and a compaction boundary is really marked by
 /// <c>user.isCompactSummary == true</c>, not only by matching the legacy "This session is being
 /// continued..." text. These tests pin the fixes: every shape is read without throwing, an array prompt
 /// with an image block is readable text, the boundary is found from the real marker, and — when something
@@ -93,9 +93,9 @@ public class CompactShapeRobustnessTests
             Assert.False(stdout.StartsWith("GRIMORA COMPACTION LEDGER FAILED", StringComparison.Ordinal), stdout);
             Assert.Contains("Which TV?: Living room.", ledger);
             // The malformed array/string entries must not have produced a bogus second "answer" ledger
-            // block (the header line itself also contains the words "the owner (answer)", so this counts the
+            // block (the header line itself also contains the words "User (answer)", so this counts the
             // per-entry headings, not the summary line).
-            Assert.Equal(1, CountOccurrences(ledger, "## the owner (answer)"));
+            Assert.Equal(1, CountOccurrences(ledger, "## User (answer)"));
         }
         finally
         {

@@ -138,7 +138,7 @@ public static class OldVsNewCli
             StandardErrorEncoding = System.Text.Encoding.UTF8,
         };
         if (dataDir is not null) psi.Environment["GRIMORA_DATA_DIR"] = dataDir;
-        // The pinned oracle (aitm.dll) still keeps its store under C:/Users/dev/.aitm; hand it the instance and take it back.
+        // The pinned oracle (aitm.dll) still keeps its store under ~/.aitm; hand it the instance and take it back.
         bool oracle = Path.GetFileName(dllPath) == "aitm.dll";
         if (oracle) OldStore.ToOld(instance);
         using Process process = Process.Start(psi) ?? throw new InvalidOperationException($"could not start dotnet {dllPath}");

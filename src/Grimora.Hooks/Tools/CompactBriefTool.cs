@@ -134,7 +134,7 @@ public static partial class CompactBriefTool
 
         if (said.Count > 0)
         {
-            lines.Add("## What the owner actually asked for, in his words");
+            lines.Add("## What the user actually asked for, in their words");
             lines.Add("");
             foreach (string s in said) lines.Add($"- \"{s}\"");
             lines.Add("");
@@ -185,7 +185,7 @@ public static partial class CompactBriefTool
 
         lines.Add("## Full verbatim record");
         lines.Add("");
-        lines.Add($"Every entry - the owner's, the peers', and Arc's own replies - is kept whole in {ledgerPath}");
+        lines.Add($"Every entry - the user's, the peers', and the assistant's own replies - is kept whole in {ledgerPath}");
         lines.Add("");
 
         return string.Join("\n", lines);
@@ -203,7 +203,7 @@ public static partial class CompactBriefTool
     }
 
     // The user's own words are the directive; a summary reliably keeps the task and drops the
-    // constraints. Everything the owner said since the last compaction boundary carries whole — no
+    // constraints. Everything the user said since the last compaction boundary carries whole — no
     // per-message cut, no "last 4 only" — because a mid-turn instruction 5 messages back is exactly as
     // binding as the most recent one. Only when the combined text would blow the brief's own budget does
     // this fall back to newest-first, and even then it says so instead of silently dropping the rest.
@@ -214,7 +214,7 @@ public static partial class CompactBriefTool
     // "mid-turn" loops to drift out of order or double-count a dedupe).
     private static List<string> Directives(List<ClassifiedEntry> classified, int boundary, string ledgerPath)
     {
-        List<string> said = [.. classified.Where(c => c.Index > boundary && IsOwnerFamily(c.Who)).Select(c => c.Text)];
+        List<string> said = [.. classified.Where(c => c.Index > boundary && IsUserFamily(c.Who)).Select(c => c.Text)];
 
         int total = said.Sum(s => s.Length);
         if (total <= DirectiveBudgetChars) return said;
@@ -243,19 +243,19 @@ public static partial class CompactBriefTool
     // then miscounted, unable to tell a continuation line from the next entry.
     private static string BuildLedger(List<ClassifiedEntry> classified, int skipped)
     {
-        int owner = classified.Count(c => c.Who == "the owner");
-        int midTurn = classified.Count(c => c.Who == "the owner (mid-turn)");
-        int answer = classified.Count(c => c.Who == "the owner (answer)");
-        int arc = classified.Count(c => c.Who == "Arc");
-        int arcQuestion = classified.Count(c => c.Who == "Arc (question)");
+        int user = classified.Count(c => c.Who == "User");
+        int midTurn = classified.Count(c => c.Who == "User (mid-turn)");
+        int answer = classified.Count(c => c.Who == "User (answer)");
+        int assistant = classified.Count(c => c.Who == "Assistant");
+        int assistantQuestion = classified.Count(c => c.Who == "Assistant (question)");
         int peer = classified.Count(c => c.Who.StartsWith("Peer ", StringComparison.Ordinal));
 
         List<string> lines =
         [
             "# Compaction ledger — verbatim, never truncated",
             "",
-            $"Entries: {classified.Count} (the owner {owner}, the owner (mid-turn) {midTurn}, the owner (answer) {answer}, " +
-                $"Arc {arc}, Arc (question) {arcQuestion}, Peer {peer})",
+            $"Entries: {classified.Count} (User {user}, User (mid-turn) {midTurn}, User (answer) {answer}, " +
+                $"Assistant {assistant}, Assistant (question) {assistantQuestion}, Peer {peer})",
         ];
         if (skipped > 0) lines.Add($"Skipped: {skipped}");
         lines.Add("");

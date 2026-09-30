@@ -2,7 +2,7 @@ using Xunit;
 
 namespace Grimora.Layout.Tests;
 
-// the owner, 2026-09-27: every warning Rider shows must fail the build. Rider's own inspections are not
+// Rule (2026-09-27): every warning Rider shows must fail the build. Rider's own inspections are not
 // Roslyn analyzers, so they run through JetBrains' inspectcode (a pinned dotnet tool) against the
 // checked-in solution DotSettings, and inspect.ps1 fails on any result at severity ERROR.
 public class RiderInspectionsAreEnforcedTests

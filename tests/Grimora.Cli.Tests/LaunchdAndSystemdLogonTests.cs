@@ -11,7 +11,7 @@ namespace Grimora.Cli.Tests;
 public class LaunchdAndSystemdLogonTests
 {
     private static WindowsLogonTaskDefinition Definition() =>
-        WindowsLogonTask.BuildDefinition("/usr/local/grimora/Grimora.Server", "owner");
+        WindowsLogonTask.BuildDefinition("/usr/local/grimora/Grimora.Server", "dev");
 
     [Fact]
     public void LaunchdPlistRunsAtLoadAfterADelayAndRestartsOnFailureWithoutStopping()

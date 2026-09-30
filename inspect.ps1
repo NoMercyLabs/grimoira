@@ -1,4 +1,4 @@
-# Rider's own inspections, run headless. the owner, 2026-09-27: every warning Rider shows must fail the build.
+# Rider's own inspections, run headless. Rule (2026-09-27): every warning Rider shows must fail the build.
 # The severities live in the checked-in Grimora.sln.DotSettings; a rule set to ERROR there fails this script.
 # Needs a restored solution (run `dotnet restore Grimora.sln` first); costs about 1.5 minutes and 2.8 GB of nuget cache.
 param([string]$Output = (Join-Path ([System.IO.Path]::GetTempPath()) 'grimora-inspect.sarif'))

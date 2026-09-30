@@ -1,7 +1,7 @@
 #!/bin/sh
 # Reject any commit message carrying an injected attribution trailer.
 #
-# the owner's rule is absolute: no Co-Authored-By in a NoMercy commit, ever. It kept arriving anyway,
+# Rule (2026-09-27), absolute: no Co-Authored-By in a NoMercy commit, ever. It kept arriving anyway,
 # because the instruction lives in a file an agent can be told to ignore and a harness can override.
 # A rule that depends on remembering is a rule that fails on the one commit nobody was watching.
 #

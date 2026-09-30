@@ -7,7 +7,7 @@ namespace Grimora.Server.Tests;
 
 // RESTRUCTURE.md "Slice 25: Grimora.Server host", superseded by Slice P1 ("Phase 4, replaced"): the Host/Origin
 // guard is gone now that nothing is reachable over TCP. It holds no secret and checks no token
-// (the owner, 2026-09-26). These tests run the real Program pipeline through an in-process
+// (rule, 2026-09-26). These tests run the real Program pipeline through an in-process
 // TestServer (WebApplicationFactory<Program>), which replaces Kestrel entirely and so never exercises the
 // pipe/socket transport itself (PipeOnlyTransportTests and PipeTransportRealProcessTests do) — Program
 // reads GRIMORA_DATA_DIR so a test never touches ~/.grimora; GRIMORA_SERVER_PORT below is no longer read by anything
@@ -50,7 +50,7 @@ public sealed class ServerHostTests : IDisposable
         Assert.True(body.ContainsKey("buildStamp")); // null outside a published build (slice 32b)
     }
 
-    // Grimora holds no secret (the owner, 2026-09-26): the guard is the loopback bind, the Host check and the Origin
+    // Grimora holds no secret (rule, 2026-09-26): the guard is the loopback bind, the Host check and the Origin
     // refusal, never a token. A plain loopback call with no Authorization header is served.
     [Theory]
     [InlineData("127.0.0.1")]
@@ -67,7 +67,7 @@ public sealed class ServerHostTests : IDisposable
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
-    // RESTRUCTURE.md "Phase 4, replaced (the owner, 2026-09-26)": "No TCP port, no HTTP listener on the
+    // RESTRUCTURE.md "Phase 4, replaced (2026-09-26)": "No TCP port, no HTTP listener on the
     // network, no token, no Host/Origin guard." The Host/Origin checks and the loopback-only assertion
     // they protected are gone with the guard; PipeOnlyTransportTests covers the pipe/socket transport that
     // replaces the loopback bind as the guard.

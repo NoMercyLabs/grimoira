@@ -32,7 +32,7 @@ public static class McpProcess
             Environment = { ["GRIMORA_INSTANCE"] = instance, ["AITM_INSTANCE"] = instance },
         };
 
-        // The pinned snapshot still keeps its store under C:/Users/dev/.aitm; hand it the instance and take it back.
+        // The pinned snapshot still keeps its store under ~/.aitm; hand it the instance and take it back.
         bool snapshot = dllPath.Contains("grimora-mcp-snapshot", StringComparison.Ordinal);
         if (snapshot) OldStore.ToOld(instance);
         using Process process = Process.Start(psi) ?? throw new InvalidOperationException($"could not start dotnet {dllPath}");

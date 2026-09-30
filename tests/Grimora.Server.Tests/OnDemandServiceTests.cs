@@ -6,7 +6,7 @@ using Xunit.Abstractions;
 
 namespace Grimora.Server.Tests;
 
-// RESTRUCTURE.md "Phase 4, replaced (the owner, 2026-09-26)": the first call starts the service on its own,
+// RESTRUCTURE.md "Phase 4, replaced (2026-09-26)": the first call starts the service on its own,
 // behind the scenes. Real Grimora.Server and grimora processes on a temp data dir (its own pipe/socket); the live
 // service is never touched. Servers this test starts are stopped through their own POST /shutdown, never
 // killed by a pid it did not start.

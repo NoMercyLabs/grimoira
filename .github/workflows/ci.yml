@@ -43,11 +43,11 @@ jobs:
       - name: Build MCP server
         run: ./build-mcp.sh
 
-      # the owner, 2026-09-26: the code style "must be enforced by rules". A file the fixer would rewrite fails CI.
+      # Rule (2026-09-26): the code style "must be enforced by rules". A file the fixer would rewrite fails CI.
       - name: Code style
         run: dotnet format style Grimora.sln --severity info --diagnostics IDE0005 IDE0008 IDE0028 IDE0090 IDE0300 IDE0301 IDE0305 IDE0370 --verify-no-changes
 
-      # the owner, 2026-09-27: every warning Rider shows must fail the build. Rider's inspections are not Roslyn
+      # Rule (2026-09-27): every warning Rider shows must fail the build. Rider's inspections are not Roslyn
       # analyzers, so JetBrains' inspectcode (pinned in .config/dotnet-tools.json) runs against Grimora.sln.DotSettings.
       - name: Rider inspections
         run: |

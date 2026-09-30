@@ -60,7 +60,7 @@ public static class HookPaths
     }
 
     /// <summary>Where the verbatim compaction ledger lives, next to <see cref="BriefPath"/>: the brief is a
-    /// budget-limited summary of what the owner said since the last compaction, the ledger is the full record
+    /// budget-limited summary of what the user said since the last compaction, the ledger is the full record
     /// (every user, mid-turn, peer and assistant entry) a brief that hit its budget points back to.</summary>
     public static string LedgerPath(string instance, string? sessionId)
     {

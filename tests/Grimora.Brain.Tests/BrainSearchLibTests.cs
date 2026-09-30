@@ -122,7 +122,7 @@ public class BrainSearchLibTests
             List<BrainSearchLib.SearchHit> hist = BrainSearchLib.HistoryFor(c, "c:/repo/src/Pipeline/Stages/PlanStage.cs");
             Assert.Contains(hist, h => (h.Head + h.Body).Contains("stream-copy", StringComparison.OrdinalIgnoreCase));
 
-            InsertMemory(c, "desktopfiles", "Never write files to the owner's Desktop", "unrelated to any view");
+            InsertMemory(c, "desktopfiles", "Never write files to the user's Desktop", "unrelated to any view");
             List<BrainSearchLib.SearchHit> deskHist = BrainSearchLib.HistoryFor(c, "c:/repo/src/views/Watch/Desktop.vue");
             Assert.DoesNotContain(deskHist, h => h.Head.Contains("Never write files", StringComparison.OrdinalIgnoreCase));
         }

@@ -4,7 +4,7 @@ using Microsoft.Data.Sqlite;
 namespace Grimora.Graph.Schema;
 
 /// <summary>
-/// RESTRUCTURE.md phase 3 slice 31 ("Graph paths become project-relative", the owner 2026-09-25:
+/// RESTRUCTURE.md phase 3 slice 31 ("Graph paths become project-relative", rule 2026-09-25:
 /// "relative"). Adds <c>edges.file_rel</c> — the path relative to the row's project root, forward-slash
 /// separated, Linux-safe (<see cref="Path.GetRelativePath"/>) — alongside the existing <c>edges.file</c>
 /// (kept until slice 33). Not folded into <see cref="GraphSchema"/>'s base <c>CREATE TABLE</c>: doing so

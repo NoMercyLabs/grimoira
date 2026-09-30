@@ -6,10 +6,10 @@ using static Grimora.Store.Data.JsonShape;
 namespace Grimora.Memory.Data;
 
 /// <summary>
-/// The one recogniser for what was said in a Claude Code transcript: the owner's typed turns, his mid-turn
+/// The one recogniser for what was said in a Claude Code transcript: the user's typed turns, their mid-turn
 /// <c>queued_command</c> prompts (a string, or an array of text and image blocks), his AskUserQuestion
 /// answers (the structured <c>toolUseResult.answers</c> map), pasted document blocks, a peer session's
-/// queued messages, and Arc's own replies and questions. The PreCompact ledger (Grimora.Hooks) and the
+/// queued messages, and the assistant's own replies and questions. The PreCompact ledger (Grimora.Hooks) and the
 /// SessionEnd chat index (<c>IndexChatTool</c>) both read through it, so neither can drift from the other.
 /// Every property read goes through <see cref="JsonShape"/>: a string, array or null where an object was
 /// expected is skipped, never thrown on.
@@ -23,14 +23,14 @@ internal static partial class TranscriptClassifier
 public static partial class TranscriptClassifier
 #endif
 {
-    /// <summary>One transcript entry, recognised as the owner's, a peer's, or Arc's own words.
+    /// <summary>One transcript entry, recognised as the user's, a peer's, or the assistant's own words.
     /// <paramref name="Index"/> is the entry's position in the transcript the classifier read, so a caller
     /// can cut at a compaction boundary computed on the same list.</summary>
     public readonly record struct ClassifiedEntry(int Index, string Timestamp, string Who, string Text);
 
-    /// <summary>the owner's own words, whichever shape they arrived in: typed, a mid-turn queued message, or
+    /// <summary>The user's own words, whichever shape they arrived in: typed, a mid-turn queued message, or
     /// an AskUserQuestion answer.</summary>
-    public static bool IsOwnerFamily(string who) => who is "the owner" or "the owner (mid-turn)" or "the owner (answer)";
+    public static bool IsUserFamily(string who) => who is "User" or "User (mid-turn)" or "User (answer)";
 
     /// <summary>Every parseable line of a JSONL transcript, cloned out of its document. A partial write
     /// (the last line while Claude Code is still appending) is skipped.</summary>
@@ -74,7 +74,7 @@ public static partial class TranscriptClassifier
     /// <summary>A user turn's own text: the plain string it usually is, or the text blocks joined with a
     /// space. A pasted file arrives as its own <c>document</c> block, separate from the typed text around
     /// it; it is kept whole and ahead of the typed text, because losing which lines came from the paste
-    /// versus what the owner typed about it is exactly the kind of impression a summary would leave.</summary>
+    /// versus what the user typed about it is exactly the kind of impression a summary would leave.</summary>
     public static string ExtractUserText(JsonElement e) => JoinUserText(SplitUserText(e, " "));
 
     /// <summary>The pasted documents ahead of the typed text, as one string; either part may be empty.</summary>
@@ -154,7 +154,7 @@ public static partial class TranscriptClassifier
     // One pass, in transcript order, with the dedupe rules applied once: two recognisers used to drift (a
     // mid-turn queued message landed after every typed message regardless of when it was queued, and a
     // duplicate queued_command could be counted twice by one and once by the other). The PreCompact ledger
-    // takes every entry, never cut; the brief takes only the the owner-family entries after the compaction
+    // takes every entry, never cut; the brief takes only the user-family entries after the compaction
     // boundary; the chat index stores the answers, mid-turn prompts and peer messages the streaming pass
     // cannot see. Re-running this on the same transcript is deterministic.
     public static (List<ClassifiedEntry> Entries, int Skipped) ClassifyEntries(List<JsonElement> entries)
@@ -185,7 +185,7 @@ public static partial class TranscriptClassifier
                     {
                         foreach ((string question, string answer) in answers)
                         {
-                            outp.Add(new ClassifiedEntry(i, timestamp, "the owner (answer)", $"{question}: {answer}"));
+                            outp.Add(new ClassifiedEntry(i, timestamp, "User (answer)", $"{question}: {answer}"));
                         }
                         continue;
                     }
@@ -196,7 +196,7 @@ public static partial class TranscriptClassifier
                     if (trimmed.Length == 0 || trimmed.StartsWith('<') || trimmed.StartsWith("Caveat:", StringComparison.Ordinal)) continue;
                     if (ContinuedSummaryStart().IsMatchOrFalse(trimmed)) continue;
                     if (HookFeedbackNotice().IsMatchOrFalse(trimmed[..Math.Min(60, trimmed.Length)])) continue;
-                    outp.Add(new ClassifiedEntry(i, timestamp, "the owner", trimmed));
+                    outp.Add(new ClassifiedEntry(i, timestamp, "User", trimmed));
                 }
                 else if (type == "assistant")
                 {
@@ -209,14 +209,14 @@ public static partial class TranscriptClassifier
                             string text = (GetString(b, "text") ?? "").Trim();
                             if (text.Length == 0) continue;
                             if (!seenAssistantText.Add($"{msgId}\u0000{text}")) continue;
-                            outp.Add(new ClassifiedEntry(i, timestamp, "Arc", text));
+                            outp.Add(new ClassifiedEntry(i, timestamp, "Assistant", text));
                         }
                         else if (btype == "tool_use" && GetString(b, "name") == "AskUserQuestion")
                         {
                             string? toolId = GetString(b, "id");
                             if (toolId is not null) askUserQuestionToolIds.Add(toolId);
                             string question = AskUserQuestionText(b);
-                            if (question.Length > 0) outp.Add(new ClassifiedEntry(i, timestamp, "Arc (question)", question));
+                            if (question.Length > 0) outp.Add(new ClassifiedEntry(i, timestamp, "Assistant (question)", question));
                         }
                     }
                 }
@@ -240,7 +240,7 @@ public static partial class TranscriptClassifier
                     }
                     else
                     {
-                        outp.Add(new ClassifiedEntry(i, timestamp, "the owner (mid-turn)", prompt));
+                        outp.Add(new ClassifiedEntry(i, timestamp, "User (mid-turn)", prompt));
                     }
                 }
             }
@@ -253,7 +253,7 @@ public static partial class TranscriptClassifier
     }
 
     /// <summary>A queued command's prompt: the plain string it usually is, or — 601 of 2,476 real
-    /// <c>queued_command</c> prompts on the 8 largest transcripts sampled, every one of them the owner's own
+    /// <c>queued_command</c> prompts on the 8 largest transcripts sampled, every one of them the user's own
     /// mid-turn words — an array of blocks (text, image, or a mix) the way a pasted screenshot arrives.
     /// Image blocks become the literal marker "[image]"; blocks are joined in order, one per line.</summary>
     private static string ExtractPrompt(JsonElement att)

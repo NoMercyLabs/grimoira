@@ -30,7 +30,7 @@ public class ServerLogonCommandTests
     }
 
     private const string ExePath = @"C:\Program Files\Grimora\Grimora.Server.exe";
-    private const string UserName = @"NOMERCY\owner";
+    private const string UserName = @"EXAMPLE\dev";
 
     [Fact]
     public void DefinitionRunsOnlyWhenLoggedOnAsTheCurrentUserUnelevatedWithADelayAndBoundedRestarts()
