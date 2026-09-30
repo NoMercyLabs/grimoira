@@ -99,7 +99,7 @@ public partial class BrainWriteCliParityTests
     private static List<string> SelectRows(string dbPath, string sql)
     {
         List<string> rows = [];
-        using SqliteConnection connection = new($"Data Source={dbPath};Mode=ReadOnly");
+        using SqliteConnection connection = new($"Data Source={dbPath};Mode=ReadOnly;Pooling=False");
         connection.Open();
         using SqliteCommand command = connection.CreateCommand();
         command.CommandText = sql;

@@ -365,7 +365,9 @@ public class GraphCliParityTests
     {
         string dbPath = GrimoraCliRunner.InstanceDbPath(newInstance);
         string backupDir = Path.Combine(GrimoraCliRunner.InstanceDir(newInstance), "backups");
-        using SqliteConnection connection = StoreConnection.Open(dbPath);
+        using SqliteConnection connection = new($"Data Source={dbPath};Foreign Keys=True;Pooling=False");
+        connection.Open();
+        StoreConnection.ApplyPragmas(connection);
         SchemaRunResultOrThrow(SchemaRunner.Run(connection, [new GraphFileRelSchema(connection)], backupDir));
         GraphFileRelSchema.Backfill(connection);
     }

@@ -332,7 +332,7 @@ public class RedactChatCliTests
             Assert.Contains("jwt: 1", stdout);
 
             string dbPath = GrimoraCliRunner.InstanceDbPath(instance);
-            using Microsoft.Data.Sqlite.SqliteConnection check = new($"Data Source={dbPath};Mode=ReadOnly");
+            using Microsoft.Data.Sqlite.SqliteConnection check = new($"Data Source={dbPath};Mode=ReadOnly;Pooling=False");
             check.Open();
             using Microsoft.Data.Sqlite.SqliteCommand select = check.CreateCommand();
             select.CommandText = "SELECT text FROM chat WHERE k='p2-redact-dry-session:k1'";
@@ -348,7 +348,7 @@ public class RedactChatCliTests
     private static void InsertFakeChatRow(string instance, string key, string text)
     {
         string dbPath = GrimoraCliRunner.InstanceDbPath(instance);
-        using Microsoft.Data.Sqlite.SqliteConnection connection = new($"Data Source={dbPath}");
+        using Microsoft.Data.Sqlite.SqliteConnection connection = new($"Data Source={dbPath};Pooling=False");
         connection.Open();
         using Microsoft.Data.Sqlite.SqliteCommand insert = connection.CreateCommand();
         insert.CommandText = "INSERT INTO chat(k,session,ts,role,text) VALUES($k,'p2-redact-session','2026-09-25T12:00:00.000Z','user',$tx)";

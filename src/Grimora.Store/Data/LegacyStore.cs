@@ -36,7 +36,6 @@ public static class LegacyStore
                 CopyTree(oldDir, partial, log);
                 File.WriteAllText(Path.Combine(partial, ".migrated-from-aitm"),
                     $"source={oldDir}{Environment.NewLine}utc={DateTime.UtcNow:o}{Environment.NewLine}");
-                SqliteConnection.ClearAllPools();
                 Directory.Move(partial, newDir);
                 return true;
             }

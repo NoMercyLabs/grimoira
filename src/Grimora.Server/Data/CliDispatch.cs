@@ -74,7 +74,11 @@ public static class CliDispatch
 
             // The server passes the project's open connection (pragmas already applied by StoreConnection.Open);
             // it is the gate's, so it is not disposed here. The CLI opens and owns its own, as before.
-            using SqliteConnection? owned = shared is null ? new($"Data Source={_dbPath};Foreign Keys=True") : null;
+            // Pooling=False: a CLI process opens this connection once and exits, so a pool gains nothing, and a
+            // pooled open can be disposed under us by a concurrent SqliteConnection.ClearAllPools() elsewhere in
+            // the process (Microsoft.Data.Sqlite 10.0.9 activates a pooled connection before it records its owner,
+            // dotnet/efcore#39008; the in-process CLI parity tests hit exactly that).
+            using SqliteConnection? owned = shared is null ? new($"Data Source={_dbPath};Foreign Keys=True;Pooling=False") : null;
             _db = shared ?? owned!;
             if (owned is not null) _db.Open();
             // SQLite serialises writers, and Init/InitBrain below are DDL, so even `query` takes the write lock.

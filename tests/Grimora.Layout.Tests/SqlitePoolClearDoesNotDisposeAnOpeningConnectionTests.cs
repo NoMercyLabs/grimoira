@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using Grimora.Server.Data;
+using Grimora.Store.Data;
 using Microsoft.Data.Sqlite;
 using Xunit;
 
@@ -78,6 +79,7 @@ public sealed partial class SqlitePoolClearDoesNotDisposeAnOpeningConnectionTest
             string.Join('\n', pooled));
     }
 
-    [GeneratedRegex(@"\$?""Data Source=")]
+    // An interpolated connection string with a path, which is how every open here is written; not this pattern.
+    [GeneratedRegex(@"\$""Data Source=\{", RegexOptions.None, RegexTimeout.Milliseconds)]
     private static partial Regex DataSource();
 }

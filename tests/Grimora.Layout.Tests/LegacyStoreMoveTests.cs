@@ -15,7 +15,6 @@ public sealed class LegacyStoreMoveTests : IDisposable
 
     public void Dispose()
     {
-        SqliteConnection.ClearAllPools();
         Directory.Delete(_home, true);
     }
 

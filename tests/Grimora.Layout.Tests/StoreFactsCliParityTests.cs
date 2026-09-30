@@ -187,7 +187,7 @@ public partial class StoreFactsCliParityTests
 
     private static string? ReadWhy(string dbPath)
     {
-        using Microsoft.Data.Sqlite.SqliteConnection connection = new($"Data Source={dbPath};Mode=ReadOnly");
+        using Microsoft.Data.Sqlite.SqliteConnection connection = new($"Data Source={dbPath};Mode=ReadOnly;Pooling=False");
         connection.Open();
         using Microsoft.Data.Sqlite.SqliteCommand select = connection.CreateCommand();
         select.CommandText = "SELECT why FROM mutations WHERE k='why-fixture' ORDER BY id DESC LIMIT 1";
@@ -275,7 +275,7 @@ public partial class StoreFactsCliParityTests
 
     private static void AssertIntegrityOk(string dbPath)
     {
-        using Microsoft.Data.Sqlite.SqliteConnection connection = new($"Data Source={dbPath};Mode=ReadOnly");
+        using Microsoft.Data.Sqlite.SqliteConnection connection = new($"Data Source={dbPath};Mode=ReadOnly;Pooling=False");
         connection.Open();
         using Microsoft.Data.Sqlite.SqliteCommand check = connection.CreateCommand();
         check.CommandText = "PRAGMA integrity_check";
