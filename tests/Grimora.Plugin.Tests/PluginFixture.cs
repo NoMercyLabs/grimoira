@@ -68,9 +68,17 @@ public sealed class PluginFixture : IDisposable
     }
 
     /// <summary>Runs bootstrap.cs with the given arguments in the foreground (a `--build` or `--point` verb).</summary>
-    public (int Exit, string Out, string Err) RunVerb(params string[] args)
+    public (int Exit, string Out, string Err) RunVerb(params string[] args) => RunVerb(null, args);
+
+    /// <summary>The same, with one extra environment variable (the fault switch bootstrap.cs reads for the swap tests).</summary>
+    public (int Exit, string Out, string Err) RunVerb((string Name, string Value)? env, params string[] args)
     {
         ProcessStartInfo info = Start();
+        if (env is not null)
+        {
+            info.Environment[env.Value.Name] = env.Value.Value;
+        }
+
         foreach (string a in args)
         {
             info.ArgumentList.Add(a);

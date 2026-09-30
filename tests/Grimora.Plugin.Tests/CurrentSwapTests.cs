@@ -103,6 +103,74 @@ public class CurrentSwapTests
         Assert.DoesNotContain("build.log", output);
     }
 
+    // The Windows swap has one instant with no `current`: between removing the old junction and moving the new one
+    // over it. A failed move puts the old junction back; a failed restore must not hide the first error, and a swap
+    // with nothing to restore must say so. Neither failure can be provoked from outside (mklink /J accepts a missing
+    // target), so bootstrap.cs reads GRIMORA_BOOTSTRAP_FAULT for these tests only.
+    [Fact]
+    public void AFailedMoveRestoresThePreviousCurrentAndReportsTheSwapFailure()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        using PluginFixture f = new();
+        string old = Directory.CreateDirectory(Path.Combine(f.Data, "builds", "old000000000")).FullName;
+        string next = Directory.CreateDirectory(Path.Combine(f.Data, "builds", "new000000000")).FullName;
+        f.LinkCurrentTo(old);
+        File.WriteAllText(Path.Combine(f.Data, "build.lock"), "held");
+
+        (int exit, string output, string err) = f.RunVerb(("GRIMORA_BOOTSTRAP_FAULT", "move"), "--point", f.Current, next);
+
+        Assert.True(exit != 0, $"exit 0: {output} {err}");
+        Assert.Contains("move", err, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(old, f.CurrentTarget());
+        Assert.False(Directory.Exists(f.Current + ".next"), "the temporary link is left behind");
+    }
+
+    [Fact]
+    public void AFailedMoveAndAFailedRestoreNameBothFailuresAndTheRepairCommand()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        using PluginFixture f = new();
+        string old = Directory.CreateDirectory(Path.Combine(f.Data, "builds", "old000000000")).FullName;
+        string next = Directory.CreateDirectory(Path.Combine(f.Data, "builds", "new000000000")).FullName;
+        f.LinkCurrentTo(old);
+        File.WriteAllText(Path.Combine(f.Data, "build.lock"), "held");
+
+        (int exit, string output, string err) = f.RunVerb(("GRIMORA_BOOTSTRAP_FAULT", "move,restore"), "--point", f.Current, next);
+
+        Assert.True(exit != 0, $"exit 0: {output} {err}");
+        Assert.Contains("move", err, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("restore", err, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(old, err, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("--build", err);
+    }
+
+    [Fact]
+    public void AFailedMoveWithNoPreviousCurrentSaysThereWasNothingToRestore()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        using PluginFixture f = new();
+        string next = Directory.CreateDirectory(Path.Combine(f.Data, "builds", "new000000000")).FullName;
+        File.WriteAllText(Path.Combine(f.Data, "build.lock"), "held");
+
+        (int exit, string output, string err) = f.RunVerb(("GRIMORA_BOOTSTRAP_FAULT", "move"), "--point", f.Current, next);
+
+        Assert.True(exit != 0, $"exit 0: {output} {err}");
+        Assert.Contains("no previous", err, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("--build", err);
+    }
+
     private static void AssertLoud(PluginFixture f, string output)
     {
         string[] lines = output.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
