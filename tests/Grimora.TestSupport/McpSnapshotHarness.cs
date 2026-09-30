@@ -232,3 +232,48 @@ public static class McpSnapshotHarness
         return stdout;
     }
 }
+
+/// <summary>
+/// Builds <c>fake-mcp-server.cs</c> (copied beside this assembly) once per process: a stand-in stdio
+/// server whose every <c>tools/call</c> reply names the request ids that had already arrived. It exists
+/// to prove how <see cref="McpProcess.Run"/> drives a server: one call at a time, each sent only after
+/// the previous reply, the way an awaiting client (Claude Code, McpClient) does. The pinned pre-slice-24
+/// mcp.dll oracle has no synchronization around <c>pending-learn.jsonl</c>, so a driver that pipelined two
+/// <c>brain_flush</c> calls at it raced its own read-then-delete and, once in about 20 full runs, got
+/// "An error occurred invoking 'brain_flush'." back instead of a real answer.
+/// </summary>
+public static class FakeMcpServer
+{
+    private static readonly SemaphoreSlim BuildLock = new(1, 1);
+
+    public static string EnsureBuilt()
+    {
+        string source = Path.Combine(AppContext.BaseDirectory, "fake-mcp-server.cs");
+        string outDir = Path.Combine(Path.GetTempPath(), $"grimora-fake-mcp-{Environment.ProcessId}");
+        string dll = Path.Combine(outDir, "fake-mcp-server.dll");
+        if (File.Exists(dll)) return dll;
+        BuildLock.Wait();
+        try
+        {
+            if (File.Exists(dll)) return dll;
+            ProcessStartInfo psi = new("dotnet", $"build \"{source}\" -c Release -o \"{outDir}\"")
+            {
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                WorkingDirectory = AppContext.BaseDirectory,
+            };
+            using Process build = Process.Start(psi) ?? throw new InvalidOperationException("could not start dotnet build");
+            string stdout = build.StandardOutput.ReadToEnd();
+            string stderr = build.StandardError.ReadToEnd();
+            build.WaitForExit();
+            if (build.ExitCode != 0 || !File.Exists(dll))
+                throw new InvalidOperationException($"build of fake-mcp-server.cs failed:/n{stdout}/n{stderr}");
+            return dll;
+        }
+        finally
+        {
+            BuildLock.Release();
+        }
+    }
+}
