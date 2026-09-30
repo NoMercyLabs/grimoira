@@ -170,6 +170,54 @@ public sealed class IndexChatTranscriptShapeTests
     }
 
     [Fact]
+    public void MultipleTextBlocksKeepTheirLineBreakInTheStoredText()
+    {
+        using Fixture f = new(
+        [
+            JsonSerializer.Serialize(new
+            {
+                type = "user",
+                uuid = "u-two-blocks",
+                timestamp = "2026-09-30T10:00:00Z",
+                message = new { content = new object[] { new { type = "text", text = "First fixture line." }, new { type = "text", text = "Second fixture line." } } },
+            }),
+        ]);
+
+        f.Index();
+
+        (string Role, string Kind, string Text) row = Assert.Single(f.Rows("First fixture line."));
+        Assert.Equal("First fixture line.\nSecond fixture line.", row.Text);
+    }
+
+    [Fact]
+    public void ADocumentPastedWithASlashCommandIsStillASlashCommand()
+    {
+        using Fixture f = new(
+        [
+            JsonSerializer.Serialize(new
+            {
+                type = "user",
+                uuid = "u-doc-goal",
+                timestamp = "2026-09-30T10:00:00Z",
+                message = new
+                {
+                    content = new object[]
+                    {
+                        new { type = "document", title = "brief.md", source = new { type = "text", media_type = "text/plain", data = "fixture brief body" } },
+                        new { type = "text", text = "/goal ship the fixture" },
+                    },
+                },
+            }),
+        ]);
+
+        f.Index();
+
+        (string Role, string Kind, string Text) row = Assert.Single(f.Rows("/goal ship the fixture"));
+        Assert.Equal("slash_command", row.Kind);
+        Assert.StartsWith("[document: brief.md]\nfixture brief body", row.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void NullStringOrArrayWhereAnObjectIsExpectedNeverThrows()
     {
         using Fixture f = new(
