@@ -9,7 +9,7 @@ namespace Grimora.Layout.Tests;
 // the old folder exactly as it is (it is the backup), and writes the new folder in one step.
 public sealed class LegacyStoreMoveTests : IDisposable
 {
-    private readonly string _home = Path.Combine(Path.GetTempPath(), "grimora-move-" + Guid.NewGuid().ToString("N"));
+    private readonly string _home = Path.Combine(Path.GetTempPath(), "grimoira-move-" + Guid.NewGuid().ToString("N"));
 
     public LegacyStoreMoveTests() => Directory.CreateDirectory(_home);
 
@@ -19,7 +19,7 @@ public sealed class LegacyStoreMoveTests : IDisposable
     }
 
     private string OldDb => Path.Combine(_home, ".aitm", "proj", "aitm.db");
-    private string NewDb => Path.Combine(_home, ".grimora", "proj", "grimora.db");
+    private string NewDb => Path.Combine(_home, ".grimoira", "proj", "grimoira.db");
 
     private static SqliteConnection Open(string path, string extra = "")
     {
@@ -80,20 +80,20 @@ public sealed class LegacyStoreMoveTests : IDisposable
 
         Assert.Equal(1, results.Count(r => r));
         Assert.Equal(50, Count(NewDb));
-        Assert.False(Directory.Exists(Path.Combine(_home, ".grimora.partial")));
+        Assert.False(Directory.Exists(Path.Combine(_home, ".grimoira.partial")));
     }
 
     [Fact]
     public void AStalePartialFromACrashedRunIsCleanedByTheLockHolder()
     {
         MakeOld();
-        Directory.CreateDirectory(Path.Combine(_home, ".grimora.partial", "junk"));
-        File.WriteAllText(Path.Combine(_home, ".grimora.partial", "junk", "x.txt"), "half");
+        Directory.CreateDirectory(Path.Combine(_home, ".grimoira.partial", "junk"));
+        File.WriteAllText(Path.Combine(_home, ".grimoira.partial", "junk", "x.txt"), "half");
 
         Assert.True(LegacyStore.MoveIfNeeded(_home));
         Assert.Equal(3, Count(NewDb));
-        Assert.False(Directory.Exists(Path.Combine(_home, ".grimora", "junk")));
-        Assert.False(Directory.Exists(Path.Combine(_home, ".grimora.partial")));
+        Assert.False(Directory.Exists(Path.Combine(_home, ".grimoira", "junk")));
+        Assert.False(Directory.Exists(Path.Combine(_home, ".grimoira.partial")));
     }
 
     [Fact]
@@ -112,12 +112,12 @@ public sealed class LegacyStoreMoveTests : IDisposable
     {
         MakeOld();
         Assert.True(LegacyStore.MoveIfNeeded(_home));
-        string marker = Path.Combine(_home, ".grimora", ".migrated-from-aitm");
+        string marker = Path.Combine(_home, ".grimoira", ".migrated-from-aitm");
         Assert.Contains(Path.Combine(_home, ".aitm"), File.ReadAllText(marker));
 
-        File.WriteAllText(Path.Combine(_home, ".grimora", "later.txt"), "new");
+        File.WriteAllText(Path.Combine(_home, ".grimoira", "later.txt"), "new");
         Assert.False(LegacyStore.MoveIfNeeded(_home));
-        Assert.Equal("new", File.ReadAllText(Path.Combine(_home, ".grimora", "later.txt")));
+        Assert.Equal("new", File.ReadAllText(Path.Combine(_home, ".grimoira", "later.txt")));
     }
 
     [Fact]
@@ -132,8 +132,8 @@ public sealed class LegacyStoreMoveTests : IDisposable
         bool moved = LegacyStore.MoveIfNeeded(_home, log);
 
         Assert.False(moved);
-        Assert.False(Directory.Exists(Path.Combine(_home, ".grimora")));
-        Assert.False(Directory.Exists(Path.Combine(_home, ".grimora.partial")));
+        Assert.False(Directory.Exists(Path.Combine(_home, ".grimoira")));
+        Assert.False(Directory.Exists(Path.Combine(_home, ".grimoira.partial")));
         Assert.NotEqual("", log.ToString());
     }
 
@@ -141,8 +141,8 @@ public sealed class LegacyStoreMoveTests : IDisposable
     public void WhenBothFoldersExistTheNewOneWinsAndNothingMoves()
     {
         MakeOld();
-        Directory.CreateDirectory(Path.Combine(_home, ".grimora"));
+        Directory.CreateDirectory(Path.Combine(_home, ".grimoira"));
         Assert.False(LegacyStore.MoveIfNeeded(_home));
-        Assert.False(Directory.Exists(Path.Combine(_home, ".grimora", "proj")));
+        Assert.False(Directory.Exists(Path.Combine(_home, ".grimoira", "proj")));
     }
 }

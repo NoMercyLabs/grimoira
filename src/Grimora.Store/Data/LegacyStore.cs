@@ -2,11 +2,12 @@ using Microsoft.Data.Sqlite;
 
 namespace Grimora.Store.Data;
 
-/// <summary>Compat shim (slice 32c): the store folder was <c>~/.aitm</c>; it is <c>~/.grimora</c> now. Runs at
-/// server start, and only when the new folder is missing. The old folder is never renamed, deleted or written:
-/// it stays as it is and is itself the backup. Each database is copied with the SQLite backup API (consistent
+/// <summary>Compat shim (slice 32c): the store folder was <c>~/.aitm</c>, then <c>~/.grimora</c>; it is
+/// <c>~/.grimoira</c> now. Runs at server start, and only when the new folder is missing. The source is
+/// <c>~/.grimora</c> when it exists (it is the newer), else <c>~/.aitm</c>. The old folders are never renamed,
+/// deleted or written: they stay as they are and are themselves the backup. Each database is copied with the SQLite backup API (consistent
 /// even while an old server has it open); other small files are copied plainly. Everything goes into
-/// <c>.grimora.partial</c> and one directory move makes it <c>.grimora</c>. A lock file around the whole move
+/// <c>.grimoira.partial</c> and one directory move makes it <c>.grimoira</c>. A lock file around the whole move
 /// lets two starting processes agree: one moves, the other waits and then sees the finished folder. Nothing
 /// here throws into server startup.</summary>
 public static class LegacyStore
@@ -19,13 +20,20 @@ public static class LegacyStore
 
     internal static bool MoveIfNeeded(string home, TextWriter? log, int maxWaitMilliseconds)
     {
-        string oldDir = Path.Combine(home, ".aitm");
-        string newDir = Path.Combine(home, ".grimora");
+        string newDir = Path.Combine(home, ".grimoira");
+        string oldDir = Path.Combine(home, ".grimora");
+        string sourceName = "grimora";
+        if (!Directory.Exists(oldDir))
+        {
+            oldDir = Path.Combine(home, ".aitm");
+            sourceName = "aitm";
+        }
+
         try
         {
             if (!Directory.Exists(oldDir) || Directory.Exists(newDir)) return false;
 
-            using FileStream? gate = TakeLock(Path.Combine(home, ".grimora.move.lock"), newDir, maxWaitMilliseconds);
+            using FileStream? gate = TakeLock(Path.Combine(home, ".grimoira.move.lock"), newDir, maxWaitMilliseconds);
             if (gate is null) return false; // the folder appeared while waiting, or the holder is still busy
             if (Directory.Exists(newDir)) return false; // the previous holder finished
 
@@ -34,14 +42,14 @@ public static class LegacyStore
             {
                 if (Directory.Exists(partial)) Directory.Delete(partial, true); // a crashed run's leftover; we hold the lock
                 CopyTree(oldDir, partial, log);
-                File.WriteAllText(Path.Combine(partial, ".migrated-from-aitm"),
+                File.WriteAllText(Path.Combine(partial, ".migrated-from-" + sourceName),
                     $"source={oldDir}{Environment.NewLine}utc={DateTime.UtcNow:o}{Environment.NewLine}");
                 Directory.Move(partial, newDir);
                 return true;
             }
             catch (Exception e)
             {
-                log?.WriteLine($"grimora: could not move the old store {oldDir}: {e.Message}; the old folder is untouched.");
+                log?.WriteLine($"grimoira: could not move the old store {oldDir}: {e.Message}; the old folder is untouched.");
                 try { if (Directory.Exists(partial)) Directory.Delete(partial, true); }
                 catch (Exception) { /* best effort; the next lock holder cleans it */ }
                 return false;
@@ -49,7 +57,7 @@ public static class LegacyStore
         }
         catch (Exception e)
         {
-            log?.WriteLine($"grimora: the store move did not start: {e.Message}");
+            log?.WriteLine($"grimoira: the store move did not start: {e.Message}");
             return false;
         }
     }
@@ -84,7 +92,9 @@ public static class LegacyStore
                 || name.EndsWith("-journal", StringComparison.Ordinal))
                 continue; // the backup API carries the WAL content
             if (name.EndsWith(".db", StringComparison.Ordinal))
-                BackupDatabase(file, Path.Combine(to, name.Replace("aitm", "grimora", StringComparison.OrdinalIgnoreCase)));
+                BackupDatabase(file, Path.Combine(to, name
+                    .Replace("aitm", "grimoira", StringComparison.OrdinalIgnoreCase)
+                    .Replace("grimora", "grimoira", StringComparison.OrdinalIgnoreCase)));
             else
                 CopySmallFile(file, Path.Combine(to, name), log);
         }
@@ -112,7 +122,7 @@ public static class LegacyStore
         }
         catch (IOException e)
         {
-            log?.WriteLine($"grimora: skipped {source} (in use): {e.Message}");
+            log?.WriteLine($"grimoira: skipped {source} (in use): {e.Message}");
         }
     }
 }
