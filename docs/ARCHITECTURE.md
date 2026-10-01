@@ -1,37 +1,37 @@
 # Architecture
 
-This page describes how Grimora is built. For install, configuration, privacy and troubleshooting, see the [README](../README.md).
+This page describes how Grimoira is built. For install, configuration, privacy and troubleshooting, see the [README](../README.md).
 
 ## Overview
 
-Grimora is a Claude Code plugin. It ships a skill, two agents (`knowledge-lookup`, `knowledge-writer`), one maintenance command (`/grimora-maintain`), an MCP server entry and six hooks. The hooks and the MCP entry both run one thin command: `dotnet <data>/current/bin-cli/grimora.dll`. That command keeps almost nothing in itself. It sends most verbs to a background service over a local named pipe (a Unix socket on macOS and Linux), limited to the current user, so no network port is open. The service starts on the first call and exits after 30 quiet minutes. The service owns the store: one SQLite file per instance. A few hook handlers stay in the command so they still answer when the service is down.
+Grimoira is a Claude Code plugin. It ships a skill, two agents (`knowledge-lookup`, `knowledge-writer`), one maintenance command (`/grimoira-maintain`), an MCP server entry and six hooks. The hooks and the MCP entry both run one thin command: `dotnet <data>/current/bin-cli/grimoira.dll`. That command keeps almost nothing in itself. It sends most verbs to a background service over a local named pipe (a Unix socket on macOS and Linux), limited to the current user, so no network port is open. The service starts on the first call and exits after 30 quiet minutes. The service owns the store: one SQLite file per instance. A few hook handlers stay in the command so they still answer when the service is down.
 
 ## The pieces
 
 The `src/` folder holds nine projects.
 
-- `Grimora.Cli`: the `grimora` executable. It takes no reference on any other Grimora project. It runs the `hook` verbs that must work without the service, and forwards everything else to the service.
-- `Grimora.Server`: the background service. It listens on the named pipe, serves `/mcp`, `/cli` and `/hooks/{event}`, and runs the indexing jobs queued by `SessionEnd`.
-- `Grimora.Store`: the SQLite store itself: connection, data folder, the gap log, the mutation log, `history`, `stats`, `import` and `backup`.
-- `Grimora.Facts`: verified facts, todos and findings.
-- `Grimora.Memory`: rules (the memory channel) and the chat transcript index.
-- `Grimora.Docs`: absorbed docs, chunked by section, and syntheses.
-- `Grimora.Graph`: registered projects, the code graph of declarations and usage sites (`edges`), edge candidates, and the `impact`, `graph-query`, `graph-path` and `graph-explain` lookups.
-- `Grimora.Brain`: the cross-project knowledge graph (nodes, triples, slots), staged learning and the `brain_*` tools.
-- `Grimora.Hooks`: the hook handlers: the compaction brief and restore, index-on-edit, session indexing, the stop flush and pattern watching.
+- `Grimoira.Cli`: the `grimoira` executable. It takes no reference on any other Grimoira project. It runs the `hook` verbs that must work without the service, and forwards everything else to the service.
+- `Grimoira.Server`: the background service. It listens on the named pipe, serves `/mcp`, `/cli` and `/hooks/{event}`, and runs the indexing jobs queued by `SessionEnd`.
+- `Grimoira.Store`: the SQLite store itself: connection, data folder, the gap log, the mutation log, `history`, `stats`, `import` and `backup`.
+- `Grimoira.Facts`: verified facts, todos and findings.
+- `Grimoira.Memory`: rules (the memory channel) and the chat transcript index.
+- `Grimoira.Docs`: absorbed docs, chunked by section, and syntheses.
+- `Grimoira.Graph`: registered projects, the code graph of declarations and usage sites (`edges`), edge candidates, and the `impact`, `graph-query`, `graph-path` and `graph-explain` lookups.
+- `Grimoira.Brain`: the cross-project knowledge graph (nodes, triples, slots), staged learning and the `brain_*` tools.
+- `Grimoira.Hooks`: the hook handlers: the compaction brief and restore, index-on-edit, session indexing, the stop flush and pattern watching.
 
 ## Hooks
 
 `hooks/hooks.json` registers six events. Every one runs `dotnet`. Every one fails open: an error prints nothing and never blocks the session.
 
-- `SessionStart`, timeout 15 s. Runs `bootstrap.cs`. If the current build is present, it runs `grimora hook SessionStart`, which starts the service when `/health` does not answer. If the build is missing or stale, it starts a background build and exits.
+- `SessionStart`, timeout 15 s. Runs `bootstrap.cs`. If the current build is present, it runs `grimoira hook SessionStart`, which starts the service when `/health` does not answer. If the build is missing or stale, it starts a background build and exits.
 - `UserPromptSubmit`, timeout 10 s. Runs in the command itself. Hands back the anchors saved before the last compaction, once, on the first prompt after it.
 - `PostToolUse`, matcher `Write|Edit|MultiEdit|NotebookEdit`, timeout 65 s. Forwarded to the service. Reindexes the memory or docs channel that the edited file belongs to.
 - `PreCompact`, timeout 20 s. Runs in the command itself. Writes the user's own words, dirty repos and branches, changed files and open items to disk before the compaction.
 - `SessionEnd`, timeout 390 s, async. Forwarded to the service, which queues the work and answers at once. In the background it folds the transcript into the chat index, absorbs the project's `.claude/` docs, and indexes every registered project's public declarations into `edges`.
 - `Stop`, timeout 10 s. Forwarded to the service. If staged learning is waiting in the ledger, it flushes it into the store and says so.
 
-The service also has a `PostToolUse` handler for `Bash` and `PowerShell` that counts repeated command shapes. `hooks.json` does not register that matcher today. The counts are read back by the `patterns` tool in `Grimora.Hooks`, which the MCP registry does not expose.
+The service also has a `PostToolUse` handler for `Bash` and `PowerShell` that counts repeated command shapes. `hooks.json` does not register that matcher today. The counts are read back by the `patterns` tool in `Grimoira.Hooks`, which the MCP registry does not expose.
 
 ## Tools
 
@@ -89,12 +89,12 @@ Workspace:
 
 ### CLI verbs
 
-`grimora help` lists the verbs. Grouped the same way, with the help text:
+`grimoira help` lists the verbs. Grouped the same way, with the help text:
 
 Store and instance:
 
 - `init [--full --root <dir>]`: create or open the instance; `--full` also registers projects and indexes code, docs, memory, chat.
-- `import --from <db>`: merge another grimora.db into this one.
+- `import --from <db>`: merge another grimoira.db into this one.
 - `history <term>`: show the cold mutation log for an entity.
 - `stats`: channel counts for the instance.
 - `eval`: run the retrieval eval set.
@@ -150,14 +150,14 @@ Brain:
 - `spine-import --from <f>`: load a curated spine from JSON.
 - `shed-node --key <k>`: retire a node and its links.
 
-Service control (`grimora service status|stop|start`) is described in the README under [Everyday use](../README.md#everyday-use).
+Service control (`grimoira service status|stop|start`) is described in the README under [Everyday use](../README.md#everyday-use).
 
 ## Data location
 
 Each instance is one SQLite file:
 
 ```
-~/.grimora/<instance>/grimora.db
+~/.grimoira/<instance>/grimoira.db
 ```
 
 The tables, by the project that creates them:
@@ -172,16 +172,16 @@ The tables, by the project that creates them:
 
 Staged learning waits in a `pending-learn.jsonl` ledger next to the store until a flush commits it.
 
-`GRIMORA_DATA_DIR` moves the data folder and `GRIMORA_INSTANCE` picks the store. Both are described in the README under [Configuration](../README.md#configuration).
+`GRIMOIRA_DATA_DIR` moves the data folder and `GRIMOIRA_INSTANCE` picks the store. Both are described in the README under [Configuration](../README.md#configuration).
 
 ## Upgrade and rollback
 
 Build output is not committed, and every plugin version installs into a new cache folder. So right after an install or update there is no published command yet. `bootstrap.cs`, a .NET file-based app that uses the base class library only, handles this at `SessionStart`:
 
 - The published command and service live in the plugin data folder, which is kept across plugin updates. Each build lands in `<data>/builds/<first 12 hex of the stamp>/{bin-cli,bin-server}`.
-- `<data>/current` (a directory junction on Windows, a symlink elsewhere) points at the newest complete build. `hooks.json` and `.mcp.json` run `dotnet <data>/current/bin-cli/grimora.dll` directly.
-- When `current` is present and up to date, `bootstrap.cs` runs `grimora hook SessionStart` and passes stdin, stdout and the exit code straight through.
-- When it is missing or stale, `bootstrap.cs` starts `bootstrap.cs --build <data>` detached, prints one line, and exits 0. A lock file makes sure two sessions never build at once. The session goes on without Grimora until the build is done.
+- `<data>/current` (a directory junction on Windows, a symlink elsewhere) points at the newest complete build. `hooks.json` and `.mcp.json` run `dotnet <data>/current/bin-cli/grimoira.dll` directly.
+- When `current` is present and up to date, `bootstrap.cs` runs `grimoira hook SessionStart` and passes stdin, stdout and the exit code straight through.
+- When it is missing or stale, `bootstrap.cs` starts `bootstrap.cs --build <data>` detached, prints one line, and exits 0. A lock file makes sure two sessions never build at once. The session goes on without Grimoira until the build is done.
 - The detached build never writes into a folder that may be in use. It moves `current` only after a complete build and stamp. It keeps the previous build as the rollback and deletes older ones only when a trial rename proves nothing holds them.
 - `bootstrap.cs --point <link> <target>` does the `current` swap on its own, for a repair by hand and for the tests. When it fails, the previous link stays.
 
