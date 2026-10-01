@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo 'Grimora is now Grimoira: run /plugin install grimoira@nomercylabs, then /plugin uninstall grimora@nomercylabs. Your data moves over on first start.'",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}

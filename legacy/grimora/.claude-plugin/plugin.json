@@ -1,0 +1,9 @@
+{
+  "name": "grimora",
+  "description": "Retired name of Grimoira. It only prints how to move over.",
+  "version": "2.0.0",
+  "author": {
+    "name": "NoMercy Labs",
+    "url": "https://github.com/NoMercyLabs"
+  }
+}
