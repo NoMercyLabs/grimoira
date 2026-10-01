@@ -35,6 +35,8 @@ using Grimoira.Brain.Data;
 using Grimoira.Brain.Tools;
 using Grimoira.Server.Handover;
 
+if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("GRIMOIRA_DATA_DIR")))
+    LegacyStore.MoveIfNeeded(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), Console.Error);
 HostApplicationBuilder builder = Host.CreateApplicationBuilder(args);
 builder.Logging.ClearProviders();
 builder.Services.AddMcpServer().WithStdioServerTransport().WithToolsFromAssembly();

@@ -50,7 +50,7 @@ public static class WindowsLogonTask
 }
 
 /// <summary>
-/// Removes the Grimora.Server logon task an old install left (the service starts on demand now; nothing installs it). `schtasks` is only ever reached through the
+/// Removes the Grimoira.Server logon task and the Grimora.Server one an old install left (the service starts on demand now; nothing installs it). `schtasks` is only ever reached through the
 /// injected <see cref="IProcessRunner"/>; nothing here calls the real Task Scheduler.
 /// </summary>
 public static class ServerLogonCommand
@@ -59,14 +59,17 @@ public static class ServerLogonCommand
 
     public static int Uninstall(IProcessRunner runner, out string error)
     {
-        (string _, string stderr, int exitCode) = runner.Run("schtasks", WindowsLogonTask.BuildDeleteArgs("Grimora.Server"));
-        if (exitCode == 0 || stderr.Contains("cannot find", StringComparison.OrdinalIgnoreCase))
+        // The task is named Grimoira.Server now; a 1.0.x install left Grimora.Server. Both go.
+        foreach (string taskName in new[] { "Grimoira.Server", "Grimora.Server" })
         {
-            error = "";
-            return 0;
+            (string _, string stderr, int exitCode) = runner.Run("schtasks", WindowsLogonTask.BuildDeleteArgs(taskName));
+            if (exitCode == 0 || stderr.Contains("cannot find", StringComparison.OrdinalIgnoreCase)) continue;
+            error = $"schtasks failed to remove the {taskName} logon task: {stderr.Trim()}";
+            return 1;
         }
-        error = $"schtasks failed to remove the Grimora.Server logon task: {stderr.Trim()}";
-        return 1;
+
+        error = "";
+        return 0;
     }
 }
 
@@ -77,6 +80,9 @@ public static class ServerLogonCommand
 /// </summary>
 public static class LaunchdLogonAgent
 {
+    /// <summary>The label new installs use, then the one a 1.0.x install left; cleanup removes both.</summary>
+    public static IReadOnlyList<string> AllLabels { get; } = ["tv.nomercy.grimoira.server", "tv.nomercy.grimora.server"];
+
     public static string BuildPlist(WindowsLogonTaskDefinition def)
     {
         int delaySeconds = (int)def.Delay.TotalSeconds;
@@ -86,7 +92,7 @@ public static class LaunchdLogonAgent
             <plist version="1.0">
             <dict>
                 <key>Label</key>
-                <string>tv.nomercy.grimora.server</string>
+                <string>{AllLabels[0]}</string>
                 <key>ProgramArguments</key>
                 <array>
                     <string>/bin/sh</string>

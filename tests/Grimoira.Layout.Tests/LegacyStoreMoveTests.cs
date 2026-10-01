@@ -138,10 +138,11 @@ public sealed class LegacyStoreMoveTests : IDisposable
     }
 
     [Fact]
-    public void WhenBothFoldersExistTheNewOneWinsAndNothingMoves()
+    public void WhenTheNewFolderHoldsARealStoreItWinsAndNothingMoves()
     {
         MakeOld();
-        Directory.CreateDirectory(Path.Combine(_home, ".grimoira"));
+        Directory.CreateDirectory(Path.Combine(_home, ".grimoira", "mine"));
+        File.WriteAllBytes(Path.Combine(_home, ".grimoira", "mine", "grimoira.db"), [1]);
         Assert.False(LegacyStore.MoveIfNeeded(_home));
         Assert.False(Directory.Exists(Path.Combine(_home, ".grimoira", "proj")));
     }

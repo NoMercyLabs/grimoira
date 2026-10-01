@@ -15,6 +15,7 @@ public sealed class NoPreviousProductNameRemainsOutsideTheAllowListTests
         ["src/Grimoira.Store/Data/LegacyStore.cs"] = "compat shim: copies the old C:/Users/patri/.grimora store once.",
         ["src/Grimoira.Cli/Tools/LegacyEnvironment.cs"] = "compat shim: the CLI cannot reference Store, so it keeps its own copy.",
         ["src/Grimoira.Cli/Tools/ServerLogonTool.cs"] = "removes the Grimora.Server task and the launchd label that 1.0.x installs left.",
+        ["tests/Grimoira.Cli.Tests/LaunchdAndSystemdLogonTests.cs"] = "proves the old launchd label is the one removed.",
         ["tests/Grimoira.Cli.Tests/ServerLogonCommandTests.cs"] = "proves the old task name is the one removed.",
         ["tests/Grimoira.Layout.Tests/LegacyStoreChainTests.cs"] = "tests the store chain, so it names the old folders and databases.",
         ["tests/Grimoira.Layout.Tests/LegacyEnvironmentPromotionTests.cs"] = "tests the shims, so it names the old variables.",

@@ -25,4 +25,6 @@
 // returns the exit code instead of calling Environment.Exit. This file is the shim that runs it.
 using Grimoira.Server.Data;
 
+if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("GRIMOIRA_DATA_DIR")))
+    Grimoira.Store.Data.LegacyStore.MoveIfNeeded(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), Console.Error);
 return CliDispatch.Run(args, Directory.GetCurrentDirectory(), Console.Out, Console.Error);
