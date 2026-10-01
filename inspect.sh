@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # Bash twin of inspect.ps1. Rider's own inspections, run headless. Every warning Rider shows must fail the build.
-# The severities live in the checked-in Grimora.sln.DotSettings; a rule set to ERROR there fails this script.
-# Needs a restored solution (run `dotnet restore Grimora.sln` first).
+# The severities live in the checked-in Grimoira.sln.DotSettings; a rule set to ERROR there fails this script.
+# Needs a restored solution (run `dotnet restore Grimoira.sln` first).
 #
-#   ./inspect.sh [--output FILE]     SARIF output file, default: $TMPDIR/grimora-inspect.sarif
+#   ./inspect.sh [--output FILE]     SARIF output file, default: $TMPDIR/grimoira-inspect.sarif
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
 
-output="${TMPDIR:-/tmp}/grimora-inspect.sarif"
+output="${TMPDIR:-/tmp}/grimoira-inspect.sarif"
 while [ $# -gt 0 ]; do
   case "$1" in
     --output) [ $# -ge 2 ] || { echo '--output needs a value' >&2; exit 2; }; output="$2"; shift 2 ;;
@@ -18,7 +18,7 @@ while [ $# -gt 0 ]; do
 done
 
 dotnet tool restore >/dev/null || { echo 'dotnet tool restore failed' >&2; exit 1; }
-dotnet tool run jb inspectcode Grimora.sln --output="$output" --format=Sarif --no-build >/dev/null || { echo 'jb inspectcode failed' >&2; exit 1; }
+dotnet tool run jb inspectcode Grimoira.sln --output="$output" --format=Sarif --no-build >/dev/null || { echo 'jb inspectcode failed' >&2; exit 1; }
 
 # The SARIF is read with dotnet-free tools only: python3/python is on every runner and on macOS.
 py=python3; command -v python3 >/dev/null 2>&1 || py=python

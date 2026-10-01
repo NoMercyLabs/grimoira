@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <!-- A file-based app, built on demand by FakeMcpServer; never part of this library. -->
+    <Compile Remove="fake-mcp-server.cs" />
+    <None Include="fake-mcp-server.cs" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/Grimoira.Server/Grimoira.Server.csproj" />
+    <PackageReference Include="Microsoft.Data.Sqlite" />
+    <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" />
+  </ItemGroup>
+</Project>

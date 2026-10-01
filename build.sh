@@ -9,8 +9,8 @@ FILTER='error|warning NU19|-> '
 # grep exits 1 on no match; that is not a failure here, the build's own exit code is.
 show() { grep -E "$FILTER" || true; }
 
-printf '\033[36mbuilding Grimora.sln...\033[0m\n'
-dotnet build "$ROOT/Grimora.sln" | show
+printf '\033[36mbuilding Grimoira.sln...\033[0m\n'
+dotnet build "$ROOT/Grimoira.sln" | show
 
 printf '\033[36mbuilding CLI...\033[0m\n'
 "$ROOT/build-cli.sh" | show

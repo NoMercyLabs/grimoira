@@ -7,10 +7,16 @@
   },
   "plugins": [
     {
-      "name": "grimora",
+      "name": "grimoira",
       "source": "./",
       "description": "Per-project knowledge store with a hook-enforced read/write loop for agent sessions.",
-      "version": "1.0.4"
+      "version": "2.0.0"
+    },
+    {
+      "name": "grimora",
+      "source": "./legacy/grimora",
+      "description": "Retired name. Installing it only prints how to move to Grimoira.",
+      "version": "2.0.0"
     }
   ]
 }

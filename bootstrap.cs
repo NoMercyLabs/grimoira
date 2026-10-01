@@ -6,12 +6,12 @@
 // install or update there is no published CLI. The published CLI and server live in CLAUDE_PLUGIN_DATA (kept
 // across plugin updates), each build in <data>/builds/<first 12 hex of the stamp>/{bin-cli,bin-server}.
 // <data>/current (a directory junction on Windows, a symlink elsewhere) points at the newest complete build.
-// hooks.json and .mcp.json run `dotnet <data>/current/bin-cli/grimora.dll ...` directly.
+// hooks.json and .mcp.json run `dotnet <data>/current/bin-cli/grimoira.dll ...` directly.
 //
-// - Build current: run `dotnet <data>/current/bin-cli/grimora.dll hook SessionStart`; stdin, stdout and the
-//   exit code pass straight through. GRIMORA_PLUGIN_ROOT is set, so a server it starts finds the plugin files.
+// - Build current: run `dotnet <data>/current/bin-cli/grimoira.dll hook SessionStart`; stdin, stdout and the
+//   exit code pass straight through. GRIMOIRA_PLUGIN_ROOT is set, so a server it starts finds the plugin files.
 // - Missing or stale: start `bootstrap.cs --build <data>` detached, print one line, exit 0. A lock file makes
-//   sure two sessions never build at once. The session goes on without Grimora until the build is done.
+//   sure two sessions never build at once. The session goes on without Grimoira until the build is done.
 // - `--build <data>`: the detached build. It never writes into a folder that may be in use; it moves `current`
 //   only after a complete build and stamp; it keeps the previous build as the rollback and deletes older ones
 //   only when a trial rename proves nothing holds them.
@@ -24,7 +24,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 
-const string Building = "Grimora is building its CLI and server in the background (first session after an install or update); it is ready in a few minutes.";
+const string Building = "Grimoira is building its CLI and server in the background (first session after an install or update); it is ready in a few minutes.";
 string[] buildInputs = ["src", "Directory.Build.props", "Directory.Packages.props", "global.json"];
 TimeSpan lockExpiry = TimeSpan.FromMinutes(30);
 
@@ -53,8 +53,8 @@ string buildDir = installed ? Path.Combine(dataDir, "current") : dataDir;
 string? installedRoot = installed ? InstalledRootOrNull() : null;
 if (installedRoot is not null && !PathsEqual(installedRoot, root))
 {
-    Console.Out.WriteLine($"Grimora: this session runs a stale plugin root ({root}); the installed root is {installedRoot}, so current and plugin-root.txt are left to it; restart the session to pick it up.");
-    string cli = Path.Combine(buildDir, "bin-cli", "grimora.dll");
+    Console.Out.WriteLine($"Grimoira: this session runs a stale plugin root ({root}); the installed root is {installedRoot}, so current and plugin-root.txt are left to it; restart the session to pick it up.");
+    string cli = Path.Combine(buildDir, "bin-cli", "grimoira.dll");
     return File.Exists(cli) ? RunHook(cli, installedRoot) : 0;
 }
 
@@ -65,7 +65,7 @@ if (installed)
 
 if (IsCurrent())
 {
-    return RunHook(Path.Combine(buildDir, "bin-cli", "grimora.dll"), root);
+    return RunHook(Path.Combine(buildDir, "bin-cli", "grimoira.dll"), root);
 }
 
 if (installed)
@@ -86,7 +86,7 @@ return 0;
 bool IsCurrent()
 {
     string cliDir = Path.Combine(buildDir, "bin-cli");
-    if (!File.Exists(Path.Combine(cliDir, "grimora.dll")) || !File.Exists(Path.Combine(buildDir, "bin-server", "Grimora.Server.dll")))
+    if (!File.Exists(Path.Combine(cliDir, "grimoira.dll")) || !File.Exists(Path.Combine(buildDir, "bin-server", "Grimoira.Server.dll")))
     {
         return false;
     }
@@ -129,7 +129,7 @@ void WarnIfCurrentIsBroken()
     }
 
     string repair = $"dotnet \"{Path.Combine(root, "bootstrap.cs")}\" --build \"{dataDir}\"";
-    Console.Out.WriteLine($"Grimora: {problem}: no hook and no MCP server can run until it is repaired; see {Path.Combine(dataDir, "build.log")}; repair: {repair}");
+    Console.Out.WriteLine($"Grimoira: {problem}: no hook and no MCP server can run until it is repaired; see {Path.Combine(dataDir, "build.log")}; repair: {repair}");
 }
 
 bool TakeLock()
@@ -163,7 +163,7 @@ void ReleaseLock()
 }
 
 // Written to a temp file and renamed so a reader never sees half a path. A server started without this hook
-// (the logon task, a thin client of another slot) has no GRIMORA_PLUGIN_ROOT and finds the plugin files here.
+// (the logon task, a thin client of another slot) has no GRIMOIRA_PLUGIN_ROOT and finds the plugin files here.
 void RecordPluginRoot()
 {
     Directory.CreateDirectory(dataDir);
@@ -177,7 +177,7 @@ void RecordPluginRoot()
 // (~/.claude/plugins/installed_plugins.json: {"version":2,"plugins":{"<name>@<marketplace>":[{"installPath":...},...]}}),
 // looked up by this plugin's name from .claude-plugin/plugin.json. Null when the registry, the manifest or the
 // plugin's entry cannot be read: then today's behaviour stands (this root builds and records itself), so a
-// checkout with a data folder, a first install, or a registry whose shape changed never loses Grimora.
+// checkout with a data folder, a first install, or a registry whose shape changed never loses Grimoira.
 string? InstalledRootOrNull()
 {
     try
@@ -232,7 +232,7 @@ int RunHook(string cli, string pluginRoot)
         info.ArgumentList.Add(cli);
         info.ArgumentList.Add("hook");
         info.ArgumentList.Add("SessionStart");
-        info.Environment["GRIMORA_PLUGIN_ROOT"] = pluginRoot;
+        info.Environment["GRIMOIRA_PLUGIN_ROOT"] = pluginRoot;
         using Process hook = Process.Start(info)!; // no redirects: stdin, stdout and stderr are inherited
         hook.WaitForExit();
         return hook.ExitCode;
@@ -294,8 +294,8 @@ int Build(string data)
                 Directory.Delete(target, true); // an unfinished earlier try: never current, never in use
             }
 
-            Publish(Path.Combine(root, "src", "Grimora.Cli", "Grimora.Cli.csproj"), Path.Combine(target, "bin-cli"), log);
-            Publish(Path.Combine(root, "src", "Grimora.Server", "Grimora.Server.csproj"), Path.Combine(target, "bin-server"), log);
+            Publish(Path.Combine(root, "src", "Grimoira.Cli", "Grimoira.Cli.csproj"), Path.Combine(target, "bin-cli"), log);
+            Publish(Path.Combine(root, "src", "Grimoira.Server", "Grimoira.Server.csproj"), Path.Combine(target, "bin-server"), log);
             File.WriteAllText(Path.Combine(target, "bin-cli", "build-stamp.txt"), hash);
         }
 
@@ -397,7 +397,7 @@ void PointCurrent(string link, string target)
         {
             // Neither the move nor the restore can be made to fail from outside (mklink /J accepts a missing target),
             // so the tests inject the failures here; unset everywhere else.
-            string fault = Environment.GetEnvironmentVariable("GRIMORA_BOOTSTRAP_FAULT") ?? "";
+            string fault = Environment.GetEnvironmentVariable("GRIMOIRA_BOOTSTRAP_FAULT") ?? "";
             string? previous = RealOrNull(link);
             RemoveLink(link);
             try

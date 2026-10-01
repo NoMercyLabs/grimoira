@@ -21,45 +21,45 @@ if (-not $SkipBuild) {
     $out | Select-Object -Last 1
     if ($buildExit -ne 0) { $failed += 'tool server build' }
 
-    Write-Host '-- build Grimora.Server' -ForegroundColor Cyan
+    Write-Host '-- build Grimoira.Server' -ForegroundColor Cyan
     $out = & "$PSScriptRoot/build-server.ps1" 2>&1
     $buildExit = $LASTEXITCODE
     $out | Select-Object -Last 1
-    if ($buildExit -ne 0) { $failed += 'Grimora.Server build' }
+    if ($buildExit -ne 0) { $failed += 'Grimoira.Server build' }
 }
 
 Write-Host '-- code style (dotnet format style --verify-no-changes)' -ForegroundColor Cyan
 # The style rules in the repo-root .editorconfig are errors in the build already; this also fails on a file
 # `dotnet format` would rewrite. Fix a failure by running the same command without --verify-no-changes.
-$out = & dotnet format style "$PSScriptRoot/Grimora.sln" --severity info --diagnostics IDE0005 IDE0008 IDE0028 IDE0090 IDE0300 IDE0301 IDE0305 IDE0370 --verify-no-changes 2>&1
+$out = & dotnet format style "$PSScriptRoot/Grimoira.sln" --severity info --diagnostics IDE0005 IDE0008 IDE0028 IDE0090 IDE0300 IDE0301 IDE0305 IDE0370 --verify-no-changes 2>&1
 $styleExit = $LASTEXITCODE
 $out | Select-Object -Last 5
 if ($styleExit -ne 0) { $failed += 'code style (dotnet format style)' }
 
 Write-Host '-- Rider inspections (inspect.ps1)' -ForegroundColor Cyan
-# Rider's own inspections, run headless from the pinned JetBrains tool against Grimora.sln.DotSettings.
+# Rider's own inspections, run headless from the pinned JetBrains tool against Grimoira.sln.DotSettings.
 $out = & "$PSScriptRoot/inspect.ps1" 2>&1
 $inspectExit = $LASTEXITCODE
 $out | Select-Object -Last 15
 if ($inspectExit -ne 0) { $failed += 'Rider inspections (inspect.ps1)' }
 
-Write-Host '-- dotnet test Grimora.sln' -ForegroundColor Cyan
+Write-Host '-- dotnet test Grimoira.sln' -ForegroundColor Cyan
 # From slice 2 on (RESTRUCTURE.md section 4, "Exit check for every slice"): the new solution's own
 # test projects, run alongside the Node suites below until phase 2 finishes moving every feature.
-$out = & dotnet test "$PSScriptRoot/Grimora.sln" 2>&1
+$out = & dotnet test "$PSScriptRoot/Grimoira.sln" 2>&1
 $dotnetTestExit = $LASTEXITCODE
 $out | Select-String 'Passed!|Failed!' | Select-Object -Last 30
-if ($dotnetTestExit -ne 0) { $failed += 'dotnet test Grimora.sln' }
+if ($dotnetTestExit -ne 0) { $failed += 'dotnet test Grimoira.sln' }
 
 Write-Host '-- hook registration' -ForegroundColor Cyan
-$out = & dotnet "$PSScriptRoot/bin-cli/grimora.dll" hooks-doctor --project "$projectRoot" 2>&1
+$out = & dotnet "$PSScriptRoot/bin-cli/grimoira.dll" hooks-doctor --project "$projectRoot" 2>&1
 $hookExit = $LASTEXITCODE
 $out | Select-Object -Last 1
 if ($hookExit -ne 0) { $failed += 'hook registration' }
 
-# `grimora selftest` is gone (RESTRUCTURE.md slice 24 bullet 1): its 63 checks now live in the C# test
-# projects, verified by Grimora.Layout.Tests.SelfTestCoverageTests, which `dotnet test Grimora.sln` above
-# already ran. `grimora selftest` itself now just prints "removed in 0.4" and exits 2 (the cli-exit test
+# `grimoira selftest` is gone (RESTRUCTURE.md slice 24 bullet 1): its 63 checks now live in the C# test
+# projects, verified by Grimoira.Layout.Tests.SelfTestCoverageTests, which `dotnet test Grimoira.sln` above
+# already ran. `grimoira selftest` itself now just prints "removed in 0.4" and exits 2 (the cli-exit test
 # below covers that exit-code contract, the same way it covers every other dropped verb).
 
 if ($failed.Count -gt 0) {

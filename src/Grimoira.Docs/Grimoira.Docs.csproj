@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="../Grimoira.Store/Grimoira.Store.csproj" />
+  </ItemGroup>
+</Project>

@@ -37,23 +37,23 @@ if [ "$skip_build" -eq 0 ]; then
   run 'CLI build' 1 "$ROOT/build-cli.sh"
   step '-- build tool server'
   run 'tool server build' 1 "$ROOT/build-mcp.sh"
-  step '-- build Grimora.Server'
-  run 'Grimora.Server build' 1 "$ROOT/build-server.sh"
+  step '-- build Grimoira.Server'
+  run 'Grimoira.Server build' 1 "$ROOT/build-server.sh"
 fi
 
 step '-- code style (dotnet format style --verify-no-changes)'
-run 'code style (dotnet format style)' 5 dotnet format style "$ROOT/Grimora.sln" --severity info --diagnostics IDE0005 IDE0008 IDE0028 IDE0090 IDE0300 IDE0301 IDE0305 IDE0370 --verify-no-changes
+run 'code style (dotnet format style)' 5 dotnet format style "$ROOT/Grimoira.sln" --severity info --diagnostics IDE0005 IDE0008 IDE0028 IDE0090 IDE0300 IDE0301 IDE0305 IDE0370 --verify-no-changes
 
 step '-- Rider inspections (inspect.sh)'
 run 'Rider inspections (inspect.sh)' 15 "$ROOT/inspect.sh"
 
-step '-- dotnet test Grimora.sln'
-if out=$(dotnet test "$ROOT/Grimora.sln" 2>&1); then rc=0; else rc=$?; fi
+step '-- dotnet test Grimoira.sln'
+if out=$(dotnet test "$ROOT/Grimoira.sln" 2>&1); then rc=0; else rc=$?; fi
 printf '%s\n' "$out" | { grep -E 'Passed!|Failed!' || true; } | tail -n 30
-if [ "$rc" -ne 0 ]; then failed+=('dotnet test Grimora.sln'); fi
+if [ "$rc" -ne 0 ]; then failed+=('dotnet test Grimoira.sln'); fi
 
 step '-- hook registration'
-run 'hook registration' 1 dotnet "$ROOT/bin-cli/grimora.dll" hooks-doctor --project "$project"
+run 'hook registration' 1 dotnet "$ROOT/bin-cli/grimoira.dll" hooks-doctor --project "$project"
 
 if [ "${#failed[@]}" -gt 0 ]; then
   list=""

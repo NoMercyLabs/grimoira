@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <!-- Slice 29d: the built binary is the `grimoira` command itself (grimoira.exe / grimoira), a thin client of POST /cli. -->
+    <AssemblyName>grimoira</AssemblyName>
+    <RootNamespace>Grimoira.Cli</RootNamespace>
+    <DefineConstants>$(DefineConstants);GRIMOIRA_CLI_LINKED</DefineConstants>
+  </PropertyGroup>
+  <!-- Section 1: Cli "may depend on nothing in Grimoira except a small shared request contract, which it
+       copies from Store at build time (a linked source file)." No ProjectReference is allowed here
+       (Grimoira.Layout.Tests.ReferenceDirectionTests.CliReferencesNothingInGrimoira), so the two hook handlers
+       are compiled into Grimoira.Cli the same way: linked source, not a project reference. Grimoira.Hooks still
+       owns and tests them; this is a build-time copy of the same file. -->
+  <ItemGroup>
+    <PackageReference Include="ModelContextProtocol" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="../Grimoira.Store/Data/RegexTimeout.cs" Link="Data/RegexTimeout.cs" />
+    <Compile Include="../Grimoira.Store/Data/JsonShape.cs" Link="Data/JsonShape.cs" />
+    <Compile Include="../Grimoira.Memory/Data/TranscriptClassifier.cs" Link="Memory/TranscriptClassifier.cs" />
+    <Compile Include="../Grimoira.Server/Data/CleanExitRecord.cs" Link="Data/CleanExitRecord.cs" />
+    <Compile Include="../Grimoira.Hooks/Data/HookPaths.cs" Link="Hooks/HookPaths.cs" />
+    <Compile Include="../Grimoira.Hooks/Tools/CompactBriefTool.cs" Link="Hooks/CompactBriefTool.cs" />
+    <Compile Include="../Grimoira.Hooks/Tools/CompactRestoreTool.cs" Link="Hooks/CompactRestoreTool.cs" />
+    <Compile Include="../Grimoira.Brain/Data/IProcessRunner.cs">
+      <Link>Data/IProcessRunner.cs</Link>
+    </Compile>
+    <!-- Slice 27: `server install-logon`/`uninstall-logon` run schtasks through this seam. Same
+         no-ProjectReference rule as above, so it is a build-time linked copy of Grimoira.Brain's file, not
+         a reference to Grimoira.Brain. -->
+  </ItemGroup>
+</Project>

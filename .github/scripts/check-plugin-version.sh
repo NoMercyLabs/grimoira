@@ -22,8 +22,8 @@ if [ "$new" != "$market" ]; then
   exit 1
 fi
 
-if ! grep -q "Version = \"$new\"" src/Grimora.Cli/Tools/McpBridge.cs; then
-  echo "::error::src/Grimora.Cli/Tools/McpBridge.cs does not report version $new"
+if ! grep -q "Version = \"$new\"" src/Grimoira.Cli/Tools/McpBridge.cs; then
+  echo "::error::src/Grimoira.Cli/Tools/McpBridge.cs does not report version $new"
   exit 1
 fi
 

@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/Grimoira.Server/Grimoira.Server.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Grimoira.Layout.Tests/Grimoira.Layout.Tests.csproj" />
+    <ProjectReference Include="../Grimoira.TestSupport/Grimoira.TestSupport.csproj" />
+  </ItemGroup>
+  <!-- Slice 34: HooksEndpointTests spawns `grimoira hook <event>` (Grimoira.Cli.dll) as the oracle. Build order
+       only: the assembly is not referenced (its linked Hooks copies would clash with Grimoira.Hooks). -->
+  <ItemGroup>
+    <ProjectReference Include="../../src/Grimoira.Cli/Grimoira.Cli.csproj" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+</Project>

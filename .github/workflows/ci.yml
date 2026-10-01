@@ -16,8 +16,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          # The old-vs-new parity tests build grimora.cs and mcp.cs from a fixed older commit
-          # (tests/Grimora.TestSupport: OldVsNewCli, McpSnapshotHarness); a shallow clone lacks it.
+          # The old-vs-new parity tests build grimoira.cs and mcp.cs from a fixed older commit
+          # (tests/Grimoira.TestSupport: OldVsNewCli, McpSnapshotHarness); a shallow clone lacks it.
           fetch-depth: 0
 
       # 2026-09-30: installs update only on a version change; 31 commits sat unshipped behind 1.0.0.
@@ -28,13 +28,13 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           # Pinned to global.json's exact SDK, not a floating '10.0.x': a different feature band
-          # names a file-based app's generated project "grimora.cs" instead of "grimora", which slips
+          # names a file-based app's generated project "grimoira.cs" instead of "grimoira", which slips
           # past Directory.Build.props's file-based-app guard and NU1008s on central package
           # management (see Directory.Build.props and the fix commit for the full story).
           global-json-file: global.json
 
       - name: Build CLI
-        # bin-cli/ is the published Grimora.Cli, the thin client of the server's POST /cli.
+        # bin-cli/ is the published Grimoira.Cli, the thin client of the server's POST /cli.
         run: ./build-cli.sh
 
       - name: Build server
@@ -45,24 +45,24 @@ jobs:
 
       # Rule (2026-09-26): the code style "must be enforced by rules". A file the fixer would rewrite fails CI.
       - name: Code style
-        run: dotnet format style Grimora.sln --severity info --diagnostics IDE0005 IDE0008 IDE0028 IDE0090 IDE0300 IDE0301 IDE0305 IDE0370 --verify-no-changes
+        run: dotnet format style Grimoira.sln --severity info --diagnostics IDE0005 IDE0008 IDE0028 IDE0090 IDE0300 IDE0301 IDE0305 IDE0370 --verify-no-changes
 
       # Rule (2026-09-27): every warning Rider shows must fail the build. Rider's inspections are not Roslyn
-      # analyzers, so JetBrains' inspectcode (pinned in .config/dotnet-tools.json) runs against Grimora.sln.DotSettings.
+      # analyzers, so JetBrains' inspectcode (pinned in .config/dotnet-tools.json) runs against Grimoira.sln.DotSettings.
       - name: Rider inspections
         run: |
-          dotnet build Grimora.sln -c Debug --nologo -v q
+          dotnet build Grimoira.sln -c Debug --nologo -v q
           ./inspect.sh
 
       - name: Solution tests
-        run: dotnet test Grimora.sln -c Release
+        run: dotnet test Grimoira.sln -c Release
 
       - name: Cold start on a scratch instance
-        run: dotnet bin-cli/grimora.dll init --full --root "$GITHUB_WORKSPACE" --instance ci-init --skip-chat
+        run: dotnet bin-cli/grimoira.dll init --full --root "$GITHUB_WORKSPACE" --instance ci-init --skip-chat
 
       - name: Vulnerable dependencies
         run: |
-          dotnet list grimora.csproj package --vulnerable --include-transitive 2>&1 | tee audit.txt
+          dotnet list grimoira.csproj package --vulnerable --include-transitive 2>&1 | tee audit.txt
           dotnet list mcp.csproj package --vulnerable --include-transitive 2>&1 | tee -a audit.txt
           if grep -qiE '\bHigh\b|\bCritical\b' audit.txt; then
             echo "::error::high or critical advisory in the dependency tree"

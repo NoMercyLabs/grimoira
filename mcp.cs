@@ -2,20 +2,20 @@
 #:package Microsoft.Extensions.Hosting@9.0.0
 #:package Microsoft.Data.Sqlite@10.0.9
 // Pinned to the safe floor: Microsoft.Data.Sqlite otherwise resolves SQLitePCLRaw 2.1.10, which
-// carries GHSA-2m69-gcr7-jv3q. Keep in lockstep with grimora.cs.
+// carries GHSA-2m69-gcr7-jv3q. Keep in lockstep with grimoira.cs.
 #:package SQLitePCLRaw.bundle_e_sqlite3@3.0.3
-#:project src/Grimora.Store/Grimora.Store.csproj
-#:project src/Grimora.Facts/Grimora.Facts.csproj
-#:project src/Grimora.Memory/Grimora.Memory.csproj
-#:project src/Grimora.Docs/Grimora.Docs.csproj
-#:project src/Grimora.Graph/Grimora.Graph.csproj
-#:project src/Grimora.Brain/Grimora.Brain.csproj
-#:project src/Grimora.Server/Grimora.Server.csproj
-// Grimora MCP server: exposes the per-instance store (knowledge, the cross-project impact graph,
+#:project src/Grimoira.Store/Grimoira.Store.csproj
+#:project src/Grimoira.Facts/Grimoira.Facts.csproj
+#:project src/Grimoira.Memory/Grimoira.Memory.csproj
+#:project src/Grimoira.Docs/Grimoira.Docs.csproj
+#:project src/Grimoira.Graph/Grimoira.Graph.csproj
+#:project src/Grimoira.Brain/Grimoira.Brain.csproj
+#:project src/Grimoira.Server/Grimoira.Server.csproj
+// Grimoira MCP server: exposes the per-instance store (knowledge, the cross-project impact graph,
 // history, findings) as tools the agent calls every session. stdio transport; all host logging
 // disabled so only tool output reaches the client.
-// Instance resolves from GRIMORA_INSTANCE, else the project dir (CLAUDE_PROJECT_DIR or cwd) basename,
-// so the one user-scope server serves whatever repo the session runs in; store at ~/.grimora/<instance>/grimora.db.
+// Instance resolves from GRIMOIRA_INSTANCE, else the project dir (CLAUDE_PROJECT_DIR or cwd) basename,
+// so the one user-scope server serves whatever repo the session runs in; store at ~/.grimoira/<instance>/grimoira.db.
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
@@ -25,15 +25,15 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using ModelContextProtocol.Server;
-using Grimora.Store.Data;
-using Grimora.Store.Tools;
-using Grimora.Facts.Tools;
-using Grimora.Memory.Tools;
-using Grimora.Docs.Tools;
-using Grimora.Graph.Tools;
-using Grimora.Brain.Data;
-using Grimora.Brain.Tools;
-using Grimora.Server.Handover;
+using Grimoira.Store.Data;
+using Grimoira.Store.Tools;
+using Grimoira.Facts.Tools;
+using Grimoira.Memory.Tools;
+using Grimoira.Docs.Tools;
+using Grimoira.Graph.Tools;
+using Grimoira.Brain.Data;
+using Grimoira.Brain.Tools;
+using Grimoira.Server.Handover;
 
 HostApplicationBuilder builder = Host.CreateApplicationBuilder(args);
 builder.Logging.ClearProviders();
@@ -41,11 +41,11 @@ builder.Services.AddMcpServer().WithStdioServerTransport().WithToolsFromAssembly
 await builder.Build().RunAsync();
 
 [McpServerToolType]
-public static class GrimoraTools
+public static class GrimoiraTools
 {
     private static SqliteConnection Open()
     {
-        string path = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".grimora", ResolveInstance(), "grimora.db");
+        string path = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".grimoira", ResolveInstance(), "grimoira.db");
         // brain_stage and brain_flush now route through this Open() too (RESTRUCTURE.md slice 24, MCP
         // part 2), and unlike the other tools here neither ever required an already-`init`-ed instance
         // before: brain_stage is pure ledger-file append, and old mcp.cs's own inline brain_stage
@@ -58,7 +58,7 @@ public static class GrimoraTools
         con.Open();
         using (SqliteCommand busy = con.CreateCommand())
         {
-            // Matches grimora.cs: a momentary writer must block this connection, not kill it, and WAL
+            // Matches grimoira.cs: a momentary writer must block this connection, not kill it, and WAL
             // keeps readers running while the long doc/chat indexers hold the write lock.
             busy.CommandText = "PRAGMA busy_timeout=30000; PRAGMA journal_mode=WAL;";
             busy.ExecuteNonQuery();
@@ -103,7 +103,7 @@ public static class GrimoraTools
 
     private static string ResolveInstance()
     {
-        string? env = Environment.GetEnvironmentVariable("GRIMORA_INSTANCE");
+        string? env = Environment.GetEnvironmentVariable("GRIMOIRA_INSTANCE");
         if (!string.IsNullOrWhiteSpace(env)) return Slug(env);
         string? proj = Environment.GetEnvironmentVariable("CLAUDE_PROJECT_DIR");
         string dir = string.IsNullOrWhiteSpace(proj) ? Directory.GetCurrentDirectory() : proj;
@@ -170,7 +170,7 @@ public static class GrimoraTools
     }
 
     [McpServerTool]
-    [Description("Forget one memory (a migrated RULE/preference/decision) by its exact key — deletes the row from the memory channel and logs the deletion to the cold trail. Use to retire a rule that no longer holds. The key is the slug shown by grimora's memory tooling; a wrong key is a no-op.")]
+    [Description("Forget one memory (a migrated RULE/preference/decision) by its exact key — deletes the row from the memory channel and logs the deletion to the cold trail. Use to retire a rule that no longer holds. The key is the slug shown by grimoira's memory tooling; a wrong key is a no-op.")]
     public static string shed_memory(string key)
     {
         using SqliteConnection con = Open();

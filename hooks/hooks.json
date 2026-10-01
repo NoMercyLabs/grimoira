@@ -21,7 +21,7 @@
             "type": "command",
             "command": "dotnet",
             "args": [
-              "${CLAUDE_PLUGIN_DATA}/current/bin-cli/grimora.dll",
+              "${CLAUDE_PLUGIN_DATA}/current/bin-cli/grimoira.dll",
               "hook",
               "UserPromptSubmit"
             ],
@@ -38,7 +38,7 @@
             "type": "command",
             "command": "dotnet",
             "args": [
-              "${CLAUDE_PLUGIN_DATA}/current/bin-cli/grimora.dll",
+              "${CLAUDE_PLUGIN_DATA}/current/bin-cli/grimoira.dll",
               "hook",
               "PostToolUse"
             ],
@@ -54,7 +54,7 @@
             "type": "command",
             "command": "dotnet",
             "args": [
-              "${CLAUDE_PLUGIN_DATA}/current/bin-cli/grimora.dll",
+              "${CLAUDE_PLUGIN_DATA}/current/bin-cli/grimoira.dll",
               "hook",
               "PreCompact"
             ],
@@ -71,7 +71,7 @@
             "type": "command",
             "command": "dotnet",
             "args": [
-              "${CLAUDE_PLUGIN_DATA}/current/bin-cli/grimora.dll",
+              "${CLAUDE_PLUGIN_DATA}/current/bin-cli/grimoira.dll",
               "hook",
               "SessionEnd"
             ],
@@ -88,7 +88,7 @@
             "type": "command",
             "command": "dotnet",
             "args": [
-              "${CLAUDE_PLUGIN_DATA}/current/bin-cli/grimora.dll",
+              "${CLAUDE_PLUGIN_DATA}/current/bin-cli/grimoira.dll",
               "hook",
               "Stop"
             ],

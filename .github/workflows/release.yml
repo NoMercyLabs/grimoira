@@ -40,21 +40,21 @@ jobs:
 
       - name: Build
         run: |
-          dotnet publish src/Grimora.Cli/Grimora.Cli.csproj -c Release -o bin-cli -p:PublishAot=false
-          dotnet publish src/Grimora.Server/Grimora.Server.csproj -c Release -o bin-server -p:PublishAot=false
+          dotnet publish src/Grimoira.Cli/Grimoira.Cli.csproj -c Release -o bin-cli -p:PublishAot=false
+          dotnet publish src/Grimoira.Server/Grimoira.Server.csproj -c Release -o bin-server -p:PublishAot=false
           dotnet build mcp.cs -c Release -o bin
 
       - name: Package
         run: |
-          tar -czf grimora-cli-${{ steps.tag.outputs.value }}.tar.gz bin-cli
-          tar -czf grimora-server-${{ steps.tag.outputs.value }}.tar.gz bin-server
-          tar -czf grimora-mcp-${{ steps.tag.outputs.value }}.tar.gz bin
+          tar -czf grimoira-cli-${{ steps.tag.outputs.value }}.tar.gz bin-cli
+          tar -czf grimoira-server-${{ steps.tag.outputs.value }}.tar.gz bin-server
+          tar -czf grimoira-mcp-${{ steps.tag.outputs.value }}.tar.gz bin
 
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.tag.outputs.value }}
           generate_release_notes: true
           files: |
-            grimora-cli-${{ steps.tag.outputs.value }}.tar.gz
-            grimora-server-${{ steps.tag.outputs.value }}.tar.gz
-            grimora-mcp-${{ steps.tag.outputs.value }}.tar.gz
+            grimoira-cli-${{ steps.tag.outputs.value }}.tar.gz
+            grimoira-server-${{ steps.tag.outputs.value }}.tar.gz
+            grimoira-mcp-${{ steps.tag.outputs.value }}.tar.gz

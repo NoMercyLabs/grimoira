@@ -1,8 +1,8 @@
 {
   "mcpServers": {
-    "grimora": {
+    "grimoira": {
       "command": "dotnet",
-      "args": ["${CLAUDE_PLUGIN_DATA}/current/bin-cli/grimora.dll", "mcp"]
+      "args": ["${CLAUDE_PLUGIN_DATA}/current/bin-cli/grimoira.dll", "mcp"]
     }
   }
 }

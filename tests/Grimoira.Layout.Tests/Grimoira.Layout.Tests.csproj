@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Grimoira.TestSupport/Grimoira.TestSupport.csproj" />
+    <!-- RESTRUCTURE.md slice 31/31b: the migrated-store parity cases below open a new instance's db
+         directly to apply GraphFileRelSchema (the same migration IndexCodeTool runs), so they need the
+         schema and graph tool assemblies — the other OldVsNewCli tests in this project never touch a
+         store directly and stay on Grimoira.TestSupport alone. -->
+    <ProjectReference Include="../../src/Grimoira.Store/Grimoira.Store.csproj" />
+    <ProjectReference Include="../../src/Grimoira.Graph/Grimoira.Graph.csproj" />
+    <!-- CliClientTimeoutsCoverTheServerLimitTests reads ThinClient.RequestTimeout itself. Private: Grimoira.Server.Tests
+         references this project, and the thin client's types would clash with Grimoira.Brain's there. -->
+    <!-- Aliased "cli": Grimoira.Cli links Grimoira.Hooks.Data.HookPaths.cs verbatim under its own assembly
+         (CliReferencesNothingInGrimoira forbids a ProjectReference), so the type name collides with the real
+         Grimoira.Hooks assembly this project also references (HooksResolveTheSameInstanceAsCliAndServerTests
+         needs both, to prove the two copies agree). -->
+    <ProjectReference Include="../../src/Grimoira.Cli/Grimoira.Cli.csproj" PrivateAssets="all" Aliases="cli" />
+    <!-- ServerAddressMatchesAcrossCliAndServerTests (Slice P1): the pipe/socket-name derivation is
+         duplicated in Grimoira.Cli.Tools and Grimoira.Server.Data (the two projects cannot reference each
+         other; ReferenceDirectionTests), so this test project needs both to catch drift. -->
+    <ProjectReference Include="../../src/Grimoira.Server/Grimoira.Server.csproj" />
+  </ItemGroup>
+</Project>

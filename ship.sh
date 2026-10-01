@@ -74,9 +74,9 @@ esac
 
 # The store write happens BEFORE the push wait, so a red CI or a dropped connection cannot lose it.
 if [ -n "$fact" ]; then
-  if [ -x "$ROOT/bin-cli/grimora.exe" ]; then cli=("$ROOT/bin-cli/grimora.exe")
-  elif [ -x "$ROOT/bin-cli/grimora" ]; then cli=("$ROOT/bin-cli/grimora")
-  else cli=(dotnet "$ROOT/bin-cli/grimora.dll"); fi
+  if [ -x "$ROOT/bin-cli/grimoira.exe" ]; then cli=("$ROOT/bin-cli/grimoira.exe")
+  elif [ -x "$ROOT/bin-cli/grimoira" ]; then cli=("$ROOT/bin-cli/grimoira")
+  else cli=(dotnet "$ROOT/bin-cli/grimoira.dll"); fi
   "${cli[@]}" add --instance "$instance" --term "$term" --value "$fact" \
     --category "$category" --provenance stated --source "$sha" | tail -n 1
 fi
