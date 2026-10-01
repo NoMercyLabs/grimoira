@@ -55,9 +55,10 @@ public class ServerLogonCommandTests
         int exitCode = ServerLogonCommand.Uninstall(runner);
 
         Assert.Equal(0, exitCode);
-        Assert.Single(runner.Calls);
-        Assert.Equal("schtasks", runner.Calls[0].FileName);
-        Assert.Equal(new[] { "/Delete", "/TN", "Grimora.Server", "/F" }, runner.Calls[0].Args);
+        Assert.Equal(2, runner.Calls.Count);
+        Assert.All(runner.Calls, c => Assert.Equal("schtasks", c.FileName));
+        Assert.Equal(new[] { "/Delete", "/TN", "Grimoira.Server", "/F" }, runner.Calls[0].Args);
+        Assert.Equal(new[] { "/Delete", "/TN", "Grimora.Server", "/F" }, runner.Calls[1].Args);
     }
 
     [Fact]

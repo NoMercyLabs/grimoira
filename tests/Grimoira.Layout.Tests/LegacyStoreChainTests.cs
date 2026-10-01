@@ -79,22 +79,58 @@ public sealed class LegacyStoreChainTests : IDisposable
     [Fact]
     public void AStaleGrimoraPartialIsNeitherASourceNorTouched()
     {
+        MakeDb(Path.Combine(_home, ".aitm", "proj", "aitm.db"), 6);
         Directory.CreateDirectory(Path.Combine(_home, ".grimora.partial"));
         File.WriteAllText(Path.Combine(_home, ".grimora.partial", "half.txt"), "half");
 
-        Assert.False(LegacyStore.MoveIfNeeded(_home));
+        Assert.True(LegacyStore.MoveIfNeeded(_home));
 
-        Assert.False(Directory.Exists(Path.Combine(_home, ".grimoira")));
+        Assert.Equal(6, Count(NewDb));
+        Assert.Contains(".aitm", File.ReadAllText(Path.Combine(_home, ".grimoira", ".migrated-from-aitm")));
+        Assert.False(File.Exists(Path.Combine(_home, ".grimoira", "half.txt")));
         Assert.Equal("half", File.ReadAllText(Path.Combine(_home, ".grimora.partial", "half.txt")));
     }
 
     [Fact]
-    public void ANewFolderMeansNothingIsCopiedFromEitherOldFolder()
+    public void ANewFolderHoldingARealDatabaseMeansNothingIsCopiedFromEitherOldFolder()
     {
-        Directory.CreateDirectory(Path.Combine(_home, ".grimoira"));
-        MakeDb(Path.Combine(_home, ".grimora", "proj", "grimora.db"), 1);
+        MakeDb(NewDb, 1);
+        MakeDb(Path.Combine(_home, ".grimora", "proj", "grimora.db"), 9);
+        MakeDb(Path.Combine(_home, ".grimora", "other", "grimora.db"), 9);
 
         Assert.False(LegacyStore.MoveIfNeeded(_home));
-        Assert.False(Directory.Exists(Path.Combine(_home, ".grimoira", "proj")));
+        Assert.Equal(1, Count(NewDb));
+        Assert.False(Directory.Exists(Path.Combine(_home, ".grimoira", "other")));
+    }
+
+    [Fact]
+    public void ANewFolderMadeEarlyByALogAndAnEmptyInstanceFolderStillMigrates()
+    {
+        Directory.CreateDirectory(Path.Combine(_home, ".grimoira", "emptyproj"));
+        File.WriteAllText(Path.Combine(_home, ".grimoira", "hook.log"), "early");
+        MakeDb(Path.Combine(_home, ".grimora", "proj", "grimora.db"), 5);
+
+        Assert.True(LegacyStore.MoveIfNeeded(_home));
+
+        Assert.Equal(5, Count(NewDb));
+        Assert.Equal("early", File.ReadAllText(Path.Combine(_home, ".grimoira", "hook.log")));
+        Assert.True(Directory.Exists(Path.Combine(_home, ".grimoira", "emptyproj")));
+        Assert.True(File.Exists(Path.Combine(_home, ".grimoira", ".migrated-from-grimora")));
+        Assert.False(LegacyStore.MoveIfNeeded(_home)); // done: the marker stops a second copy
+    }
+
+    [Fact]
+    public void ANameClashBetweenAnEarlyFileAndAnOldFileKeepsBothAndTheEarlyFileStaysInPlace()
+    {
+        Directory.CreateDirectory(Path.Combine(_home, ".grimoira", "proj"));
+        File.WriteAllText(Path.Combine(_home, ".grimoira", "proj", "notes.txt"), "new");
+        MakeDb(Path.Combine(_home, ".grimora", "proj", "grimora.db"), 2);
+        File.WriteAllText(Path.Combine(_home, ".grimora", "proj", "notes.txt"), "old");
+
+        Assert.True(LegacyStore.MoveIfNeeded(_home));
+
+        Assert.Equal(2, Count(NewDb));
+        Assert.Equal("new", File.ReadAllText(Path.Combine(_home, ".grimoira", "proj", "notes.txt")));
+        Assert.Equal("old", File.ReadAllText(Path.Combine(_home, ".grimoira", "proj", "notes.txt.from-grimora")));
     }
 }

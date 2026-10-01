@@ -29,6 +29,16 @@ public class LaunchdAndSystemdLogonTests
     }
 
     [Fact]
+    public void LaunchdPlistUsesTheGrimoiraLabelAndCleanupRemovesBothLabels()
+    {
+        string plist = LaunchdLogonAgent.BuildPlist(Definition());
+
+        Assert.Contains("<string>tv.nomercy.grimoira.server</string>", plist);
+        Assert.DoesNotContain("tv.nomercy.grimora.server", plist);
+        Assert.Equal(["tv.nomercy.grimoira.server", "tv.nomercy.grimora.server"], LaunchdLogonAgent.AllLabels);
+    }
+
+    [Fact]
     public void SystemdUserUnitDelaysStartsAsTheUserAndRestartsOnFailureWithNoBurstLimit()
     {
         string unit = SystemdUserLogonUnit.Build(Definition());
