@@ -4,6 +4,8 @@ Grimoira is a long-term memory for Claude Code.
 
 Claude forgets everything when a session ends. Grimoira keeps what matters: facts you verified, rules you set, decisions you argued over, and how your projects connect. The next session, in any of your projects, can ask for that knowledge instead of guessing. It runs on your machine, and nothing leaves it.
 
+Grimoira is built to be Claude Code's memory and knowledge layer. Once installed, it takes part in every session, so what was learned is not lost and repeated work goes through the same tools. [HOW-IT-WORKS.md](HOW-IT-WORKS.md) says exactly what it changes, what it stores, what it costs and how to turn it off.
+
 ## What it does for you
 
 Claude reaches Grimoira through 26 tools and through the `grimoira` command. Day to day, it can:
