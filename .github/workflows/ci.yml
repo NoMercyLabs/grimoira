@@ -25,6 +25,10 @@ jobs:
         if: github.event_name == 'pull_request'
         run: .github/scripts/check-plugin-version.sh "${{ github.event.pull_request.base.sha }}"
 
+      # The install list lives in two repositories; a plugin or version that differs sends users to different installs.
+      - name: Marketplace matches NoMercyLabs/skills
+        run: .github/scripts/check-marketplace-sync.sh
+
       - uses: actions/setup-dotnet@v4
         with:
           # Pinned to global.json's exact SDK, not a floating '10.0.x': a different feature band

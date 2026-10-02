@@ -31,9 +31,11 @@ Requirements:
 In Claude Code:
 
 ```
-/plugin marketplace add NoMercyLabs/grimoira
+/plugin marketplace add NoMercyLabs/skills
 /plugin install grimoira@nomercylabs
 ```
+
+`NoMercyLabs/skills` is the one install list for every NoMercy Labs plugin. If you already added `NoMercyLabs/grimoira`, keep it: it lists the same plugins.
 
 ## First start
 
