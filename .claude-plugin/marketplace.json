@@ -9,7 +9,7 @@
     {
       "name": "grimoira",
       "source": "./",
-      "description": "Per-project knowledge store with a hook-enforced read/write loop for agent sessions.",
+      "description": "Per-project knowledge store for Claude Code: hooks keep it current, tools answer from it with sources.",
       "version": "2.0.1"
     },
     {

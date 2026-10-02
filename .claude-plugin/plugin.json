@@ -1,6 +1,6 @@
 {
   "name": "grimoira",
-  "description": "Per-project knowledge store with a hook-enforced read/write loop: answers codebase questions from a queryable store instead of the training prior, and learns from every search that has to fall through to the filesystem.",
+  "description": "Per-project knowledge store for Claude Code: hooks index your edits, save context before compaction and file each session when it ends; its tools answer codebase questions from the store, with sources, instead of the training prior.",
   "version": "2.0.1",
   "author": {
     "name": "NoMercy Labs",

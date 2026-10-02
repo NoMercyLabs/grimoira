@@ -1,11 +1,11 @@
 ---
 name: grimoira
-description: Find a NoMercy project fact, rule, past decision, cross-project impact, or known tool in Grimoira; record a verified finding for future sessions. Use for project knowledge, not generic coding questions.
+description: Find a project fact, rule, past decision, cross-project impact, or known tool in Grimoira; record a verified finding for future sessions. Use for project knowledge, not generic coding questions.
 ---
 
 # Grimoira project knowledge
 
-Grimoira is a shared knowledge store, one instance per workspace (`nomercy` in NoMercy). It holds verified facts, standing rules, absorbed docs, past conversations, and a cross-project code graph.
+Grimoira is a shared knowledge store, one instance per workspace. It holds verified facts, standing rules, absorbed docs, past conversations, and a cross-project code graph.
 
 Its answers are leads with a source, not proof the current code still agrees. The source file and the running software are the real proof; a memory is context. Check the cited source before changing code or relying on a fact that matters. The user's current instruction and the target repo's own rules always outrank a stale entry.
 
@@ -80,7 +80,7 @@ Use the CLI `add` / `index-memory` commands instead if the MCP server is unavail
 
 ## Workspace tools
 
-- `workspace_capabilities` — find an existing NoMercy tool by purpose (browser login, native code search, CI watching, process ownership) instead of writing a new one. Read-only discovery; does not run anything.
+- `workspace_capabilities` — find an existing workspace tool by purpose (browser login, native code search, CI watching, process ownership) instead of writing a new one. Read-only discovery; does not run anything.
 - `workspace_search` — search fixed text or filenames in one registered repository. Requires an explicit repo path (`.` means the root). File and line locations only, no source values, excludes credential paths. Search one repo at a time; never recurse the whole monorepo root.
 
 ## Rules

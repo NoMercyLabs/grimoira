@@ -129,7 +129,7 @@ This makes the inputs consistent. It does not make Claude's output deterministic
 
 ## 7. Cost
 
-- **Disk:** the store grows with what you index. The size is not measured. A first-time copy from an older Grimora or AITM store needs free space equal to that store.
+- **Disk:** the store grows with what you index. The size is not measured. A first-time copy from an older store needs free space equal to that store.
 - **Runtime:** the .NET 10 SDK. The plugin builds its own command and service with it. Nothing else is required.
 - **Build time:** the first session after an install or an update has no built command yet. The build runs in the background and takes a few minutes. Your session works in the meantime, without Grimoira.
 - **Background service:** it starts on the first call and exits after 30 quiet minutes. Memory use is not measured.
