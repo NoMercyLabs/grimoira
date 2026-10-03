@@ -9,8 +9,8 @@ using ModelContextProtocol.Server;
 namespace Grimoira.Server.Data;
 
 /// <summary>
-/// Maps the 24 golden MCP tools onto <see cref="McpServerTool"/> through one path (RESTRUCTURE.md
-/// "Slice 26": "Map them through one registry, not 24 hand-written endpoints"). The 22 store-backed
+/// Maps the 25 golden MCP tools onto <see cref="McpServerTool"/> through one path (RESTRUCTURE.md
+/// "Slice 26": "Map them through one registry, not 25 hand-written endpoints"). The 23 store-backed
 /// tools (an <c>ExecuteMcp(SqliteConnection, ...)</c> method) go through the same
 /// <see cref="BuildStoreBackedTool"/> reflection path, which resolves the connection parameter from the
 /// calling project's <see cref="ProjectStore"/> instead of the JSON arguments and serialises every call
@@ -41,7 +41,7 @@ public static class McpToolFactory
     }
 
     /// <summary>
-    /// The same 24 tools as plain <see cref="AIFunction"/>s (name, description, input schema, invoke) for the
+    /// The same 25 tools as plain <see cref="AIFunction"/>s (name, description, input schema, invoke) for the
     /// service routes <c>/tools</c> (RESTRUCTURE.md Slice P1), which `grimoira mcp` forwards to. Store-backed tools
     /// share <see cref="BuildStoreBackedFunction"/> with <see cref="BuildTools"/>, so both routes run under the
     /// one per-project writer gate; the two handover tools share their invoke delegates with it too.

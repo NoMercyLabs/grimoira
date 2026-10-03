@@ -165,7 +165,7 @@ app.MapGet("/health", () => Results.Json(new
     openStores = projectStore.OpenInstances,
 }));
 
-// The 24 golden MCP tools. Reachable only over the pipe/socket above (no Host/Origin guard needed).
+// The 25 golden MCP tools. Reachable only over the pipe/socket above (no Host/Origin guard needed).
 app.MapMcp("/mcp");
 
 // RESTRUCTURE.md Slice P1: the tool list and one tool call for `grimoira mcp` (ToolsEndpoint); same project

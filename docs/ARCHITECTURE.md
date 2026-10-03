@@ -26,12 +26,12 @@ The `src/` folder holds nine projects.
 
 - `SessionStart`, timeout 15 s. Runs `bootstrap.cs`. If the current build is present, it runs `grimoira hook SessionStart`, which starts the service when `/health` does not answer. If the build is missing or stale, it starts a background build and exits.
 - `UserPromptSubmit`, timeout 10 s. Runs in the command itself. Hands back the anchors saved before the last compaction, once, on the first prompt after it.
-- `PostToolUse`, matcher `Write|Edit|MultiEdit|NotebookEdit`, timeout 65 s. Forwarded to the service. Reindexes the memory or docs channel that the edited file belongs to.
+- `PostToolUse`, matcher `Write|Edit|MultiEdit|NotebookEdit|Read|Grep|Glob|Bash`, timeout 65 s. Forwarded to the service, which picks the handler by tool name. An edit reindexes the memory or docs channel that the edited file belongs to. A Read, Grep, Glob or Bash call is counted in the `patterns` table.
 - `PreCompact`, timeout 20 s. Runs in the command itself. Writes the user's own words, dirty repos and branches, changed files and open items to disk before the compaction.
 - `SessionEnd`, timeout 390 s, async. Forwarded to the service, which queues the work and answers at once. In the background it folds the transcript into the chat index, absorbs the project's `.claude/` docs, and indexes every registered project's public declarations into `edges`.
 - `Stop`, timeout 10 s. Forwarded to the service. If staged learning is waiting in the ledger, it flushes it into the store and says so.
 
-The service also has a `PostToolUse` handler for `Bash` and `PowerShell` that counts repeated command shapes. `hooks.json` does not register that matcher today. The counts are read back by the `patterns` tool in `Grimoira.Hooks`, which the MCP registry does not expose.
+The `PostToolUse` counter records a signature per call: the command shape for `Bash` and `PowerShell`, the relative path for `Read`, the pattern and folder for `Grep` and `Glob`. The counts are read back by the `patterns` MCP tool in `Grimoira.Hooks`, grouped by kind, so a repeated search can become a fact or a tool.
 
 ## Tools
 

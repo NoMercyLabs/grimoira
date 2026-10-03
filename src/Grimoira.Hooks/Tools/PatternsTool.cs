@@ -19,6 +19,20 @@ public sealed class PatternsTool : ITool
     public string McpName => "patterns";
     public string Help => "patterns                              commands/procedures recorded often enough to codify";
 
+    /// <summary>The MCP side is the same read: the registry binds the connection, there are no arguments.</summary>
+    public string ExecuteMcp(SqliteConnection connection) => ExecuteCli(connection);
+
+    /// <summary>Group header per kind, in the order shown: procedures first, then commands, then the
+    /// read side (files, greps, globs) the counter learned from the PostToolUse search tools.</summary>
+    private static readonly (string Kind, string Header)[] Groups =
+    [
+        ("sequence", "procedures:"),
+        ("command", "single commands:"),
+        ("read", "files read:"),
+        ("grep", "greps:"),
+        ("glob", "globs:"),
+    ];
+
     public string ExecuteCli(SqliteConnection connection)
     {
         List<(string Sig, long Count, bool Promoted, string Kind)> rows = [];
@@ -26,7 +40,7 @@ public sealed class PatternsTool : ITool
         {
             using SqliteCommand cmd = connection.CreateCommand();
             cmd.CommandText = "SELECT sig, count, promoted, COALESCE(kind,'command') AS kind " +
-                "FROM patterns ORDER BY (kind='sequence') DESC, count DESC LIMIT 30";
+                "FROM patterns ORDER BY (kind='sequence') DESC, count DESC LIMIT 60";
             using SqliteDataReader r = cmd.ExecuteReader();
             while (r.Read())
                 rows.Add((r.GetString(0), r.GetInt64(1), !r.IsDBNull(2) && r.GetInt64(2) != 0, r.GetString(3)));
@@ -38,16 +52,16 @@ public sealed class PatternsTool : ITool
         if (rows.Count == 0) return "nothing recorded yet.";
 
         List<string> lines = [];
-        foreach (string group in new[] { "sequence", "command" })
+        foreach ((string group, string header) in Groups)
         {
             List<(string Sig, long Count, bool Promoted, string Kind)> of = [.. rows.Where(r => r.Kind == group)];
             if (of.Count == 0) continue;
             lines.Add("");
-            lines.Add(group == "sequence" ? "procedures:" : "single commands:");
-            foreach ((string sig, long count, bool promoted, string _) in of)
+            lines.Add(header);
+            foreach ((string sig, long count, bool promoted, string kind) in of)
             {
                 string flag = promoted ? " [settled]" : (count >= (group == "sequence" ? 3 : 5) ? " <- worth codifying" : "");
-                lines.Add($"  {count,3}x  {sig}{flag}");
+                lines.Add($"  {count,3}x  [{kind}] {sig}{flag}");
             }
         }
         return string.Join("\n", lines).TrimStart('\n');
