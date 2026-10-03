@@ -97,9 +97,30 @@ public partial class McpDispatchTests
             $"mcp.cs's {mcpName}() must call new {toolClass}(...).Execute(...) instead of holding its own inline logic.\n---\n{body}");
     }
 
-    // All 24 golden MCP tools together: every one is in one of the three wired lists above.
+    // The Grimoira.Hooks read tool over the patterns table: store-backed like the first two lists, so
+    // mcp.cs calls its ExecuteMcp the same way.
+    public static readonly (string McpName, string ToolClass)[] HooksTools =
+    [
+        ("patterns", "PatternsTool"),
+    ];
+
+    public static IEnumerable<object[]> HooksToolsData() =>
+        HooksTools.Select(t => new object[] { t.McpName, t.ToolClass });
+
+    [Theory]
+    [MemberData(nameof(HooksToolsData))]
+    public void McpMethodCallsItsHooksToolClassExecuteMcp(string mcpName, string toolClass)
+    {
+        string source = File.ReadAllText(Path.Combine(RepoPaths.Root, "mcp.cs"));
+        string body = MethodBody(source, mcpName);
+        Assert.True(
+            Regex.IsMatch(body, $@"new\s+{Regex.Escape(toolClass)}\s*\(.*\)\s*\.\s*ExecuteMcp\s*\(", RegexOptions.Singleline, RegexTimeout.Span),
+            $"mcp.cs's {mcpName}() must call new {toolClass}(...).ExecuteMcp(...) instead of holding its own inline logic.\n---\n{body}");
+    }
+
+    // All 25 golden MCP tools together: every one is in one of the four wired lists above.
     [Fact]
-    public void AllTwentyFourToolsAreAccountedFor()
+    public void AllTwentyFiveToolsAreAccountedFor()
     {
         HashSet<string> wired =
         [
@@ -107,8 +128,9 @@ public partial class McpDispatchTests
 ,
             .. GraphAndBrainTools.Select(t => t.McpName),
             .. HandoverExecuteTools.Select(t => t.McpName),
+            .. HooksTools.Select(t => t.McpName),
         ];
-        Assert.Equal(24, wired.Count);
+        Assert.Equal(25, wired.Count);
     }
 
     // Extracts the body of `public static string <name>(...) { ... }` in mcp.cs, from its opening

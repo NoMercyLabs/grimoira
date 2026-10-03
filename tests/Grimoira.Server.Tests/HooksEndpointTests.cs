@@ -160,6 +160,27 @@ public sealed class HooksEndpointTests : IDisposable
     }
 
     [Fact]
+    public async Task PostToolUseReadReachesPatternWatchAndRecordsTheRead()
+    {
+        using WebApplicationFactory<Program> factory = Factory();
+        using HttpClient client = Client(factory);
+        CreateEmptyHookDb();
+        string payload = JsonSerializer.Serialize(new { cwd = _projectDir, session_id = "s3r", tool_name = "Read", tool_input = new { file_path = Path.Combine(_projectDir, "README.md") } });
+
+        (HttpStatusCode status, string body) = await PostHook(client, "PostToolUse", payload);
+
+        Assert.Equal(HttpStatusCode.OK, status);
+        Assert.Equal("", body);
+        Assert.Equal(1L, Scalar(HookDbPath, "SELECT count(*) FROM patterns WHERE kind = 'read'"));
+    }
+
+    [Fact]
+    public void TheMcpRegistryExposesPatterns()
+    {
+        Assert.Contains(AllMcpTools.BuildRegistry().Tools, t => t.McpName == "patterns");
+    }
+
+    [Fact]
     public async Task PostToolUseEditEqualsTheCliHook()
     {
         using WebApplicationFactory<Program> factory = Factory();
