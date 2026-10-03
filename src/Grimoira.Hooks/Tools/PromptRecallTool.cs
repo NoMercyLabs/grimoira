@@ -47,6 +47,7 @@ public static partial class PromptRecallTool
             if (terms.Count < MinTerms) return "";
 
             string instance = HookPaths.ResolveInstance(GetString(payload, "cwd"), projectDir);
+            if (GateSwitch.IsPaused(instance)) return "";
             string dbPath = HookPaths.DbPath(instance);
             if (!File.Exists(dbPath)) return "";
 

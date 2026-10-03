@@ -43,6 +43,7 @@ public static class EditGateTool
             string? cwd = GetString(payload, "cwd");
             string? sessionId = GetString(payload, "session_id");
             string instance = HookPaths.ResolveInstance(cwd, projectDir);
+            if (GateSwitch.IsPaused(instance)) return "";
             if (!File.Exists(HookPaths.DbPath(instance))) return "";
 
             string file = Path.GetFullPath(filePath);

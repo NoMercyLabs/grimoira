@@ -99,6 +99,7 @@ Store and instance:
 - `stats`: channel counts for the instance.
 - `eval`: run the retrieval eval set.
 - `hooks-doctor [--project <dir>]`: find duplicate hook registrations (plugin vs. direct).
+- `gates off [reason...] | on | status`: pause the edit gate and prompt recall for this instance (12 h at most), logged in `gates.log`.
 
 Facts, todos and findings:
 
