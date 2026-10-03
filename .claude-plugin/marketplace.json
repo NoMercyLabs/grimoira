@@ -9,14 +9,23 @@
     {
       "name": "grimoira",
       "source": "./",
-      "description": "Per-project knowledge store with a hook-enforced read/write loop for agent sessions.",
-      "version": "2.0.0"
+      "description": "Per-project knowledge store for Claude Code: hooks keep it current, tools answer from it with sources.",
+      "version": "2.0.1"
     },
     {
       "name": "grimora",
       "source": "./legacy/grimora",
       "description": "Retired name. Installing it only prints how to move to Grimoira.",
       "version": "2.0.0"
+    },
+    {
+      "name": "nomercylabs",
+      "source": {
+        "source": "url",
+        "url": "https://github.com/NoMercyLabs/skills.git"
+      },
+      "description": "Every NoMercy Labs skill in one plugin: atlas documents a whole project as one system, devbox-anywhere builds a containerized dev environment from what the repo actually uses, crucible audits a whole system and verifies every defect it files.",
+      "version": "1.4.0"
     }
   ]
 }
