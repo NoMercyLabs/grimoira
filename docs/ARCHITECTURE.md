@@ -22,10 +22,11 @@ The `src/` folder holds nine projects.
 
 ## Hooks
 
-`hooks/hooks.json` registers six events. Every one runs `dotnet`. Every one fails open: an error prints nothing and never blocks the session.
+`hooks/hooks.json` registers seven events. Every one runs `dotnet`. Every one fails open: an error prints nothing and never blocks the session.
 
 - `SessionStart`, timeout 15 s. Runs `bootstrap.cs`. If the current build is present, it runs `grimoira hook SessionStart`, which starts the service when `/health` does not answer. If the build is missing or stale, it starts a background build and exits.
-- `UserPromptSubmit`, timeout 10 s. Runs in the command itself. Hands back the anchors saved before the last compaction, once, on the first prompt after it.
+- `UserPromptSubmit`, timeout 10 s. Runs in the command itself. Hands back the anchors saved before the last compaction, once, on the first prompt after it. Then the prompt recall: the few facts and rules that match the prompt's terms, under a budget of 600 characters, with a 3 s deadline. A short prompt, a slash command or tool text, or a prompt with no match adds nothing.
+- `PreToolUse`, matcher `Write|Edit|MultiEdit|NotebookEdit`, timeout 8 s. The edit gate. The first time a session edits a file, the rules and facts whose text matches the file's path are added as context, capped at 1500 characters. A seen list next to the compaction brief keeps a later edit of the same file quiet. Each gate run is appended to `gate.log` in the instance folder.
 - `PostToolUse`, matcher `Write|Edit|MultiEdit|NotebookEdit|Read|Grep|Glob|Bash`, timeout 65 s. Forwarded to the service, which picks the handler by tool name. An edit reindexes the memory or docs channel that the edited file belongs to. A Read, Grep, Glob or Bash call is counted in the `patterns` table.
 - `PreCompact`, timeout 20 s. Runs in the command itself. Writes the user's own words, dirty repos and branches, changed files and open items to disk before the compaction.
 - `SessionEnd`, timeout 390 s, async. Forwarded to the service, which queues the work and answers at once. In the background it folds the transcript into the chat index, absorbs the project's `.claude/` docs, and indexes every registered project's public declarations into `edges`.
@@ -33,9 +34,11 @@ The `src/` folder holds nine projects.
 
 The `PostToolUse` counter records a signature per call: the command shape for `Bash` and `PowerShell`, the relative path for `Read`, the pattern and folder for `Grep` and `Glob`. The counts are read back by the `patterns` MCP tool in `Grimoira.Hooks`, grouped by kind, so a repeated search can become a fact or a tool.
 
+`grimoira gates off [reason] | on | status` pauses the two hooks that inject context (the edit gate and the prompt recall) by writing a marker in the instance folder. A marker older than 12 hours no longer counts. Every flip is appended to `gates.log`. An IO error reads as "on", never as "off". The `PostToolUse` counter is not a gate and keeps counting while paused.
+
 ## Tools
 
-The MCP entry exposes 26 tools. The text below is the help text each tool carries.
+The MCP entry exposes 27 tools. The text below is the help text each tool carries.
 
 Facts, todos and findings:
 
