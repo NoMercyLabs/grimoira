@@ -232,4 +232,27 @@ public class EditGateToolTests
         fts.Parameters.AddWithValue("$v", value);
         fts.ExecuteNonQuery();
     }
+
+    [Fact]
+    public void PausedGateReturnsEmptyAndDoesNotMarkSeen()
+    {
+        string instance = GrimoiraCliRunner.NewTestInstance("edit-gate-paused");
+        try
+        {
+            string projectDir = ProjectDirFor(instance);
+            SeedRule(instance, "rule-invoice", "Invoice rounding", "billing invoice service rounds half up");
+
+            GateSwitch.Off(instance, "test");
+            string paused = EditGateTool.Execute(Payload("s1", projectDir, FilePath), projectDir);
+            GateSwitch.On(instance);
+            string after = EditGateTool.Execute(Payload("s1", projectDir, FilePath), projectDir);
+
+            Assert.Equal("", paused);
+            Assert.Contains("rounds half up", after);
+        }
+        finally
+        {
+            GrimoiraCliRunner.DeleteInstance(instance);
+        }
+    }
 }

@@ -36,7 +36,7 @@ public partial class BrainReadVerbDispatchTests
     ];
 
     [Fact]
-    public void PartFourACovers10OfThe71GoldenCliVerbs() => Assert.Equal(10, WiredVerbs.Length);
+    public void PartFourACovers10OfThe72GoldenCliVerbs() => Assert.Equal(10, WiredVerbs.Length);
 
     [Theory]
     [MemberData(nameof(WiredVerbCases))]

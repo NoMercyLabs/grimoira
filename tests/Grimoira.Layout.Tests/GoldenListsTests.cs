@@ -20,8 +20,11 @@ public partial class GoldenListsTests
 {
     // Section 2.1: 5 + 9 + 5 + 6 + 13 + 32 = 70 mapped, 4 dropped (loop, start, tick, selftest).
     // Plus 1: "redact-chat" (new, see the class comment above) = 71.
+    // Plus 1: "gates" (Grimoira.Hooks; the pause switch for the edit gate and prompt recall) = 72.
     public static readonly string[] GoldenCliVerbs =
     [
+        // Grimoira.Hooks (1)
+        "gates",
         // Grimoira.Store (5)
         "init", "import", "backup", "stats", "history",
         // Grimoira.Facts (9)
@@ -57,10 +60,10 @@ public partial class GoldenListsTests
     ];
 
     [Fact]
-    public void GoldenCliListHas71UniqueVerbs()
+    public void GoldenCliListHas72UniqueVerbs()
     {
-        Assert.Equal(71, GoldenCliVerbs.Length);
-        Assert.Equal(71, GoldenCliVerbs.Distinct(StringComparer.Ordinal).Count());
+        Assert.Equal(72, GoldenCliVerbs.Length);
+        Assert.Equal(72, GoldenCliVerbs.Distinct(StringComparer.Ordinal).Count());
     }
 
     [Fact]
@@ -85,7 +88,7 @@ public partial class GoldenListsTests
             "seed-edges", "spine-export", "shed-node", "spine-import", "project", "projects",
             "forget-project", "extract-edges", "candidates", "promote", "promote-all", "impact",
             "graph-query", "graph-path", "graph-explain", "todo", "todos", "done", "finding",
-            "findings", "resolve", "stats", "backup", "stage", "flush",
+            "findings", "resolve", "stats", "backup", "stage", "flush", "gates",
         ];
         foreach (string verb in topLevel)
         {

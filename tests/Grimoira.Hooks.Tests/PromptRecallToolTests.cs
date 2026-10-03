@@ -237,4 +237,21 @@ public class PromptRecallToolTests
             Cleanup(projectDir);
         }
     }
+
+    [Fact]
+    public void PausedRecallReturnsEmpty()
+    {
+        string projectDir = NewTempProjectDir("paused");
+        try
+        {
+            string instance = SeedDb(projectDir);
+            GateSwitch.Off(instance, "test");
+
+            Assert.Equal("", PromptRecallTool.Execute(Payload(projectDir, "fix the login redirect on the web app"), projectDir));
+        }
+        finally
+        {
+            Cleanup(projectDir);
+        }
+    }
 }

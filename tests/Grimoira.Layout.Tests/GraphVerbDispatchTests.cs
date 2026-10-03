@@ -29,7 +29,7 @@ public partial class GraphVerbDispatchTests
     ];
 
     [Fact]
-    public void PartThreeCovers12OfThe71GoldenCliVerbs() => Assert.Equal(12, WiredVerbs.Length);
+    public void PartThreeCovers12OfThe72GoldenCliVerbs() => Assert.Equal(12, WiredVerbs.Length);
 
     [Fact]
     public void GrimoiraCsReferencesTheGrimoiraGraphProject()

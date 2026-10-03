@@ -31,7 +31,7 @@ public class StoreFactsVerbDispatchTests
     ];
 
     [Fact]
-    public void PartOneCovers15OfThe71GoldenCliVerbs() => Assert.Equal(15, WiredVerbs.Length);
+    public void PartOneCovers15OfThe72GoldenCliVerbs() => Assert.Equal(15, WiredVerbs.Length);
 
     [Theory]
     [MemberData(nameof(WiredVerbCases))]
