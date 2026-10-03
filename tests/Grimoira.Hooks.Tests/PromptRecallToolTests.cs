@@ -36,12 +36,12 @@ public class PromptRecallToolTests
         GrimoiraCliRunner.Seed($"init --instance {instance}");
         using SqliteConnection connection = StoreConnection.Open(HookPaths.DbPath(instance));
         AddTool add = new();
-        add.Execute(connection, "login redirect", "[]", "web", "The web app login redirect goes through the auth callback route.", "spec", "", "verified", "test");
-        add.Execute(connection, "encoder queue", "[]", "server", "The encoder queue stalls when ffmpeg holds the output file lock.", "spec", "", "verified", "test");
-        add.Execute(connection, "subtitle parser", "[]", "server", "The subtitle parser reads ASS and VTT tracks.", "spec", "", "verified", "test");
-        add.Execute(connection, "keycloak realm", "[]", "auth", "The keycloak realm name is nomercy.", "spec", "", "verified", "test");
-        add.Execute(connection, "kmp deploy", "[]", "client", "Deploy the kmp app to the tv with its deploy script.", "spec", "", "verified", "test");
-        add.Execute(connection, "cast receiver", "[]", "client", "The cast receiver reads its config from the receiver manifest.", "spec", "", "verified", "test");
+        add.Execute(connection, "login redirect", "[]", "web", "The web app login redirect goes through the auth callback route.", "spec", "", "stated", "test");
+        add.Execute(connection, "encoder queue", "[]", "server", "The encoder queue stalls when ffmpeg holds the output file lock.", "spec", "", "stated", "test");
+        add.Execute(connection, "subtitle parser", "[]", "server", "The subtitle parser reads ASS and VTT tracks.", "spec", "", "stated", "test");
+        add.Execute(connection, "keycloak realm", "[]", "auth", "The keycloak realm name is nomercy.", "spec", "", "stated", "test");
+        add.Execute(connection, "kmp deploy", "[]", "client", "Deploy the kmp app to the tv with its deploy script.", "spec", "", "stated", "test");
+        add.Execute(connection, "cast receiver", "[]", "client", "The cast receiver reads its config from the receiver manifest.", "spec", "", "stated", "test");
         string[][] rules =
         [
             ["r-login", "login redirect test", "Every login redirect change gets a redirect test on the web app."],
@@ -183,7 +183,7 @@ public class PromptRecallToolTests
             {
                 AddTool add = new();
                 for (int i = 0; i < 6; i++)
-                    add.Execute(connection, $"budget overflow sample {i}", "[]", "test", new string('x', 300) + " budget overflow sample", "spec", "", "verified", "test");
+                    add.Execute(connection, $"budget overflow sample {i}", "[]", "test", new string('x', 300) + " budget overflow sample", "spec", "", "stated", "test");
             }
 
             string? context = ContextOf(PromptRecallTool.Execute(Payload(projectDir, "budget overflow sample text"), projectDir));

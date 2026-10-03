@@ -22,6 +22,7 @@
     <Compile Include="../Grimoira.Hooks/Data/HookPaths.cs" Link="Hooks/HookPaths.cs" />
     <Compile Include="../Grimoira.Hooks/Tools/CompactBriefTool.cs" Link="Hooks/CompactBriefTool.cs" />
     <Compile Include="../Grimoira.Hooks/Tools/CompactRestoreTool.cs" Link="Hooks/CompactRestoreTool.cs" />
+    <Compile Include="../Grimoira.Hooks/Tools/HookEnvelope.cs" Link="Hooks/HookEnvelope.cs" />
     <Compile Include="../Grimoira.Brain/Data/IProcessRunner.cs">
       <Link>Data/IProcessRunner.cs</Link>
     </Compile>

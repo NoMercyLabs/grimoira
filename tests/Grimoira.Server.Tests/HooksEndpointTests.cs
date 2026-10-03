@@ -2,8 +2,10 @@ using System.Diagnostics;
 using System.Net;
 using System.Text;
 using System.Text.Json;
+using Grimoira.Facts.Tools;
 using Grimoira.Layout.Tests;
 using Grimoira.Server.Data;
+using Grimoira.Store.Data;
 using Grimoira.TestSupport;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Data.Sqlite;
@@ -114,31 +116,26 @@ public sealed class HooksEndpointTests : IDisposable
         Assert.Equal(expected, body);
     }
 
+    // The server's UserPromptSubmit is the prompt recall (the compaction restore runs in the CLI itself and
+    // never reaches the server): a prompt that matches a seeded fact gets it back, a prompt with fewer
+    // than three usable terms gets nothing.
     [Fact]
-    public async Task UserPromptSubmitEqualsTheCliHook()
+    public async Task UserPromptSubmitRecallsAMatchingFactAndSaysNothingForAShortPrompt()
     {
         using WebApplicationFactory<Program> factory = Factory();
         using HttpClient client = Client(factory);
-        string briefPath = Path.Combine(Path.GetDirectoryName(HookDbPath)!, "compact", "s2.md");
-        void SeedBrief()
-        {
-            Directory.CreateDirectory(Path.GetDirectoryName(briefPath)!);
-            File.WriteAllText(briefPath, "# Carried across compaction\n\n- \"a directive long enough to be kept\"\n");
-            // The compaction-ledger fix marks a restore rather than deleting the brief, so a fresh seed
-            // (standing in for a fresh compaction) must also clear any earlier restore's marker — the CLI
-            // and HTTP runs each get their own "first restore since this brief was written".
-            try { File.Delete(briefPath + ".restored"); } catch { /* best effort */ }
-        }
-        string payload = JsonSerializer.Serialize(new { cwd = _projectDir, session_id = "s2", prompt = "go on" });
+        SeedRecallFact();
+        string matching = JsonSerializer.Serialize(new { cwd = _projectDir, session_id = "s2", prompt = "fix the login redirect on the web app" });
+        string shortPrompt = JsonSerializer.Serialize(new { cwd = _projectDir, session_id = "s2", prompt = "go on" });
 
-        SeedBrief();
-        string expected = RunCliHook("UserPromptSubmit", payload);
-        SeedBrief();
-        (HttpStatusCode status, string body) = await PostHook(client, "UserPromptSubmit", payload);
+        (HttpStatusCode status, string body) = await PostHook(client, "UserPromptSubmit", matching);
+        (HttpStatusCode shortStatus, string shortBody) = await PostHook(client, "UserPromptSubmit", shortPrompt);
 
         Assert.Equal(HttpStatusCode.OK, status);
-        Assert.Contains("hookSpecificOutput", expected);
-        Assert.Equal(expected, body);
+        Assert.Contains("hookSpecificOutput", body);
+        Assert.Contains("auth callback route", body);
+        Assert.Equal(HttpStatusCode.OK, shortStatus);
+        Assert.Equal("", shortBody);
     }
 
     [Fact]
@@ -230,21 +227,19 @@ public sealed class HooksEndpointTests : IDisposable
     }
 
     [Fact]
-    public async Task UserPromptSubmitRestoresTheBriefOfTheRequestProjectNotTheServerEnvProject()
+    public async Task UserPromptSubmitRecallsFromTheRequestProjectNotTheServerEnvProject()
     {
         using WebApplicationFactory<Program> factory = Factory();
         using HttpClient client = Client(factory);
-        string briefPath = Path.Combine(Path.GetDirectoryName(HookDbPath)!, "compact", "s7.md");
-        Directory.CreateDirectory(Path.GetDirectoryName(briefPath)!);
-        File.WriteAllText(briefPath, "# Carried across compaction\n\n- \"a directive long enough to be kept\"\n");
-        string payload = JsonSerializer.Serialize(new { cwd = _projectDir, session_id = "s7", prompt = "go on" });
+        SeedRecallFact();
+        string payload = JsonSerializer.Serialize(new { cwd = _projectDir, session_id = "s7", prompt = "fix the login redirect on the web app" });
 
         await WithServerEnvPointingElsewhere(async () =>
         {
             (HttpStatusCode status, string body) = await PostHook(client, "UserPromptSubmit", payload);
 
             Assert.Equal(HttpStatusCode.OK, status);
-            Assert.Contains("a directive long enough to be kept", body);
+            Assert.Contains("auth callback route", body);
         });
     }
 
@@ -335,6 +330,13 @@ public sealed class HooksEndpointTests : IDisposable
             Assert.DoesNotContain("database is locked", text, StringComparison.OrdinalIgnoreCase);
         }
         Assert.Equal(10L, Scalar(HookDbPath, "SELECT coalesce(sum(count),0) FROM patterns WHERE kind = 'command'"));
+    }
+
+    private void SeedRecallFact()
+    {
+        GrimoiraCliRunner.Seed($"init --instance {_instance}");
+        using SqliteConnection connection = StoreConnection.Open(HookDbPath);
+        new AddTool().Execute(connection, "login redirect", "[]", "web", "The web app login redirect goes through the auth callback route.", "spec", "", "stated", "test");
     }
 
     private void CreateEmptyHookDb()
