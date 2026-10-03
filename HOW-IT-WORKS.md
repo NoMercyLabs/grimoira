@@ -12,7 +12,7 @@ Grimoira is built to be Claude Code's memory and knowledge layer. Once installed
 
 ## 2. What it changes in Claude Code
 
-Grimoira is a Claude Code plugin. It adds six hooks, one MCP server, two skills, two agents and one slash command. It also adds a `grimoira` command for your terminal.
+Grimoira is a Claude Code plugin. It adds seven hooks, one MCP server, two skills, two agents and one slash command. It also adds a `grimoira` command for your terminal.
 
 ### Hooks
 
@@ -21,17 +21,18 @@ Every hook fails open. A hook error prints nothing and never blocks a prompt, an
 | Event | Time limit | What it does |
 | --- | --- | --- |
 | `SessionStart` | 15 s | Starts the background service if it is not answering. After an install or update it starts a background build instead and prints one line saying so. |
-| `UserPromptSubmit` | 10 s | Adds the anchors saved before the last compaction to the first prompt after it, once. Otherwise adds nothing. |
-| `PostToolUse` (Write, Edit, MultiEdit, NotebookEdit) | 65 s | Reindexes the memory or design-docs folder when the edited file is inside one. Any other edit does nothing. |
+| `UserPromptSubmit` | 10 s | Adds the anchors saved before the last compaction to the first prompt after it, once. On every prompt, adds the few facts and rules that match the words you typed, as one short hint of at most 600 characters (about 150 tokens). A short prompt, a slash command, or a prompt that matches nothing adds nothing. |
+| `PreToolUse` (Write, Edit, MultiEdit, NotebookEdit) | 8 s | The first time a session edits a file, adds the rules and facts that match that file's path, before the edit. The block is capped at a short length. The same file gets nothing on a later edit in that session. It never blocks the edit. |
+| `PostToolUse` (Write, Edit, MultiEdit, NotebookEdit, Read, Grep, Glob, Bash) | 65 s | Reindexes the memory or design-docs folder when the edited file is inside one. Counts the files read, the search patterns and the command shapes a session keeps coming back to. It prints nothing for the counts. Any other edit does nothing. |
 | `PreCompact` | 20 s | Writes your own words, dirty repos and branches, changed files and open todos to disk. Tells the summary to keep them word for word. |
 | `SessionEnd` | 390 s, async | Queues background indexing: the session transcript, the project's `.claude/` docs and the code declarations of every registered project. |
 | `Stop` | 10 s | If staged learning is waiting and was not committed, commits it and says so. If it cannot, it prints a warning. It does not stop the session from ending. |
 
-The service also has a handler that counts repeated Bash and PowerShell command shapes. `hooks/hooks.json` does not register it today, so it does not run.
+The two hooks that add text to the conversation, the edit gate and the prompt recall, can be paused with one command. See section 8.
 
 ### MCP server
 
-The MCP server exposes 26 tools. They are grouped like this:
+The MCP server exposes 27 tools. They are grouped like this:
 
 | Group | Tools |
 | --- | --- |
@@ -42,6 +43,7 @@ The MCP server exposes 26 tools. They are grouped like this:
 | Code graph | `impact`, `graph_query`, `graph_path`, `graph_explain` |
 | Brain (cross-project) | `brain_core`, `brain_scope`, `brain_common`, `brain_place`, `brain_recall`, `brain_impact`, `brain_gaps`, `brain_learn`, `brain_stage`, `brain_flush` |
 | History | `history` |
+| Repeated work | `patterns` |
 | Workspace | `workspace_capabilities`, `workspace_search` |
 
 ### Skills, agents and the command
@@ -61,20 +63,22 @@ The MCP server exposes 26 tools. They are grouped like this:
 Here is one session, in order.
 
 1. **Session start.** The `SessionStart` hook makes sure the service is running. The `grimoira` skill tells Claude to pull the always-on rows (`brain_core`) and to check `brain_gaps` at the start.
-2. **Before Claude states a fact or writes new code.** The skill tells Claude to call `fact`, `rule`, `recall` or `doc` first. Before changing something other projects use, it tells Claude to call `impact`. If the store does not know, it says so and logs the gap. It does not guess.
-3. **When Claude learns something.** The skill tells Claude to stage it with `brain_stage` at once. Staging writes to a ledger file, not to the store.
-4. **After an edit.** The `PostToolUse` hook reindexes memory and design docs when the edited file is one of those.
-5. **Before a compaction.** `PreCompact` saves your words and the open state to disk. The first prompt after the compaction gets them back through `UserPromptSubmit`.
-6. **When Claude finishes a turn.** The `Stop` hook commits any staged learning that is still waiting.
-7. **When the session ends.** `SessionEnd` indexes the transcript, the project docs and the code declarations in the background.
+2. **On every prompt you type.** The `UserPromptSubmit` hook adds the few facts and rules that match your words, under a small fixed budget.
+3. **Before Claude states a fact or writes new code.** The skill tells Claude to call `fact`, `rule`, `recall` or `doc` first. Before changing something other projects use, it tells Claude to call `impact`. If the store does not know, it says so and logs the gap. It does not guess.
+4. **Before the first edit of a file.** The `PreToolUse` hook adds the rules and facts that match the file's path. Claude reads the rule when it still matters. The same file gets no second reminder in that session.
+5. **When Claude learns something.** The skill tells Claude to stage it with `brain_stage` at once. Staging writes to a ledger file, not to the store.
+6. **After an edit, a read or a search.** The `PostToolUse` hook reindexes memory and design docs when the edited file is one of those. It also counts the files, searches and commands the session repeats, so the `patterns` tool can show what is worth turning into a fact or a tool.
+7. **Before a compaction.** `PreCompact` saves your words and the open state to disk. The first prompt after the compaction gets them back through `UserPromptSubmit`.
+8. **When Claude finishes a turn.** The `Stop` hook commits any staged learning that is still waiting.
+9. **When the session ends.** `SessionEnd` indexes the transcript, the project docs and the code declarations in the background.
 
 ### What is enforced and what is advised
 
 Be clear about this part.
 
-- **Enforced by hooks:** the service starts, the compaction anchors are saved and handed back, staged learning is committed at `Stop`, and indexing happens at `SessionEnd` and after memory or design-doc edits. These run whether or not Claude remembers to do them.
+- **Enforced by hooks:** the service starts, matching facts and rules are shown on every prompt and before the first edit of a file, the compaction anchors are saved and handed back, repeated reads, searches and commands are counted, staged learning is committed at `Stop`, and indexing happens at `SessionEnd` and after memory or design-doc edits. These run whether or not Claude remembers to do them.
 - **Advised by the skill:** looking things up before guessing, staging a learning when you notice it, checking impact before a shared change. Claude does these because the skill says so. No hook checks that it did. The skill says this itself: do not assume a hook ran just because the skill is installed.
-- **Not built:** a hook that runs before an edit or a tool call. Grimoira does not show rules before a governed edit, and it does not block anything.
+- **Not built:** a hook that blocks. The edit gate shows the rules; it never refuses the edit. Whether Claude follows a rule it was shown is still up to Claude.
 
 ## 4. Why nothing is forgotten
 
@@ -112,8 +116,9 @@ Grimoira makes the same question return the same answer from the store, instead 
 - **Code graph and impact.** `impact`, `brain_impact`, `graph_query`, `graph_path` and `graph_explain` read the same indexed declarations and usage sites, with file and line. Two sessions asking "who uses this symbol" read the same rows.
 - **Facts and rules.** A fact or rule is looked up by key or topic. A miss is an explicit refusal, not an invented answer.
 - **Placement.** `brain_place` answers where a new piece of code belongs and how it is written in this project.
-- **Repeated work.** The service can count repeated Bash and PowerShell command shapes and the `patterns` tool lists the ones worth codifying. This is not active today: the hook that records them is not registered in `hooks/hooks.json`, and the MCP server does not expose `patterns`. Treat it as not available.
-- **Rules before an edit.** Not built. Rules are returned when Claude asks for them, not pushed before an edit.
+- **Repeated work.** The `PostToolUse` hook counts the files read, the search patterns and the command shapes a session keeps coming back to. The `patterns` tool lists the ones worth codifying. A search that keeps happening by hand can become a fact or a tool.
+- **Rules before an edit.** The `PreToolUse` hook shows the rules and facts for a file before its first edit in a session. Claude does not have to remember to ask.
+- **Recall on every prompt.** The `UserPromptSubmit` hook shows the facts and rules that match the prompt, under a fixed budget. The store is consulted even when nobody asks it.
 
 This makes the inputs consistent. It does not make Claude's output deterministic. Claude still decides what to ask and what to do with the answer.
 
@@ -141,7 +146,7 @@ This makes the inputs consistent. It does not make Claude's output deterministic
 - **See what is stored:** `grimoira stats` shows channel counts. `grimoira projects` lists registered projects. `grimoira query`, `mem`, `doc` and `recall` read each channel. `grimoira history <term>` shows the change history of one entity. `grimoira todos` and `findings` list those. The SQLite file can also be opened with any SQLite tool.
 - **Delete something:** `shed-fact --key`, `shed-memory --key` (also the `shed_memory` tool), `shed-doc --path`, `shed-node --key`, `shed-synthesis --path` and `forget-project --name`. `/grimoira-maintain` runs these and asks first when no key is given.
 - **Correct something:** there is no edit verb in this list. Delete the entry, then add the right one with `add`, `brain_learn` or `brain_stage`.
-- **Pause the hooks:** not built. Grimoira has no switch of its own to turn off one hook or all of them. `grimoira hooks-doctor` only finds duplicate hook registrations. You can remove the plugin from the `/plugin` menu.
+- **Pause the hooks:** `grimoira gates off "reason"` pauses the two hooks that add text to the conversation, the edit gate and the prompt recall. `grimoira gates on` resumes them. `grimoira gates status` says which state they are in. A pause ends on its own after 12 hours. Every flip is written to `gates.log` in the instance folder. The counting of repeated work goes on while paused, because it adds nothing to the conversation. The other hooks have no switch of their own; `grimoira hooks-doctor` only finds duplicate hook registrations. To stop everything, remove the plugin from the `/plugin` menu.
 - **Uninstall:** remove the plugin from the `/plugin` menu. Your data stays in `~/.grimoira` until you delete that folder yourself.
 - **Export and move:** `spine-export` and `spine-import` move curated knowledge to another instance. `import --from <db>` merges another store.
 
