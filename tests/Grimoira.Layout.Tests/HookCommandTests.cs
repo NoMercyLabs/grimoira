@@ -154,6 +154,11 @@ public class HookCommandTests
         Assert.Equal(8, Assert.Single(group.GetProperty("hooks").EnumerateArray()).GetProperty("timeout").GetInt32());
         Assert.Equal(TimeSpan.FromSeconds(5), cli::Grimoira.Cli.Tools.HookForwarder.Deadlines["PreToolUse"]);
     }
+    // The prompt recall runs on every prompt, so its budget is a small slice of the 10 s slot: a slow or
+    // absent server must never make the user wait for a prompt to be accepted.
+    [Fact]
+    public void UserPromptSubmitForwardDeadlineIsThreeSeconds() =>
+        Assert.Equal(TimeSpan.FromSeconds(3), cli::Grimoira.Cli.Tools.HookForwarder.Deadlines["UserPromptSubmit"]);
 
     private static string[] ArgsOf(JsonElement hook) =>
         hook.TryGetProperty("args", out JsonElement a) ? [.. a.EnumerateArray().Select(x => x.GetString() ?? "")] : [];

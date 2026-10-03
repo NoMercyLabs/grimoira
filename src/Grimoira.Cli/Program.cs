@@ -60,7 +60,9 @@ public static class Program
             output = eventName switch
             {
                 "PreCompact" => CompactBriefTool.Execute(stdin),
-                "UserPromptSubmit" => CompactRestoreTool.Execute(stdin),
+                // The restore must answer with the server down; the recall (Facts and Memory) runs on the
+                // server. One envelope on stdout: restore first, then recall.
+                "UserPromptSubmit" => HookEnvelope.Merge(CompactRestoreTool.Execute(stdin), HookForwarder.ForwardDefault("UserPromptSubmit", stdin)),
                 // Slice 30: these handlers need Memory, Docs, Graph and Store, so the server runs them.
                 _ when HookForwarder.Deadlines.ContainsKey(eventName) => HookForwarder.ForwardDefault(eventName, stdin),
                 // Slice 28: start the server when /health does not answer; prints nothing, exits 0.

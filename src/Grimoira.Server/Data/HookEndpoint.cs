@@ -98,8 +98,10 @@ internal static class HookEndpoint
         {
             case "PreCompact":
                 return [CompactBriefTool.Execute];
+            // The compaction restore runs in the CLI itself (Program.RunHook), which then forwards the
+            // event here for the recall that needs Facts and Memory.
             case "UserPromptSubmit":
-                return [CompactRestoreTool.Execute];
+                return [PromptRecallTool.Execute];
             case "Stop":
                 return [StopFlushTool.Execute];
             case "PreToolUse":

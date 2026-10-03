@@ -32,6 +32,9 @@ public static class HookForwarder
         ["Stop"] = TimeSpan.FromSeconds(10),
         // The edit waits on PreToolUse, so the gate gets the shortest budget: two FTS lookups, nothing more.
         ["PreToolUse"] = TimeSpan.FromSeconds(5),
+        // The prompt recall runs on every prompt: a small slice of its 10 s slot, so a slow or absent server
+        // never makes the user wait for a prompt to be accepted.
+        ["UserPromptSubmit"] = TimeSpan.FromSeconds(3),
     };
 
     /// <summary>A pipe/socket connect to a running server takes well under a millisecond.</summary>
