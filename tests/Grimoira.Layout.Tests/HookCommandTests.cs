@@ -100,6 +100,7 @@ public class HookCommandTests
     [InlineData("PostToolUse")]
     [InlineData("SessionEnd")]
     [InlineData("Stop")]
+    [InlineData("PreToolUse")]
     public void TheEventRunsTheHookVerbOfThePublishedCli(string eventName)
     {
         using JsonDocument doc = JsonDocument.Parse(File.ReadAllText(Path.Combine(RepoPaths.Root, "hooks", "hooks.json")));
@@ -139,6 +140,19 @@ public class HookCommandTests
             Assert.True(deadline <= TimeSpan.FromSeconds(timeoutSeconds),
                 $"{eventName}: deadline {deadline.TotalSeconds} s is above its slot timeout {timeoutSeconds} s");
         }
+    }
+
+    // The edit gate runs before an edit and the edit waits on it, so its slot is scoped to the edit tools
+    // and its forwarded deadline is short (5 s) and under the slot's own 8 s timeout.
+    [Fact]
+    public void ThePreToolUseSlotGatesEditsWithinFiveSeconds()
+    {
+        using JsonDocument doc = JsonDocument.Parse(File.ReadAllText(Path.Combine(RepoPaths.Root, "hooks", "hooks.json")));
+        JsonElement group = Assert.Single(doc.RootElement.GetProperty("hooks").GetProperty("PreToolUse").EnumerateArray());
+
+        Assert.Equal("Write|Edit|MultiEdit|NotebookEdit", group.GetProperty("matcher").GetString());
+        Assert.Equal(8, Assert.Single(group.GetProperty("hooks").EnumerateArray()).GetProperty("timeout").GetInt32());
+        Assert.Equal(TimeSpan.FromSeconds(5), cli::Grimoira.Cli.Tools.HookForwarder.Deadlines["PreToolUse"]);
     }
 
     private static string[] ArgsOf(JsonElement hook) =>
