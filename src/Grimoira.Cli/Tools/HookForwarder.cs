@@ -30,6 +30,8 @@ public static class HookForwarder
         // Stop only reads/writes one small ledger file and, at most, flushes it into the store — nowhere
         // near SessionEnd's indexing work — so it gets a short budget of its own.
         ["Stop"] = TimeSpan.FromSeconds(10),
+        // The edit waits on PreToolUse, so the gate gets the shortest budget: two FTS lookups, nothing more.
+        ["PreToolUse"] = TimeSpan.FromSeconds(5),
     };
 
     /// <summary>A pipe/socket connect to a running server takes well under a millisecond.</summary>

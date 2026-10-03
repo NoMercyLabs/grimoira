@@ -102,6 +102,12 @@ internal static class HookEndpoint
                 return [CompactRestoreTool.Execute];
             case "Stop":
                 return [StopFlushTool.Execute];
+            case "PreToolUse":
+                return ToolNameOf(payload) switch
+                {
+                    "Write" or "Edit" or "MultiEdit" or "NotebookEdit" => [EditGateTool.Execute],
+                    _ => [],
+                };
             case "PostToolUse":
                 string? toolName = payload["tool_name"] is JsonValue v && v.TryGetValue(out string? t) ? t : null;
                 return toolName switch
@@ -114,6 +120,9 @@ internal static class HookEndpoint
                 return [];
         }
     }
+
+    private static string? ToolNameOf(JsonObject payload) =>
+        payload["tool_name"] is JsonValue v && v.TryGetValue(out string? t) ? t : null;
 
     private static Func<string, string?, string> Ignore(Func<string, string> handler) => (stdin, _) => handler(stdin);
 

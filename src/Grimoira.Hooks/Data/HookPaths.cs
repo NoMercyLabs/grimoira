@@ -69,6 +69,15 @@ public static class HookPaths
         return Path.Combine(InstanceDir(instance), "compact", $"{sid}.ledger.md");
     }
 
+    /// <summary>Where the edit gate keeps the files a session has already been briefed on, next to
+    /// <see cref="BriefPath"/>: one path per line, so the gate fires once per file per session.</summary>
+    public static string GateSeenPath(string instance, string? sessionId)
+    {
+        string sid = string.IsNullOrEmpty(sessionId) ? "x" : sessionId;
+        if (sid.Length > 64) sid = sid[..64];
+        return Path.Combine(InstanceDir(instance), "compact", $"{sid}.gate-seen.txt");
+    }
+
     /// <summary>Where an instance's own directory lives, same layout as grimoira.cs and the other hosts
     /// (RESTRUCTURE.md slice 21): <c>&lt;data dir&gt;/&lt;instance&gt;</c>, where the data dir honours
     /// <c>GRIMOIRA_DATA_DIR</c> the same way the CLI and server do, instead of always hardcoding
