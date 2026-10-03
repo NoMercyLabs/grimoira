@@ -31,6 +31,7 @@ using Grimoira.Facts.Tools;
 using Grimoira.Memory.Tools;
 using Grimoira.Docs.Tools;
 using Grimoira.Graph.Tools;
+using Grimoira.Hooks.Tools;
 using Grimoira.Brain.Data;
 using Grimoira.Brain.Tools;
 using Grimoira.Server.Handover;
@@ -137,6 +138,14 @@ public static class GrimoiraTools
     {
         string root = Environment.GetEnvironmentVariable("CLAUDE_PROJECT_DIR") ?? Directory.GetCurrentDirectory();
         return new WorkspaceCapabilitiesTool().Execute(query, root, new ProcessRunner());
+    }
+
+    [McpServerTool]
+    [Description("READ-ONLY list of what this instance's sessions keep doing by hand: shell command shapes, procedures (three commands in a row), files read, greps and globs, each with how often. A line marked 'worth codifying' is a candidate for a fact, a skill or a tool. No args.")]
+    public static string patterns()
+    {
+        using SqliteConnection con = Open();
+        return new PatternsTool().ExecuteMcp(con);
     }
 
     [McpServerTool]

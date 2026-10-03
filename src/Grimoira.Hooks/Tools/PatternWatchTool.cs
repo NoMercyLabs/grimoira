@@ -8,10 +8,11 @@ using static Grimoira.Store.Data.JsonShape;
 namespace Grimoira.Hooks.Tools;
 
 /// <summary>
-/// PostToolUse handler (Bash|PowerShell), ported from pattern-watch.mjs (RESTRUCTURE.md slice 22,
-/// "Hooks, part 3"; docs/RESTRUCTURE.md:268). Notices when the same piece of work keeps being done by
-/// hand: it counts command shapes so a repeated pattern becomes visible, without judging wording and
-/// without ever blocking. Unlike the .mjs, this handler is record-only — it never prints a nudge into
+/// PostToolUse handler (Bash|PowerShell, and since the takeover Read|Grep|Glob), ported from
+/// pattern-watch.mjs (RESTRUCTURE.md slice 22, "Hooks, part 3"; docs/RESTRUCTURE.md:268). Notices when
+/// the same piece of work keeps being done by hand: it counts command shapes, and the files and
+/// searches a session keeps coming back to, so a repeated pattern becomes visible, without judging
+/// wording and without ever blocking. Unlike the .mjs, this handler is record-only — it never prints a nudge into
 /// the session (the part the lean pass objected to). What crossed the threshold is read back through
 /// <see cref="PatternsTool"/> instead.
 ///
@@ -127,7 +128,61 @@ public static partial class PatternWatchTool
         return sig;
     }
 
-    /// <summary>Records the command's signature. Never prints anything and never throws out of a bad
+    /// <summary>
+    /// The signature and kind for one PostToolUse event, picked by <paramref name="toolName"/>: a shell
+    /// command keeps <see cref="Signature"/> (kind <c>command</c>); a Read is the file's path relative to
+    /// <paramref name="cwd"/> (kind <c>read</c>); a Grep or Glob is its pattern plus the folder it was
+    /// scoped to (kinds <c>grep</c>, <c>glob</c>). A repeated search is the shape a fact or a tool can
+    /// replace, which is why the read side is counted at all. Any other tool, or an empty input, gives
+    /// null: nothing recorded.
+    /// </summary>
+    public static (string Sig, string Kind)? SignatureFor(string? toolName, JsonElement toolInput, string? cwd)
+    {
+        if (toolInput.ValueKind != JsonValueKind.Object) return null;
+        switch (toolName)
+        {
+            case "Bash":
+            case "PowerShell":
+            case null: // a payload without tool_name is the shell slot as the hook ran before tool_name was read
+                string? sig = Signature(GetString(toolInput, "command") ?? "");
+                return sig is null ? null : (sig, "command");
+            case "Read":
+                string? file = GetString(toolInput, "file_path");
+                return string.IsNullOrWhiteSpace(file) ? null : ($"read {RelativePath(file, cwd)}", "read");
+            case "Grep":
+            case "Glob":
+                string? pattern = GetString(toolInput, "pattern");
+                if (string.IsNullOrWhiteSpace(pattern)) return null;
+                string kind = toolName == "Grep" ? "grep" : "glob";
+                string? path = GetString(toolInput, "path");
+                string scope = string.IsNullOrWhiteSpace(path) ? "" : $" in {RelativePath(path, cwd)}";
+                return ($"{kind} {pattern.Trim()}{scope}", kind);
+            default:
+                return null;
+        }
+    }
+
+    /// <summary>Forward slashes, relative to the session's cwd when the path is under it, and lowercase
+    /// on Windows so two spellings of one file land on one row.</summary>
+    private static string RelativePath(string path, string? cwd)
+    {
+        string full = path.Trim();
+        try
+        {
+            full = Path.GetFullPath(full);
+            if (!string.IsNullOrWhiteSpace(cwd))
+            {
+                string root = Path.GetFullPath(cwd);
+                string rel = Path.GetRelativePath(root, full);
+                if (!rel.StartsWith("..", StringComparison.Ordinal) && !Path.IsPathRooted(rel)) full = rel;
+            }
+        }
+        catch (Exception e) when (e is ArgumentException or PathTooLongException or NotSupportedException) { /* keep the raw text */ }
+        full = full.Replace('\\', '/');
+        return OperatingSystem.IsWindows() ? full.ToLowerInvariant() : full;
+    }
+
+    /// <summary>Records the event's signature. Never prints anything and never throws out of a bad
     /// payload or a locked store — a hook must never disturb the command it observed.</summary>
     public static string Execute(string stdin)
     {
@@ -135,11 +190,13 @@ public static partial class PatternWatchTool
         {
             using JsonDocument doc = JsonDocument.Parse(string.IsNullOrWhiteSpace(stdin) ? "{}" : stdin);
             JsonElement payload = doc.RootElement;
-            string cmd = GetToolInputCommand(payload) ?? "";
-            string? sig = Signature(cmd);
-            if (sig is null) return "";
-
             string? cwd = GetString(payload, "cwd");
+            if (!TryGetObjectProperty(payload, "tool_input", out JsonElement toolInput)) return "";
+            (string Sig, string Kind)? found = SignatureFor(GetString(payload, "tool_name"), toolInput, cwd);
+            if (found is null) return "";
+            (string sig, string kind) = found.Value;
+            string cmd = kind == "command" ? GetString(toolInput, "command") ?? "" : sig;
+
             string instance = HookPaths.ResolveInstance(cwd);
             string dbPath = HookPaths.DbPath(instance);
             if (!File.Exists(dbPath)) return "";
@@ -180,7 +237,9 @@ public static partial class PatternWatchTool
 
             try
             {
-                Bump(sig, sample, "command");
+                Bump(sig, sample, kind);
+                // Procedures (a -> b -> c) are a shell notion; a read or a search joins no sequence.
+                if (kind != "command") return "";
 
                 string? sessionId = GetString(payload, "session_id");
                 string trailPath = Path.Combine(HookPaths.InstanceDir(instance), "trail", $"{Clip(sessionId ?? "x", 64)}.json");
@@ -227,12 +286,6 @@ public static partial class PatternWatchTool
     }
 
     private static string Clip(string s, int n) => s.Length <= n ? s : s[..n];
-
-    private static string? GetToolInputCommand(JsonElement payload)
-    {
-        if (!TryGetObjectProperty(payload, "tool_input", out JsonElement input) || input.ValueKind != JsonValueKind.Object) return null;
-        return GetString(input, "command");
-    }
 
     [GeneratedRegex(@"\.(mjs|cjs|js|ts|py|ps1|sh|bat|cmd|rb|pl)$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, RegexTimeout.Milliseconds)]
     private static partial Regex ScriptFileExtension();

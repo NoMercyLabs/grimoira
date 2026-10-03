@@ -41,6 +41,8 @@ public partial class GoldenListsTests
     ];
 
     // Section 2.2: 1 + 3 + 3 + 1 + 4 + 10 + 2 = 24 of 24.
+    // Plus 1: "patterns" (Grimoira.Hooks; the read side of the PostToolUse pattern counter, exposed
+    // once the counter covers Read/Grep/Glob as well as Bash) = 25.
     public static readonly string[] GoldenMcpTools =
     [
         "history",
@@ -51,6 +53,7 @@ public partial class GoldenListsTests
         "brain_core", "brain_scope", "brain_common", "brain_place", "brain_recall", "brain_impact",
         "brain_learn", "brain_gaps", "brain_stage", "brain_flush",
         "workspace_capabilities", "workspace_search",
+        "patterns",
     ];
 
     [Fact]
@@ -61,10 +64,10 @@ public partial class GoldenListsTests
     }
 
     [Fact]
-    public void GoldenMcpListHas24UniqueTools()
+    public void GoldenMcpListHas25UniqueTools()
     {
-        Assert.Equal(24, GoldenMcpTools.Length);
-        Assert.Equal(24, GoldenMcpTools.Distinct(StringComparer.Ordinal).Count());
+        Assert.Equal(25, GoldenMcpTools.Length);
+        Assert.Equal(25, GoldenMcpTools.Distinct(StringComparer.Ordinal).Count());
     }
 
     [Fact]
@@ -107,7 +110,7 @@ public partial class GoldenListsTests
     }
 
     [Fact]
-    public void Every24McpToolStillExistsInMcpCs()
+    public void Every25McpToolStillExistsInMcpCs()
     {
         string source = File.ReadAllText(Path.Combine(RepoPaths.Root, "mcp.cs"));
         // Descriptions carry arbitrary parentheses, so this walks forward from each attribute to the
@@ -123,7 +126,7 @@ public partial class GoldenListsTests
             index = m.Index + m.Length;
         }
 
-        Assert.Equal(24, found.Count);
+        Assert.Equal(25, found.Count);
         foreach (string tool in GoldenMcpTools)
         {
             Assert.Contains(tool, found);

@@ -114,7 +114,7 @@ internal static class HookEndpoint
                 string? toolName = payload["tool_name"] is JsonValue v && v.TryGetValue(out string? t) ? t : null;
                 return toolName switch
                 {
-                    "Bash" or "PowerShell" => [Ignore(PatternWatchTool.Execute)],
+                    "Bash" or "PowerShell" or "Read" or "Grep" or "Glob" => [Ignore(PatternWatchTool.Execute)],
                     "Write" or "Edit" or "MultiEdit" or "NotebookEdit" => [IndexOnEditTool.Execute],
                     _ => [],
                 };

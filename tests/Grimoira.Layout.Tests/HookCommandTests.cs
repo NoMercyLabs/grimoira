@@ -112,6 +112,19 @@ public class HookCommandTests
         Assert.Equal(["${CLAUDE_PLUGIN_DATA}/current/bin-cli/grimoira.dll", "hook", eventName], args);
     }
 
+    // One PostToolUse slot serves both handlers: the server picks IndexOnEdit or PatternWatch by tool_name,
+    // so the matcher must name every tool either side wants (the edits, and the repeated searches the
+    // pattern counter learns from).
+    [Fact]
+    public void ThePostToolUseMatcherCoversEditsAndSearches()
+    {
+        using JsonDocument doc = JsonDocument.Parse(File.ReadAllText(Path.Combine(RepoPaths.Root, "hooks", "hooks.json")));
+        JsonElement group = Assert.Single(doc.RootElement.GetProperty("hooks").GetProperty("PostToolUse").EnumerateArray());
+
+        Assert.Equal("Write|Edit|MultiEdit|NotebookEdit|Read|Grep|Glob|Bash", group.GetProperty("matcher").GetString());
+        Assert.Equal(65, group.GetProperty("hooks")[0].GetProperty("timeout").GetInt32());
+    }
+
     // The SessionEnd handlers index for seconds. Claude Code gives SessionEnd hooks a shared 1.5 s budget
     // that a plugin's own timeout does not raise; only an async command hook is not cut at it.
     [Fact]

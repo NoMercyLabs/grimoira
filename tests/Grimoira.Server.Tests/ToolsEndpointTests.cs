@@ -34,7 +34,7 @@ public sealed class ToolsEndpointTests : IDisposable
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         JsonElement[] tools = [.. doc.RootElement.EnumerateArray()];
-        Assert.Equal(26, tools.Length);
+        Assert.Equal(GoldenListsTests.GoldenMcpTools.Length + 2, tools.Length); // the golden list plus chat_list and chat_count
         Assert.Equal(GoldenListsTests.GoldenMcpTools.Append("chat_list").Append("chat_count").OrderBy(n => n), tools.Select(t => t.GetProperty("name").GetString()!).OrderBy(n => n));
         Assert.All(tools, t =>
         {
