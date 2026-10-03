@@ -1,4 +1,5 @@
 using System.Text.Json;
+using static Grimoira.Store.Data.JsonShape;
 
 namespace Grimoira.Hooks.Tools;
 
@@ -43,11 +44,7 @@ public static class HookEnvelope
     }
 
     private static string? Read(JsonDocument doc, string property) =>
-        doc.RootElement.ValueKind == JsonValueKind.Object
-        && doc.RootElement.TryGetProperty("hookSpecificOutput", out JsonElement hso)
-        && hso.ValueKind == JsonValueKind.Object
-        && hso.TryGetProperty(property, out JsonElement value)
-        && value.ValueKind == JsonValueKind.String
-            ? value.GetString()
+        TryGetObjectProperty(doc.RootElement, "hookSpecificOutput", out JsonElement hso)
+            ? GetString(hso, property)
             : null;
 }

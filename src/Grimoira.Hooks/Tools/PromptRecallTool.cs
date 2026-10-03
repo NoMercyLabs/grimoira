@@ -80,7 +80,7 @@ public static partial class PromptRecallTool
 
     /// <summary>Lowercase words of three letters or more, minus the stop list, first ten, in prompt order.</summary>
     private static List<string> Terms(string prompt) =>
-        [.. WordPattern().Matches(prompt.ToLowerInvariant())
+        [.. WordPattern().MatchesOrEmpty(prompt.ToLowerInvariant())
             .Select(m => m.Value)
             .Where(w => w.Length >= 3 && !Stop.Contains(w))
             .Distinct()
