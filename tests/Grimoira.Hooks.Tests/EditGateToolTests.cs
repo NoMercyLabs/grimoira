@@ -53,10 +53,35 @@ public class EditGateToolTests
             SeedRule(instance, "rule-invoice", "Invoice rounding", "billing invoice service rounds half up");
 
             string first = EditGateTool.Execute(Payload("s1", projectDir, FilePath), projectDir);
-            string second = EditGateTool.Execute(Payload("s1", projectDir, FilePath.ToUpperInvariant()), projectDir);
+            string second = EditGateTool.Execute(Payload("s1", projectDir, FilePath), projectDir);
 
             Assert.NotEqual("", first);
             Assert.Equal("", second);
+        }
+        finally
+        {
+            GrimoiraCliRunner.DeleteInstance(instance);
+        }
+    }
+
+    /// <summary>
+    /// A path that differs only in case is the same file on Windows and another file on Linux and macOS,
+    /// so the seen list follows the file system: seen on Windows, a first edit elsewhere.
+    /// </summary>
+    [Fact]
+    public void PathThatDiffersOnlyInCaseIsSeenOnlyWhereTheFileSystemIgnoresCase()
+    {
+        string instance = GrimoiraCliRunner.NewTestInstance("edit-gate-case");
+        try
+        {
+            string projectDir = ProjectDirFor(instance);
+            SeedRule(instance, "rule-invoice", "Invoice rounding", "billing invoice service rounds half up");
+
+            string first = EditGateTool.Execute(Payload("s1", projectDir, FilePath), projectDir);
+            string upper = EditGateTool.Execute(Payload("s1", projectDir, FilePath.ToUpperInvariant()), projectDir);
+
+            Assert.NotEqual("", first);
+            Assert.Equal(OperatingSystem.IsWindows(), upper.Length == 0);
         }
         finally
         {
