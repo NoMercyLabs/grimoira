@@ -17,6 +17,7 @@ namespace Grimoira.Hooks.Tools;
 ///   - a `*.md` under `~/.claude/projects/&lt;encoded&gt;/memory/` (not MEMORY.md itself, and only when
 ///     the encoded segment ends with this instance's slug) -&gt; reindex that memory dir.
 ///   - anything under `&lt;project&gt;/.claude/docs/design/`                                  -&gt; reindex that design dir.
+///   - a `*.md` the `docs` table already holds, or whose folder holds an indexed doc        -&gt; reindex that one file.
 ///   - anything else                                                                          -&gt; silent no-op.
 ///
 /// Unlike the .mjs (which shells out to the prebuilt <c>grimoira.exe</c>), Grimoira.Hooks sits at reference level
@@ -73,7 +74,21 @@ public static class IndexOnEditTool
                 return "";
             }
 
-            // (3) Everything else — fast silent no-op.
+            // (3) Known-folder channel: a *.md the store already holds, or one whose folder already holds an
+            // indexed doc. Without this, every doc outside the design dir drifted after its first index
+            // (seen: 163 of 1,260 plan files missing, edits to the main plan never reached the store).
+            if (file.EndsWith(".md", StringComparison.OrdinalIgnoreCase))
+            {
+                Reindex(instance, connection =>
+                {
+                    if (!StoreHoldsFileOrItsFolder(connection, file)) return;
+                    ShedDocRowsForFile(connection, file);
+                    new IndexDocsTool().Execute(connection, file, "doc");
+                });
+                return "";
+            }
+
+            // (4) Everything else — fast silent no-op.
             return "";
         }
         catch
@@ -95,6 +110,48 @@ public static class IndexOnEditTool
             // Never leak exception detail: indexed sources can contain private material.
         }
     }
+
+    // One cheap query: does `docs` hold this exact path, or any doc directly in the same folder?
+    // `docs.path` carries mixed drive-letter case and both slash kinds, so both sides are
+    // normalised to lower-case forward slashes before the compare.
+    private static bool StoreHoldsFileOrItsFolder(SqliteConnection connection, string file)
+    {
+        string key = DocKey(file);
+        string folder = key[..(key.LastIndexOf('/') + 1)];
+        using SqliteCommand probe = connection.CreateCommand();
+        probe.CommandText = """
+            SELECT 1 FROM docs
+            WHERE lower(replace(path,'\','/')) = $file
+               OR (substr(lower(replace(path,'\','/')), 1, length($folder)) = $folder
+                   AND instr(substr(lower(replace(path,'\','/')), length($folder) + 1), '/') = 0)
+            LIMIT 1
+            """;
+        probe.Parameters.AddWithValue("$file", key);
+        probe.Parameters.AddWithValue("$folder", folder);
+        return probe.ExecuteScalar() is not null;
+    }
+
+    // IndexDocsTool upserts per section key (`<path>#<idx>`), so a rewrite with fewer sections would leave
+    // the old tail behind; drop the file's rows first so the store holds only the new content.
+    private static void ShedDocRowsForFile(SqliteConnection connection, string file)
+    {
+        string key = DocKey(file);
+        using (SqliteCommand fts = connection.CreateCommand())
+        {
+            fts.CommandText = "DELETE FROM docs_fts WHERE k IN (SELECT k FROM docs WHERE lower(replace(path,'\\','/')) = $file)";
+            fts.Parameters.AddWithValue("$file", key);
+            fts.ExecuteNonQuery();
+        }
+        using (SqliteCommand rows = connection.CreateCommand())
+        {
+            rows.CommandText = "DELETE FROM docs WHERE lower(replace(path,'\\','/')) = $file";
+            rows.Parameters.AddWithValue("$file", key);
+            rows.ExecuteNonQuery();
+        }
+    }
+
+    // Same shape IndexDocsTool writes into docs.path, lower-cased (its section key is this plus `#<idx>`).
+    private static string DocKey(string file) => Path.GetFullPath(file).Replace('\\', '/').ToLowerInvariant();
 
     // Case-insensitive (Windows) path-containment: is `child` inside `parent`?
     private static bool IsInside(string child, string parent)

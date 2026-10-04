@@ -1,4 +1,6 @@
+using System.Diagnostics;
 using System.Text.Json;
+using Grimoira.Docs.Tools;
 using Grimoira.Facts.Tools;
 using Grimoira.Hooks.Data;
 using Grimoira.Hooks.Tools;
@@ -10,13 +12,16 @@ using Xunit;
 namespace Grimoira.Hooks.Tests;
 
 /// <summary>
-/// UserPromptSubmit recall: every prompt gets at most a few matching facts and rules as context, under a
-/// hard 600-char budget, and nothing at all when the prompt is too short, a slash command, or matches
-/// nothing. The compaction restore is a separate handler and is not under test here.
+/// UserPromptSubmit recall: every prompt gets at most three matching docs, facts and rules as one-line
+/// hits, under a hard 1,200-char budget, and nothing at all when the prompt is too short, a slash command,
+/// or matches nothing. The compaction restore is a separate handler; only its merge with the recall into
+/// one envelope is pinned here.
 /// </summary>
 public class PromptRecallToolTests
 {
-    private const int Budget = 600;
+    private const int Budget = 1200;
+    private const int MaxHits = 3;
+    private const string Header = "Grimoira (top hits for this prompt; cite or open them before reading other files):";
 
     private static string NewTempProjectDir(string label)
     {
@@ -96,7 +101,8 @@ public class PromptRecallToolTests
             string? context = ContextOf(PromptRecallTool.Execute(Payload(projectDir, "fix the login redirect on the web app"), projectDir));
 
             Assert.NotNull(context);
-            Assert.StartsWith("Grimoira recall for this prompt:", context);
+            Assert.StartsWith(Header, context);
+            Assert.Contains("[fact] login redirect", context);
             Assert.Contains("auth callback route", context);
         }
         finally
@@ -171,28 +177,152 @@ public class PromptRecallToolTests
         }
     }
 
-    [Fact]
-    public void OutputIsClippedTo600Chars()
+    private static string IndexDoc(string instance, string projectDir, string name, string title, string body)
     {
-        string projectDir = NewTempProjectDir("clip");
+        string file = Path.Combine(projectDir, name);
+        File.WriteAllText(file, $"# {title}\n\n{body}\n");
+        using SqliteConnection connection = StoreConnection.Open(HookPaths.DbPath(instance));
+        new IndexDocsTool().Execute(connection, file, "doc");
+        return Path.GetFullPath(file).Replace('\\', '/');
+    }
+
+    private static string[] HitLines(string context)
+    {
+        string[] lines = context.Split('\n');
+        Assert.Equal(Header, lines[0]);
+        return lines[1..];
+    }
+
+    [Fact]
+    public void PromptMatchingAnIndexedDocReturnsItsTitleAndPath()
+    {
+        string projectDir = NewTempProjectDir("doc");
         try
         {
             string instance = SeedDb(projectDir);
-            // Six long facts that all match the same three terms: the raw recall is well over the budget.
+            string path = IndexDoc(instance, projectDir, "release-checklist.md", "Release checklist for the player",
+                "Bump the version, run the full suite, then publish the player package from the release branch.");
+
+            string? context = ContextOf(PromptRecallTool.Execute(Payload(projectDir, "how do we publish the player package release"), projectDir));
+
+            Assert.NotNull(context);
+            Assert.StartsWith(Header, context);
+            string line = Assert.Single(HitLines(context), l => l.StartsWith("[doc] ", StringComparison.Ordinal));
+            Assert.StartsWith($"[doc] Release checklist for the player ({path}) — ", line);
+            Assert.Contains("publish the player package", line);
+        }
+        finally
+        {
+            Cleanup(projectDir);
+        }
+    }
+
+    [Fact]
+    public void RecallKeepsAtMostThreeOneLineHitsUnderTheBudget()
+    {
+        string projectDir = NewTempProjectDir("caps");
+        try
+        {
+            string instance = SeedDb(projectDir);
+            // Six long docs and six long facts that all match the same three terms: far more than three hits,
+            // each far longer than one line, so both caps have to bite.
+            for (int i = 0; i < 6; i++)
+                IndexDoc(instance, projectDir, $"overflow-{i}.md", $"Budget overflow sample {i}", new string('x', 600) + " budget overflow sample");
             using (SqliteConnection connection = StoreConnection.Open(HookPaths.DbPath(instance)))
             {
                 AddTool add = new();
                 for (int i = 0; i < 6; i++)
-                    add.Execute(connection, $"budget overflow sample {i}", "[]", "test", new string('x', 300) + " budget overflow sample", "spec", "", "stated", "test");
+                    add.Execute(connection, $"budget overflow sample {i}", "[]", "test", new string('y', 600) + " budget overflow sample", "spec", "", "stated", "test");
             }
 
             string? context = ContextOf(PromptRecallTool.Execute(Payload(projectDir, "budget overflow sample text"), projectDir));
 
             Assert.NotNull(context);
             Assert.True(context.Length <= Budget, $"context is {context.Length} chars");
-            Assert.EndsWith("…", context);
-            // Never cut mid-line: every line before the marker is a full line as the tools wrote it.
-            Assert.DoesNotContain("xxx…", context);
+            string[] hits = HitLines(context);
+            Assert.True(hits.Length is > 0 and <= MaxHits, $"{hits.Length} hit lines");
+            Assert.All(hits, hit => Assert.Matches(@"^\[(doc|fact|memory)\] .+ — .+$", hit));
+            Assert.All(hits, hit => Assert.True(hit.Length <= 420, $"hit line is {hit.Length} chars"));
+        }
+        finally
+        {
+            Cleanup(projectDir);
+        }
+    }
+
+    [Fact]
+    public void PendingCompactionBriefAndRecallLandInOneEnvelope()
+    {
+        string projectDir = NewTempProjectDir("merge");
+        try
+        {
+            SeedDb(projectDir);
+            string transcript = Path.Combine(projectDir, "transcript.jsonl");
+            File.WriteAllLines(transcript,
+            [
+                JsonSerializer.Serialize(new { type = "user", message = new { content = "Fix the login redirect loop." } }),
+            ]);
+            CompactBriefTool.Execute(JsonSerializer.Serialize(new { transcript_path = transcript, cwd = projectDir, session_id = "sess-m" }));
+            string prompt = Payload(projectDir, "fix the login redirect on the web app", "sess-m");
+
+            string merged = HookEnvelope.Merge(CompactRestoreTool.Execute(prompt, projectDir), PromptRecallTool.Execute(prompt, projectDir));
+
+            string? context = ContextOf(merged);
+            Assert.NotNull(context);
+            Assert.Contains("Fix the login redirect loop.", context);
+            Assert.Contains(Header, context);
+            Assert.Contains("auth callback route", context);
+            Assert.True(context.IndexOf("Fix the login redirect loop.", StringComparison.Ordinal) < context.IndexOf(Header, StringComparison.Ordinal));
+        }
+        finally
+        {
+            Cleanup(projectDir);
+        }
+    }
+
+    [Fact]
+    public void RecallOverTenThousandDocSectionsAnswersWellInsideTheHookDeadline()
+    {
+        string projectDir = NewTempProjectDir("big");
+        try
+        {
+            string instance = SeedDb(projectDir);
+            using (SqliteConnection connection = StoreConnection.Open(HookPaths.DbPath(instance)))
+            {
+                using SqliteTransaction tx = connection.BeginTransaction();
+                for (int i = 0; i < 10_000; i++)
+                {
+                    string k = $"big/doc-{i / 20}.md#{i % 20}";
+                    string title = $"Section {i} on topic {i % 97}";
+                    string content = $"Section {i} describes topic {i % 97} and the pipeline step {i % 13} in the generated corpus.";
+                    using SqliteCommand doc = connection.CreateCommand();
+                    doc.Transaction = tx;
+                    doc.CommandText = "INSERT INTO docs(k,path,title,category,content,terms) VALUES($k,$p,$t,'doc',$c,'')";
+                    doc.Parameters.AddWithValue("$k", k);
+                    doc.Parameters.AddWithValue("$p", $"big/doc-{i / 20}.md");
+                    doc.Parameters.AddWithValue("$t", title);
+                    doc.Parameters.AddWithValue("$c", content);
+                    doc.ExecuteNonQuery();
+                    using SqliteCommand fts = connection.CreateCommand();
+                    fts.Transaction = tx;
+                    fts.CommandText = "INSERT INTO docs_fts(k,title,content) VALUES($k,$t,$c)";
+                    fts.Parameters.AddWithValue("$k", k);
+                    fts.Parameters.AddWithValue("$t", title);
+                    fts.Parameters.AddWithValue("$c", content);
+                    fts.ExecuteNonQuery();
+                }
+                tx.Commit();
+            }
+
+            Stopwatch clock = Stopwatch.StartNew();
+            string? context = ContextOf(PromptRecallTool.Execute(Payload(projectDir, "generated corpus pipeline step topic"), projectDir));
+            clock.Stop();
+
+            Assert.NotNull(context);
+            Assert.Contains("[doc] Section ", context);
+            // The CLI forwards with a 3 s deadline and Claude Code allows 10 s; the recall itself gets 2 s.
+            Assert.True(clock.ElapsedMilliseconds < 2000, $"recall over 10,000 sections took {clock.ElapsedMilliseconds} ms");
+            File.WriteAllText(Path.Combine(projectDir, "..", "test-recall-timing.txt"), $"recall over 10,000 doc sections: {clock.ElapsedMilliseconds} ms");
         }
         finally
         {
