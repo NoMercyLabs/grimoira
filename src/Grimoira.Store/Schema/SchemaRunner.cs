@@ -50,7 +50,8 @@ public static class SchemaRunner
     /// current one is skipped entirely (no backup, no apply), so an open of an unchanged store copies
     /// nothing. A store that still carries the earlier marker value <c>'1'</c> gets one more backup and
     /// apply per provider, and from then on the hash.</description></item>
-    /// <item><description>After a successful backup only the newest 3 <c>pre-*.db</c> files in
+    /// <item><description>Once every provider applied (a successful run only, never between a backup
+    /// and its apply, never after a failure) only the newest 3 <c>pre-*.db</c> files by write time in
     /// <paramref name="backupDirectory"/> are kept; the live store is never touched.</description></item>
     /// <item><description><c>PRAGMA user_version</c> is never written here — rule 3's ping-pong trap:
     /// while an old binary still stamps it to 3 on every open where it differs, only the DDL for each
@@ -78,8 +79,6 @@ public static class SchemaRunner
                 Backup(connection, backupPath);
                 if (!IntegrityOk(backupPath))
                     return new SchemaRunResult(false, applied, $"backup integrity check failed for provider '{provider.Name}'", backupPath);
-                PruneBackups(backupDirectory, keep: 3);
-
                 ApplyOneProviderInTransaction(connection, provider, hash);
                 applied.Add(provider.Name);
             }
@@ -88,6 +87,7 @@ public static class SchemaRunner
                 return new SchemaRunResult(false, applied, ex.Message, backupPath);
             }
         }
+        PruneBackups(backupDirectory, keep: 3);
         return new SchemaRunResult(true, applied, null, null);
     }
 
@@ -156,15 +156,17 @@ public static class SchemaRunner
     }
 
     /// <summary>Only <c>pre-*.db</c> files in <paramref name="backupDirectory"/> are candidates; the
-    /// newest <paramref name="keep"/> by name (the name carries a UTC timestamp) stay.</summary>
+    /// newest <paramref name="keep"/> by write time stay (a name order would sort by provider name
+    /// first). A locked or read-only file never fails a successful run.</summary>
     private static void PruneBackups(string backupDirectory, int keep)
     {
         IEnumerable<string> stale = Directory.GetFiles(backupDirectory, "pre-*.db")
-            .OrderByDescending(Path.GetFileName, StringComparer.Ordinal)
+            .OrderByDescending(File.GetLastWriteTimeUtc)
             .Skip(keep);
         foreach (string path in stale)
         {
-            try { File.Delete(path); } catch (IOException) { }
+            try { File.Delete(path); }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
         }
     }
 
