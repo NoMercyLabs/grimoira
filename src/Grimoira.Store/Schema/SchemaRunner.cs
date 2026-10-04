@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using Microsoft.Data.Sqlite;
 
 namespace Grimoira.Store.Schema;
@@ -43,7 +45,13 @@ public static class SchemaRunner
     /// it was before this provider ran.</description></item>
     /// <item><description>Once a provider's statements apply cleanly, its step is recorded in
     /// <c>meta</c> under the key <c>schema:&lt;provider.Name&gt;</c> (rule 3), in the same transaction,
-    /// so the record and the DDL either both land or neither does.</description></item>
+    /// so the record and the DDL either both land or neither does. The value is the SHA-256 (lowercase
+    /// hex) of the provider's statements joined by newline; a provider whose recorded hash equals its
+    /// current one is skipped entirely (no backup, no apply), so an open of an unchanged store copies
+    /// nothing. A store that still carries the earlier marker value <c>'1'</c> gets one more backup and
+    /// apply per provider, and from then on the hash.</description></item>
+    /// <item><description>After a successful backup only the newest 3 <c>pre-*.db</c> files in
+    /// <paramref name="backupDirectory"/> are kept; the live store is never touched.</description></item>
     /// <item><description><c>PRAGMA user_version</c> is never written here — rule 3's ping-pong trap:
     /// while an old binary still stamps it to 3 on every open where it differs, only the DDL for each
     /// provider must be additive and idempotent.</description></item>
@@ -58,16 +66,21 @@ public static class SchemaRunner
         List<string> applied = [];
         foreach (ISchemaProvider provider in providers)
         {
+            string hash = StatementsHash(provider);
             string backupPath = Path.Combine(
                 backupDirectory,
                 $"pre-{provider.Name}-{DateTime.UtcNow:yyyyMMddHHmmssfff}-{Guid.NewGuid():N}.db");
             try
             {
+                if (string.Equals(RecordedHash(connection, provider.Name), hash, StringComparison.Ordinal))
+                    continue;
+
                 Backup(connection, backupPath);
                 if (!IntegrityOk(backupPath))
                     return new SchemaRunResult(false, applied, $"backup integrity check failed for provider '{provider.Name}'", backupPath);
+                PruneBackups(backupDirectory, keep: 3);
 
-                ApplyOneProviderInTransaction(connection, provider);
+                ApplyOneProviderInTransaction(connection, provider, hash);
                 applied.Add(provider.Name);
             }
             catch (Exception ex)
@@ -78,7 +91,27 @@ public static class SchemaRunner
         return new SchemaRunResult(true, applied, null, null);
     }
 
-    private static void ApplyOneProviderInTransaction(SqliteConnection connection, ISchemaProvider provider)
+    private static string StatementsHash(ISchemaProvider provider) =>
+        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(string.Join("\n", provider.Statements)))).ToLowerInvariant();
+
+    /// <summary>The value recorded for this provider, or null when the store has no meta table yet (a
+    /// brand-new file, before Store's own provider ran) or no row for it.</summary>
+    private static string? RecordedHash(SqliteConnection connection, string providerName)
+    {
+        try
+        {
+            using SqliteCommand command = connection.CreateCommand();
+            command.CommandText = "SELECT value FROM meta WHERE key = $key";
+            command.Parameters.AddWithValue("$key", $"schema:{providerName}");
+            return command.ExecuteScalar() as string;
+        }
+        catch (SqliteException)
+        {
+            return null;
+        }
+    }
+
+    private static void ApplyOneProviderInTransaction(SqliteConnection connection, ISchemaProvider provider, string hash)
     {
         using SqliteTransaction transaction = connection.BeginTransaction();
         try
@@ -90,7 +123,7 @@ public static class SchemaRunner
                 command.CommandText = statement;
                 command.ExecuteNonQuery();
             }
-            RecordStep(connection, transaction, provider.Name);
+            RecordStep(connection, transaction, provider.Name, hash);
             transaction.Commit();
         }
         catch
@@ -102,14 +135,15 @@ public static class SchemaRunner
 
     /// <summary>Additive, idempotent: a second run for the same provider writes the same value again
     /// rather than failing or duplicating a row (rule 3, "additive and idempotent").</summary>
-    private static void RecordStep(SqliteConnection connection, SqliteTransaction transaction, string providerName)
+    private static void RecordStep(SqliteConnection connection, SqliteTransaction transaction, string providerName, string hash)
     {
         using SqliteCommand command = connection.CreateCommand();
         command.Transaction = transaction;
         command.CommandText =
-            "INSERT INTO meta(key, value) VALUES ($key, '1') " +
+            "INSERT INTO meta(key, value) VALUES ($key, $value) " +
             "ON CONFLICT(key) DO UPDATE SET value = excluded.value";
         command.Parameters.AddWithValue("$key", $"schema:{providerName}");
+        command.Parameters.AddWithValue("$value", hash);
         command.ExecuteNonQuery();
     }
 
@@ -121,9 +155,24 @@ public static class SchemaRunner
         command.ExecuteNonQuery();
     }
 
+    /// <summary>Only <c>pre-*.db</c> files in <paramref name="backupDirectory"/> are candidates; the
+    /// newest <paramref name="keep"/> by name (the name carries a UTC timestamp) stay.</summary>
+    private static void PruneBackups(string backupDirectory, int keep)
+    {
+        IEnumerable<string> stale = Directory.GetFiles(backupDirectory, "pre-*.db")
+            .OrderByDescending(Path.GetFileName, StringComparer.Ordinal)
+            .Skip(keep);
+        foreach (string path in stale)
+        {
+            try { File.Delete(path); } catch (IOException) { }
+        }
+    }
+
+    /// <summary>Pooling off: a pooled connection keeps the copy's file handle after Dispose, and a
+    /// running server would then hold every backup open until it exits.</summary>
     private static bool IntegrityOk(string backupPath)
     {
-        using SqliteConnection copy = new($"Data Source={backupPath};Mode=ReadOnly");
+        using SqliteConnection copy = new($"Data Source={backupPath};Mode=ReadOnly;Pooling=False");
         copy.Open();
         using SqliteCommand command = copy.CreateCommand();
         command.CommandText = "PRAGMA integrity_check";
