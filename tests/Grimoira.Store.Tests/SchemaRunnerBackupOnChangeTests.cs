@@ -115,6 +115,56 @@ public class SchemaRunnerBackupOnChangeTests
         Assert.True(File.Exists(store.DbPath));
     }
 
+    [Fact]
+    public void PruneKeepsTheNewestThreeByWriteTimeNotByName()
+    {
+        // Run order "Zeta" then "Alpha": by name Zeta sorts after Alpha, so a name-ordered prune would keep
+        // three Zeta copies and throw away the newest Alpha one.
+        using TempStore store = new("prune-order");
+        Assert.True(SchemaRunner.Run(store.Connection, [new StoreSchema()], store.BackupDir).Success);
+        string[] afterPreviousRun = [];
+        string[] afterLastRun = [];
+        for (int i = 0; i < 5; i++)
+        {
+            ISchemaProvider zeta = new TestProvider("Zeta", $"CREATE TABLE IF NOT EXISTS z_{i}(id INTEGER PRIMARY KEY);");
+            ISchemaProvider alpha = new TestProvider("Alpha", $"CREATE TABLE IF NOT EXISTS a_{i}(id INTEGER PRIMARY KEY);");
+            afterPreviousRun = afterLastRun;
+            SchemaRunResult result = SchemaRunner.Run(store.Connection, [zeta, alpha], store.BackupDir);
+            Assert.True(result.Success, result.Error);
+            afterLastRun = store.Backups();
+            Thread.Sleep(20);
+        }
+
+        string[] kept = store.Backups();
+        Assert.Equal(3, kept.Length);
+        string[] madeByLastRun = [.. afterLastRun.Except(afterPreviousRun)];
+        Assert.Equal(2, madeByLastRun.Length);
+        Assert.Contains(madeByLastRun, path => Path.GetFileName(path).StartsWith("pre-Zeta-", StringComparison.Ordinal));
+        Assert.Contains(madeByLastRun, path => Path.GetFileName(path).StartsWith("pre-Alpha-", StringComparison.Ordinal));
+        foreach (string path in madeByLastRun) Assert.Contains(path, kept);
+        string third = Assert.Single(kept.Except(madeByLastRun));
+        Assert.Contains(third, afterPreviousRun);
+    }
+
+    [Fact]
+    public void AFailingProviderKeepsItsBackupFile()
+    {
+        using TempStore store = new("failure-keeps-backup");
+        Assert.True(SchemaRunner.Run(store.Connection, [new StoreSchema()], store.BackupDir).Success);
+        for (int i = 0; i < 3; i++)
+        {
+            ISchemaProvider zeta = new TestProvider("Zeta", $"CREATE TABLE IF NOT EXISTS z_{i}(id INTEGER PRIMARY KEY);");
+            Assert.True(SchemaRunner.Run(store.Connection, [zeta], store.BackupDir).Success);
+        }
+        ISchemaProvider broken = new TestProvider("Broken", "THIS IS NOT VALID SQL;");
+
+        SchemaRunResult result = SchemaRunner.Run(store.Connection, [broken], store.BackupDir);
+
+        Assert.False(result.Success);
+        Assert.NotNull(result.BackupPath);
+        Assert.True(File.Exists(result.BackupPath), $"backup for the failing provider is gone: {result.BackupPath}");
+    }
+
     private sealed class TempStore : IDisposable
     {
         public string DbPath { get; }
