@@ -152,7 +152,6 @@ public static class McpSnapshotHarness
     {
         string snapshotDir = Path.Combine(Path.GetTempPath(), $"grimoira-mcp-snapshot-{commit}");
         string dll = Path.Combine(snapshotDir, "mcp.dll");
-        string stamp = Path.Combine(snapshotDir, ".built-ok");
         if (IsComplete(snapshotDir)) return dll;
 
         BuildLock.Wait();
@@ -166,7 +165,7 @@ public static class McpSnapshotHarness
             string finalDir = snapshotDir;
             snapshotDir = $"{finalDir}.building-{Environment.ProcessId}-{Guid.NewGuid():N}";
             dll = Path.Combine(snapshotDir, "mcp.dll");
-            stamp = Path.Combine(snapshotDir, ".built-ok");
+            string stamp = Path.Combine(snapshotDir, ".built-ok");
             Directory.CreateDirectory(snapshotDir);
 
             string source = RunGit(repoRoot, $"show {commit}:mcp.cs");

@@ -25,7 +25,7 @@
         "url": "https://github.com/NoMercyLabs/skills.git"
       },
       "description": "Every NoMercy Labs skill in one plugin: atlas documents a whole project as one system, devbox-anywhere builds a containerized dev environment from what the repo actually uses, crucible audits a whole system and verifies every defect it files.",
-      "version": "1.4.0"
+      "version": "1.4.1"
     }
   ]
 }
