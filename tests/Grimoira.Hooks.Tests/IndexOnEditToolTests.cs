@@ -236,4 +236,152 @@ public class IndexOnEditToolTests
             Directory.Delete(projectDir, recursive: true);
         }
     }
+
+    private static string NormalizedDocPath(string file) => Path.GetFullPath(file).Replace('\\', '/').ToLowerInvariant();
+
+    private static long DocRowsForPath(string dbPath, string file)
+    {
+        using SqliteConnection connection = new($"Data Source={dbPath};Mode=ReadOnly");
+        connection.Open();
+        using SqliteCommand command = connection.CreateCommand();
+        command.CommandText = "SELECT count(*) FROM docs WHERE lower(replace(path,'\\','/')) = $p";
+        command.Parameters.AddWithValue("$p", NormalizedDocPath(file));
+        return (long)command.ExecuteScalar()!;
+    }
+
+    private static string DocContentForPath(string dbPath, string file)
+    {
+        using SqliteConnection connection = new($"Data Source={dbPath};Mode=ReadOnly");
+        connection.Open();
+        using SqliteCommand command = connection.CreateCommand();
+        command.CommandText = "SELECT group_concat(content, ' | ') FROM docs WHERE lower(replace(path,'\\','/')) = $p";
+        command.Parameters.AddWithValue("$p", NormalizedDocPath(file));
+        return command.ExecuteScalar() as string ?? "";
+    }
+
+    private const string KnownBody = "# Known plan\n\nEnough body text in the already indexed document to survive the compaction filter.\n";
+
+    [Fact]
+    public void EditingAMarkdownFileInAFolderTheStoreAlreadyHoldsIndexesThatFile()
+    {
+        string projectDir = NewTempProjectDir("known-folder");
+        string instance = HookPaths.ResolveInstance(projectDir);
+        string plansDir = Path.Combine(projectDir, "notes", "plans");
+        Directory.CreateDirectory(plansDir);
+        string knownFile = Path.Combine(plansDir, "known.md");
+        File.WriteAllText(knownFile, KnownBody);
+        string editedFile = Path.Combine(plansDir, "new-sibling.md");
+        File.WriteAllText(editedFile, "# New sibling\n\nA fresh document written next to one the store already holds.\n");
+        try
+        {
+            GrimoiraCliRunner.Seed($"init --instance {instance}");
+            GrimoiraCliRunner.Seed($"index-docs --instance {instance} --from \"{knownFile}\"");
+            Assert.Equal(1L, DocRowsForPath(HookPaths.DbPath(instance), knownFile));
+            string payload = JsonSerializer.Serialize(new { cwd = projectDir, tool_input = new { file_path = editedFile } });
+
+            string result = IndexOnEditTool.Execute(payload);
+
+            Assert.Equal("", result);
+            Assert.Equal(1L, DocRowsForPath(HookPaths.DbPath(instance), editedFile));
+        }
+        finally
+        {
+            GrimoiraCliRunner.DeleteInstance(instance);
+            Directory.Delete(projectDir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void EditingAnAlreadyIndexedMarkdownFileReplacesItsContent()
+    {
+        string projectDir = NewTempProjectDir("known-file");
+        string instance = HookPaths.ResolveInstance(projectDir);
+        string plansDir = Path.Combine(projectDir, "notes", "plans");
+        Directory.CreateDirectory(plansDir);
+        string editedFile = Path.Combine(plansDir, "plan.md");
+        File.WriteAllText(editedFile, "# Plan\n\nOriginal first section with enough words to be kept.\n\n## Second\n\nOriginal second section with enough words to be kept.\n");
+        try
+        {
+            GrimoiraCliRunner.Seed($"init --instance {instance}");
+            GrimoiraCliRunner.Seed($"index-docs --instance {instance} --from \"{editedFile}\"");
+            Assert.Equal(2L, DocRowsForPath(HookPaths.DbPath(instance), editedFile));
+            File.WriteAllText(editedFile, "# Plan\n\nRewritten single section carrying the updated decision text.\n");
+            string payload = JsonSerializer.Serialize(new { cwd = projectDir, tool_input = new { file_path = editedFile } });
+
+            string result = IndexOnEditTool.Execute(payload);
+
+            Assert.Equal("", result);
+            string content = DocContentForPath(HookPaths.DbPath(instance), editedFile);
+            Assert.Contains("Rewritten single section", content);
+            Assert.DoesNotContain("Original", content);
+            Assert.Equal(1L, DocRowsForPath(HookPaths.DbPath(instance), editedFile));
+        }
+        finally
+        {
+            GrimoiraCliRunner.DeleteInstance(instance);
+            Directory.Delete(projectDir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void EditingAMarkdownFileInAFolderTheStoreDoesNotHoldIsASilentNoOp()
+    {
+        string projectDir = NewTempProjectDir("unknown-folder");
+        string instance = HookPaths.ResolveInstance(projectDir);
+        string knownDir = Path.Combine(projectDir, "notes", "plans");
+        string otherDir = Path.Combine(projectDir, "notes", "scratch");
+        Directory.CreateDirectory(knownDir);
+        Directory.CreateDirectory(otherDir);
+        string knownFile = Path.Combine(knownDir, "known.md");
+        File.WriteAllText(knownFile, KnownBody);
+        string editedFile = Path.Combine(otherDir, "draft.md");
+        File.WriteAllText(editedFile, "# Draft\n\nA document in a folder the store has never seen before.\n");
+        try
+        {
+            GrimoiraCliRunner.Seed($"init --instance {instance}");
+            GrimoiraCliRunner.Seed($"index-docs --instance {instance} --from \"{knownFile}\"");
+            string payload = JsonSerializer.Serialize(new { cwd = projectDir, tool_input = new { file_path = editedFile } });
+
+            string result = IndexOnEditTool.Execute(payload);
+
+            Assert.Equal("", result);
+            Assert.Equal(0L, DocRowsForPath(HookPaths.DbPath(instance), editedFile));
+            Assert.Equal(1L, ScalarCount(HookPaths.DbPath(instance), "docs"));
+        }
+        finally
+        {
+            GrimoiraCliRunner.DeleteInstance(instance);
+            Directory.Delete(projectDir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void EditingANonMarkdownFileInAFolderTheStoreHoldsIsASilentNoOp()
+    {
+        string projectDir = NewTempProjectDir("known-folder-non-md");
+        string instance = HookPaths.ResolveInstance(projectDir);
+        string plansDir = Path.Combine(projectDir, "notes", "plans");
+        Directory.CreateDirectory(plansDir);
+        string knownFile = Path.Combine(plansDir, "known.md");
+        File.WriteAllText(knownFile, KnownBody);
+        string editedFile = Path.Combine(plansDir, "data.json");
+        File.WriteAllText(editedFile, "{ \"title\": \"Not markdown, with enough text to pass any length filter\" }\n");
+        try
+        {
+            GrimoiraCliRunner.Seed($"init --instance {instance}");
+            GrimoiraCliRunner.Seed($"index-docs --instance {instance} --from \"{knownFile}\"");
+            string payload = JsonSerializer.Serialize(new { cwd = projectDir, tool_input = new { file_path = editedFile } });
+
+            string result = IndexOnEditTool.Execute(payload);
+
+            Assert.Equal("", result);
+            Assert.Equal(0L, DocRowsForPath(HookPaths.DbPath(instance), editedFile));
+            Assert.Equal(1L, ScalarCount(HookPaths.DbPath(instance), "docs"));
+        }
+        finally
+        {
+            GrimoiraCliRunner.DeleteInstance(instance);
+            Directory.Delete(projectDir, recursive: true);
+        }
+    }
 }
