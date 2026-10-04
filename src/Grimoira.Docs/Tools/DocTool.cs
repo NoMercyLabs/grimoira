@@ -43,14 +43,12 @@ public sealed class DocTool : ITool
         if (match.Length == 0) return "no usable terms.";
 
         StringBuilder sb = new();
-        int n = 0;
-        n += PrintDocs(connection, sb, """
-            SELECT d.path,d.title,d.category,d.content FROM (SELECT k, bm25(docs_fts) AS score FROM docs_fts WHERE docs_fts MATCH $m) m
-            JOIN docs d ON d.k=m.k WHERE d.category='synthesis' ORDER BY m.score LIMIT 2
-            """, match);
-        n += PrintDocs(connection, sb, """
+        // One ranking for synthesis and direct sections alike (top 5 by bm25, best first). The old CLI printed
+        // up to 2 synthesis rows first, each with a 20,000-char snippet, and only then the best sections: on a
+        // real store the one section holding every query word came 62 lines down, behind an unrelated synthesis.
+        int n = PrintDocs(connection, sb, """
             SELECT d.path,d.title,d.category,d.content FROM (SELECT k, bm25(docs_fts) AS score FROM docs_fts WHERE docs_fts MATCH $m ORDER BY score LIMIT 5) m
-            JOIN docs d ON d.k=m.k WHERE d.category<>'synthesis' ORDER BY m.score
+            JOIN docs d ON d.k=m.k ORDER BY m.score
             """, match);
         if (n == 0) return $"no docs match \"{terms}\".";
         // Each row was appended with AppendLine on top of its own embedded trailing "\n" (grimoira.cs's old
@@ -99,7 +97,7 @@ public sealed class DocTool : ITool
         {
             string category = reader.GetString(2);
             string content = reader.GetString(3);
-            int cap = category == "synthesis" ? 20000 : 400;
+            int cap = category == "synthesis" ? 1500 : 400;
             string snip = content.Length <= cap ? content : content[..cap] + "…";
             sb.AppendLine($"• [{category}] {reader.GetString(1)}  ({reader.GetString(0)})\n  {snip}\n");
             n++;
