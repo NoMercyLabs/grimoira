@@ -40,11 +40,10 @@ public static class OldVsNewCli
         // A class that has been frozen never builds the oracle; the sentinel only says "the frozen oracle".
         if (!CliGoldens.FreezeMode && CliGoldens.HasGolden(callerFile)) return Path.Combine(SnapshotDir, "aitm.dll");
         string dll = Path.Combine(SnapshotDir, "aitm.dll");
-        string stamp = Path.Combine(SnapshotDir, ".built-ok");
-        if (File.Exists(dll) && File.Exists(stamp)) return dll;
+        if (SnapshotStamp.IsComplete(SnapshotDir)) return dll;
         lock (BuildLock)
         {
-            if (File.Exists(dll) && File.Exists(stamp)) return dll;
+            if (SnapshotStamp.IsComplete(SnapshotDir)) return dll;
             return BuildOracle();
         }
     }
@@ -182,7 +181,7 @@ public static class OldVsNewCli
         string builtDll = Path.Combine(buildDir, "aitm.dll");
         if (!File.Exists(builtDll))
             throw new InvalidOperationException($"oracle build did not produce {builtDll}");
-        File.WriteAllText(Path.Combine(buildDir, ".built-ok"), DateTime.UtcNow.ToString("o"));
+        SnapshotStamp.Write(buildDir);
 
         return MoveIntoPlace(buildDir);
     }
@@ -190,15 +189,14 @@ public static class OldVsNewCli
     private static string MoveIntoPlace(string builtDir)
     {
         string finalDll = Path.Combine(SnapshotDir, "aitm.dll");
-        string finalStamp = Path.Combine(SnapshotDir, ".built-ok");
-        // A final folder without the stamp is a leftover of an old in-place build; builds now happen
-        // only in private folders, so nobody else is writing it.
-        if (Directory.Exists(SnapshotDir) && !File.Exists(finalStamp)) TryDelete(SnapshotDir);
+        // A final folder that is not complete is a leftover of an old in-place build or a half-cleaned
+        // cache; builds now happen only in private folders, so nobody else is writing it.
+        if (Directory.Exists(SnapshotDir) && !SnapshotStamp.IsComplete(SnapshotDir)) TryDelete(SnapshotDir);
         try
         {
             Directory.Move(builtDir, SnapshotDir);
         }
-        catch (IOException) when (File.Exists(finalStamp))
+        catch (IOException) when (SnapshotStamp.IsComplete(SnapshotDir))
         {
             TryDelete(builtDir); // another run won the race; its copy is complete
         }
