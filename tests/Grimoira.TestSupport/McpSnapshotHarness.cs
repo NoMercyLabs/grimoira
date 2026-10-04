@@ -153,12 +153,12 @@ public static class McpSnapshotHarness
         string snapshotDir = Path.Combine(Path.GetTempPath(), $"grimoira-mcp-snapshot-{commit}");
         string dll = Path.Combine(snapshotDir, "mcp.dll");
         string stamp = Path.Combine(snapshotDir, ".built-ok");
-        if (File.Exists(dll) && File.Exists(stamp)) return dll;
+        if (IsComplete(snapshotDir)) return dll;
 
         BuildLock.Wait();
         try
         {
-            if (File.Exists(dll) && File.Exists(stamp)) return dll;
+            if (IsComplete(snapshotDir)) return dll;
 
             // Another test run (a parallel agent in another worktree) may build the same snapshot at
             // the same time. Build in a folder of our own and move it into place in one step, so no run
@@ -189,7 +189,7 @@ public static class McpSnapshotHarness
             if (build.ExitCode != 0 || !File.Exists(dll))
                 throw new InvalidOperationException($"snapshot build of mcp.cs@{commit} failed:\n{stdout}\n{stderr}");
 
-            File.WriteAllText(stamp, DateTime.UtcNow.ToString("o"));
+            File.WriteAllLines(stamp, Directory.GetFiles(snapshotDir).Select(Path.GetFileName)!);
             return MoveIntoPlace(snapshotDir, finalDir);
         }
         finally
@@ -198,18 +198,29 @@ public static class McpSnapshotHarness
         }
     }
 
+    /// <summary>True when the snapshot folder still holds every file its <c>.built-ok</c> stamp lists.
+    /// The folder lives in the user temp directory, where a clean-up can take the dependency dlls and
+    /// leave mcp.dll and the stamp behind (2026-10-04); such a half snapshot answers nothing and must be
+    /// rebuilt. A stamp from before the file list (a timestamp) never counts.</summary>
+    public static bool IsComplete(string snapshotDir)
+    {
+        string stamp = Path.Combine(snapshotDir, ".built-ok");
+        if (!File.Exists(stamp)) return false;
+        string[] listed = [.. File.ReadAllLines(stamp).Where(l => l.Length > 0)];
+        return listed.Length > 0 && listed.All(f => File.Exists(Path.Combine(snapshotDir, f)));
+    }
+
     private static string MoveIntoPlace(string builtDir, string finalDir)
     {
         string finalDll = Path.Combine(finalDir, "mcp.dll");
-        string finalStamp = Path.Combine(finalDir, ".built-ok");
-        // A final folder without the stamp is a leftover of the old in-place build; builds now happen
-        // only in private folders, so nobody else is writing it.
-        if (Directory.Exists(finalDir) && !File.Exists(finalStamp)) TryDelete(finalDir);
+        // A final folder that is not complete is a leftover of the old in-place build or a half-cleaned
+        // cache; builds now happen only in private folders, so nobody else is writing it.
+        if (Directory.Exists(finalDir) && !IsComplete(finalDir)) TryDelete(finalDir);
         try
         {
             Directory.Move(builtDir, finalDir);
         }
-        catch (IOException) when (File.Exists(finalStamp))
+        catch (IOException) when (IsComplete(finalDir))
         {
             TryDelete(builtDir); // another run won the race; its copy is complete
         }
