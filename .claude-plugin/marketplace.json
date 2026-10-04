@@ -10,7 +10,7 @@
       "name": "grimoira",
       "source": "./",
       "description": "Per-project knowledge store for Claude Code: shows the rules for a file before its first edit, recalls matching facts on every prompt under a small budget, learns from repeated searches, and one command pauses it.",
-      "version": "2.2.1"
+      "version": "2.2.2"
     },
     {
       "name": "grimora",

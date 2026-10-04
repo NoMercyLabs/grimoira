@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using Grimoira.Brain.Schema;
 using Grimoira.Docs.Schema;
 using Grimoira.Facts.Schema;
@@ -94,7 +96,9 @@ public class SchemaRunnerEmptyStoreTests
             Assert.True(first.Success, first.Error);
             Dictionary<string, string> metaAfterFirst = ReadMetaSchemaKeys(connection);
             foreach (ISchemaProvider provider in AllProviders())
-                Assert.Equal("1", metaAfterFirst[$"schema:{provider.Name}"]);
+                Assert.Equal(
+                    Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(string.Join("\n", provider.Statements)))).ToLowerInvariant(),
+                    metaAfterFirst[$"schema:{provider.Name}"]);
 
             SchemaRunResult second = SchemaRunner.Run(connection, AllProviders(), backupDir);
             Assert.True(second.Success, second.Error);
