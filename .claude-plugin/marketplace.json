@@ -9,8 +9,8 @@
     {
       "name": "grimoira",
       "source": "./",
-      "description": "Per-project knowledge store for Claude Code: hooks keep it current, tools answer from it with sources.",
-      "version": "2.0.1"
+      "description": "Per-project knowledge store for Claude Code: shows the rules for a file before its first edit, recalls matching facts on every prompt under a small budget, learns from repeated searches, and one command pauses it.",
+      "version": "2.1.0"
     },
     {
       "name": "grimora",
@@ -25,7 +25,7 @@
         "url": "https://github.com/NoMercyLabs/skills.git"
       },
       "description": "Every NoMercy Labs skill in one plugin: atlas documents a whole project as one system, devbox-anywhere builds a containerized dev environment from what the repo actually uses, crucible audits a whole system and verifies every defect it files.",
-      "version": "1.4.0"
+      "version": "1.4.1"
     }
   ]
 }

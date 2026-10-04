@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.IO.Pipes;
 using Grimoira.Cli.Tools;
 using Microsoft.AspNetCore.Builder;
@@ -58,6 +59,20 @@ public sealed class PipeConnectionTests : IDisposable
         HttpRequestException ex = await Assert.ThrowsAsync<HttpRequestException>(() => client.GetAsync("/ping"));
 
         Assert.Equal(HttpRequestError.ConnectionError, ex.HttpRequestError);
+    }
+
+    // With no pipe by that name at all, NamedPipeClientStream.Connect keeps retrying CreateFile until its
+    // timeout elapses. Every hook pays that twice with the server down (the send, then the /health probe), so
+    // a missing pipe must be refused at once, not at the connect timeout.
+    [Fact]
+    public async Task ADataDirWithNoServerIsRefusedLongBeforeTheConnectTimeout()
+    {
+        using HttpClient client = PipeConnection.CreateClient(_dataDir, TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(30));
+
+        Stopwatch sw = Stopwatch.StartNew();
+        await Assert.ThrowsAsync<HttpRequestException>(() => client.GetAsync("/ping"));
+
+        Assert.True(sw.ElapsedMilliseconds < 1000, $"a missing pipe was refused only after {sw.ElapsedMilliseconds} ms");
     }
 
     [Fact]

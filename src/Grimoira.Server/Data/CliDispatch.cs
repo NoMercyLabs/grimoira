@@ -3,6 +3,7 @@ using Grimoira.Brain.Tools;
 using Grimoira.Docs.Tools;
 using Grimoira.Facts.Tools;
 using Grimoira.Graph.Tools;
+using Grimoira.Hooks.Tools;
 using Grimoira.Memory.Tools;
 using Grimoira.Store.Data;
 using Grimoira.Store.Tools;
@@ -362,6 +363,24 @@ public static class CliDispatch
                     case "flush":
                         stdout.WriteLine(new BrainFlushTool().ExecuteCli(_db, GetFlag("--session") ?? ""));
                         break;
+                    case "gates":
+                        // The pause switch for the context-injecting hooks (GateSwitch): off for 12 h at most, logged.
+                        switch (Pos1())
+                        {
+                            case "off":
+                                stdout.WriteLine(GateSwitch.Off(_instance, string.Join(' ', Positionals().Skip(2))));
+                                break;
+                            case "on":
+                                stdout.WriteLine(GateSwitch.On(_instance));
+                                break;
+                            case "status":
+                                stdout.WriteLine(GateSwitch.Status(_instance));
+                                break;
+                            default:
+                                stderr.WriteLine("usage: grimoira gates off [reason...] | on | status");
+                                return 2;
+                        }
+                        break;
                     case "selftest":
                         // Removed in phase 2 (RESTRUCTURE.md section 2.1, drop 3 of 4): all 63 checks now have a C#
                         // test-project equivalent (SelfTestCoverageTests), so the inline TDD harness is gone.
@@ -409,6 +428,7 @@ public static class CliDispatch
                             "todo | todos | done <id>            manage todos",
                             "finding | findings | resolve <id>   manage findings",
                             "stats                               channel counts for the instance",
+                            "gates off [reason...] | on | status pause the edit gate and prompt recall (12 h at most), logged",
                         ];
                         string usageText = "grimoira <command> [--instance <name>]\n\n" + string.Join("\n", usage);
                         if (cmd is "help" or "--help" or "-h")

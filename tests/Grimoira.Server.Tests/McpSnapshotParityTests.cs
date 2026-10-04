@@ -29,7 +29,9 @@ public partial class McpSnapshotParityTests
             (IReadOnlyList<string> newTools, _) = McpProcess.Run(newDll, instance, []);
 
             // idp_token was removed on purpose (Grimoira holds no secrets); the pinned snapshot still lists it.
-            Assert.Equal(oldTools.Where(t => t != "idp_token").OrderBy(t => t, StringComparer.Ordinal), newTools.OrderBy(t => t, StringComparer.Ordinal));
+            // patterns was added on purpose (the repeated-command watch); the pinned snapshot predates it.
+            Assert.Equal(oldTools.Where(t => t != "idp_token").Append("patterns").OrderBy(t => t, StringComparer.Ordinal), newTools.OrderBy(t => t, StringComparer.Ordinal));
+            Assert.Contains("patterns", newTools);
             Assert.Contains("fact", newTools);
             Assert.Contains("history", newTools);
         }

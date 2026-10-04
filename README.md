@@ -8,7 +8,7 @@ Grimoira is built to be Claude Code's memory and knowledge layer. Once installed
 
 ## What it does for you
 
-Claude reaches Grimoira through 26 tools and through the `grimoira` command. Day to day, it can:
+Claude reaches Grimoira through 27 tools and through the `grimoira` command. Day to day, it can:
 
 - Look up a verified fact, such as a base URL, a file path, a config key or a port. If Grimoira does not know, it says so and logs the gap. It does not guess.
 - Recall a standing rule or a past decision about how to work in a project.
@@ -21,7 +21,24 @@ Its answers are leads with a source. The source file and the running code are st
 
 ## How it works
 
-Grimoira is a Claude Code plugin. It ships two skills (`grimoira` for everyday use, `grimoira-init` for the first start), two agents, a maintenance command, an MCP server, and a small set of hooks. The MCP server and the hooks call a thin `grimoira` command. That command talks to a background service over a local named pipe (a Unix socket on macOS and Linux), so no network port is open. The service starts on the first call and exits after 30 quiet minutes. Hooks save your place before Claude compacts a conversation and fold the finished session into the store. Everything lives in SQLite files on your disk, one file per project instance.
+Grimoira is a Claude Code plugin. It ships two skills (`grimoira` for everyday use, `grimoira-init` for the first start), two agents, a maintenance command, an MCP server, and a small set of hooks. The MCP server and the hooks call a thin `grimoira` command. That command talks to a background service over a local named pipe (a Unix socket on macOS and Linux), so no network port is open. The service starts on the first call and exits after 30 quiet minutes. Everything lives in SQLite files on your disk, one file per project instance.
+
+The hooks make Grimoira part of every session without anyone asking for it:
+
+- Before the first edit of a file in a session, the rules and facts that match that file's path land in the conversation, so Claude reads the rule when it still matters. The same file gets no second reminder in that session. The reminder is capped at a short block of text.
+- On every prompt you type, the few facts and rules that match your words land as a hint, under a small fixed budget (about 150 tokens). A short prompt, a slash command, or a prompt that matches nothing adds nothing.
+- Grimoira learns from repeated searches. It counts the files, search patterns and commands a session keeps coming back to. The `patterns` tool reads the counts back, so a search that keeps happening by hand can become a fact or a tool. Nothing is ever blocked and nothing is printed into the session for this.
+- Before Claude compacts a conversation, the hooks save your place and restore it on the first prompt after. When a session ends, they fold it into the store.
+
+If a reminder gets in the way, one command pauses the two that inject text:
+
+```
+grimoira gates off "reason"
+grimoira gates on
+grimoira gates status
+```
+
+A pause ends on its own after 12 hours. Every flip is written to `gates.log` in the instance folder. The search counter keeps counting while paused; it injects nothing.
 
 ## Install
 

@@ -31,7 +31,7 @@ public class MemoryDocsVerbDispatchTests
     ];
 
     [Fact]
-    public void PartTwoCovers12OfThe71GoldenCliVerbs() => Assert.Equal(12, WiredVerbs.Length);
+    public void PartTwoCovers12OfThe72GoldenCliVerbs() => Assert.Equal(12, WiredVerbs.Length);
 
     [Theory]
     [MemberData(nameof(WiredVerbCases))]

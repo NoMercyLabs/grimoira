@@ -100,6 +100,7 @@ public class HookCommandTests
     [InlineData("PostToolUse")]
     [InlineData("SessionEnd")]
     [InlineData("Stop")]
+    [InlineData("PreToolUse")]
     public void TheEventRunsTheHookVerbOfThePublishedCli(string eventName)
     {
         using JsonDocument doc = JsonDocument.Parse(File.ReadAllText(Path.Combine(RepoPaths.Root, "hooks", "hooks.json")));
@@ -109,6 +110,19 @@ public class HookCommandTests
         Assert.Equal("dotnet", hook.GetProperty("command").GetString());
         string[] args = [.. hook.GetProperty("args").EnumerateArray().Select(a => a.GetString()!)];
         Assert.Equal(["${CLAUDE_PLUGIN_DATA}/current/bin-cli/grimoira.dll", "hook", eventName], args);
+    }
+
+    // One PostToolUse slot serves both handlers: the server picks IndexOnEdit or PatternWatch by tool_name,
+    // so the matcher must name every tool either side wants (the edits, and the repeated searches the
+    // pattern counter learns from).
+    [Fact]
+    public void ThePostToolUseMatcherCoversEditsAndSearches()
+    {
+        using JsonDocument doc = JsonDocument.Parse(File.ReadAllText(Path.Combine(RepoPaths.Root, "hooks", "hooks.json")));
+        JsonElement group = Assert.Single(doc.RootElement.GetProperty("hooks").GetProperty("PostToolUse").EnumerateArray());
+
+        Assert.Equal("Write|Edit|MultiEdit|NotebookEdit|Read|Grep|Glob|Bash", group.GetProperty("matcher").GetString());
+        Assert.Equal(65, group.GetProperty("hooks")[0].GetProperty("timeout").GetInt32());
     }
 
     // The SessionEnd handlers index for seconds. Claude Code gives SessionEnd hooks a shared 1.5 s budget
@@ -140,6 +154,24 @@ public class HookCommandTests
                 $"{eventName}: deadline {deadline.TotalSeconds} s is above its slot timeout {timeoutSeconds} s");
         }
     }
+
+    // The edit gate runs before an edit and the edit waits on it, so its slot is scoped to the edit tools
+    // and its forwarded deadline is short (5 s) and under the slot's own 8 s timeout.
+    [Fact]
+    public void ThePreToolUseSlotGatesEditsWithinFiveSeconds()
+    {
+        using JsonDocument doc = JsonDocument.Parse(File.ReadAllText(Path.Combine(RepoPaths.Root, "hooks", "hooks.json")));
+        JsonElement group = Assert.Single(doc.RootElement.GetProperty("hooks").GetProperty("PreToolUse").EnumerateArray());
+
+        Assert.Equal("Write|Edit|MultiEdit|NotebookEdit", group.GetProperty("matcher").GetString());
+        Assert.Equal(8, Assert.Single(group.GetProperty("hooks").EnumerateArray()).GetProperty("timeout").GetInt32());
+        Assert.Equal(TimeSpan.FromSeconds(5), cli::Grimoira.Cli.Tools.HookForwarder.Deadlines["PreToolUse"]);
+    }
+    // The prompt recall runs on every prompt, so its budget is a small slice of the 10 s slot: a slow or
+    // absent server must never make the user wait for a prompt to be accepted.
+    [Fact]
+    public void UserPromptSubmitForwardDeadlineIsThreeSeconds() =>
+        Assert.Equal(TimeSpan.FromSeconds(3), cli::Grimoira.Cli.Tools.HookForwarder.Deadlines["UserPromptSubmit"]);
 
     private static string[] ArgsOf(JsonElement hook) =>
         hook.TryGetProperty("args", out JsonElement a) ? [.. a.EnumerateArray().Select(x => x.GetString() ?? "")] : [];

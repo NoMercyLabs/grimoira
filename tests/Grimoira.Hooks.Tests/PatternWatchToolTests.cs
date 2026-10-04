@@ -121,6 +121,149 @@ public class PatternWatchToolTests
         }
     }
 
+    // --- Execute(): Read, Grep and Glob are counted too, keyed by tool_name ---
+
+    private static (long Count, string Kind)? PatternRow(string instance, string sig)
+    {
+        using SqliteConnection connection = new($"Data Source={HookPaths.DbPath(instance)};Mode=ReadOnly");
+        connection.Open();
+        using SqliteCommand cmd = connection.CreateCommand();
+        cmd.CommandText = "SELECT count, kind FROM patterns WHERE sig = $sig";
+        cmd.Parameters.AddWithValue("$sig", sig);
+        using SqliteDataReader r = cmd.ExecuteReader();
+        return r.Read() ? (r.GetInt64(0), r.GetString(1)) : null;
+    }
+
+    private static string Run(string projectDir, string toolName, object toolInput) =>
+        PatternWatchTool.Execute(JsonSerializer.Serialize(new { tool_name = toolName, tool_input = toolInput, cwd = projectDir, session_id = "s1" }));
+
+    // The signature is the path relative to cwd with forward slashes; Windows paths are case-insensitive,
+    // so the same file read with two spellings must land on one row there.
+    private static string Rel(string relative) => OperatingSystem.IsWindows() ? relative.ToLowerInvariant() : relative;
+
+    [Fact]
+    public void ReadIsRecordedWithKindRead()
+    {
+        string projectDir = NewTempProjectDir("watch-read");
+        string instance = HookPaths.ResolveInstance(projectDir);
+        try
+        {
+            GrimoiraCliRunner.Seed($"init --instance {instance}");
+
+            string result = Run(projectDir, "Read", new { file_path = Path.Combine(projectDir, "src", "Program.cs") });
+
+            Assert.Equal("", result);
+            Assert.Equal((1L, "read"), PatternRow(instance, $"read {Rel("src/Program.cs")}"));
+        }
+        finally
+        {
+            GrimoiraCliRunner.DeleteInstance(instance);
+        }
+    }
+
+    [Fact]
+    public void GrepIsRecordedWithPatternAndPath()
+    {
+        string projectDir = NewTempProjectDir("watch-grep");
+        string instance = HookPaths.ResolveInstance(projectDir);
+        try
+        {
+            GrimoiraCliRunner.Seed($"init --instance {instance}");
+
+            Run(projectDir, "Grep", new { pattern = "TODO", path = Path.Combine(projectDir, "src") });
+            Run(projectDir, "Grep", new { pattern = "TODO" });
+
+            Assert.Equal((1L, "grep"), PatternRow(instance, $"grep TODO in {Rel("src")}"));
+            Assert.Equal((1L, "grep"), PatternRow(instance, "grep TODO"));
+        }
+        finally
+        {
+            GrimoiraCliRunner.DeleteInstance(instance);
+        }
+    }
+
+    [Fact]
+    public void GlobIsRecorded()
+    {
+        string projectDir = NewTempProjectDir("watch-glob");
+        string instance = HookPaths.ResolveInstance(projectDir);
+        try
+        {
+            GrimoiraCliRunner.Seed($"init --instance {instance}");
+
+            Run(projectDir, "Glob", new { pattern = "**/*.cs" });
+
+            Assert.Equal((1L, "glob"), PatternRow(instance, "glob **/*.cs"));
+        }
+        finally
+        {
+            GrimoiraCliRunner.DeleteInstance(instance);
+        }
+    }
+
+    [Fact]
+    public void SecondReadOfSamePathBumpsCount()
+    {
+        string projectDir = NewTempProjectDir("watch-read2");
+        string instance = HookPaths.ResolveInstance(projectDir);
+        try
+        {
+            GrimoiraCliRunner.Seed($"init --instance {instance}");
+
+            Run(projectDir, "Read", new { file_path = Path.Combine(projectDir, "README.md") });
+            Run(projectDir, "Read", new { file_path = Path.Combine(projectDir, "README.md") });
+
+            Assert.Equal((2L, "read"), PatternRow(instance, $"read {Rel("README.md")}"));
+        }
+        finally
+        {
+            GrimoiraCliRunner.DeleteInstance(instance);
+        }
+    }
+
+    [Fact]
+    public void UnknownToolRecordsNothing()
+    {
+        string projectDir = NewTempProjectDir("watch-unknown");
+        string instance = HookPaths.ResolveInstance(projectDir);
+        try
+        {
+            GrimoiraCliRunner.Seed($"init --instance {instance}");
+
+            string result = Run(projectDir, "WebFetch", new { url = "https://example.invalid" });
+
+            Assert.Equal("", result);
+            using SqliteConnection connection = new($"Data Source={HookPaths.DbPath(instance)};Mode=ReadOnly");
+            connection.Open();
+            using SqliteCommand count = connection.CreateCommand();
+            count.CommandText = "SELECT name FROM sqlite_master WHERE type='table' AND name='patterns'";
+            Assert.Null(count.ExecuteScalar());
+        }
+        finally
+        {
+            GrimoiraCliRunner.DeleteInstance(instance);
+        }
+    }
+
+    [Fact]
+    public void BashStillRecordsCommandKind()
+    {
+        string projectDir = NewTempProjectDir("watch-bash");
+        string instance = HookPaths.ResolveInstance(projectDir);
+        try
+        {
+            GrimoiraCliRunner.Seed($"init --instance {instance}");
+
+            Run(projectDir, "Bash", new { command = "dotnet build grimoira.cs -c Release" });
+
+            Assert.Equal((1L, "command"), PatternRow(instance, "dotnet build"));
+        }
+        finally
+        {
+            GrimoiraCliRunner.DeleteInstance(instance);
+        }
+    }
+
     [Fact]
     public void ABadPayloadExitsCleanWithNoOutput()
     {

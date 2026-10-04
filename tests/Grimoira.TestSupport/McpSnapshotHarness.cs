@@ -152,13 +152,12 @@ public static class McpSnapshotHarness
     {
         string snapshotDir = Path.Combine(Path.GetTempPath(), $"grimoira-mcp-snapshot-{commit}");
         string dll = Path.Combine(snapshotDir, "mcp.dll");
-        string stamp = Path.Combine(snapshotDir, ".built-ok");
-        if (File.Exists(dll) && File.Exists(stamp)) return dll;
+        if (SnapshotStamp.IsComplete(snapshotDir)) return dll;
 
         BuildLock.Wait();
         try
         {
-            if (File.Exists(dll) && File.Exists(stamp)) return dll;
+            if (SnapshotStamp.IsComplete(snapshotDir)) return dll;
 
             // Another test run (a parallel agent in another worktree) may build the same snapshot at
             // the same time. Build in a folder of our own and move it into place in one step, so no run
@@ -166,7 +165,6 @@ public static class McpSnapshotHarness
             string finalDir = snapshotDir;
             snapshotDir = $"{finalDir}.building-{Environment.ProcessId}-{Guid.NewGuid():N}";
             dll = Path.Combine(snapshotDir, "mcp.dll");
-            stamp = Path.Combine(snapshotDir, ".built-ok");
             Directory.CreateDirectory(snapshotDir);
 
             string source = RunGit(repoRoot, $"show {commit}:mcp.cs");
@@ -189,7 +187,7 @@ public static class McpSnapshotHarness
             if (build.ExitCode != 0 || !File.Exists(dll))
                 throw new InvalidOperationException($"snapshot build of mcp.cs@{commit} failed:\n{stdout}\n{stderr}");
 
-            File.WriteAllText(stamp, DateTime.UtcNow.ToString("o"));
+            SnapshotStamp.Write(snapshotDir);
             return MoveIntoPlace(snapshotDir, finalDir);
         }
         finally
@@ -201,15 +199,14 @@ public static class McpSnapshotHarness
     private static string MoveIntoPlace(string builtDir, string finalDir)
     {
         string finalDll = Path.Combine(finalDir, "mcp.dll");
-        string finalStamp = Path.Combine(finalDir, ".built-ok");
-        // A final folder without the stamp is a leftover of the old in-place build; builds now happen
-        // only in private folders, so nobody else is writing it.
-        if (Directory.Exists(finalDir) && !File.Exists(finalStamp)) TryDelete(finalDir);
+        // A final folder that is not complete is a leftover of the old in-place build or a half-cleaned
+        // cache; builds now happen only in private folders, so nobody else is writing it.
+        if (Directory.Exists(finalDir) && !SnapshotStamp.IsComplete(finalDir)) TryDelete(finalDir);
         try
         {
             Directory.Move(builtDir, finalDir);
         }
-        catch (IOException) when (File.Exists(finalStamp))
+        catch (IOException) when (SnapshotStamp.IsComplete(finalDir))
         {
             TryDelete(builtDir); // another run won the race; its copy is complete
         }

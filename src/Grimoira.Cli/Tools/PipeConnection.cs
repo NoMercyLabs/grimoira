@@ -44,11 +44,30 @@ public static class PipeConnection
         return new HttpClient(handler) { BaseAddress = BaseAddress, Timeout = overallTimeout };
     }
 
+    private static bool PipeExists(string pipeName)
+    {
+        try
+        {
+            return Directory.EnumerateFiles(@"\\.\pipe\", pipeName).Any();
+        }
+        catch
+        {
+            // A namespace that cannot be listed is left to the connect's own timeout.
+            return true;
+        }
+    }
+
     private static async ValueTask<System.IO.Stream> ConnectAsync(string dataDir, TimeSpan timeout, CancellationToken cancellationToken)
     {
         if (OperatingSystem.IsWindows())
         {
-            NamedPipeClientStream pipe = new(".", ServerAddress.PipeName(dataDir), PipeDirection.InOut, ClientPipeOptions);
+            string pipeName = ServerAddress.PipeName(dataDir);
+            // ConnectAsync retries CreateFile until its timeout even when no pipe by that name exists, and a
+            // hook with the server down pays that on the send and again on the /health probe. Listing the pipe
+            // namespace is instant and opens nothing (File.Exists on a pipe path would consume a listener
+            // instance), so a missing pipe is refused here at once.
+            if (!PipeExists(pipeName)) throw new IOException($"no pipe for {dataDir}");
+            NamedPipeClientStream pipe = new(".", pipeName, PipeDirection.InOut, ClientPipeOptions);
             try
             {
                 await pipe.ConnectAsync((int)timeout.TotalMilliseconds, cancellationToken);

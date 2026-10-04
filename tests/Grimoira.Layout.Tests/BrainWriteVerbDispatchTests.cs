@@ -27,7 +27,7 @@ public partial class BrainWriteVerbDispatchTests
     ];
 
     [Fact]
-    public void PartFourBCovers9OfThe71GoldenCliVerbs() => Assert.Equal(9, WiredVerbs.Length);
+    public void PartFourBCovers9OfThe72GoldenCliVerbs() => Assert.Equal(9, WiredVerbs.Length);
 
     [Theory]
     [MemberData(nameof(WiredVerbCases))]

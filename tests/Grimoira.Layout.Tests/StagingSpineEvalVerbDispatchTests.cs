@@ -25,7 +25,7 @@ public partial class StagingSpineEvalVerbDispatchTests
     ];
 
     [Fact]
-    public void PartFourCCoversTheLast6OfThe71GoldenCliVerbs() => Assert.Equal(6, WiredVerbs.Length);
+    public void PartFourCCoversTheLast6OfThe72GoldenCliVerbs() => Assert.Equal(6, WiredVerbs.Length);
 
     [Theory]
     [MemberData(nameof(WiredVerbCases))]
