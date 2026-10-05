@@ -83,9 +83,11 @@ public sealed class GraphExplainTool : ITool
             using SqliteDataReader r = c.ExecuteReader();
             while (r.Read())
             {
-                string project = r.GetString(0);
+                // edges.project and edges.usage are nullable (seeded rows): a NULL read with GetString threw
+                // "The data is NULL at ordinal 0" on the live store (2026-10-05, AnimeThemesController).
+                string project = r.IsDBNull(0) ? "" : r.GetString(0);
                 string file = ResolveFile(project, r.GetString(1), !hasFileRel || r.IsDBNull(4), () => r.GetString(4));
-                declRows.Add((project, file, r.GetInt32(2), r.GetString(3)));
+                declRows.Add((project, file, r.GetInt32(2), r.IsDBNull(3) ? "" : r.GetString(3)));
             }
         }
         string kind = declRows.Count > 0 ? declRows[0].usage : (Scalar(connection, "SELECT contract FROM edges WHERE symbol=$s AND contract != '' LIMIT 1", resolved) ?? "unknown");
@@ -124,10 +126,10 @@ public sealed class GraphExplainTool : ITool
             while (r.Read())
             {
                 n++;
-                bool hard = r.GetInt32(4) == 1;
-                string project = r.GetString(0);
+                bool hard = !r.IsDBNull(4) && r.GetInt32(4) == 1;
+                string project = r.IsDBNull(0) ? "" : r.GetString(0);
                 string file = ResolveFile(project, r.GetString(1), !hasFileRel || r.IsDBNull(5), () => r.GetString(5));
-                lines.Add($"  {project,-10} {file}:{r.GetInt32(2)}{(hard ? " [HARDCODED]" : "")}  {Clip(r.GetString(3), 60)}");
+                lines.Add($"  {project,-10} {file}:{r.GetInt32(2)}{(hard ? " [HARDCODED]" : "")}  {Clip(r.IsDBNull(3) ? "" : r.GetString(3), 60)}");
             }
             if (n == 0) lines.Add("  (none recorded)");
         }
