@@ -19,7 +19,7 @@ public sealed class ProjectTool : ITool
         // A root change is a workspace move (2026-10-05): the index-code rows written under the old root
         // point at files that are no longer there. They go now, not on the next re-index. Curated rows and
         // other projects stay (IndexCodeTool.DeleteOwnRowsUnder).
-        string? oldRoot = null;
+        string? oldRoot;
         using (SqliteCommand read = connection.CreateCommand())
         {
             read.CommandText = "SELECT root FROM projects WHERE name=$n";
