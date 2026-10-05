@@ -170,4 +170,33 @@ public class GraphExplainToolTests
     // mangled regardless of the encoding this side decodes with — a capture artifact, not a behaviour
     // difference (CandidatesToolTests/QueryToolTests document the same substitution).
     private static string Normalize(string s) => s.Trim().Replace('—', '-');
+
+    // 2026-10-05: `graph-explain AnimeThemesController` on the live store threw
+    // "InvalidOperationException: The data is NULL at ordinal 0" — a row whose project column is NULL
+    // (edges.project is nullable; seeded rows may carry no project) was read with GetString.
+    [Fact]
+    public void ExplainsASymbolWhoseRowsHaveANullProject()
+    {
+        string instance = GrimoiraCliRunner.NewTestInstance("graph-explain-null-project");
+        try
+        {
+            string backupDir = Path.Combine(Path.GetTempPath(), $"grimoira-graph-explain-backups-{Guid.NewGuid():N}");
+            using SqliteConnection connection = IndexCodeStaleRowsTests.OpenFreshStore(instance, backupDir);
+            using (SqliteCommand insert = connection.CreateCommand())
+            {
+                insert.CommandText =
+                    "INSERT INTO edges(symbol,contract,project,file,line,usage,hardcoded) VALUES('NullProjectController','decl',NULL,'/repo/x/NullProjectController.cs',4,'csharp declaration',0)";
+                insert.ExecuteNonQuery();
+            }
+
+            string actual = new GraphExplainTool().ExecuteCli(connection, "NullProjectController");
+
+            Assert.Contains("NullProjectController  [csharp declaration]", actual);
+            Assert.Contains("/repo/x/NullProjectController.cs:4", actual);
+        }
+        finally
+        {
+            GrimoiraCliRunner.DeleteInstance(instance);
+        }
+    }
 }
