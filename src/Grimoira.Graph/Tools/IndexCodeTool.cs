@@ -19,7 +19,7 @@ namespace Grimoira.Graph.Tools;
 /// only ever accumulated and 51% of the live NoMercy store pointed at files that no longer existed after
 /// a workspace move. Only rows carrying this tool's own signature (<c>contract='decl'</c>, usage
 /// "<c>&lt;lang&gt; declaration</c>") for the scanned project are touched; curated (seed-edges) rows and
-/// other projects' rows are never deleted. Paths are stored through <see cref="NormalisePath"/> so one
+/// other projects' rows are never deleted. Paths are stored through <see cref="NormalizePath"/> so one
 /// file has one path (the live store held <c>c:/...</c> and <c>C:/...</c> rows for the same file).
 /// Applies <see cref="Schema.GraphIndexSchema"/> through <see cref="SchemaRunner.Run"/> first (Graph
 /// schema step 1), same as the two <c>CREATE INDEX IF NOT EXISTS</c> statements index-code.mjs runs
@@ -165,7 +165,7 @@ public sealed partial class IndexCodeTool : ITool
             try
             {
                 // This tool's own earlier rows for the project, keyed exactly as stored. Every key the
-                // re-scan does not see again (gone file, moved declaration, non-normalised path) goes.
+                // re-scan does not see again (gone file, moved declaration, non-normalized path) goes.
                 Dictionary<string, long> existing = OwnRows(connection, transaction, name);
                 HashSet<string> seen = new(StringComparer.Ordinal);
                 foreach (string file in Walk(root))
@@ -175,7 +175,7 @@ public sealed partial class IndexCodeTool : ITool
                     // index-code.mjs:175 stores the full path (its `rel` is misnamed — never made
                     // relative to the project root), not a root-relative one; matched here for parity.
                     // `file_rel` (slice 31) carries the real project-relative path alongside it.
-                    string rel = NormalisePath(file);
+                    string rel = NormalizePath(file);
                     string? fileRel = Schema.GraphFileRelSchema.ToRelative(root, file);
                     files++;
                     foreach ((string symbol, int line) in DeclarationsIn(file, lang))
@@ -223,7 +223,7 @@ public sealed partial class IndexCodeTool : ITool
 
     /// <summary>Forward slashes, and an upper-case drive letter on Windows-style paths, so one file has
     /// exactly one stored path whichever spelling the project root was registered with.</summary>
-    public static string NormalisePath(string path)
+    public static string NormalizePath(string path)
     {
         string p = path.Replace('\\', '/');
         return p.Length > 1 && p[1] == ':' && char.IsAsciiLetterLower(p[0]) ? char.ToUpperInvariant(p[0]) + p[1..] : p;
@@ -236,7 +236,7 @@ public sealed partial class IndexCodeTool : ITool
     /// </summary>
     public static int DeleteOwnRowsUnder(SqliteConnection connection, SqliteTransaction? transaction, string project, string root)
     {
-        string prefix = NormalisePath(root).TrimEnd('/') + "/";
+        string prefix = NormalizePath(root).TrimEnd('/') + "/";
         StringComparison cmp = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
         List<long> doomed = [];
         using (SqliteCommand c = connection.CreateCommand())
@@ -246,7 +246,7 @@ public sealed partial class IndexCodeTool : ITool
             c.Parameters.AddWithValue("$p", project);
             using SqliteDataReader r = c.ExecuteReader();
             while (r.Read())
-                if (!r.IsDBNull(1) && NormalisePath(r.GetString(1)).StartsWith(prefix, cmp)) doomed.Add(r.GetInt64(0));
+                if (!r.IsDBNull(1) && NormalizePath(r.GetString(1)).StartsWith(prefix, cmp)) doomed.Add(r.GetInt64(0));
         }
         foreach (long id in doomed) DeleteRow(connection, transaction, id);
         return doomed.Count;

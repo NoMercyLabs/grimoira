@@ -28,7 +28,7 @@ public sealed class ProjectTool : ITool
         }
         int dropped = 0;
         if (oldRoot is not null && !string.Equals(
-                IndexCodeTool.NormalisePath(oldRoot).TrimEnd('/'), IndexCodeTool.NormalisePath(root).TrimEnd('/'),
+                IndexCodeTool.NormalizePath(oldRoot).TrimEnd('/'), IndexCodeTool.NormalizePath(root).TrimEnd('/'),
                 OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
         {
             dropped = IndexCodeTool.DeleteOwnRowsUnder(connection, null, name, oldRoot);

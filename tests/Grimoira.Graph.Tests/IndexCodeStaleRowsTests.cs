@@ -75,7 +75,7 @@ public class IndexCodeStaleRowsTests
     // The live store held the same file twice, once as c:/Projects/... and once as C:/Projects/...,
     // because the project root was registered with either casing. One file gets one path.
     [Fact]
-    public void ReindexStoresOneNormalisedPathPerFile()
+    public void ReindexStoresOneNormalizedPathPerFile()
     {
         string instance = GrimoiraCliRunner.NewTestInstance("index-code-drive-letter");
         string root = MakeFixtureProject("index-code-drive-letter");
@@ -84,9 +84,9 @@ public class IndexCodeStaleRowsTests
         {
             using SqliteConnection connection = OpenFreshStore(instance, backupDir);
 
-            string normalised = root.Replace('\\', '/');
-            if (normalised.Length > 1 && normalised[1] == ':')
-                normalised = char.ToUpperInvariant(normalised[0]) + normalised[1..];
+            string normalized = root.Replace('\\', '/');
+            if (normalized.Length > 1 && normalized[1] == ':')
+                normalized = char.ToUpperInvariant(normalized[0]) + normalized[1..];
             // A pre-existing row for the same file with the other spelling (lower-case drive, backslashes).
             string otherSpelling = root.Length > 1 && root[1] == ':'
                 ? char.ToLowerInvariant(root[0]) + root[1..].Replace('/', '\\')
@@ -99,7 +99,7 @@ public class IndexCodeStaleRowsTests
 
             List<string> files = Files(connection, "web", "WidgetService");
             Assert.Single(files);
-            Assert.Equal(normalised + "/Service.cs", files[0]);
+            Assert.Equal(normalized + "/Service.cs", files[0]);
         }
         finally
         {
