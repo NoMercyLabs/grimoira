@@ -80,4 +80,39 @@ public class ProjectToolTests
             GrimoiraCliRunner.DeleteInstance(instance);
         }
     }
+
+    // 2026-10-05: a workspace move re-registers a project under a new root. The index-code rows written
+    // under the OLD root point at files that no longer exist there, so they go with the move. Curated
+    // rows and other projects' rows stay.
+    [Fact]
+    public void MovingTheRootDropsTheOldRootsIndexedRows()
+    {
+        string instance = GrimoiraCliRunner.NewTestInstance("project-move-root");
+        string oldRoot = IndexCodeStaleRowsTests.MakeFixtureProject("project-move-old");
+        string newRoot = Path.Combine(Path.GetTempPath(), $"grimoira-project-move-new-{Guid.NewGuid():N}");
+        string backupDir = Path.Combine(Path.GetTempPath(), $"grimoira-project-move-backups-{Guid.NewGuid():N}");
+        try
+        {
+            using SqliteConnection connection = IndexCodeStaleRowsTests.OpenFreshStore(instance, backupDir);
+            new ProjectTool().Execute(connection, "web", oldRoot, "", "*.ts,*.cs");
+            new IndexCodeTool().Execute(connection, "web", backupDir);
+            Assert.Contains("WidgetService", IndexCodeStaleRowsTests.Symbols(connection, "web"));
+            IndexCodeStaleRowsTests.InsertEdge(connection, "CuratedSymbol", "usage", "web", oldRoot.Replace('\\', '/') + "/curated.ts", 3, "curated usage");
+            IndexCodeStaleRowsTests.InsertEdge(connection, "OtherProjectSymbol", "decl", "other", "/repo/other/x.ts", 1, "ts declaration");
+
+            Directory.Move(oldRoot, newRoot);
+            new ProjectTool().Execute(connection, "web", newRoot, "", "*.ts,*.cs");
+
+            List<string> web = IndexCodeStaleRowsTests.Symbols(connection, "web");
+            Assert.DoesNotContain("WidgetService", web);
+            Assert.Contains("CuratedSymbol", web);
+            Assert.Contains("OtherProjectSymbol", IndexCodeStaleRowsTests.Symbols(connection, "other"));
+        }
+        finally
+        {
+            GrimoiraCliRunner.DeleteInstance(instance);
+            if (Directory.Exists(oldRoot)) Directory.Delete(oldRoot, recursive: true);
+            if (Directory.Exists(newRoot)) Directory.Delete(newRoot, recursive: true);
+        }
+    }
 }

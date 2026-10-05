@@ -391,7 +391,7 @@ public static class CliDispatch
                         string[] usage =
                         [
                             "init [--full --root <dir>]          create/open the instance; --full also registers projects and indexes code, docs, memory, chat",
-                            "index-code [--project <name>]       bulk-index registered projects' public declarations into edges",
+                            "index-code [--project <name>]       bulk-index registered projects' declarations (public and internal) into edges; drops rows for gone files",
                             "hooks-doctor [--project <dir>]      find duplicate hook registrations (plugin vs. direct)",
                             "import --from <db>                  merge another grimoira.db into this one",
                             "add [--provenance stated|inferred]  add a fact (provenance: who established it)",

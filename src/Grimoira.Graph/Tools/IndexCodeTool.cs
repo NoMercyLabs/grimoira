@@ -14,6 +14,13 @@ namespace Grimoira.Graph.Tools;
 /// (RESTRUCTURE.md slice 14).
 ///
 /// Idempotent: an existing (symbol,file,line) row is left alone, so this can run on every session end.
+/// A re-index REPLACES a project's own declaration rows (2026-10-05): a row this tool wrote earlier for a
+/// file that is gone, or for a (symbol,line) the re-scan no longer finds, is deleted. Before this, rows
+/// only ever accumulated and 51% of the live NoMercy store pointed at files that no longer existed after
+/// a workspace move. Only rows carrying this tool's own signature (<c>contract='decl'</c>, usage
+/// "<c>&lt;lang&gt; declaration</c>") for the scanned project are touched; curated (seed-edges) rows and
+/// other projects' rows are never deleted. Paths are stored through <see cref="NormalizePath"/> so one
+/// file has one path (the live store held <c>c:/...</c> and <c>C:/...</c> rows for the same file).
 /// Applies <see cref="Schema.GraphIndexSchema"/> through <see cref="SchemaRunner.Run"/> first (Graph
 /// schema step 1), same as the two <c>CREATE INDEX IF NOT EXISTS</c> statements index-code.mjs runs
 /// before it queries <c>edges</c>.
@@ -24,7 +31,7 @@ public sealed partial class IndexCodeTool : ITool
     public string CliVerb => "index-code";
     public string? McpName => null;
     public string Help =>
-        "index-code [--project <name>]  bulk-index every registered project's public declaration surface into edges";
+        "index-code [--project <name>]  bulk-index every registered project's declaration surface (public and internal) into edges; a re-index drops rows for files that are gone";
 
     private static readonly HashSet<string> SkipDir = new(StringComparer.Ordinal)
     {
@@ -149,14 +156,18 @@ public sealed partial class IndexCodeTool : ITool
             while (r.Read()) known.Add($"{r.GetString(0)} {r.GetString(1)} {r.GetInt32(2)}");
         }
 
-        int grandTotal = 0;
+        int grandTotal = 0, grandRemoved = 0;
         List<string> log = [];
         foreach ((string name, string root) in projects)
         {
-            int files = 0, added = 0;
+            int files = 0, added = 0, removed = 0;
             using SqliteTransaction transaction = connection.BeginTransaction();
             try
             {
+                // This tool's own earlier rows for the project, keyed exactly as stored. Every key the
+                // re-scan does not see again (gone file, moved declaration, non-normalized path) goes.
+                Dictionary<string, long> existing = OwnRows(connection, transaction, name);
+                HashSet<string> seen = new(StringComparer.Ordinal);
                 foreach (string file in Walk(root))
                 {
                     string ext = Path.GetExtension(file);
@@ -164,12 +175,14 @@ public sealed partial class IndexCodeTool : ITool
                     // index-code.mjs:175 stores the full path (its `rel` is misnamed — never made
                     // relative to the project root), not a root-relative one; matched here for parity.
                     // `file_rel` (slice 31) carries the real project-relative path alongside it.
-                    string rel = file.Replace('\\', '/');
+                    string rel = NormalizePath(file);
                     string? fileRel = Schema.GraphFileRelSchema.ToRelative(root, file);
                     files++;
                     foreach ((string symbol, int line) in DeclarationsIn(file, lang))
                     {
                         string key = $"{symbol} {rel} {line}";
+                        seen.Add(key);
+                        if (existing.ContainsKey(key)) continue;
                         if (!known.Add(key)) continue;
                         using SqliteCommand insert = connection.CreateCommand();
                         insert.Transaction = transaction;
@@ -185,6 +198,13 @@ public sealed partial class IndexCodeTool : ITool
                         added++;
                     }
                 }
+                foreach ((string key, long id) in existing)
+                {
+                    if (seen.Contains(key)) continue;
+                    DeleteRow(connection, transaction, id);
+                    known.Remove(key);
+                    removed++;
+                }
                 transaction.Commit();
             }
             catch (Exception e)
@@ -194,10 +214,71 @@ public sealed partial class IndexCodeTool : ITool
                 continue;
             }
             grandTotal += added;
-            log.Add($"  {name,-16} {files,6} files -> {added} new declaration(s)");
+            grandRemoved += removed;
+            log.Add($"  {name,-16} {files,6} files -> {added} new declaration(s), {removed} stale removed");
         }
-        log.Add($"total new edges: {grandTotal}");
+        log.Add($"total new edges: {grandTotal}, stale removed: {grandRemoved}");
         return string.Join("\n", log);
+    }
+
+    /// <summary>Forward slashes, and an upper-case drive letter on Windows-style paths, so one file has
+    /// exactly one stored path whichever spelling the project root was registered with.</summary>
+    public static string NormalizePath(string path)
+    {
+        string p = path.Replace('\\', '/');
+        return p.Length > 1 && p[1] == ':' && char.IsAsciiLetterLower(p[0]) ? char.ToUpperInvariant(p[0]) + p[1..] : p;
+    }
+
+    /// <summary>
+    /// Deletes this tool's own rows for <paramref name="project"/> whose file lies under
+    /// <paramref name="root"/> — what a workspace move (<c>project --name n --root new</c>) leaves behind
+    /// under the old root. Curated rows (any other contract/usage) are never touched. Returns the count.
+    /// </summary>
+    public static int DeleteOwnRowsUnder(SqliteConnection connection, SqliteTransaction? transaction, string project, string root)
+    {
+        string prefix = NormalizePath(root).TrimEnd('/') + "/";
+        StringComparison cmp = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+        List<long> doomed = [];
+        using (SqliteCommand c = connection.CreateCommand())
+        {
+            c.Transaction = transaction;
+            c.CommandText = $"SELECT id, file FROM edges WHERE project=$p AND contract='decl' AND usage IN ({OwnUsagesSql})";
+            c.Parameters.AddWithValue("$p", project);
+            using SqliteDataReader r = c.ExecuteReader();
+            while (r.Read())
+                if (!r.IsDBNull(1) && NormalizePath(r.GetString(1)).StartsWith(prefix, cmp)) doomed.Add(r.GetInt64(0));
+        }
+        foreach (long id in doomed) DeleteRow(connection, transaction, id);
+        return doomed.Count;
+    }
+
+    // The usage strings this tool writes ("ts declaration", "csharp declaration", ...): its own signature.
+    private static readonly string OwnUsagesSql =
+        string.Join(", ", Rules.Keys.Select(lang => $"'{lang} declaration'"));
+
+    private static Dictionary<string, long> OwnRows(SqliteConnection connection, SqliteTransaction transaction, string project)
+    {
+        Dictionary<string, long> rows = new(StringComparer.Ordinal);
+        using SqliteCommand c = connection.CreateCommand();
+        c.Transaction = transaction;
+        c.CommandText = $"SELECT id, symbol, file, line FROM edges WHERE project=$p AND contract='decl' AND usage IN ({OwnUsagesSql})";
+        c.Parameters.AddWithValue("$p", project);
+        using SqliteDataReader r = c.ExecuteReader();
+        while (r.Read())
+        {
+            if (r.IsDBNull(1) || r.IsDBNull(2) || r.IsDBNull(3)) continue;
+            rows.TryAdd($"{r.GetString(1)} {r.GetString(2)} {r.GetInt32(3)}", r.GetInt64(0));
+        }
+        return rows;
+    }
+
+    private static void DeleteRow(SqliteConnection connection, SqliteTransaction? transaction, long id)
+    {
+        using SqliteCommand d = connection.CreateCommand();
+        d.Transaction = transaction;
+        d.CommandText = "DELETE FROM edges WHERE id=$id";
+        d.Parameters.AddWithValue("$id", id);
+        d.ExecuteNonQuery();
     }
 
     // Prune heavy/vendored dirs during the walk; tolerate unreadable dirs.
