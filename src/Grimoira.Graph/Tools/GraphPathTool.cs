@@ -22,6 +22,7 @@ public sealed class GraphPathTool : ITool
     public string Name => "graph-path";
     public string CliVerb => "graph-path";
     public string McpName => "graph_path";
+    public bool IsReadOnly => true;
     public string Help =>
         "graph-path <a> <b>                    shortest path between two symbols/files (max depth 6). " +
         "MCP graph_path(a, b): same lookup.";

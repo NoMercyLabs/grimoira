@@ -85,21 +85,27 @@ public sealed class ToolsEndpointStatusTests : IDisposable
         Assert.False(string.IsNullOrWhiteSpace(body));
     }
 
-    [Fact]
-    public async Task AProjectGateHeldPastTheLimitIsServiceUnavailableProjectBusy()
+    private (IReadOnlyList<AIFunction> Tools, DefaultHttpContext Context, ProjectHandle Handle) BusyProject(ProjectStore store, string json)
     {
-        using ProjectStore store = new(_dataDir);
         HttpContextAccessor accessor = new();
         IReadOnlyList<AIFunction> tools = McpToolFactory.BuildFunctions(
             AllMcpTools.BuildRegistry(), store, accessor, _dataDir, gateTimeout: TimeSpan.FromMilliseconds(300));
-        DefaultHttpContext context = Request("{\"term\":\"anything\"}");
+        DefaultHttpContext context = Request(json);
         context.Request.Headers[RequestProjectResolver.InstanceHeader] = "busy-project";
         accessor.HttpContext = context;
-        ProjectHandle handle = store.Acquire("busy-project");
+        return (tools, context, store.Acquire("busy-project"));
+    }
+
+    [Fact]
+    public async Task AWriteToolOnAProjectGateHeldPastTheLimitIsServiceUnavailableProjectBusy()
+    {
+        using ProjectStore store = new(_dataDir);
+        (IReadOnlyList<AIFunction> tools, DefaultHttpContext context, ProjectHandle handle) =
+            BusyProject(store, "{\"title\":\"t\",\"detail\":\"d\",\"source\":\"s\"}");
         handle.Gate.Wait();
         try
         {
-            (int status, string body) = Answer(await ToolsEndpoint.Call("history", context, tools));
+            (int status, string body) = Answer(await ToolsEndpoint.Call("log_finding", context, tools));
 
             Assert.Equal(503, status);
             Assert.Contains("project busy", body);
@@ -109,5 +115,43 @@ public sealed class ToolsEndpointStatusTests : IDisposable
         {
             handle.Gate.Release();
         }
+    }
+
+    // Issue #24: a read-only tool must answer while a write (or a session-end index job) holds the gate.
+    [Theory]
+    [InlineData("history", "{\"term\":\"anything\"}")]
+    [InlineData("recall", "{\"query\":\"anything\"}")]
+    [InlineData("graph_query", "{\"question\":\"anything\"}")]
+    [InlineData("doc", "{\"query\":\"anything\"}")]
+    public async Task AReadOnlyToolAnswersWhileTheProjectGateIsHeld(string tool, string json)
+    {
+        using ProjectStore store = new(_dataDir);
+        (IReadOnlyList<AIFunction> tools, DefaultHttpContext context, ProjectHandle handle) = BusyProject(store, json);
+        handle.Gate.Wait();
+        try
+        {
+            (int status, string body) = Answer(await ToolsEndpoint.Call(tool, context, tools));
+
+            Assert.Equal(200, status);
+            Assert.DoesNotContain("project busy", body);
+        }
+        finally
+        {
+            handle.Gate.Release();
+        }
+    }
+
+    [Fact]
+    public void EveryStoreBackedMcpToolDeclaresWhetherItIsReadOnly()
+    {
+        string[] readOnly = [.. AllMcpTools.BuildRegistry().Tools
+            .Where(t => t.McpName is not null && t.IsReadOnly).Select(t => t.McpName!).Order()];
+
+        Assert.Equal(
+        [
+            "brain_common", "brain_core", "brain_gaps", "brain_impact", "brain_place", "brain_recall", "brain_scope",
+            "chat_count", "chat_list", "doc", "fact", "graph_explain", "graph_path", "graph_query", "history",
+            "impact", "open_findings", "patterns", "recall", "rule",
+        ], readOnly);
     }
 }

@@ -21,6 +21,7 @@ public sealed class BrainImpactTool : ITool
     public string Name => "brain impact";
     public string CliVerb => "brain impact";
     public string McpName => "brain_impact";
+    public bool IsReadOnly => true;
     public string Help =>
         "brain impact <symbol-or-contract>     every cross-project consumer of a shared symbol/contract " +
         "from the live edges graph plus the summary triple. Call BEFORE changing any shared contract.";

@@ -36,6 +36,7 @@ public sealed class RecallTool : ITool
     public string Name => "recall";
     public string CliVerb => "recall";
     public string McpName => "recall";
+    public bool IsReadOnly => true;
     public string Help =>
         "recall <text>                        search past conversations (CLI: up to 5 hits, with score). " +
         "MCP recall(query): up to 4 hits.";

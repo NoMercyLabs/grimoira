@@ -47,7 +47,7 @@ public sealed class ProjectStore(string dataDir) : IDisposable
                 throw new InvalidOperationException($"could not open project store '{instance}': {schema.Error}");
             }
 
-            ProjectHandle handle = new(connection);
+            ProjectHandle handle = new(connection, dbPath);
             _handles[instance] = handle;
             return handle;
         }
@@ -68,11 +68,28 @@ public sealed class ProjectStore(string dataDir) : IDisposable
     }
 }
 
-/// <summary>The one open connection for a project, plus the single writer gate every tool call —
-/// read or write — serialises through, so two sessions calling at once never race the same
-/// connection object.</summary>
-public sealed class ProjectHandle(SqliteConnection connection)
+/// <summary>The one open connection for a project, plus the single writer gate every writing call
+/// serializes through, so two sessions writing at once never race the same connection object.
+/// A read-only tool call (<see cref="Grimoira.Store.Tools.ITool.IsReadOnly"/>) does not queue on the
+/// gate: it runs on its own short-lived <see cref="OpenReader"/> connection, and SQLite's WAL mode
+/// (<see cref="StoreConnection.ApplyPragmas"/>) lets that reader run beside the writer (issue #24).</summary>
+public sealed class ProjectHandle(SqliteConnection connection, string dbPath)
 {
     public SqliteConnection Connection { get; } = connection;
     public SemaphoreSlim Gate { get; } = new(1, 1);
+
+    /// <summary>How long a reader's own side write (a gap log, a usage bump) waits for the writer before it
+    /// is dropped; short on purpose, so a read never waits on a long index job.</summary>
+    private const int ReaderBusyTimeoutMs = 3000;
+
+    /// <summary>A second connection to the same file for one read-only call. The caller disposes it.</summary>
+    public SqliteConnection OpenReader()
+    {
+        SqliteConnection reader = new($"Data Source={dbPath};Foreign Keys=True");
+        reader.Open();
+        using SqliteCommand command = reader.CreateCommand();
+        command.CommandText = $"PRAGMA busy_timeout={ReaderBusyTimeoutMs}";
+        command.ExecuteNonQuery();
+        return reader;
+    }
 }

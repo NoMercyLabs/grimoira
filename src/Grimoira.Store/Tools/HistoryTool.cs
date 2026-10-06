@@ -13,6 +13,7 @@ public sealed class HistoryTool : ITool
     public string Name => "history";
     public string CliVerb => "history";
     public string McpName => "history";
+    public bool IsReadOnly => true;
     public string Help =>
         "Show the change history (the cold append-only mutation log) for an entity, for tracing when " +
         "something went wrong. CLI: full log, oldest first. MCP: latest 30, newest first.";

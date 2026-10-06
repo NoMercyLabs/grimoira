@@ -109,7 +109,10 @@ public static class McpToolFactory
                 ? new AIFunctionFactoryOptions.ParameterBindingOptions
                 {
                     ExcludeFromSchema = true,
-                    BindParameter = (_, args) => store.Acquire(RequestProjectResolver.Resolve(httpContextAccessor.HttpContext)).Connection,
+                    BindParameter = (_, args) =>
+                        args.Context is not null && args.Context.TryGetValue(LockingAiFunction.ReaderKey, out object? reader) && reader is SqliteConnection readerConnection
+                            ? readerConnection
+                            : store.Acquire(RequestProjectResolver.Resolve(httpContextAccessor.HttpContext)).Connection,
                 }
                 : parameter.ParameterType == typeof(string) && parameter.Name is "sessionId" or "session"
                     // brain_stage/brain_flush's session id must come from the transport, never from the
@@ -126,7 +129,7 @@ public static class McpToolFactory
         };
 
         AIFunction inner = AIFunctionFactory.Create(method, tool, options);
-        return new LockingAiFunction(inner, store, httpContextAccessor, gateTimeout);
+        return new LockingAiFunction(inner, store, httpContextAccessor, tool.IsReadOnly, gateTimeout);
     }
 
     private static McpServerTool BuildWorkspaceCapabilitiesTool(WorkspaceCapabilitiesTool tool, string projectRoot, IProcessRunner runner, ProjectStore store, IHttpContextAccessor context) =>
