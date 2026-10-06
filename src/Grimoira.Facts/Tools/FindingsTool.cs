@@ -18,6 +18,7 @@ public sealed class FindingsTool : ITool
     public string Name => "findings";
     public string CliVerb => "findings";
     public string McpName => "open_findings";
+    public bool IsReadOnly => true;
     public string Help =>
         "findings                              list open findings. MCP open_findings(): latest 30, clipped.";
 

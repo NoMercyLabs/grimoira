@@ -11,6 +11,7 @@ public sealed class ChatQueryTool : ITool
     public string Name => "chat-list";
     public string CliVerb => "chat";
     public string McpName => "chat_list";
+    public bool IsReadOnly => true;
     public string Help => "List transcript turns by session, kind and time; each page states total and remaining.";
 
     public string ExecuteMcp(SqliteConnection connection, string targetSession = "", string kind = "", string from = "", string to = "", int page = 1, int pageSize = 50, bool full = false, string path = "", string command = "") =>
@@ -137,6 +138,7 @@ public sealed class ChatCountTool : ITool
     public string Name => "chat-count";
     public string CliVerb => "chat-count";
     public string McpName => "chat_count";
+    public bool IsReadOnly => true;
     public string Help => "Count transcript matches, optionally grouped by day, month, or session.";
 
     public string ExecuteMcp(SqliteConnection connection, string match, string kind = "human", string by = "", string targetSession = "") =>

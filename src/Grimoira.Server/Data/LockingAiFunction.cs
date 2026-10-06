@@ -3,13 +3,21 @@ using Microsoft.Extensions.AI;
 namespace Grimoira.Server.Data;
 
 /// <summary>
-/// Wraps a store-backed tool's <see cref="AIFunction"/> so every call — read or write, from any
-/// session — acquires the calling project's single <see cref="ProjectHandle.Gate"/> before the real
-/// tool method runs and always releases it afterwards, even when the call throws. This is the "one
-/// writer" half of RESTRUCTURE.md "Slice 26"; <see cref="ProjectStore"/> is the "one open store" half.
+/// Wraps a store-backed tool's <see cref="AIFunction"/> so every writing call, from any session,
+/// acquires the calling project's single <see cref="ProjectHandle.Gate"/> before the real tool method
+/// runs and always releases it afterwards, even when the call throws. This is the "one writer" half of
+/// RESTRUCTURE.md "Slice 26"; <see cref="ProjectStore"/> is the "one open store" half.
+/// A read-only tool (<see cref="Grimoira.Store.Tools.ITool.IsReadOnly"/>) skips the gate and runs on
+/// its own <see cref="ProjectHandle.OpenReader"/> connection, handed to the tool's
+/// <see cref="Microsoft.Data.Sqlite.SqliteConnection"/> parameter through <see cref="ReaderKey"/>, so a
+/// recall or graph query answers while a write or a session-end index job holds the gate (issue #24).
 /// </summary>
-internal sealed class LockingAiFunction(AIFunction inner, ProjectStore store, IHttpContextAccessor httpContextAccessor, TimeSpan? gateTimeout = null) : AIFunction
+internal sealed class LockingAiFunction(AIFunction inner, ProjectStore store, IHttpContextAccessor httpContextAccessor, bool readOnly, TimeSpan? gateTimeout = null) : AIFunction
 {
+    /// <summary>The <see cref="AIFunctionArguments.Context"/> key under which a read-only call's own
+    /// connection travels to the parameter binder in <see cref="McpToolFactory"/>.</summary>
+    public static readonly object ReaderKey = new();
+
     public override string Name => inner.Name;
     public override string Description => inner.Description;
     public override System.Text.Json.JsonElement JsonSchema => inner.JsonSchema;
@@ -20,6 +28,14 @@ internal sealed class LockingAiFunction(AIFunction inner, ProjectStore store, IH
     {
         string instance = RequestProjectResolver.Resolve(httpContextAccessor.HttpContext);
         ProjectHandle handle = store.Acquire(instance);
+        if (readOnly)
+        {
+            using Microsoft.Data.Sqlite.SqliteConnection reader = handle.OpenReader();
+            arguments.Context ??= new Dictionary<object, object?>();
+            arguments.Context[ReaderKey] = reader;
+            return await inner.InvokeAsync(arguments, cancellationToken);
+        }
+
         if (gateTimeout is { } limit)
         {
             if (!await handle.Gate.WaitAsync(limit, cancellationToken))

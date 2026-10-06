@@ -19,6 +19,7 @@ public sealed class ImpactTool : ITool
     public string Name => "impact";
     public string CliVerb => "impact";
     public string McpName => "impact";
+    public bool IsReadOnly => true;
     public string Help =>
         "impact <symbol>                       list cross-project consumers of a changing symbol/field/contract. " +
         "Call before changing any shared contract.";

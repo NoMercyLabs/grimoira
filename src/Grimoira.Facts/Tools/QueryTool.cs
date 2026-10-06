@@ -40,6 +40,7 @@ public sealed class QueryTool(IUsageSignal usageSignal) : ITool
     public string Name => "query";
     public string CliVerb => "query";
     public string McpName => "fact";
+    public bool IsReadOnly => true;
     public string Help =>
         "query <text>                          look up a verified fact (CLI: up to 5 hits). " +
         "MCP fact(query): up to 3 hits, reinforces the usage signal.";

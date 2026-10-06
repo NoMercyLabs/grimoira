@@ -81,12 +81,19 @@ public sealed class IndexJobQueue(ProjectStore store, IdleExit idleExit)
             return;
         }
 
+        // The gate is taken per handler, not across all three, so a write call queued behind this job gets
+        // its turn between chat, docs and code indexing instead of after all of them (issue #24).
+        await RunHandlerUnderGate(handle, "chat", SessionIndexChatTool.TryExecute, job.Body);
+        await RunHandlerUnderGate(handle, "docs", SessionIndexDocsTool.TryExecute, job.Body);
+        await RunHandlerUnderGate(handle, "code", IndexCodeSessionEndTool.TryExecute, job.Body);
+    }
+
+    private static async Task RunHandlerUnderGate(ProjectHandle handle, string name, Func<string, Exception?> handler, string body)
+    {
         await handle.Gate.WaitAsync();
         try
         {
-            RunHandler(handle.Connection, "chat", SessionIndexChatTool.TryExecute, job.Body);
-            RunHandler(handle.Connection, "docs", SessionIndexDocsTool.TryExecute, job.Body);
-            RunHandler(handle.Connection, "code", IndexCodeSessionEndTool.TryExecute, job.Body);
+            RunHandler(handle.Connection, name, handler, body);
         }
         finally
         {

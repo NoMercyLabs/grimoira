@@ -19,6 +19,7 @@ public sealed class BrainScopeTool : ITool
     public string Name => "brain scope";
     public string CliVerb => "brain scope";
     public string McpName => "brain_scope";
+    public bool IsReadOnly => true;
     public string Help =>
         "brain scope <projectA> <projectB> [...]   everything in scope for working across the named " +
         "projects, shared seams floated to top with direction. Use before any cross-project task.";

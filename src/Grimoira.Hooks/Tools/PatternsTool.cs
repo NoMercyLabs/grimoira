@@ -17,6 +17,7 @@ public sealed class PatternsTool : ITool
     public string Name => "patterns";
     public string CliVerb => "patterns";
     public string McpName => "patterns";
+    public bool IsReadOnly => true;
     public string Help => "patterns                              commands/procedures recorded often enough to codify";
 
     /// <summary>The MCP side is the same read: the registry binds the connection, there are no arguments.</summary>

@@ -21,6 +21,7 @@ public sealed partial class GraphQueryTool : ITool
     public string Name => "graph-query";
     public string CliVerb => "graph-query";
     public string McpName => "graph_query";
+    public bool IsReadOnly => true;
     public string Help =>
         "graph-query <question>                find the most relevant symbols/files/docs for a question. " +
         "MCP graph_query(question): same lookup, logs a gap on a miss.";

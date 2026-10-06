@@ -34,6 +34,7 @@ public sealed class DocTool : ITool
     public string Name => "doc";
     public string CliVerb => "doc";
     public string McpName => "doc";
+    public bool IsReadOnly => true;
     public string Help =>
         "doc <terms>                          search absorbed docs (CLI). MCP doc(query): up to 3 hits, gap-logged when empty.";
 

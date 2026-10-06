@@ -20,4 +20,9 @@ public interface ITool
     /// <summary>The one help text: what the tool does, its parameters, and how to call it — the MCP
     /// description, the CLI <c>--help</c> line and the documentation, all in one place.</summary>
     string Help { get; }
+
+    /// <summary>True when the tool only reads the store (a gap-log or usage bump on the side is
+    /// best-effort and does not count). The server lets a read-only tool run on its own connection
+    /// beside a writer instead of queueing on the project's writer gate (issue #24).</summary>
+    bool IsReadOnly => false;
 }

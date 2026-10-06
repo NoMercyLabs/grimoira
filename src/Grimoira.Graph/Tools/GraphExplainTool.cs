@@ -27,6 +27,7 @@ public sealed class GraphExplainTool : ITool
     public string Name => "graph-explain";
     public string CliVerb => "graph-explain";
     public string McpName => "graph_explain";
+    public bool IsReadOnly => true;
     public string Help =>
         "graph-explain <symbol>                what a symbol is, who uses it, and docs/rules that mention it. " +
         "MCP graph_explain(symbol): same lookup, logs a gap on a miss.";
