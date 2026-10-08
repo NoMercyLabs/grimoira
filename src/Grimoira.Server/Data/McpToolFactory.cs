@@ -157,8 +157,7 @@ public static class McpToolFactory
     {
         string requestRoot = RequestProjectResolver.ProjectDirHeaderOf(context.HttpContext) ?? configured;
         ProjectHandle handle = store.Acquire(RequestProjectResolver.Resolve(context.HttpContext));
-        handle.Gate.Wait();
-        try { return WorkspaceRootResolver.Resolve(requestRoot, handle.Connection); }
-        finally { handle.Gate.Release(); }
+        using SqliteConnection reader = handle.OpenReader();
+        return WorkspaceRootResolver.Resolve(requestRoot, reader);
     }
 }

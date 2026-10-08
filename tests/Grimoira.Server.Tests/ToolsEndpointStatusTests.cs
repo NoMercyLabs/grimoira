@@ -141,6 +141,26 @@ public sealed class ToolsEndpointStatusTests : IDisposable
         }
     }
 
+    [Theory]
+    [InlineData("workspace_search", "{\"repository\":\"missing\",\"pattern\":\"needle\"}")]
+    [InlineData("workspace_capabilities", "{\"query\":\"anything\"}")]
+    public async Task AWorkspaceToolAnswersWhileTheProjectGateIsHeld(string tool, string json)
+    {
+        using ProjectStore store = new(_dataDir);
+        (IReadOnlyList<AIFunction> tools, DefaultHttpContext context, ProjectHandle handle) = BusyProject(store, json);
+        handle.Gate.Wait();
+        try
+        {
+            Task<IResult> call = ToolsEndpoint.Call(tool, context, tools);
+            IResult result = await call.WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.Equal(200, Answer(result).Status);
+        }
+        finally
+        {
+            handle.Gate.Release();
+        }
+    }
+
     [Fact]
     public void EveryStoreBackedMcpToolDeclaresWhetherItIsReadOnly()
     {
