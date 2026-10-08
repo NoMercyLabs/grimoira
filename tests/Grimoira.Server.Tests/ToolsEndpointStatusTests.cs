@@ -206,6 +206,29 @@ public sealed class ToolsEndpointStatusTests : IDisposable
     }
 
     [Fact]
+    public async Task CallsLogRecordsTimingsAndStaysCapped()
+    {
+        using ProjectStore store = new(_dataDir);
+        (IReadOnlyList<AIFunction> tools, DefaultHttpContext context, ProjectHandle handle) =
+            BusyProject(store, "{\"title\":\"logged\",\"detail\":\"d\",\"source\":\"test\"}");
+        Assert.Equal(200, Answer(await ToolsEndpoint.Call("log_finding", context, tools)).Status);
+
+        string path = handle.CallsLogPath;
+        using (JsonDocument line = JsonDocument.Parse(Assert.Single(File.ReadAllLines(path))))
+        {
+            Assert.Equal("log_finding", line.RootElement.GetProperty("name").GetString());
+            Assert.Equal("busy-project", line.RootElement.GetProperty("instance").GetString());
+            Assert.True(line.RootElement.GetProperty("waited_ms").GetInt64() >= 0);
+            Assert.True(line.RootElement.GetProperty("held_ms").GetInt64() >= 0);
+        }
+
+        File.WriteAllText(path, new string('x', 1024 * 1024));
+        CallLog.Record(handle, "cap", "busy-project", 1, 2);
+        Assert.True(new FileInfo(path).Length < 1024 * 1024);
+        Assert.Contains("\"name\":\"cap\"", Assert.Single(File.ReadAllLines(path)));
+    }
+
+    [Fact]
     public void EveryStoreBackedMcpToolDeclaresWhetherItIsReadOnly()
     {
         string[] readOnly = [.. AllMcpTools.BuildRegistry().Tools

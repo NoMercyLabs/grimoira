@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json.Nodes;
+using System.Diagnostics;
 using Grimoira.Hooks.Tools;
 
 namespace Grimoira.Server.Data;
@@ -61,17 +62,30 @@ internal static class HookEndpoint
 
             // Both PostToolUse handlers open their own short-lived HookStore connection.
             // They never touch the shared ProjectHandle connection.
-            if (eventName == "PostToolUse") return Render(RunHandlers(handlers, body, projectDir));
-
             ProjectHandle handle = store.Acquire(instance);
-            if (!await handle.Gate.WaitAsync(GateTimeout, context.RequestAborted)) return Empty();
+            if (eventName == "PostToolUse")
+            {
+                try { return Render(RunHandlers(handlers, body, projectDir)); }
+                finally { CallLog.Record(handle, $"hook:{eventName}", instance, 0, 0); }
+            }
+
+            long waitStart = Stopwatch.GetTimestamp();
+            long waitedMs = 0;
+            long holdStart = 0;
+            bool entered = false;
             try
             {
+                if (!await handle.Gate.WaitAsync(GateTimeout, context.RequestAborted)) return Empty();
+                entered = true;
+                waitedMs = CallLog.Milliseconds(waitStart);
+                holdStart = Stopwatch.GetTimestamp();
                 output = RunHandlers(handlers, body, projectDir);
             }
             finally
             {
-                handle.Gate.Release();
+                if (entered) handle.Gate.Release();
+                CallLog.Record(handle, $"hook:{eventName}", instance,
+                    entered ? waitedMs : CallLog.Milliseconds(waitStart), entered ? CallLog.Milliseconds(holdStart) : 0);
             }
         }
         catch

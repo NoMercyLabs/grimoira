@@ -1,4 +1,5 @@
 using System.Threading.Channels;
+using System.Diagnostics;
 using Grimoira.Facts.Tools;
 using Grimoira.Docs.Tools;
 using Grimoira.Hooks.Tools;
@@ -95,11 +96,15 @@ public sealed class IndexJobQueue(ProjectStore store, IdleExit idleExit, TimeSpa
         // its turn between chat, docs and code indexing instead of after all of them (issue #24).
         if (job.DocsFile is not null)
         {
+            long waitStart = Stopwatch.GetTimestamp();
             if (!await handle.Gate.WaitAsync(gateTimeout ?? DefaultGateTimeout))
             {
+                CallLog.Record(handle, "job:index-docs", job.Instance, CallLog.Milliseconds(waitStart), 0);
                 Console.Error.WriteLine($"IndexJobQueue: index-docs skipped after waiting for project '{job.Instance}'.");
                 return;
             }
+            long waitedMs = CallLog.Milliseconds(waitStart);
+            long holdStart = Stopwatch.GetTimestamp();
             try
             {
                 try { new IndexDocsTool().Execute(handle.Connection, job.DocsFile, job.Category ?? "doc"); }
@@ -123,21 +128,29 @@ public sealed class IndexJobQueue(ProjectStore store, IdleExit idleExit, TimeSpa
                     }
                 }
             }
-            finally { handle.Gate.Release(); }
+            finally
+            {
+                handle.Gate.Release();
+                CallLog.Record(handle, "job:index-docs", job.Instance, waitedMs, CallLog.Milliseconds(holdStart));
+            }
             return;
         }
-        await RunHandlerUnderGate(handle, "chat", SessionIndexChatTool.TryExecute, job.Body, gateTimeout ?? DefaultGateTimeout);
-        await RunHandlerUnderGate(handle, "docs", SessionIndexDocsTool.TryExecute, job.Body, gateTimeout ?? DefaultGateTimeout);
-        await RunHandlerUnderGate(handle, "code", IndexCodeSessionEndTool.TryExecute, job.Body, gateTimeout ?? DefaultGateTimeout);
+        await RunHandlerUnderGate(handle, job.Instance, "chat", SessionIndexChatTool.TryExecute, job.Body, gateTimeout ?? DefaultGateTimeout);
+        await RunHandlerUnderGate(handle, job.Instance, "docs", SessionIndexDocsTool.TryExecute, job.Body, gateTimeout ?? DefaultGateTimeout);
+        await RunHandlerUnderGate(handle, job.Instance, "code", IndexCodeSessionEndTool.TryExecute, job.Body, gateTimeout ?? DefaultGateTimeout);
     }
 
-    private static async Task RunHandlerUnderGate(ProjectHandle handle, string name, Func<string, Exception?> handler, string body, TimeSpan timeout)
+    private static async Task RunHandlerUnderGate(ProjectHandle handle, string instance, string name, Func<string, Exception?> handler, string body, TimeSpan timeout)
     {
+        long waitStart = Stopwatch.GetTimestamp();
         if (!await handle.Gate.WaitAsync(timeout))
         {
+            CallLog.Record(handle, $"job:SessionEnd:{name}", instance, CallLog.Milliseconds(waitStart), 0);
             Console.Error.WriteLine($"IndexJobQueue: SessionEnd '{name}' skipped after waiting {timeout.TotalSeconds:0} s for the project gate.");
             return;
         }
+        long waitedMs = CallLog.Milliseconds(waitStart);
+        long holdStart = Stopwatch.GetTimestamp();
         try
         {
             RunHandler(handle.Connection, name, handler, body);
@@ -145,6 +158,7 @@ public sealed class IndexJobQueue(ProjectStore store, IdleExit idleExit, TimeSpa
         finally
         {
             handle.Gate.Release();
+            CallLog.Record(handle, $"job:SessionEnd:{name}", instance, waitedMs, CallLog.Milliseconds(holdStart));
         }
     }
 

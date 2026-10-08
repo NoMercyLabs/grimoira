@@ -71,6 +71,7 @@ internal static class CliEndpoint
                 if (File.Exists(file))
                 {
                     indexQueue.EnqueueDocsFile(instance, file, CliDispatch.FlagValue(args, "--category") ?? "doc");
+                    CallLog.Record(store.Acquire(instance), "cli:index-docs", instance, 0, 0);
                     return Answer(0, $"queued index-docs for {file}{Environment.NewLine}", "");
                 }
             }
@@ -79,8 +80,14 @@ internal static class CliEndpoint
             Stopwatch clock = Stopwatch.StartNew();
             ProjectHandle handle = store.Acquire(instance);
             if (!await handle.Gate.WaitAsync(timeout, context.RequestAborted))
+            {
+                CallLog.Record(handle, $"cli:{args.FirstOrDefault() ?? "help"}", instance, (long)clock.Elapsed.TotalMilliseconds, 0);
                 return Answer(TimeoutExitCode, "",
                     $"error: timed out after {timeout.TotalSeconds:0} s waiting for project '{instance}' (another call holds it).");
+            }
+
+            long waitedMs = (long)clock.Elapsed.TotalMilliseconds;
+            long holdStart = Stopwatch.GetTimestamp();
 
             StringWriter stdout = new();
             StringWriter stderr = new();
@@ -90,12 +97,13 @@ internal static class CliEndpoint
             IDisposable orphanGuard = idleExit.Begin();
             try
             {
-                work = Task.Run(() => RunHoldingGate(runVerb, handle, orphanGuard, args, cwd, stdout, stderr, instance, dataDir));
+                work = Task.Run(() => RunHoldingGate(runVerb, handle, orphanGuard, args, cwd, stdout, stderr, instance, dataDir, waitedMs, holdStart));
             }
             catch
             {
                 orphanGuard.Dispose();
                 handle.Gate.Release();
+                CallLog.Record(handle, $"cli:{args.FirstOrDefault() ?? "help"}", instance, waitedMs, CallLog.Milliseconds(holdStart));
                 throw;
             }
 
@@ -119,7 +127,7 @@ internal static class CliEndpoint
 
     /// <summary>Runs on a pool thread and releases the gate only when the verb has really ended.</summary>
     private static int RunHoldingGate(VerbRunner runVerb, ProjectHandle handle, IDisposable orphanGuard, string[] args, string cwd,
-        StringWriter stdout, StringWriter stderr, string instance, string dataDir)
+        StringWriter stdout, StringWriter stderr, string instance, string dataDir, long waitedMs, long holdStart)
     {
         try
         {
@@ -143,6 +151,7 @@ internal static class CliEndpoint
             catch (SqliteException) { }
             catch (InvalidOperationException) { }
             handle.Gate.Release();
+            CallLog.Record(handle, $"cli:{args.FirstOrDefault() ?? "help"}", instance, waitedMs, CallLog.Milliseconds(holdStart));
             orphanGuard.Dispose();
         }
     }

@@ -77,6 +77,7 @@ public sealed class ProjectHandle(SqliteConnection connection, string dbPath)
 {
     public SqliteConnection Connection { get; } = connection;
     public SemaphoreSlim Gate { get; } = new(1, 1);
+    internal string CallsLogPath => Path.Combine(Path.GetDirectoryName(dbPath)!, "calls.log");
 
     /// <summary>How long a reader's own side write (a gap log, a usage bump) waits for the writer before it
     /// is dropped; short on purpose, so a read never waits on a long index job.</summary>

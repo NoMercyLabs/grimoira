@@ -1,4 +1,5 @@
 using Microsoft.Extensions.AI;
+using System.Diagnostics;
 
 namespace Grimoira.Server.Data;
 
@@ -33,19 +34,29 @@ internal sealed class LockingAiFunction(AIFunction inner, ProjectStore store, IH
             using Microsoft.Data.Sqlite.SqliteConnection reader = handle.OpenReader();
             arguments.Context ??= new Dictionary<object, object?>();
             arguments.Context[ReaderKey] = reader;
-            return await inner.InvokeAsync(arguments, cancellationToken);
+            try { return await inner.InvokeAsync(arguments, cancellationToken); }
+            finally { CallLog.Record(handle, Name, instance, 0, 0); }
         }
 
         TimeSpan limit = gateTimeout ?? McpToolFactory.DefaultGateTimeout;
-        if (!await handle.Gate.WaitAsync(limit, cancellationToken))
-            throw new ProjectBusyException($"project busy: another call has held project '{instance}' for over {limit.TotalSeconds:0} s.");
+        long waitStart = Stopwatch.GetTimestamp();
+        long waitedMs = 0;
+        long holdStart = 0;
+        bool entered = false;
         try
         {
+            if (!await handle.Gate.WaitAsync(limit, cancellationToken))
+                throw new ProjectBusyException($"project busy: another call has held project '{instance}' for over {limit.TotalSeconds:0} s.");
+            entered = true;
+            waitedMs = CallLog.Milliseconds(waitStart);
+            holdStart = Stopwatch.GetTimestamp();
             return await inner.InvokeAsync(arguments, cancellationToken);
         }
         finally
         {
-            handle.Gate.Release();
+            if (entered) handle.Gate.Release();
+            CallLog.Record(handle, Name, instance,
+                entered ? waitedMs : CallLog.Milliseconds(waitStart), entered ? CallLog.Milliseconds(holdStart) : 0);
         }
     }
 }

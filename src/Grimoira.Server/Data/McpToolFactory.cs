@@ -142,14 +142,25 @@ public static class McpToolFactory
 
     private static Func<string, string> CapabilitiesInvoker(WorkspaceCapabilitiesTool tool, string projectRoot, IProcessRunner runner, ProjectStore store, IHttpContextAccessor context)
     {
-        string Invoke(string query) => tool.Execute(query, ResolveWorkspaceRoot(projectRoot, store, context), runner);
+        string Invoke(string query)
+        {
+            string instance = RequestProjectResolver.Resolve(context.HttpContext);
+            ProjectHandle handle = store.Acquire(instance);
+            try { return tool.Execute(query, ResolveWorkspaceRoot(projectRoot, store, context), runner); }
+            finally { CallLog.Record(handle, tool.McpName, instance, 0, 0); }
+        }
         return Invoke;
     }
 
     private static Func<string, string, string, bool, string> SearchInvoker(WorkspaceSearchTool tool, string projectRoot, IProcessRunner runner, ProjectStore store, IHttpContextAccessor context)
     {
-        string Invoke(string repository, string pattern, string path = "", bool names = false) =>
-            tool.Execute(repository, pattern, path, names, ResolveWorkspaceRoot(projectRoot, store, context), runner);
+        string Invoke(string repository, string pattern, string path = "", bool names = false)
+        {
+            string instance = RequestProjectResolver.Resolve(context.HttpContext);
+            ProjectHandle handle = store.Acquire(instance);
+            try { return tool.Execute(repository, pattern, path, names, ResolveWorkspaceRoot(projectRoot, store, context), runner); }
+            finally { CallLog.Record(handle, tool.McpName, instance, 0, 0); }
+        }
         return Invoke;
     }
 
