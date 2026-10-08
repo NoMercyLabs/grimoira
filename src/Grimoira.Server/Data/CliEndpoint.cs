@@ -42,11 +42,11 @@ internal static class CliEndpoint
     internal delegate int VerbRunner(string[] args, string cwd, TextWriter stdout, TextWriter stderr,
         string instance, string dataDir, SqliteConnection connection);
 
-    public static Task<IResult> Handle(HttpContext context, ProjectStore store, string dataDir, IdleExit idleExit) =>
-        Handle(context, store, dataDir, idleExit, CliDispatch.RunOnStore, null);
+    public static Task<IResult> Handle(HttpContext context, ProjectStore store, string dataDir, IdleExit idleExit, IndexJobQueue indexQueue) =>
+        Handle(context, store, dataDir, idleExit, CliDispatch.RunOnStore, null, indexQueue);
 
     internal static async Task<IResult> Handle(HttpContext context, ProjectStore store, string dataDir, IdleExit idleExit,
-        VerbRunner runVerb, TimeSpan? timeoutOverride)
+        VerbRunner runVerb, TimeSpan? timeoutOverride, IndexJobQueue? indexQueue = null)
     {
         try
         {
@@ -61,6 +61,19 @@ internal static class CliEndpoint
             string instance = RequestProjectResolver.Resolve(context, CliDispatch.FlagValue(args, "--instance"), bodyCwd);
             if (instance.Length == 0 || instance is "." or ".." || instance.IndexOfAny(['/', '\\']) >= 0)
                 return Answer(2, "", $"error: bad instance name '{instance}'.");
+
+            // A single-file doc index can take minutes. The queue owns its lifetime and the CLI
+            // acknowledges it immediately; directory indexing retains the synchronous contract.
+            string? from = args.FirstOrDefault() == "index-docs" ? CliDispatch.FlagValue(args, "--from") : null;
+            if (from is not null && indexQueue is not null)
+            {
+                string file = Path.GetFullPath(Path.IsPathRooted(from) ? from : Path.Combine(cwd, from));
+                if (File.Exists(file))
+                {
+                    indexQueue.EnqueueDocsFile(instance, file, CliDispatch.FlagValue(args, "--category") ?? "doc");
+                    return Answer(0, $"queued index-docs for {file}{Environment.NewLine}", "");
+                }
+            }
 
             TimeSpan timeout = timeoutOverride ?? TimeoutFor(args);
             Stopwatch clock = Stopwatch.StartNew();

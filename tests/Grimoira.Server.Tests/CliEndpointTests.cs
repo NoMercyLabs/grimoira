@@ -6,6 +6,7 @@ using Grimoira.Server.Data;
 using Grimoira.TestSupport;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Data.Sqlite;
 using ModelContextProtocol.Client;
 using Xunit;
 using System.Text.RegularExpressions;
@@ -107,6 +108,39 @@ public sealed partial class CliEndpointTests : IDisposable
         using StringWriter stderr = new();
         int exit = CliDispatch.Run([.. args, "--instance", instance], Directory.GetCurrentDirectory(), stdout, stderr);
         return (exit, stdout.ToString(), stderr.ToString());
+    }
+
+    [Fact]
+    public async Task IndexDocsFromOneFileQueuesWithoutWaitingForTheProjectGate()
+    {
+        using WebApplicationFactory<Program> factory = Factory();
+        using HttpClient client = Client(factory);
+        string project = NewProjectDir("docs-queue");
+        string instance = Path.GetFileName(project).ToLowerInvariant();
+        string file = Path.Combine(project, "note.md");
+        File.WriteAllText(file, "# Queued note\nThis document contains enough words to create a section for the queued indexing test.");
+        ProjectHandle handle = factory.Services.GetRequiredService<ProjectStore>().Acquire(instance);
+        handle.Gate.Wait();
+        try
+        {
+            CliAnswer answer = await PostCli(client, ["index-docs", "--from", file], project)
+                .WaitAsync(TimeSpan.FromSeconds(3));
+            Assert.Equal(0, answer.ExitCode);
+            Assert.Contains("queued index-docs", answer.Stdout);
+        }
+        finally { handle.Gate.Release(); }
+
+        bool indexed = false;
+        for (int attempt = 0; attempt < 100 && !indexed; attempt++)
+        {
+            using SqliteConnection reader = handle.OpenReader();
+            using SqliteCommand command = reader.CreateCommand();
+            command.CommandText = "SELECT count(*) FROM docs WHERE path = $path";
+            command.Parameters.AddWithValue("$path", file.Replace('\\', '/'));
+            indexed = Convert.ToInt32(command.ExecuteScalar()) > 0;
+            if (!indexed) await Task.Delay(50);
+        }
+        Assert.True(indexed, "queued doc index did not finish");
     }
 
     public static TheoryData<string, string[]> Cases() => new()
