@@ -23,6 +23,8 @@ namespace Grimoira.Server.Data;
 /// </summary>
 internal static class HookEndpoint
 {
+    internal static readonly TimeSpan GateTimeout = TimeSpan.FromSeconds(1);
+
     public static async Task<IResult> Handle(string eventName, HttpContext context, ProjectStore store, IndexJobQueue indexQueue)
     {
         string output;
@@ -58,7 +60,7 @@ internal static class HookEndpoint
             if (handlers.Count == 0) return Empty();
 
             ProjectHandle handle = store.Acquire(instance);
-            await handle.Gate.WaitAsync(context.RequestAborted);
+            if (!await handle.Gate.WaitAsync(GateTimeout, context.RequestAborted)) return Empty();
             try
             {
                 StringBuilder combined = new();

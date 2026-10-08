@@ -36,15 +36,9 @@ internal sealed class LockingAiFunction(AIFunction inner, ProjectStore store, IH
             return await inner.InvokeAsync(arguments, cancellationToken);
         }
 
-        if (gateTimeout is { } limit)
-        {
-            if (!await handle.Gate.WaitAsync(limit, cancellationToken))
-                throw new ProjectBusyException($"project busy: another call has held project '{instance}' for over {limit.TotalSeconds:0} s.");
-        }
-        else
-        {
-            await handle.Gate.WaitAsync(cancellationToken);
-        }
+        TimeSpan limit = gateTimeout ?? McpToolFactory.DefaultGateTimeout;
+        if (!await handle.Gate.WaitAsync(limit, cancellationToken))
+            throw new ProjectBusyException($"project busy: another call has held project '{instance}' for over {limit.TotalSeconds:0} s.");
         try
         {
             return await inner.InvokeAsync(arguments, cancellationToken);

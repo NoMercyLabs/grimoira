@@ -27,8 +27,10 @@ namespace Grimoira.Server.Data;
 /// other work, surfaced to the operator later") so `grimoira findings` / <c>open_findings</c> shows it
 /// instead of the next session silently starting with gaps.
 /// </summary>
-public sealed class IndexJobQueue(ProjectStore store, IdleExit idleExit)
+public sealed class IndexJobQueue(ProjectStore store, IdleExit idleExit, TimeSpan? gateTimeout = null)
 {
+    public static readonly TimeSpan DefaultGateTimeout = TimeSpan.FromSeconds(60);
+
     private readonly Channel<IndexJob> _channel = Channel.CreateUnbounded<IndexJob>(
         new UnboundedChannelOptions { SingleReader = true });
 
@@ -83,14 +85,18 @@ public sealed class IndexJobQueue(ProjectStore store, IdleExit idleExit)
 
         // The gate is taken per handler, not across all three, so a write call queued behind this job gets
         // its turn between chat, docs and code indexing instead of after all of them (issue #24).
-        await RunHandlerUnderGate(handle, "chat", SessionIndexChatTool.TryExecute, job.Body);
-        await RunHandlerUnderGate(handle, "docs", SessionIndexDocsTool.TryExecute, job.Body);
-        await RunHandlerUnderGate(handle, "code", IndexCodeSessionEndTool.TryExecute, job.Body);
+        await RunHandlerUnderGate(handle, "chat", SessionIndexChatTool.TryExecute, job.Body, gateTimeout ?? DefaultGateTimeout);
+        await RunHandlerUnderGate(handle, "docs", SessionIndexDocsTool.TryExecute, job.Body, gateTimeout ?? DefaultGateTimeout);
+        await RunHandlerUnderGate(handle, "code", IndexCodeSessionEndTool.TryExecute, job.Body, gateTimeout ?? DefaultGateTimeout);
     }
 
-    private static async Task RunHandlerUnderGate(ProjectHandle handle, string name, Func<string, Exception?> handler, string body)
+    private static async Task RunHandlerUnderGate(ProjectHandle handle, string name, Func<string, Exception?> handler, string body, TimeSpan timeout)
     {
-        await handle.Gate.WaitAsync();
+        if (!await handle.Gate.WaitAsync(timeout))
+        {
+            Console.Error.WriteLine($"IndexJobQueue: SessionEnd '{name}' skipped after waiting {timeout.TotalSeconds:0} s for the project gate.");
+            return;
+        }
         try
         {
             RunHandler(handle.Connection, name, handler, body);

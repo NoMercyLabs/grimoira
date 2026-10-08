@@ -129,7 +129,7 @@ public static class McpToolFactory
         };
 
         AIFunction inner = AIFunctionFactory.Create(method, tool, options);
-        return new LockingAiFunction(inner, store, httpContextAccessor, tool.IsReadOnly, gateTimeout);
+        return new LockingAiFunction(inner, store, httpContextAccessor, tool.IsReadOnly, gateTimeout ?? DefaultGateTimeout);
     }
 
     private static McpServerTool BuildWorkspaceCapabilitiesTool(WorkspaceCapabilitiesTool tool, string projectRoot, IProcessRunner runner, ProjectStore store, IHttpContextAccessor context) =>

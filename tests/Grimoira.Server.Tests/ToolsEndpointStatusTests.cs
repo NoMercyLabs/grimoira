@@ -162,6 +162,50 @@ public sealed class ToolsEndpointStatusTests : IDisposable
     }
 
     [Fact]
+    public async Task AHookFailsOpenWhenTheProjectGateStaysBusy()
+    {
+        using ProjectStore store = new(_dataDir);
+        ProjectHandle handle = store.Acquire("busy-project");
+        DefaultHttpContext context = Request("{\"tool_name\":\"Edit\",\"tool_input\":{\"file_path\":\"x.txt\"}}");
+        context.Request.Headers[RequestProjectResolver.InstanceHeader] = "busy-project";
+        IdleExit idle = new(TimeSpan.FromMinutes(1), () => { });
+        IndexJobQueue queue = new(store, idle);
+        handle.Gate.Wait();
+        try
+        {
+            IResult result = await HookEndpoint.Handle("PreToolUse", context, store, queue)
+                .WaitAsync(HookEndpoint.GateTimeout + TimeSpan.FromSeconds(2));
+            Assert.Equal(200, Answer(result).Status);
+            Assert.Equal("", Answer(result).Body);
+        }
+        finally
+        {
+            handle.Gate.Release();
+        }
+    }
+
+    [Fact]
+    public async Task AnIndexJobStopsWaitingForABusyProjectGate()
+    {
+        using ProjectStore store = new(_dataDir);
+        ProjectHandle handle = store.Acquire("busy-project");
+        IdleExit idle = new(TimeSpan.FromMinutes(1), () => { });
+        IndexJobQueue queue = new(store, idle, TimeSpan.FromMilliseconds(40));
+        handle.Gate.Wait();
+        try
+        {
+            queue.Enqueue("busy-project", "{}");
+            _ = queue.RunAsync();
+            await Task.Delay(500);
+            Assert.Equal(0, idle.InFlight);
+        }
+        finally
+        {
+            handle.Gate.Release();
+        }
+    }
+
+    [Fact]
     public void EveryStoreBackedMcpToolDeclaresWhetherItIsReadOnly()
     {
         string[] readOnly = [.. AllMcpTools.BuildRegistry().Tools
