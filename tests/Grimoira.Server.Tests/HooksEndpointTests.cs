@@ -9,6 +9,7 @@ using Grimoira.Store.Data;
 using Grimoira.TestSupport;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.DependencyInjection;
 using ModelContextProtocol.Client;
 using Xunit;
 
@@ -351,6 +352,41 @@ public sealed class HooksEndpointTests : IDisposable
             Assert.DoesNotContain("database is locked", text, StringComparison.OrdinalIgnoreCase);
         }
         Assert.Equal(10L, Scalar(HookDbPath, "SELECT coalesce(sum(count),0) FROM patterns WHERE kind = 'command'"));
+    }
+
+    [Fact]
+    public async Task PostToolUseBurstDoesNotQueueBehindTheProjectWriteGate()
+    {
+        using WebApplicationFactory<Program> factory = Factory();
+        using HttpClient client = Client(factory);
+        CreateEmptyHookDb();
+        ProjectHandle handle = factory.Services.GetRequiredService<ProjectStore>().Acquire(_instance);
+        string payload = JsonSerializer.Serialize(new
+        {
+            cwd = _projectDir, session_id = "burst", tool_name = "Read",
+            tool_input = new { file_path = Path.Combine(_projectDir, "README.md") },
+        });
+        handle.Gate.Wait();
+        try
+        {
+            Stopwatch clock = Stopwatch.StartNew();
+            Task<(HttpStatusCode status, string body)>[] calls =
+                [.. Enumerable.Range(0, 10).Select(_ => PostHook(client, "PostToolUse", payload))];
+            (HttpStatusCode status, string body)[] answers = await Task.WhenAll(calls).WaitAsync(TimeSpan.FromSeconds(3));
+            Assert.All(answers, answer => Assert.Equal(HttpStatusCode.OK, answer.status));
+            Assert.True(clock.Elapsed < TimeSpan.FromSeconds(3), $"burst took {clock.Elapsed}");
+        }
+        finally
+        {
+            handle.Gate.Release();
+        }
+
+        using HttpRequestMessage write = new(HttpMethod.Post, "/tools/log_finding");
+        write.Headers.Host = _allowedHost;
+        write.Headers.TryAddWithoutValidation(RequestProjectResolver.ProjectDirHeader, _projectDir);
+        write.Content = new StringContent("{\"title\":\"burst\",\"detail\":\"d\",\"source\":\"test\"}", Encoding.UTF8, "application/json");
+        using HttpResponseMessage response = await client.SendAsync(write).WaitAsync(TimeSpan.FromSeconds(3));
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
     private void SeedRecallFact()

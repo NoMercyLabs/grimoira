@@ -59,23 +59,15 @@ internal static class HookEndpoint
             IReadOnlyList<Func<string, string?, string>> handlers = HandlersFor(eventName, payload);
             if (handlers.Count == 0) return Empty();
 
+            // Both PostToolUse handlers open their own short-lived HookStore connection.
+            // They never touch the shared ProjectHandle connection.
+            if (eventName == "PostToolUse") return Render(RunHandlers(handlers, body, projectDir));
+
             ProjectHandle handle = store.Acquire(instance);
             if (!await handle.Gate.WaitAsync(GateTimeout, context.RequestAborted)) return Empty();
             try
             {
-                StringBuilder combined = new();
-                foreach (Func<string, string?, string> handler in handlers)
-                {
-                    try
-                    {
-                        combined.Append(handler(body, projectDir));
-                    }
-                    catch
-                    {
-                        // fail open: one handler's error never stops the next or the session
-                    }
-                }
-                output = combined.ToString();
+                output = RunHandlers(handlers, body, projectDir);
             }
             finally
             {
@@ -88,8 +80,22 @@ internal static class HookEndpoint
             return Empty();
         }
 
-        return Results.Text(output, output.StartsWith('{') ? "application/json" : "text/plain", Encoding.UTF8);
+        return Render(output);
     }
+
+    private static string RunHandlers(IReadOnlyList<Func<string, string?, string>> handlers, string body, string projectDir)
+    {
+        StringBuilder combined = new();
+        foreach (Func<string, string?, string> handler in handlers)
+        {
+            try { combined.Append(handler(body, projectDir)); }
+            catch { /* fail open: one handler's error never stops the next or the session */ }
+        }
+        return combined.ToString();
+    }
+
+    private static IResult Render(string output) =>
+        Results.Text(output, output.StartsWith('{') ? "application/json" : "text/plain", Encoding.UTF8);
 
     /// <summary>The event map: the slice 20-22 handlers, in the order hooks.json runs their slots.</summary>
     /// <remarks>PatternWatch does not take the project yet: it gets it when its own slot moves to http.
