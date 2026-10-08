@@ -129,7 +129,7 @@ public static class McpToolFactory
         };
 
         AIFunction inner = AIFunctionFactory.Create(method, tool, options);
-        return new LockingAiFunction(inner, store, httpContextAccessor, tool.IsReadOnly, gateTimeout);
+        return new LockingAiFunction(inner, store, httpContextAccessor, tool.IsReadOnly, gateTimeout ?? DefaultGateTimeout);
     }
 
     private static McpServerTool BuildWorkspaceCapabilitiesTool(WorkspaceCapabilitiesTool tool, string projectRoot, IProcessRunner runner, ProjectStore store, IHttpContextAccessor context) =>
@@ -142,14 +142,25 @@ public static class McpToolFactory
 
     private static Func<string, string> CapabilitiesInvoker(WorkspaceCapabilitiesTool tool, string projectRoot, IProcessRunner runner, ProjectStore store, IHttpContextAccessor context)
     {
-        string Invoke(string query) => tool.Execute(query, ResolveWorkspaceRoot(projectRoot, store, context), runner);
+        string Invoke(string query)
+        {
+            string instance = RequestProjectResolver.Resolve(context.HttpContext);
+            ProjectHandle handle = store.Acquire(instance);
+            try { return tool.Execute(query, ResolveWorkspaceRoot(projectRoot, store, context), runner); }
+            finally { CallLog.Record(handle, tool.McpName, instance, 0, 0); }
+        }
         return Invoke;
     }
 
     private static Func<string, string, string, bool, string> SearchInvoker(WorkspaceSearchTool tool, string projectRoot, IProcessRunner runner, ProjectStore store, IHttpContextAccessor context)
     {
-        string Invoke(string repository, string pattern, string path = "", bool names = false) =>
-            tool.Execute(repository, pattern, path, names, ResolveWorkspaceRoot(projectRoot, store, context), runner);
+        string Invoke(string repository, string pattern, string path = "", bool names = false)
+        {
+            string instance = RequestProjectResolver.Resolve(context.HttpContext);
+            ProjectHandle handle = store.Acquire(instance);
+            try { return tool.Execute(repository, pattern, path, names, ResolveWorkspaceRoot(projectRoot, store, context), runner); }
+            finally { CallLog.Record(handle, tool.McpName, instance, 0, 0); }
+        }
         return Invoke;
     }
 
@@ -157,8 +168,7 @@ public static class McpToolFactory
     {
         string requestRoot = RequestProjectResolver.ProjectDirHeaderOf(context.HttpContext) ?? configured;
         ProjectHandle handle = store.Acquire(RequestProjectResolver.Resolve(context.HttpContext));
-        handle.Gate.Wait();
-        try { return WorkspaceRootResolver.Resolve(requestRoot, handle.Connection); }
-        finally { handle.Gate.Release(); }
+        using SqliteConnection reader = handle.OpenReader();
+        return WorkspaceRootResolver.Resolve(requestRoot, reader);
     }
 }

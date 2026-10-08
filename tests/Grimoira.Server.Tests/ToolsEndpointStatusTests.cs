@@ -141,6 +141,93 @@ public sealed class ToolsEndpointStatusTests : IDisposable
         }
     }
 
+    [Theory]
+    [InlineData("workspace_search", "{\"repository\":\"missing\",\"pattern\":\"needle\"}")]
+    [InlineData("workspace_capabilities", "{\"query\":\"anything\"}")]
+    public async Task AWorkspaceToolAnswersWhileTheProjectGateIsHeld(string tool, string json)
+    {
+        using ProjectStore store = new(_dataDir);
+        (IReadOnlyList<AIFunction> tools, DefaultHttpContext context, ProjectHandle handle) = BusyProject(store, json);
+        handle.Gate.Wait();
+        try
+        {
+            Task<IResult> call = ToolsEndpoint.Call(tool, context, tools);
+            IResult result = await call.WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.Equal(200, Answer(result).Status);
+        }
+        finally
+        {
+            handle.Gate.Release();
+        }
+    }
+
+    [Fact]
+    public async Task AHookFailsOpenWhenTheProjectGateStaysBusy()
+    {
+        using ProjectStore store = new(_dataDir);
+        ProjectHandle handle = store.Acquire("busy-project");
+        DefaultHttpContext context = Request("{\"tool_name\":\"Edit\",\"tool_input\":{\"file_path\":\"x.txt\"}}");
+        context.Request.Headers[RequestProjectResolver.InstanceHeader] = "busy-project";
+        IdleExit idle = new(TimeSpan.FromMinutes(1), () => { });
+        IndexJobQueue queue = new(store, idle);
+        handle.Gate.Wait();
+        try
+        {
+            IResult result = await HookEndpoint.Handle("PreToolUse", context, store, queue)
+                .WaitAsync(HookEndpoint.GateTimeout + TimeSpan.FromSeconds(2));
+            Assert.Equal(200, Answer(result).Status);
+            Assert.Equal("", Answer(result).Body);
+        }
+        finally
+        {
+            handle.Gate.Release();
+        }
+    }
+
+    [Fact]
+    public async Task AnIndexJobStopsWaitingForABusyProjectGate()
+    {
+        using ProjectStore store = new(_dataDir);
+        ProjectHandle handle = store.Acquire("busy-project");
+        IdleExit idle = new(TimeSpan.FromMinutes(1), () => { });
+        IndexJobQueue queue = new(store, idle, TimeSpan.FromMilliseconds(40));
+        handle.Gate.Wait();
+        try
+        {
+            queue.Enqueue("busy-project", "{}");
+            _ = queue.RunAsync();
+            await Task.Delay(500);
+            Assert.Equal(0, idle.InFlight);
+        }
+        finally
+        {
+            handle.Gate.Release();
+        }
+    }
+
+    [Fact]
+    public async Task CallsLogRecordsTimingsAndStaysCapped()
+    {
+        using ProjectStore store = new(_dataDir);
+        (IReadOnlyList<AIFunction> tools, DefaultHttpContext context, ProjectHandle handle) =
+            BusyProject(store, "{\"title\":\"logged\",\"detail\":\"d\",\"source\":\"test\"}");
+        Assert.Equal(200, Answer(await ToolsEndpoint.Call("log_finding", context, tools)).Status);
+
+        string path = handle.CallsLogPath;
+        using (JsonDocument line = JsonDocument.Parse(Assert.Single(File.ReadAllLines(path))))
+        {
+            Assert.Equal("log_finding", line.RootElement.GetProperty("name").GetString());
+            Assert.Equal("busy-project", line.RootElement.GetProperty("instance").GetString());
+            Assert.True(line.RootElement.GetProperty("waited_ms").GetInt64() >= 0);
+            Assert.True(line.RootElement.GetProperty("held_ms").GetInt64() >= 0);
+        }
+
+        File.WriteAllText(path, new string('x', 1024 * 1024));
+        CallLog.Record(handle, "cap", "busy-project", 1, 2);
+        Assert.True(new FileInfo(path).Length < 1024 * 1024);
+        Assert.Contains("\"name\":\"cap\"", Assert.Single(File.ReadAllLines(path)));
+    }
+
     [Fact]
     public void EveryStoreBackedMcpToolDeclaresWhetherItIsReadOnly()
     {

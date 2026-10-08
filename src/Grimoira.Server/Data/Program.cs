@@ -179,7 +179,7 @@ app.MapPost("/hooks/{event}", (string @event, HttpContext context) => HookEndpoi
 
 // RESTRUCTURE.md "Slice 29c": the CLI verbs; each runs on the project's one open connection under its
 // writer gate, with a timeout that answers exit 124 (CliEndpoint).
-app.MapPost("/cli", (Func<HttpContext, Task<IResult>>)(context => CliEndpoint.Handle(context, projectStore, dataDir, idleExit)));
+app.MapPost("/cli", (Func<HttpContext, Task<IResult>>)(context => CliEndpoint.Handle(context, projectStore, dataDir, idleExit, indexQueue)));
 
 // RESTRUCTURE.md "Slice 32b": the SessionStart of a newer build asks this server to make way. It stops
 // taking new connections, finishes the calls in flight, and exits; that frees server.lock for the new build.

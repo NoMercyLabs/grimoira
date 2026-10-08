@@ -1,5 +1,7 @@
 using System.Threading.Channels;
+using System.Diagnostics;
 using Grimoira.Facts.Tools;
+using Grimoira.Docs.Tools;
 using Grimoira.Hooks.Tools;
 using Microsoft.Data.Sqlite;
 
@@ -27,8 +29,10 @@ namespace Grimoira.Server.Data;
 /// other work, surfaced to the operator later") so `grimoira findings` / <c>open_findings</c> shows it
 /// instead of the next session silently starting with gaps.
 /// </summary>
-public sealed class IndexJobQueue(ProjectStore store, IdleExit idleExit)
+public sealed class IndexJobQueue(ProjectStore store, IdleExit idleExit, TimeSpan? gateTimeout = null)
 {
+    public static readonly TimeSpan DefaultGateTimeout = TimeSpan.FromSeconds(60);
+
     private readonly Channel<IndexJob> _channel = Channel.CreateUnbounded<IndexJob>(
         new UnboundedChannelOptions { SingleReader = true });
 
@@ -40,6 +44,13 @@ public sealed class IndexJobQueue(ProjectStore store, IdleExit idleExit)
         IDisposable inFlight = idleExit.Begin();
         if (!_channel.Writer.TryWrite(new IndexJob(instance, body, inFlight)))
             inFlight.Dispose(); // unreachable for an unbounded channel; kept so a token is never leaked
+    }
+
+    public void EnqueueDocsFile(string instance, string file, string category)
+    {
+        IDisposable inFlight = idleExit.Begin();
+        if (!_channel.Writer.TryWrite(new IndexJob(instance, "", inFlight, file, category)))
+            inFlight.Dispose();
     }
 
     /// <summary>Drains the queue until the process exits; started once from Program.cs and never awaited (a
@@ -83,14 +94,63 @@ public sealed class IndexJobQueue(ProjectStore store, IdleExit idleExit)
 
         // The gate is taken per handler, not across all three, so a write call queued behind this job gets
         // its turn between chat, docs and code indexing instead of after all of them (issue #24).
-        await RunHandlerUnderGate(handle, "chat", SessionIndexChatTool.TryExecute, job.Body);
-        await RunHandlerUnderGate(handle, "docs", SessionIndexDocsTool.TryExecute, job.Body);
-        await RunHandlerUnderGate(handle, "code", IndexCodeSessionEndTool.TryExecute, job.Body);
+        if (job.DocsFile is not null)
+        {
+            long waitStart = Stopwatch.GetTimestamp();
+            if (!await handle.Gate.WaitAsync(gateTimeout ?? DefaultGateTimeout))
+            {
+                CallLog.Record(handle, "job:index-docs", job.Instance, CallLog.Milliseconds(waitStart), 0);
+                Console.Error.WriteLine($"IndexJobQueue: index-docs skipped after waiting for project '{job.Instance}'.");
+                return;
+            }
+            long waitedMs = CallLog.Milliseconds(waitStart);
+            long holdStart = Stopwatch.GetTimestamp();
+            try
+            {
+                try { new IndexDocsTool().Execute(handle.Connection, job.DocsFile, job.Category ?? "doc"); }
+                catch (Exception e)
+                {
+                    try
+                    {
+                        using SqliteCommand rollback = handle.Connection.CreateCommand();
+                        rollback.CommandText = "ROLLBACK";
+                        rollback.ExecuteNonQuery();
+                    }
+                    catch (SqliteException) { }
+                    try
+                    {
+                        new FindingTool().ExecuteMcp(handle.Connection,
+                            title: "index-docs queued file failed", detail: e.ToString(), source: "cli:index-docs");
+                    }
+                    catch
+                    {
+                        Console.Error.WriteLine($"IndexJobQueue: index-docs failed for '{job.Instance}': {e.Message}");
+                    }
+                }
+            }
+            finally
+            {
+                handle.Gate.Release();
+                CallLog.Record(handle, "job:index-docs", job.Instance, waitedMs, CallLog.Milliseconds(holdStart));
+            }
+            return;
+        }
+        await RunHandlerUnderGate(handle, job.Instance, "chat", SessionIndexChatTool.TryExecute, job.Body, gateTimeout ?? DefaultGateTimeout);
+        await RunHandlerUnderGate(handle, job.Instance, "docs", SessionIndexDocsTool.TryExecute, job.Body, gateTimeout ?? DefaultGateTimeout);
+        await RunHandlerUnderGate(handle, job.Instance, "code", IndexCodeSessionEndTool.TryExecute, job.Body, gateTimeout ?? DefaultGateTimeout);
     }
 
-    private static async Task RunHandlerUnderGate(ProjectHandle handle, string name, Func<string, Exception?> handler, string body)
+    private static async Task RunHandlerUnderGate(ProjectHandle handle, string instance, string name, Func<string, Exception?> handler, string body, TimeSpan timeout)
     {
-        await handle.Gate.WaitAsync();
+        long waitStart = Stopwatch.GetTimestamp();
+        if (!await handle.Gate.WaitAsync(timeout))
+        {
+            CallLog.Record(handle, $"job:SessionEnd:{name}", instance, CallLog.Milliseconds(waitStart), 0);
+            Console.Error.WriteLine($"IndexJobQueue: SessionEnd '{name}' skipped after waiting {timeout.TotalSeconds:0} s for the project gate.");
+            return;
+        }
+        long waitedMs = CallLog.Milliseconds(waitStart);
+        long holdStart = Stopwatch.GetTimestamp();
         try
         {
             RunHandler(handle.Connection, name, handler, body);
@@ -98,6 +158,7 @@ public sealed class IndexJobQueue(ProjectStore store, IdleExit idleExit)
         finally
         {
             handle.Gate.Release();
+            CallLog.Record(handle, $"job:SessionEnd:{name}", instance, waitedMs, CallLog.Milliseconds(holdStart));
         }
     }
 
@@ -123,5 +184,5 @@ public sealed class IndexJobQueue(ProjectStore store, IdleExit idleExit)
         }
     }
 
-    private readonly record struct IndexJob(string Instance, string Body, IDisposable InFlight);
+    private readonly record struct IndexJob(string Instance, string Body, IDisposable InFlight, string? DocsFile = null, string? Category = null);
 }

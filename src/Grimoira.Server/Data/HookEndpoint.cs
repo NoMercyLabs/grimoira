@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json.Nodes;
+using System.Diagnostics;
 using Grimoira.Hooks.Tools;
 
 namespace Grimoira.Server.Data;
@@ -23,6 +24,8 @@ namespace Grimoira.Server.Data;
 /// </summary>
 internal static class HookEndpoint
 {
+    internal static readonly TimeSpan GateTimeout = TimeSpan.FromSeconds(1);
+
     public static async Task<IResult> Handle(string eventName, HttpContext context, ProjectStore store, IndexJobQueue indexQueue)
     {
         string output;
@@ -57,27 +60,32 @@ internal static class HookEndpoint
             IReadOnlyList<Func<string, string?, string>> handlers = HandlersFor(eventName, payload);
             if (handlers.Count == 0) return Empty();
 
+            // Both PostToolUse handlers open their own short-lived HookStore connection.
+            // They never touch the shared ProjectHandle connection.
             ProjectHandle handle = store.Acquire(instance);
-            await handle.Gate.WaitAsync(context.RequestAborted);
+            if (eventName == "PostToolUse")
+            {
+                try { return Render(RunHandlers(handlers, body, projectDir)); }
+                finally { CallLog.Record(handle, $"hook:{eventName}", instance, 0, 0); }
+            }
+
+            long waitStart = Stopwatch.GetTimestamp();
+            long waitedMs = 0;
+            long holdStart = 0;
+            bool entered = false;
             try
             {
-                StringBuilder combined = new();
-                foreach (Func<string, string?, string> handler in handlers)
-                {
-                    try
-                    {
-                        combined.Append(handler(body, projectDir));
-                    }
-                    catch
-                    {
-                        // fail open: one handler's error never stops the next or the session
-                    }
-                }
-                output = combined.ToString();
+                if (!await handle.Gate.WaitAsync(GateTimeout, context.RequestAborted)) return Empty();
+                entered = true;
+                waitedMs = CallLog.Milliseconds(waitStart);
+                holdStart = Stopwatch.GetTimestamp();
+                output = RunHandlers(handlers, body, projectDir);
             }
             finally
             {
-                handle.Gate.Release();
+                if (entered) handle.Gate.Release();
+                CallLog.Record(handle, $"hook:{eventName}", instance,
+                    entered ? waitedMs : CallLog.Milliseconds(waitStart), entered ? CallLog.Milliseconds(holdStart) : 0);
             }
         }
         catch
@@ -86,8 +94,22 @@ internal static class HookEndpoint
             return Empty();
         }
 
-        return Results.Text(output, output.StartsWith('{') ? "application/json" : "text/plain", Encoding.UTF8);
+        return Render(output);
     }
+
+    private static string RunHandlers(IReadOnlyList<Func<string, string?, string>> handlers, string body, string projectDir)
+    {
+        StringBuilder combined = new();
+        foreach (Func<string, string?, string> handler in handlers)
+        {
+            try { combined.Append(handler(body, projectDir)); }
+            catch { /* fail open: one handler's error never stops the next or the session */ }
+        }
+        return combined.ToString();
+    }
+
+    private static IResult Render(string output) =>
+        Results.Text(output, output.StartsWith('{') ? "application/json" : "text/plain", Encoding.UTF8);
 
     /// <summary>The event map: the slice 20-22 handlers, in the order hooks.json runs their slots.</summary>
     /// <remarks>PatternWatch does not take the project yet: it gets it when its own slot moves to http.
