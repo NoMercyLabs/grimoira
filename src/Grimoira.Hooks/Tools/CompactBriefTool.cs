@@ -330,9 +330,9 @@ public static partial class CompactBriefTool
         {
             try
             {
-                string branch = RunGit(root, "branch --show-current").Trim();
-                string dirty = RunGit(root, "status --porcelain").Trim();
-                string head = RunGit(root, "log -1 --format=%h %s").Trim();
+                string branch = RunGit(root, "branch", "--show-current").Trim();
+                string dirty = RunGit(root, "status", "--porcelain").Trim();
+                string head = RunGit(root, "log", "-1", "--format=%h %s").Trim();
                 int dirtyCount = dirty.Length == 0 ? 0 : dirty.Split('\n').Length;
                 outp.Add((root, branch, dirtyCount, head));
             }
@@ -344,14 +344,17 @@ public static partial class CompactBriefTool
         return outp;
     }
 
-    private static string RunGit(string root, string arguments)
+    private static string RunGit(string root, params string[] arguments)
     {
-        ProcessStartInfo psi = new("git", $"-C \"{root}\" {arguments}")
+        ProcessStartInfo psi = new("git")
         {
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,
         };
+        psi.ArgumentList.Add("-C");
+        psi.ArgumentList.Add(root);
+        foreach (string argument in arguments) psi.ArgumentList.Add(argument);
         using Process process = Process.Start(psi) ?? throw new InvalidOperationException("git could not start");
         string output = process.StandardOutput.ReadToEnd();
         process.WaitForExit();
