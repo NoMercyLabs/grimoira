@@ -68,6 +68,7 @@ public sealed class BrainFlushTool : ITool
         List<string> flushed = [];
         List<string> kept = [];
         StringBuilder rejects = new();
+        StringBuilder notes = new();
         BeginTransaction(connection);
         foreach (string line in lines)
         {
@@ -87,7 +88,8 @@ public sealed class BrainFlushTool : ITool
                         else
                         {
                             n++;
-                            if (warnings.GetStringBuilder().Length > 0) Console.Error.Write(warnings.ToString()); // keep the contradiction warning on stderr
+                            // The caller gets the contradiction warning in the result: a flush handled inside the server has no console.
+                            if (warnings.GetStringBuilder().Length > 0) notes.AppendLine($"  {warnings.ToString().Trim()}");
                         }
                         break;
                     case "slot": BrainWriters.AddSlot(connection, JStr(e, "frame"), JStr(e, "name"), JStr(e, "value"), JStr(e, "facet"), JBool(e, "multi"), JStr(e, "because"), "manual", "flush"); n++; break;
@@ -108,7 +110,7 @@ public sealed class BrainFlushTool : ITool
         else File.Delete(ledger);
         BrainGapResolver.Resolve(connection, string.Join(' ', flushed));
         string keptNote = kept.Count > 0 ? $" {kept.Count} kept staged (rejected, see below)." : "";
-        return $"flushed {n} learning(s) into the brain.{keptNote}" + (rejects.Length > 0 ? "\n" + rejects : "");
+        return $"flushed {n} learning(s) into the brain.{keptNote}" + (notes.Length > 0 ? "\n" + notes : "") + (rejects.Length > 0 ? "\n" + rejects : "");
     }
 
     private static void Execute(SqliteConnection connection, string sql)
