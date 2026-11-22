@@ -18,7 +18,7 @@ public class BrainIndexOrgToolTests
     {
         public string GhJson = "[]";
         public string GitRemoteUrl = "";
-        public int GhExit = 0;
+        public int GhExit;
         public string GhStderr = "";
 
         public (string Stdout, string Stderr, int ExitCode) Run(string fileName, IReadOnlyList<string> args, string? workingDirectory = null, TimeSpan? timeout = null)
