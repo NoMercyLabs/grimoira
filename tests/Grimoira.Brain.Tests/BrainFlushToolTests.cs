@@ -95,6 +95,34 @@ public class BrainFlushToolTests
         }
     }
 
+    [Fact]
+    public void CliFlushReportsAnUnknownPredicateLineAsRejectedAndDoesNotCountIt()
+    {
+        string instance = GrimoiraCliRunner.NewTestInstance("flush-cli-reject");
+        try
+        {
+            string db = GrimoiraCliRunner.InstanceDbPath(instance);
+            GrimoiraCliRunner.Seed($"init --instance {instance}");
+            BrainTestFixtures.InsertNode(db, "flush:s1", "concept", "subject", "");
+            BrainTestFixtures.InsertNode(db, "flush:o1", "concept", "object", "");
+            using SqliteConnection connection = StoreConnection.Open(db);
+            new BrainStageTool().ExecuteCli(connection, ["triple", "flush:s1", "nosuchpredicate", "flush:o1"]);
+
+            string actual = new BrainFlushTool().ExecuteCli(connection);
+
+            Assert.StartsWith("flushed 0 learning(s) into the brain.", actual);
+            Assert.Contains("nosuchpredicate", actual);
+            Assert.Contains("!", actual);
+            using SqliteCommand tripleCount = connection.CreateCommand();
+            tripleCount.CommandText = "SELECT count(*) FROM triple_now WHERE p='nosuchpredicate'";
+            Assert.Equal(0L, (long)tripleCount.ExecuteScalar()!);
+        }
+        finally
+        {
+            GrimoiraCliRunner.DeleteInstance(instance);
+        }
+    }
+
     // --- MCP shape: pinned against today's bin/mcp.dll GrimoiraTools.brain_flush (mcp.cs:967). ---
 
     [Fact]
