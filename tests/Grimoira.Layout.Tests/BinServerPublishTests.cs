@@ -88,6 +88,19 @@ public class BinServerPublishTests
         }
     }
 
+    // 2026-11-22: Sdk.Web turns on Server GC. On a 32-thread dev box the idle server then held 7.3 GB of
+    // committed heap for 32 MB of live objects (dotnet-gcdump), and the PC ran out of RAM. One user, one
+    // local process: the published server must use workstation GC.
+    [Fact]
+    public void PublishedServerUsesWorkstationGc()
+    {
+        string config = Path.Combine(Path.GetDirectoryName(PublishedServerExe())!, "Grimoira.Server.runtimeconfig.json");
+        using System.Text.Json.JsonDocument doc = System.Text.Json.JsonDocument.Parse(File.ReadAllText(config));
+        System.Text.Json.JsonElement props = doc.RootElement.GetProperty("runtimeOptions").GetProperty("configProperties");
+        Assert.True(props.TryGetProperty("System.GC.Server", out System.Text.Json.JsonElement server), "runtimeconfig has no System.GC.Server entry");
+        Assert.False(server.GetBoolean(), "the published server runs Server GC; it must use workstation GC");
+    }
+
     // verify.ps1 runs build-server.ps1 before `dotnet test`, so locally the exe must already be there; a
     // missing exe is the failure this test exists to catch. CI builds it its own way and never runs
     // build-server.ps1, so there (CI=true) the test publishes a private copy the same way.

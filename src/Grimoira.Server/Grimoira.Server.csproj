@@ -4,6 +4,11 @@
          reference needed for WebApplication/Kestrel; this project is not published standalone by any
          other slice yet, so nothing else in the repo depends on this being Sdk vs Sdk.Web. -->
     <OutputType>Exe</OutputType>
+    <!-- Sdk.Web turns on Server GC: one heap per CPU thread. For this one-user local server that held
+         7.3 GB of committed heap for 32 MB of live objects on a 32-thread PC (2026-11-22).
+         Workstation GC keeps the heap close to what is live. BinServerPublishTests checks it. -->
+    <ServerGarbageCollection>false</ServerGarbageCollection>
+    <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
   </PropertyGroup>
   <ItemGroup>
     <!-- Sdk.Web (added by slice 25 for the Kestrel host) brings Microsoft.Extensions.Hosting
