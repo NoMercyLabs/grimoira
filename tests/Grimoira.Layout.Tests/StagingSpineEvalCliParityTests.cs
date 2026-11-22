@@ -164,11 +164,8 @@ public partial class StagingSpineEvalCliParityTests
             // flush — nothing staged.
             ("flush-nothing-staged", ["init"], "flush"),
 
-            // seed (brain seed) — missing spine file.
-            ("seed-missing-file", ["init"], "brain seed --from \"/no/such/directory/grimoira-slice24-p4c-fixture-spine.json\""),
-
-            // spine-import — missing spine file.
-            ("spine-import-missing-file", ["init"], "spine-import --from \"/no/such/directory/grimoira-slice24-p4c-fixture-spine.json\""),
+            // brain seed and spine-import with a missing spine file now exit 2 where the oracle exits 0
+            // (AUD-9505); MissingSpineFileExitCodeTests covers them.
 
             // eval — deterministic bare run on an empty store (facts table empty, so every answerable
             // question refuses/misses and every unanswerable one correctly refuses).

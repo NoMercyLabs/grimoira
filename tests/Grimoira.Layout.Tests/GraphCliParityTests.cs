@@ -156,9 +156,8 @@ public class GraphCliParityTests
         }
     }
 
-    [Fact]
-    public void SeedEdgesMatchesOldBehaviourOnAMissingSpineFile() =>
-        AssertParity(["init"], "seed-edges --from \"/no/such/directory/grimoira-slice24-p3-fixture-spine.json\"");
+    // seed-edges on a missing spine file now exits 2 where the oracle exits 0 (AUD-9505);
+    // MissingSpineFileExitCodeTests in Grimoira.Server.Tests covers it.
 
     // impact/graph-query/graph-path/graph-explain on real seeded data, via the shared spine fixture.
     [Fact]

@@ -48,6 +48,9 @@ public static class CliDispatch
         string? fixedInstance, string? dataDir, SqliteConnection? shared)
     {
         private string _instance = "";
+        // Set by a verb that did nothing because its input file is missing; Dispatch returns 2 so a caller
+        // does not read nothing-ran as success (AUD-9505).
+        private bool _inputMissing;
         private string _root = "";
         private string _dbPath = "";
         private SqliteConnection _db = null!;
@@ -249,7 +252,7 @@ public static class CliDispatch
                         string seedPath = GetFlag("--from") ?? PluginFileLocator.SeedPath();
                         // SeedEdgesTool.Execute returns the same "no spine file at ..." text the old inline SeedEdges
                         // wrote to stderr, so the missing-file case has to be checked here to keep it on stderr.
-                        if (!File.Exists(seedPath)) { stderr.WriteLine($"no spine file at {Path.GetFullPath(seedPath)}"); break; }
+                        if (!File.Exists(seedPath)) { stderr.WriteLine($"no spine file at {Path.GetFullPath(seedPath)}"); _inputMissing = true; break; }
                         stdout.WriteLine(new SeedEdgesTool().Execute(_db, seedPath));
                         break;
                     }
@@ -272,7 +275,7 @@ public static class CliDispatch
                         // SpineImportTool.ExecuteCli returns the same "no spine file at ..." text the old inline
                         // SpineImport wrote to stderr, so the missing-file case has to be checked here to keep it on
                         // stderr (same trap as seed-edges above).
-                        if (!File.Exists(spineImportFrom)) { stderr.WriteLine($"no spine file at {spineImportFrom}"); break; }
+                        if (!File.Exists(spineImportFrom)) { stderr.WriteLine($"no spine file at {spineImportFrom}"); _inputMissing = true; break; }
                         stdout.WriteLine(new SpineImportTool().ExecuteCli(_db, spineImportFrom, stderr));
                         break;
                     }
@@ -454,7 +457,7 @@ public static class CliDispatch
                 stderr.WriteLine("error: expected a numeric id (e.g. grimoira done 3).");
                 return 2;
             }
-            return 0;
+            return _inputMissing ? 2 : 0;
         }
 
         // One parsing rule with /cli (CliDispatch.FlagValue); the GetFlag("--x") call shape stays because
@@ -803,6 +806,7 @@ public static class CliDispatch
                     if (!File.Exists(brainSeedFrom))
                     {
                         stderr.WriteLine($"no spine file at {Path.GetFullPath(brainSeedFrom)} — run `grimoira spine-export` on an instance that already has one, or write the file by hand (see README).");
+                        _inputMissing = true;
                         break;
                     }
                     stdout.WriteLine(new BrainSeedTool().ExecuteCli(_db, brainSeedFrom));
