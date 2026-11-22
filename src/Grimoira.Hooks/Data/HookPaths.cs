@@ -52,31 +52,30 @@ public static class HookPaths
         ?? cwd
         ?? Directory.GetCurrentDirectory();
 
-    public static string BriefPath(string instance, string? sessionId)
+    /// <summary>A per-session file in the instance's compact folder. The session id comes from a hook
+    /// request, so it is cut to 64 characters and reduced to letters, digits, dash and underscore (the
+    /// same rule as BrainStageTool.SessionSlug): a rooted or dotted id can never leave the folder.</summary>
+    public static string SessionFile(string instance, string? sessionId, string suffix)
     {
         string sid = string.IsNullOrEmpty(sessionId) ? "x" : sessionId;
         if (sid.Length > 64) sid = sid[..64];
-        return Path.Combine(InstanceDir(instance), "compact", $"{sid}.md");
+        sid = new([.. sid.Where(ch => char.IsLetterOrDigit(ch) || ch is '-' or '_')]);
+        if (sid.Length == 0) sid = "x";
+        return Path.Combine(InstanceDir(instance), "compact", sid + suffix);
     }
+
+    public static string BriefPath(string instance, string? sessionId) => SessionFile(instance, sessionId, ".md");
 
     /// <summary>Where the verbatim compaction ledger lives, next to <see cref="BriefPath"/>: the brief is a
     /// budget-limited summary of what the user said since the last compaction, the ledger is the full record
     /// (every user, mid-turn, peer and assistant entry) a brief that hit its budget points back to.</summary>
     public static string LedgerPath(string instance, string? sessionId)
-    {
-        string sid = string.IsNullOrEmpty(sessionId) ? "x" : sessionId;
-        if (sid.Length > 64) sid = sid[..64];
-        return Path.Combine(InstanceDir(instance), "compact", $"{sid}.ledger.md");
-    }
+        => SessionFile(instance, sessionId, ".ledger.md");
 
     /// <summary>Where the edit gate keeps the files a session has already been briefed on, next to
     /// <see cref="BriefPath"/>: one path per line, so the gate fires once per file per session.</summary>
     public static string GateSeenPath(string instance, string? sessionId)
-    {
-        string sid = string.IsNullOrEmpty(sessionId) ? "x" : sessionId;
-        if (sid.Length > 64) sid = sid[..64];
-        return Path.Combine(InstanceDir(instance), "compact", $"{sid}.gate-seen.txt");
-    }
+        => SessionFile(instance, sessionId, ".gate-seen.txt");
 
     /// <summary>Where an instance's own directory lives, same layout as grimoira.cs and the other hosts
     /// (RESTRUCTURE.md slice 21): <c>&lt;data dir&gt;/&lt;instance&gt;</c>, where the data dir honours

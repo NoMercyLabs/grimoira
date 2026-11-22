@@ -117,11 +117,7 @@ public static partial class CompactBriefTool
     /// (duplicated the same way <see cref="HookPaths"/> itself duplicates data-dir resolution rather than
     /// widening that class's own contract for one caller).</summary>
     internal static string ErrorLogPath(string instance, string? sessionId)
-    {
-        string sid = string.IsNullOrEmpty(sessionId) ? "x" : sessionId;
-        if (sid.Length > 64) sid = sid[..64];
-        return Path.Combine(HookPaths.InstanceDir(instance), "compact", $"{sid}.error.log");
-    }
+        => HookPaths.SessionFile(instance, sessionId, ".error.log");
 
     private static string BuildBrief(
         List<string> said,
