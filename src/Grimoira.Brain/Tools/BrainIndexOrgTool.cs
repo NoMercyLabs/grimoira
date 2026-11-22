@@ -21,6 +21,7 @@ namespace Grimoira.Brain.Tools;
 /// </summary>
 public sealed partial class BrainIndexOrgTool : ITool
 {
+    private const int RepoLimit = 500;
     private const string Fields = "name,description,primaryLanguage,isPrivate,isArchived,isFork,defaultBranchRef,pushedAt,url,repositoryTopics";
 
     public string Name => "index-org";
@@ -46,14 +47,24 @@ public sealed partial class BrainIndexOrgTool : ITool
         List<object> nodes = [];
         List<object> links = [];
         int total = 0, archived = 0, forks = 0, cloned = 0;
+        bool failed = false;
 
         foreach (string org in orgs)
         {
             string orgKey = $"org:{org}";
             nodes.Add(new { k = orgKey, kind = "platform", label = org, gloss = $"GitHub organisation {org}", scheme = "org", hard = 0 });
 
-            List<JsonElement> repos = ReposOf(org, runner);
+            (List<JsonElement>? listed, string? error) = ReposOf(org, runner);
+            if (listed is null)
+            {
+                lines.Add($"error: {org}: {error}");
+                failed = true;
+                continue;
+            }
+            List<JsonElement> repos = listed;
             lines.Add($"  {org}: {repos.Count} repo(s)");
+            if (repos.Count >= RepoLimit)
+                lines.Add($"warning: {org}: {repos.Count} repo(s) is the listing limit, the org may have more");
             foreach (JsonElement r in repos)
             {
                 total++;
@@ -99,6 +110,12 @@ public sealed partial class BrainIndexOrgTool : ITool
             }
         }
 
+        if (failed)
+        {
+            lines.Add("index-org stopped: at least one org could not be listed, nothing was written or imported");
+            return string.Join("\n", lines);
+        }
+
         object fragment = new { nodes, slots = Array.Empty<object>(), links, aliases = Array.Empty<object>(), terms = Array.Empty<object>(), edges = Array.Empty<object>() };
         File.WriteAllText(outPath, JsonSerializer.Serialize(fragment, new JsonSerializerOptions { WriteIndented = true }));
         lines.Add("");
@@ -116,18 +133,19 @@ public sealed partial class BrainIndexOrgTool : ITool
         return string.Join("\n", lines);
     }
 
-    private static List<JsonElement> ReposOf(string org, IProcessRunner runner)
+    // A failed listing returns null repos and the reason, so the caller never mistakes it for an empty org.
+    private static (List<JsonElement>? Repos, string? Error) ReposOf(string org, IProcessRunner runner)
     {
-        (string stdout, _, int exitCode) = runner.Run("gh", ["repo", "list", org, "--limit", "500", "--json", Fields]);
-        if (exitCode != 0) return [];
+        (string stdout, string stderr, int exitCode) = runner.Run("gh", ["repo", "list", org, "--limit", RepoLimit.ToString(), "--json", Fields]);
+        if (exitCode != 0) return (null, $"gh repo list failed (exit {exitCode}): {stderr.Trim()}");
         try
         {
             using JsonDocument doc = JsonDocument.Parse(stdout);
-            return [.. doc.RootElement.EnumerateArray().Select(e => e.Clone())];
+            return ([.. doc.RootElement.EnumerateArray().Select(e => e.Clone())], null);
         }
-        catch (JsonException)
+        catch (Exception e) when (e is JsonException or InvalidOperationException)
         {
-            return [];
+            return (null, $"gh repo list printed output that is not a JSON array: {e.Message}");
         }
     }
 

@@ -18,10 +18,12 @@ public class BrainIndexOrgToolTests
     {
         public string GhJson = "[]";
         public string GitRemoteUrl = "";
+        public int GhExit = 0;
+        public string GhStderr = "";
 
         public (string Stdout, string Stderr, int ExitCode) Run(string fileName, IReadOnlyList<string> args, string? workingDirectory = null, TimeSpan? timeout = null)
         {
-            if (fileName == "gh") return (GhJson, "", 0);
+            if (fileName == "gh") return (GhJson, GhStderr, GhExit);
             if (fileName == "git" && args.Contains("remote")) return (GitRemoteUrl, "", GitRemoteUrl.Length > 0 ? 0 : 1);
             return ("", "unexpected command", 1);
         }
@@ -101,6 +103,55 @@ public class BrainIndexOrgToolTests
         finally
         {
             GrimoiraCliRunner.DeleteInstance(instance);
+            Directory.Delete(tmp, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void AFailedGhCallIsReportedWithItsStderrAndWritesAndImportsNothing()
+    {
+        string tmp = Path.Combine(Path.GetTempPath(), $"grimoira-org-fail-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tmp);
+        try
+        {
+            // The store is left without a schema on purpose: an import attempt would throw.
+            using SqliteConnection connection = StoreConnection.Open(Path.Combine(tmp, "empty.db"));
+            FakeRunner runner = new() { GhJson = "", GhExit = 1, GhStderr = "gh: not logged in" };
+
+            string outPath = Path.Combine(tmp, "org.json");
+            string result = new BrainIndexOrgTool().ExecuteCli(
+                connection, ["SomeOrg"], [tmp], outPath, dry: false, runner);
+
+            Assert.Contains("error: SomeOrg: gh repo list failed (exit 1): gh: not logged in", result);
+            Assert.DoesNotContain("0 repo(s)", result);
+            Assert.False(File.Exists(outPath));
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            Directory.Delete(tmp, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void AListingThatHitsTheLimitIsFlaggedAsTruncated()
+    {
+        string tmp = Path.Combine(Path.GetTempPath(), $"grimoira-org-limit-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tmp);
+        try
+        {
+            using SqliteConnection connection = StoreConnection.Open(Path.Combine(tmp, "empty.db"));
+            string items = string.Join(",", Enumerable.Range(0, 500).Select(i => $"{{\"name\":\"r{i}\",\"url\":\"https://github.com/Big/r{i}\"}}"));
+            FakeRunner runner = new() { GhJson = $"[{items}]" };
+
+            string result = new BrainIndexOrgTool().ExecuteCli(
+                connection, ["Big"], [tmp], Path.Combine(tmp, "org.json"), dry: true, runner);
+
+            Assert.Contains("warning: Big: 500 repo(s) is the listing limit, the org may have more", result);
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
             Directory.Delete(tmp, recursive: true);
         }
     }
