@@ -62,6 +62,7 @@ public sealed class BrainFlushTool : ITool
         string[] lines = [.. File.ReadAllLines(ledger).Where(l => l.Trim().Length > 0)];
         if (lines.Length == 0) { File.Delete(ledger); return "nothing staged."; }
         int n = 0;
+        StringBuilder rejects = new();
         BeginTransaction(connection);
         foreach (string line in lines)
         {
@@ -70,14 +71,24 @@ public sealed class BrainFlushTool : ITool
             switch (JStr(e, "k"))
             {
                 case "node": BrainWriters.AddNode(connection, JStr(e, "key"), JStr(e, "kind"), JStr(e, "label"), JStr(e, "gloss"), JStr(e, "scheme"), JBool(e, "hard"), "flush"); n++; break;
-                case "triple": BrainWriters.AddTriple(connection, JStr(e, "s"), JStr(e, "p"), JStr(e, "o"), JStr(e, "because"), "manual", JBool(e, "hard"), "flush"); n++; break;
+                case "triple":
+                    // A rejected triple is reported (like the MCP path's rejects list) and not counted as flushed.
+                    StringWriter warnings = new();
+                    BrainWriters.TripleWrite written = BrainWriters.AddTriple(connection, JStr(e, "s"), JStr(e, "p"), JStr(e, "o"), JStr(e, "because"), "manual", JBool(e, "hard"), "flush", warnings);
+                    if (written == BrainWriters.TripleWrite.UnknownPredicate) rejects.AppendLine($"  ! {line} -> rejected: {warnings.ToString().Trim()}");
+                    else
+                    {
+                        n++;
+                        if (warnings.GetStringBuilder().Length > 0) Console.Error.Write(warnings.ToString()); // keep the contradiction warning on stderr
+                    }
+                    break;
                 case "slot": BrainWriters.AddSlot(connection, JStr(e, "frame"), JStr(e, "name"), JStr(e, "value"), JStr(e, "facet"), JBool(e, "multi"), JStr(e, "because"), "manual", "flush"); n++; break;
             }
         }
         CommitTransaction(connection);
         File.Delete(ledger);
         BrainGapResolver.Resolve(connection, string.Join(' ', lines));
-        return $"flushed {n} learning(s) into the brain.";
+        return $"flushed {n} learning(s) into the brain." + (rejects.Length > 0 ? "\n" + rejects : "");
     }
 
     public string ExecuteMcp(SqliteConnection connection, string sessionId = "")
