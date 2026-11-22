@@ -208,7 +208,7 @@ public static partial class InitFull
                     foreach (string d in Directory.EnumerateDirectories(projectsDir))
                     {
                         string name = Path.GetFileName(d);
-                        if (name == prefix || name.StartsWith($"{prefix}-", StringComparison.Ordinal)) dirs.Add(d);
+                        if (IsProjectFolderName(name, prefix)) dirs.Add(d);
                     }
                 }
 
@@ -305,11 +305,16 @@ public static partial class InitFull
         return rows;
     }
 
-    // init.mjs's root.replace(/[:\\/]+/g, '-'), used both for the memory directory and the chat
-    // transcript-directory prefix match.
-    private static string PathSlug(string path) =>
-        PathSeparatorRun().ReplaceOrKeep(path, "-");
+    // Claude Code names a project's folder by replacing every non-alphanumeric character of the root
+    // with a dash (a drive path becomes C--Projects-App). The drive letter's case on disk follows the
+    // session's launch path, so folder names are compared ignoring case.
+    internal static string PathSlug(string path) =>
+        NonAlphanumeric().ReplaceOrKeep(path, "-");
 
-    [GeneratedRegex(@"[:\\/]+", RegexOptions.None, RegexTimeout.Milliseconds)]
-    private static partial Regex PathSeparatorRun();
+    internal static bool IsProjectFolderName(string name, string slug) =>
+        name.Equals(slug, StringComparison.OrdinalIgnoreCase)
+        || name.StartsWith($"{slug}-", StringComparison.OrdinalIgnoreCase);
+
+    [GeneratedRegex("[^a-zA-Z0-9]", RegexOptions.None, matchTimeoutMilliseconds: RegexTimeout.Milliseconds)]
+    private static partial Regex NonAlphanumeric();
 }

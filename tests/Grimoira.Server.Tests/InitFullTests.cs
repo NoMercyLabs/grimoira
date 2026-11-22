@@ -301,6 +301,29 @@ public class InitFullBrainSchemaParityTests : IDisposable
         return rows;
     }
 
+    [Fact]
+    public void PathSlugNamesTheFolderClaudeCodeUsesOnWindows()
+    {
+        Assert.Equal("C--Projects-App", InitFull.PathSlug(@"C:\Projects\App"));
+        Assert.Equal("C--Projects-App", InitFull.PathSlug("C:/Projects/App"));
+        Assert.Equal("-home-me-my-app", InitFull.PathSlug("/home/me/my.app"));
+    }
+
+    [Theory]
+    [InlineData("c--Projects-App")]
+    [InlineData("C--Projects-App")]
+    [InlineData("c--projects-app-sub")]
+    public void ProjectFolderMatchIgnoresCase(string folder)
+    {
+        Assert.True(InitFull.IsProjectFolderName(folder, InitFull.PathSlug(@"C:\Projects\App")));
+    }
+
+    [Fact]
+    public void ProjectFolderMatchRejectsASiblingWithTheSamePrefixText()
+    {
+        Assert.False(InitFull.IsProjectFolderName("c--Projects-Application", InitFull.PathSlug(@"C:\Projects\App")));
+    }
+
     private static string Normalize(string? sql) =>
         sql is null ? "" : string.Join(' ', sql.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
 }
