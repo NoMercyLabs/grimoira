@@ -76,7 +76,7 @@ public static class McpBridge
 
         McpServerOptions options = new()
         {
-            ServerInfo = new Implementation { Name = "grimoira", Version = "2.2.6" },
+            ServerInfo = new Implementation { Name = "grimoira", Version = "2.2.7" },
             Capabilities = new ServerCapabilities { Tools = new ToolsCapability() },
             Handlers = new McpServerHandlers
             {
