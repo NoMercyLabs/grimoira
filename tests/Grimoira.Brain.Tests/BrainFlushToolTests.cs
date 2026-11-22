@@ -217,4 +217,47 @@ public class BrainFlushToolTests
             GrimoiraCliRunner.DeleteInstance(instance);
         }
     }
+
+    // --- Issue #9 (AUD-9502): one bad staged line must not abort the whole CLI flush. ---
+
+    [Fact]
+    public void CliFlushStoresGoodLinesAndKeepsBadLinesStagedWithAnError()
+    {
+        string instance = GrimoiraCliRunner.NewTestInstance("flush-cli-badline");
+        try
+        {
+            string db = GrimoiraCliRunner.InstanceDbPath(instance);
+            GrimoiraCliRunner.Seed($"init --instance {instance}");
+            BrainTestFixtures.InsertNode(db, "flush:s1", "concept", "subject", "");
+            BrainTestFixtures.InsertNode(db, "flush:o1", "concept", "object", "");
+            using SqliteConnection connection = StoreConnection.Open(db);
+            BrainStageTool stage = new();
+            stage.ExecuteCli(connection, ["triple", "flush:s1", "related", "flush:o1"]);
+            stage.ExecuteCli(connection, ["triple", "flush:s1", "consumes", "flush:missing"]);
+            string ledger = BrainStageTool.LedgerPath(connection);
+            File.AppendAllText(ledger, "{\"k\":\"node\",\"key\":\"flush:half" + Environment.NewLine);
+
+            string result = new BrainFlushTool().ExecuteCli(connection);
+
+            Assert.StartsWith("flushed 1 learning(s) into the brain.", result);
+            Assert.Contains("flush:missing", result);
+            Assert.Contains("2 kept staged", result);
+            Assert.True(File.Exists(ledger), "bad lines must stay staged");
+            string kept = File.ReadAllText(ledger);
+            Assert.Contains("flush:missing", kept);
+            Assert.DoesNotContain("\"related\"", kept);
+
+            using SqliteCommand good = connection.CreateCommand();
+            good.CommandText = "SELECT count(*) FROM triple_now WHERE s='flush:s1' AND p='related' AND o='flush:o1'";
+            Assert.Equal(1L, (long)good.ExecuteScalar()!);
+
+            // A second flush must behave the same, not fail forever.
+            string again = new BrainFlushTool().ExecuteCli(connection);
+            Assert.StartsWith("flushed 0 learning(s) into the brain.", again);
+        }
+        finally
+        {
+            GrimoiraCliRunner.DeleteInstance(instance);
+        }
+    }
 }
