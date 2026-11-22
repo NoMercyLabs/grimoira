@@ -62,33 +62,60 @@ public sealed class BrainFlushTool : ITool
         string[] lines = [.. File.ReadAllLines(ledger).Where(l => l.Trim().Length > 0)];
         if (lines.Length == 0) { File.Delete(ledger); return "nothing staged."; }
         int n = 0;
+        // Issue #9 (AUD-9502): each line runs in its own savepoint. A line that throws (a triple naming a node
+        // that is not live trips the dangling-link trigger; a half-written line fails to parse) is rolled back,
+        // reported and kept in the ledger, so the good lines still flush and the bad one never blocks them.
+        List<string> flushed = [];
+        List<string> kept = [];
         StringBuilder rejects = new();
         BeginTransaction(connection);
         foreach (string line in lines)
         {
-            using JsonDocument d = JsonDocument.Parse(line);
-            JsonElement e = d.RootElement;
-            switch (JStr(e, "k"))
+            Execute(connection, "SAVEPOINT flush_line");
+            try
             {
-                case "node": BrainWriters.AddNode(connection, JStr(e, "key"), JStr(e, "kind"), JStr(e, "label"), JStr(e, "gloss"), JStr(e, "scheme"), JBool(e, "hard"), "flush"); n++; break;
-                case "triple":
-                    // A rejected triple is reported (like the MCP path's rejects list) and not counted as flushed.
-                    StringWriter warnings = new();
-                    BrainWriters.TripleWrite written = BrainWriters.AddTriple(connection, JStr(e, "s"), JStr(e, "p"), JStr(e, "o"), JStr(e, "because"), "manual", JBool(e, "hard"), "flush", warnings);
-                    if (written == BrainWriters.TripleWrite.UnknownPredicate) rejects.AppendLine($"  ! {line} -> rejected: {warnings.ToString().Trim()}");
-                    else
-                    {
-                        n++;
-                        if (warnings.GetStringBuilder().Length > 0) Console.Error.Write(warnings.ToString()); // keep the contradiction warning on stderr
-                    }
-                    break;
-                case "slot": BrainWriters.AddSlot(connection, JStr(e, "frame"), JStr(e, "name"), JStr(e, "value"), JStr(e, "facet"), JBool(e, "multi"), JStr(e, "because"), "manual", "flush"); n++; break;
+                using JsonDocument d = JsonDocument.Parse(line);
+                JsonElement e = d.RootElement;
+                switch (JStr(e, "k"))
+                {
+                    case "node": BrainWriters.AddNode(connection, JStr(e, "key"), JStr(e, "kind"), JStr(e, "label"), JStr(e, "gloss"), JStr(e, "scheme"), JBool(e, "hard"), "flush"); n++; break;
+                    case "triple":
+                        // A rejected triple is reported (like the MCP path's rejects list) and not counted as flushed.
+                        StringWriter warnings = new();
+                        BrainWriters.TripleWrite written = BrainWriters.AddTriple(connection, JStr(e, "s"), JStr(e, "p"), JStr(e, "o"), JStr(e, "because"), "manual", JBool(e, "hard"), "flush", warnings);
+                        if (written == BrainWriters.TripleWrite.UnknownPredicate) rejects.AppendLine($"  ! {line} -> rejected: {warnings.ToString().Trim()}");
+                        else
+                        {
+                            n++;
+                            if (warnings.GetStringBuilder().Length > 0) Console.Error.Write(warnings.ToString()); // keep the contradiction warning on stderr
+                        }
+                        break;
+                    case "slot": BrainWriters.AddSlot(connection, JStr(e, "frame"), JStr(e, "name"), JStr(e, "value"), JStr(e, "facet"), JBool(e, "multi"), JStr(e, "because"), "manual", "flush"); n++; break;
+                }
+                Execute(connection, "RELEASE flush_line");
+                flushed.Add(line);
+            }
+            catch (Exception ex) when (ex is SqliteException or JsonException)
+            {
+                Execute(connection, "ROLLBACK TO flush_line");
+                Execute(connection, "RELEASE flush_line");
+                rejects.AppendLine($"  ! {line} -> {ex.Message}");
+                kept.Add(line);
             }
         }
         CommitTransaction(connection);
-        File.Delete(ledger);
-        BrainGapResolver.Resolve(connection, string.Join(' ', lines));
-        return $"flushed {n} learning(s) into the brain." + (rejects.Length > 0 ? "\n" + rejects : "");
+        if (kept.Count > 0) AtomicWriteAllLines(ledger, kept);
+        else File.Delete(ledger);
+        BrainGapResolver.Resolve(connection, string.Join(' ', flushed));
+        string keptNote = kept.Count > 0 ? $" {kept.Count} kept staged (rejected, see below)." : "";
+        return $"flushed {n} learning(s) into the brain.{keptNote}" + (rejects.Length > 0 ? "\n" + rejects : "");
+    }
+
+    private static void Execute(SqliteConnection connection, string sql)
+    {
+        using SqliteCommand command = connection.CreateCommand();
+        command.CommandText = sql;
+        command.ExecuteNonQuery();
     }
 
     public string ExecuteMcp(SqliteConnection connection, string sessionId = "")
